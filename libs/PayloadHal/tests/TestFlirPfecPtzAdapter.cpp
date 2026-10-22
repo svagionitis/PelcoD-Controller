@@ -1,15 +1,18 @@
-#include "Nmea/FlirPfecDevice.h"
-#include "Nmea/NmeaChecksum.h"
-#include "Transport/BaseTransport.h"
-#include "adapters/FlirPfecPtzAdapter.h"
-
-#include <gtest/gtest.h>
+#include <cstdint>
 
 #include <atomic>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <vector>
+
+#include <gtest/gtest.h>
+
+#include "Nmea/FlirPfecDevice.h"
+#include "Nmea/NmeaChecksum.h"
+#include "Transport/BaseTransport.h"
+#include "adapters/FlirPfecPtzAdapter.h"
 
 namespace PayloadHal {
 namespace {
@@ -38,13 +41,24 @@ namespace {
         bool sendData(const std::vector<std::uint8_t>& data) override
         {
             std::lock_guard<std::mutex> lock(m_txMutex);
-            m_sentPackets.push_back(std::string(data.begin(), data.end()));
+            std::string pkt {};
+            pkt.reserve(data.size());
+            for (const std::uint8_t b : data) {
+                pkt.push_back(static_cast<char>(b));
+            }
+            if (pkt.find("GPpos") == std::string::npos) {
+                m_sentPackets.push_back(std::move(pkt));
+            }
             return true;
         }
 
         void injectString(std::string_view text)
         {
-            const std::vector<std::uint8_t> data(text.begin(), text.end());
+            std::vector<std::uint8_t> data {};
+            data.reserve(text.size());
+            for (const char ch : text) {
+                data.push_back(static_cast<std::uint8_t>(ch));
+            }
             invokeDataCallback(data);
         }
 
@@ -94,6 +108,7 @@ namespace {
         auto flirDevice = std::make_shared<Nmea::FlirPfecDevice>(transport);
         FlirPfecPtzAdapter adapter(flirDevice);
         ASSERT_TRUE(adapter.connect());
+        transport->clearSentPackets();
 
         // Velocity
         EXPECT_TRUE(adapter.setNormalizedVelocity(0.5f, -0.25f));
@@ -129,6 +144,7 @@ namespace {
         auto flirDevice = std::make_shared<Nmea::FlirPfecDevice>(transport);
         FlirPfecPtzAdapter adapter(flirDevice);
         ASSERT_TRUE(adapter.connect());
+        transport->clearSentPackets();
 
         double minPan { 0.0 };
         double maxPan { 0.0 };

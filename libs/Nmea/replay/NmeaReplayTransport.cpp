@@ -1,12 +1,23 @@
 #include "NmeaReplayTransport.h"
 
-#include <algorithm>
 #include <cctype>
 #include <charconv>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <ctime>
+
+#include <algorithm>
+#include <chrono>
 #include <fstream>
+#include <memory>
+#include <mutex>
+#include <optional>
 #include <sstream>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 namespace Nmea {
 
@@ -188,7 +199,11 @@ void NmeaReplayTransport::stepForward()
     }
 
     if (!lineToEmit.empty()) {
-        const std::vector<std::uint8_t> data(lineToEmit.begin(), lineToEmit.end());
+        std::vector<std::uint8_t> data {};
+        data.reserve(lineToEmit.size());
+        for (const char ch : lineToEmit) {
+            data.push_back(static_cast<std::uint8_t>(ch));
+        }
         invokeDataCallback(data);
     }
 }
@@ -649,7 +664,11 @@ void NmeaReplayTransport::playbackWorker()
         }
 
         if (!sentenceToSend.empty()) {
-            const std::vector<std::uint8_t> data(sentenceToSend.begin(), sentenceToSend.end());
+            std::vector<std::uint8_t> data {};
+            data.reserve(sentenceToSend.size());
+            for (const char ch : sentenceToSend) {
+                data.push_back(static_cast<std::uint8_t>(ch));
+            }
             invokeDataCallback(data);
         }
     }

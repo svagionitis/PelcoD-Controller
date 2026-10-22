@@ -27,15 +27,15 @@ class QViscaSonyDevice : public QObject {
     Q_OBJECT
 
 public:
-    explicit QViscaSonyDevice(std::shared_ptr<::Transport::ITransport> transport = nullptr, uint8_t cameraAddress = 1,
-        QObject* parent = nullptr);
+    explicit QViscaSonyDevice(std::shared_ptr<::Transport::ITransport> transport = nullptr,
+        std::uint8_t cameraAddress = 1, QObject* parent = nullptr);
     ~QViscaSonyDevice() override;
 
     // Non-copyable, non-movable
     QViscaSonyDevice(const QViscaSonyDevice&) = delete;
     QViscaSonyDevice& operator=(const QViscaSonyDevice&) = delete;
 
-    void setTransport(std::shared_ptr<::Transport::ITransport> transport, uint8_t cameraAddress = 1);
+    void setTransport(std::shared_ptr<::Transport::ITransport> transport, std::uint8_t cameraAddress = 1);
     [[nodiscard]] std::shared_ptr<::Transport::ITransport> transport() const noexcept;
 
     [[nodiscard]] bool connectDevice();
@@ -43,8 +43,8 @@ public:
     void disconnectDevice();
     [[nodiscard]] bool isConnected() const noexcept;
 
-    [[nodiscard]] uint8_t cameraAddress() const noexcept;
-    void setCameraAddress(uint8_t address);
+    [[nodiscard]] std::uint8_t cameraAddress() const noexcept;
+    void setCameraAddress(std::uint8_t address);
 
     [[nodiscard]] Visca::Sony::SonyCameraModelType modelType() const noexcept;
     [[nodiscard]] Visca::Sony::CameraCapabilities capabilities() const noexcept;
@@ -78,27 +78,27 @@ public slots:
     void pollStatus();
 
     // Lens & Optics
-    void setZoomDirect(uint16_t position);
-    void zoomTele(uint8_t speed = 4);
-    void zoomWide(uint8_t speed = 4);
+    void setZoomDirect(std::uint16_t position);
+    void zoomTele(std::uint8_t speed = 4);
+    void zoomWide(std::uint8_t speed = 4);
     void zoomStop();
 
     void setFocusAuto(bool autoMode);
-    void setFocusDirect(uint16_t position);
+    void setFocusDirect(std::uint16_t position);
     void focusOnePush();
-    void setFocusNearLimit(uint16_t limit);
+    void setFocusNearLimit(std::uint16_t limit);
 
     // Exposure
     void setExposureMode(Visca::Sony::SonyExposureMode mode);
-    void setShutter(uint8_t position);
-    void setIris(uint8_t position);
-    void setGain(uint8_t position);
-    void setExposureCompensation(bool on, uint8_t position = 0);
+    void setShutter(std::uint8_t position);
+    void setIris(std::uint8_t position);
+    void setGain(std::uint8_t position);
+    void setExposureCompensation(bool on, std::uint8_t position = 0);
 
     // White Balance
     void setWhiteBalance(Visca::Sony::SonyWhiteBalanceMode mode);
-    void setRgainDirect(uint8_t position);
-    void setBgainDirect(uint8_t position);
+    void setRgainDirect(std::uint8_t position);
+    void setBgainDirect(std::uint8_t position);
     void triggerOnePushWb();
 
     // Image Enhancement
@@ -110,13 +110,13 @@ public slots:
     // Hardware Gated Options
     void setDistortionCompensation(bool on);
     void setOpticalAxisGapCompensation(bool on);
-    void setOperatingMode(uint8_t mode);
-    void setLvdsMode(uint8_t mode);
-    void setDigitalOutputMode(uint8_t mode);
+    void setOperatingMode(std::uint8_t mode);
+    void setLvdsMode(std::uint8_t mode);
+    void setDigitalOutputMode(std::uint8_t mode);
 
     // Custom Registers & Raw Dispatch
-    void writeRegister(uint8_t reg, uint8_t val);
-    void readRegister(uint8_t reg);
+    void writeRegister(std::uint8_t reg, std::uint8_t val);
+    void readRegister(std::uint8_t reg);
     void sendRawHex(const QByteArray& hexData);
 
     // Power & Interface
@@ -128,7 +128,7 @@ private:
     void setupTrafficHook();
 
     std::shared_ptr<::Transport::ITransport> m_transport;
-    uint8_t m_cameraAddress { 1 };
+    std::uint8_t m_cameraAddress { 1 };
     std::shared_ptr<Visca::Sony::SonyFCBDevice> m_fcbDevice;
 
     QTimer* m_pollTimer { nullptr };

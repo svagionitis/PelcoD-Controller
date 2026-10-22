@@ -1,6 +1,17 @@
 #include "NmeaDevice.h"
 
+#include <cstddef>
+#include <cstdint>
+
 #include <algorithm>
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 namespace Nmea {
 
@@ -109,7 +120,11 @@ bool NmeaDevice::sendSentence(std::string_view sentence, bool appendChecksum)
         }
     }
 
-    const std::vector<std::uint8_t> bytes(toSend.begin(), toSend.end());
+    std::vector<std::uint8_t> bytes {};
+    bytes.reserve(toSend.size());
+    for (const char ch : toSend) {
+        bytes.push_back(static_cast<std::uint8_t>(ch));
+    }
     const bool success = m_transport->sendData(bytes);
 
     if (success) {

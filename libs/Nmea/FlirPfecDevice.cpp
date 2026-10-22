@@ -1,7 +1,17 @@
 #include "FlirPfecDevice.h"
 
+#include <cstddef>
+#include <cstdint>
+
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 namespace Nmea {
 
@@ -270,7 +280,11 @@ bool FlirPfecDevice::sendSentence(const std::string& sentence)
     if (!m_transport || !m_transport->isOpen()) {
         return false;
     }
-    const std::vector<std::uint8_t> bytes(sentence.begin(), sentence.end());
+    std::vector<std::uint8_t> bytes {};
+    bytes.reserve(sentence.size());
+    for (const char ch : sentence) {
+        bytes.push_back(static_cast<std::uint8_t>(ch));
+    }
     return m_transport->sendData(bytes);
 }
 

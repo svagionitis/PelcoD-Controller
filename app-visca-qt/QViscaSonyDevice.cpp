@@ -2,14 +2,22 @@
 /// @brief Implementation of Qt adapter for Sony FCB cameras.
 
 #include "QViscaSonyDevice.h"
-#include <SonyViscaBuilder.h>
-#include <ViscaBuilder.h>
-#include <ViscaParser.h>
+
+#include <cstddef>
+#include <cstdint>
+
+#include <memory>
+#include <utility>
+#include <vector>
 
 #include <QDateTime>
 #include <QMetaObject>
 #include <QThreadPool>
 #include <glog/logging.h>
+
+#include <SonyViscaBuilder.h>
+#include <ViscaBuilder.h>
+#include <ViscaParser.h>
 
 namespace ViscaApp {
 
@@ -98,7 +106,7 @@ namespace {
 } // namespace
 
 QViscaSonyDevice::QViscaSonyDevice(
-    std::shared_ptr<::Transport::ITransport> transport, uint8_t cameraAddress, QObject* parent)
+    std::shared_ptr<::Transport::ITransport> transport, std::uint8_t cameraAddress, QObject* parent)
     : QObject(parent)
     , m_transport(std::move(transport))
     , m_cameraAddress(cameraAddress)
@@ -113,7 +121,7 @@ QViscaSonyDevice::~QViscaSonyDevice()
     disconnectDevice();
 }
 
-void QViscaSonyDevice::setTransport(std::shared_ptr<::Transport::ITransport> transport, uint8_t cameraAddress)
+void QViscaSonyDevice::setTransport(std::shared_ptr<::Transport::ITransport> transport, std::uint8_t cameraAddress)
 {
     const bool wasConnected = m_connected;
     if (wasConnected) {
@@ -131,12 +139,12 @@ std::shared_ptr<::Transport::ITransport> QViscaSonyDevice::transport() const noe
     return m_transport;
 }
 
-uint8_t QViscaSonyDevice::cameraAddress() const noexcept
+std::uint8_t QViscaSonyDevice::cameraAddress() const noexcept
 {
     return m_cameraAddress;
 }
 
-void QViscaSonyDevice::setCameraAddress(uint8_t address)
+void QViscaSonyDevice::setCameraAddress(std::uint8_t address)
 {
     m_cameraAddress = address;
     if (m_fcbDevice) {
@@ -215,7 +223,7 @@ void QViscaSonyDevice::setupTrafficHook()
 bool QViscaSonyDevice::connectDevice()
 {
     std::shared_ptr<::Transport::ITransport> trans;
-    uint8_t addr = 1;
+    std::uint8_t addr = 1;
     {
         std::scoped_lock lock(m_mutex);
         trans = m_transport;
@@ -308,21 +316,21 @@ void QViscaSonyDevice::pollStatus()
 }
 
 // Lens & Optics
-void QViscaSonyDevice::setZoomDirect(uint16_t position)
+void QViscaSonyDevice::setZoomDirect(std::uint16_t position)
 {
     if (m_fcbDevice) {
         m_fcbDevice->setZoomDirect(position);
     }
 }
 
-void QViscaSonyDevice::zoomTele(uint8_t speed)
+void QViscaSonyDevice::zoomTele(std::uint8_t speed)
 {
     if (m_fcbDevice) {
         m_fcbDevice->zoomTele(speed);
     }
 }
 
-void QViscaSonyDevice::zoomWide(uint8_t speed)
+void QViscaSonyDevice::zoomWide(std::uint8_t speed)
 {
     if (m_fcbDevice) {
         m_fcbDevice->zoomWide(speed);
@@ -343,7 +351,7 @@ void QViscaSonyDevice::setFocusAuto(bool autoMode)
     }
 }
 
-void QViscaSonyDevice::setFocusDirect(uint16_t position)
+void QViscaSonyDevice::setFocusDirect(std::uint16_t position)
 {
     if (m_fcbDevice) {
         m_fcbDevice->setFocusDirect(position);
@@ -357,7 +365,7 @@ void QViscaSonyDevice::focusOnePush()
     }
 }
 
-void QViscaSonyDevice::setFocusNearLimit(uint16_t limit)
+void QViscaSonyDevice::setFocusNearLimit(std::uint16_t limit)
 {
     if (m_fcbDevice) {
         m_fcbDevice->setFocusNearLimit(limit);
@@ -372,28 +380,28 @@ void QViscaSonyDevice::setExposureMode(Visca::Sony::SonyExposureMode mode)
     }
 }
 
-void QViscaSonyDevice::setShutter(uint8_t position)
+void QViscaSonyDevice::setShutter(std::uint8_t position)
 {
     if (m_fcbDevice) {
         m_fcbDevice->setShutter(position);
     }
 }
 
-void QViscaSonyDevice::setIris(uint8_t position)
+void QViscaSonyDevice::setIris(std::uint8_t position)
 {
     if (m_fcbDevice) {
         m_fcbDevice->setIris(position);
     }
 }
 
-void QViscaSonyDevice::setGain(uint8_t position)
+void QViscaSonyDevice::setGain(std::uint8_t position)
 {
     if (m_fcbDevice) {
         m_fcbDevice->setGain(position);
     }
 }
 
-void QViscaSonyDevice::setExposureCompensation(bool on, uint8_t position)
+void QViscaSonyDevice::setExposureCompensation(bool on, std::uint8_t position)
 {
     if (m_fcbDevice) {
         m_fcbDevice->setExposureCompensation(on, position);
@@ -408,14 +416,14 @@ void QViscaSonyDevice::setWhiteBalance(Visca::Sony::SonyWhiteBalanceMode mode)
     }
 }
 
-void QViscaSonyDevice::setRgainDirect(uint8_t position)
+void QViscaSonyDevice::setRgainDirect(std::uint8_t position)
 {
     if (m_fcbDevice) {
         m_fcbDevice->setRgaiDirect(position);
     }
 }
 
-void QViscaSonyDevice::setBgainDirect(uint8_t position)
+void QViscaSonyDevice::setBgainDirect(std::uint8_t position)
 {
     if (m_fcbDevice) {
         m_fcbDevice->setBgainDirect(position);
@@ -477,7 +485,7 @@ void QViscaSonyDevice::setOpticalAxisGapCompensation(bool on)
     }
 }
 
-void QViscaSonyDevice::setOperatingMode(uint8_t mode)
+void QViscaSonyDevice::setOperatingMode(std::uint8_t mode)
 {
     if (m_fcbDevice) {
         if (!m_fcbDevice->setOperatingMode(mode)) {
@@ -486,7 +494,7 @@ void QViscaSonyDevice::setOperatingMode(uint8_t mode)
     }
 }
 
-void QViscaSonyDevice::setLvdsMode(uint8_t mode)
+void QViscaSonyDevice::setLvdsMode(std::uint8_t mode)
 {
     if (m_fcbDevice) {
         if (!m_fcbDevice->setLvdsMode(mode)) {
@@ -495,7 +503,7 @@ void QViscaSonyDevice::setLvdsMode(uint8_t mode)
     }
 }
 
-void QViscaSonyDevice::setDigitalOutputMode(uint8_t mode)
+void QViscaSonyDevice::setDigitalOutputMode(std::uint8_t mode)
 {
     if (m_fcbDevice) {
         if (!m_fcbDevice->setDigitalOutputMode(mode)) {
@@ -505,7 +513,7 @@ void QViscaSonyDevice::setDigitalOutputMode(uint8_t mode)
 }
 
 // Custom Registers & Raw Dispatch
-void QViscaSonyDevice::writeRegister(uint8_t reg, uint8_t val)
+void QViscaSonyDevice::writeRegister(std::uint8_t reg, std::uint8_t val)
 {
     if (m_fcbDevice) {
         const auto frame = Visca::Sony::SonyViscaBuilder::writeRegister(m_cameraAddress, reg, val);
@@ -519,7 +527,7 @@ void QViscaSonyDevice::writeRegister(uint8_t reg, uint8_t val)
     }
 }
 
-void QViscaSonyDevice::readRegister(uint8_t reg)
+void QViscaSonyDevice::readRegister(std::uint8_t reg)
 {
     if (m_fcbDevice) {
         const auto frame = Visca::Sony::SonyViscaBuilder::registerInquiry(m_cameraAddress, reg);
@@ -547,7 +555,11 @@ void QViscaSonyDevice::sendRawHex(const QByteArray& hexData)
         return;
     }
 
-    std::vector<uint8_t> bytes(binary.cbegin(), binary.cend());
+    std::vector<std::uint8_t> bytes {};
+    bytes.reserve(static_cast<std::size_t>(binary.size()));
+    for (const char ch : binary) {
+        bytes.push_back(static_cast<std::uint8_t>(ch));
+    }
     Visca::ViscaFrame frame;
     try {
         frame = Visca::ViscaFrame(std::move(bytes));

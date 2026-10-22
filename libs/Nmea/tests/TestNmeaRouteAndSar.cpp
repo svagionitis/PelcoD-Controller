@@ -1,3 +1,15 @@
+#include <cstdint>
+
+#include <atomic>
+#include <chrono>
+#include <cmath>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include <gtest/gtest.h>
+
 #include "Nmea/NmeaChecksum.h"
 #include "Nmea/NmeaDevice.h"
 #include "Nmea/NmeaSentenceBuilder.h"
@@ -7,14 +19,6 @@
 #include "PayloadHal/NmeaSlavingBridge.h"
 #include "PayloadHal/sim/SimulatedPayload.h"
 #include "Transport/BaseTransport.h"
-
-#include <gtest/gtest.h>
-
-#include <atomic>
-#include <chrono>
-#include <cmath>
-#include <memory>
-#include <vector>
 
 namespace Nmea {
 namespace {
@@ -48,7 +52,12 @@ namespace {
             if (toSend.empty() || toSend.back() != '\n') {
                 toSend += "\r\n";
             }
-            invokeDataCallback(std::vector<std::uint8_t>(toSend.begin(), toSend.end()));
+            std::vector<std::uint8_t> bytes {};
+            bytes.reserve(toSend.size());
+            for (const char ch : toSend) {
+                bytes.push_back(static_cast<std::uint8_t>(ch));
+            }
+            invokeDataCallback(bytes);
         }
 
         std::vector<std::vector<std::uint8_t>> m_sentData {};

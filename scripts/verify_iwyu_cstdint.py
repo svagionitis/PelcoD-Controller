@@ -154,6 +154,22 @@ def check_file(filepath: str, strict: bool = False) -> List[str]:
                 "[MISSING <cstddef>] 'size_t' or 'ptrdiff_t' used without direct inclusion of <cstddef> or <cstdint>."
             )
 
+    # 4. Check for signed/unsigned range conversions (MISRA C++:2023 Rule 7.0.6 / CERT INT31-C / MSVC C4365)
+    regex_range_conv = re.compile(
+        r"\b(?:std::)?vector\s*<\s*(?:std::)?uint8_t\s*>\s+(?:[a-zA-Z0-9_]+\s*)?\(\s*([a-zA-Z0-9_]+)\.(?:c?begin|data)\(\)\s*,\s*([a-zA-Z0-9_]+)\.(?:c?end|data\(\))"
+    )
+    for match in regex_range_conv.finditer(clean_content):
+        start_source = match.group(1)
+        end_source = match.group(2)
+        if start_source == end_source:
+            source_lower = start_source.lower()
+            if any(h in source_lower for h in ["str", "string", "sentence", "text", "finalstr", "tosend", "hex", "qba"]):
+                violations.append(
+                    f"[RANGE CONVERSION VIOLATION] Prohibited range constructor `std::vector<std::uint8_t>(...)` over '{start_source}'. "
+                    f"Violates MISRA C++:2023 Rule 7.0.6 & CERT INT31-C (triggers MSVC C4365). "
+                    f"Use reserve() with explicit static_cast<std::uint8_t>(ch) loop."
+                )
+
     return violations
 
 def fix_cstdint_in_file(filepath: str) -> bool:

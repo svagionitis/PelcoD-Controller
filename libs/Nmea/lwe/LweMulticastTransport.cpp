@@ -1,8 +1,18 @@
 #include "LweMulticastTransport.h"
-#include "NmeaTagBlockBuilder.h"
-#include "NmeaTypes.h"
+
+#include <cstddef>
+#include <cstdint>
+
+#include <mutex>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include <glog/logging.h>
+
+#include "NmeaTagBlockBuilder.h"
+#include "NmeaTypes.h"
 
 namespace Nmea::Lwe {
 
@@ -298,7 +308,11 @@ bool LweMulticastTransport::sendSentence(std::string_view sentence, bool attachT
         finalStr += "\r\n";
     }
 
-    const std::vector<std::uint8_t> payload(finalStr.begin(), finalStr.end());
+    std::vector<std::uint8_t> payload {};
+    payload.reserve(finalStr.size());
+    for (const char ch : finalStr) {
+        payload.push_back(static_cast<std::uint8_t>(ch));
+    }
     return sendData(payload);
 }
 

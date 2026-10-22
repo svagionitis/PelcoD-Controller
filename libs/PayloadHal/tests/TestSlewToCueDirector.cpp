@@ -1,3 +1,15 @@
+#include <cstdint>
+
+#include <atomic>
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include <gtest/gtest.h>
+
 #include "AutoFramingController.h"
 #include "GeoLockController.h"
 #include "LocalPresetManager.h"
@@ -10,15 +22,6 @@
 #include "TourEngine.h"
 #include "Transport/BaseTransport.h"
 #include "sim/SimulatedPayload.h"
-
-#include <gtest/gtest.h>
-
-#include <atomic>
-#include <chrono>
-#include <memory>
-#include <mutex>
-#include <string>
-#include <vector>
 
 namespace PayloadHal {
 namespace {
@@ -49,7 +52,11 @@ namespace {
 
         void injectString(std::string_view text)
         {
-            const std::vector<std::uint8_t> data(text.begin(), text.end());
+            std::vector<std::uint8_t> data {};
+            data.reserve(text.size());
+            for (const char ch : text) {
+                data.push_back(static_cast<std::uint8_t>(ch));
+            }
             invokeDataCallback(data);
         }
 
@@ -314,10 +321,7 @@ namespace {
         tour.tourId = "guard_route";
         tour.name = "Guard Route";
         tour.loop = true;
-        tour.waypoints = {
-            { 1, std::chrono::milliseconds(500), 1.0f },
-            { 2, std::chrono::milliseconds(500), 1.0f }
-        };
+        tour.waypoints = { { 1, std::chrono::milliseconds(500), 1.0f }, { 2, std::chrono::milliseconds(500), 1.0f } };
         ASSERT_TRUE(tourEngine->registerTour(tour));
         ASSERT_TRUE(tourEngine->startTour("guard_route"));
         EXPECT_NE(tourEngine->status().state, TourState::Idle);
@@ -348,8 +352,8 @@ namespace {
         transport->injectString(hdt);
 
         // Inject high threat radar contact
-        const std::string ttm
-            = Nmea::NmeaChecksum::frameSentence("RATTM,31,0.8,010.0,T,25.0,190.0,T,0.0,2.0,K,FAST_INTRUDER,T,,120000,A");
+        const std::string ttm = Nmea::NmeaChecksum::frameSentence(
+            "RATTM,31,0.8,010.0,T,25.0,190.0,T,0.0,2.0,K,FAST_INTRUDER,T,,120000,A");
         transport->injectString(ttm);
 
         threatEvaluator->evaluate(

@@ -1,11 +1,5 @@
-#include "GeoLockController.h"
-#include "Nmea/NmeaChecksum.h"
-#include "Nmea/NmeaDevice.h"
-#include "NmeaSlavingBridge.h"
-#include "Transport/BaseTransport.h"
-#include "sim/SimulatedPayload.h"
-
-#include <gtest/gtest.h>
+#include <cstddef>
+#include <cstdint>
 
 #include <atomic>
 #include <chrono>
@@ -13,8 +7,18 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
+
+#include <gtest/gtest.h>
+
+#include "GeoLockController.h"
+#include "Nmea/NmeaChecksum.h"
+#include "Nmea/NmeaDevice.h"
+#include "NmeaSlavingBridge.h"
+#include "Transport/BaseTransport.h"
+#include "sim/SimulatedPayload.h"
 
 namespace PayloadHal {
 namespace {
@@ -49,7 +53,11 @@ namespace {
 
         void injectString(std::string_view text)
         {
-            const std::vector<std::uint8_t> data(text.begin(), text.end());
+            std::vector<std::uint8_t> data {};
+            data.reserve(text.size());
+            for (const char ch : text) {
+                data.push_back(static_cast<std::uint8_t>(ch));
+            }
             invokeDataCallback(data);
         }
 

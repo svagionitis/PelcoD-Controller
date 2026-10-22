@@ -1,16 +1,24 @@
 /// @file TestSerialLrfAdapter.cpp
 /// @brief Comprehensive unit tests for the physical SerialLrfAdapter driver and safety interlocks.
 
-#include "GeoreferenceUtils.h"
-#include "PayloadFactory.h"
-#include "adapters/SerialLrfAdapter.h"
-#include <gtest/gtest.h>
+#include <cstddef>
+#include <cstdint>
 
 #include <atomic>
 #include <chrono>
+#include <memory>
 #include <mutex>
+#include <optional>
+#include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
+
+#include <gtest/gtest.h>
+
+#include "GeoreferenceUtils.h"
+#include "PayloadFactory.h"
+#include "adapters/SerialLrfAdapter.h"
 
 using namespace PayloadHal;
 
@@ -270,10 +278,10 @@ TEST(TestSerialLrfAdapter, BinaryProtocolIngestion)
     EXPECT_TRUE(adapter->armLaser());
 
     // 2500.0 meters = 2500000 mm = 0x002625A0
-    std::vector<uint8_t> frame = { 0xAA, 0x55, 0x10, 0x07, 0x00, 0x00, 0x26, 0x25, 0xA0, 250, 24 };
-    const uint16_t crc = BinaryLrfParser::computeCrc16(frame.data(), frame.size());
-    frame.push_back(static_cast<uint8_t>((crc >> 8) & 0xFF));
-    frame.push_back(static_cast<uint8_t>(crc & 0xFF));
+    std::vector<std::uint8_t> frame = { 0xAA, 0x55, 0x10, 0x07, 0x00, 0x00, 0x26, 0x25, 0xA0, 250, 24 };
+    const std::uint16_t crc = BinaryLrfParser::computeCrc16(frame.data(), frame.size());
+    frame.push_back(static_cast<std::uint8_t>((crc >> 8) & 0xFF));
+    frame.push_back(static_cast<std::uint8_t>(crc & 0xFF));
 
     mockTransport->injectData(frame);
 
@@ -358,7 +366,11 @@ TEST(TestSerialLrfAdapter, ConcurrentOperationsThreadSafety)
     // Thread 1: Ingesting data concurrently
     std::thread ingestionThread([&] {
         const std::string sentence = NmeaLrfParser::formatNmeaSentence("GPLRF,1500.0,M,OK");
-        const std::vector<uint8_t> data(sentence.begin(), sentence.end());
+        std::vector<std::uint8_t> data {};
+        data.reserve(sentence.size());
+        for (const char ch : sentence) {
+            data.push_back(static_cast<std::uint8_t>(ch));
+        }
         while (!stop.load()) {
             mockTransport->injectData(data);
             std::this_thread::yield();
