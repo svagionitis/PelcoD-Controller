@@ -15,7 +15,7 @@ if [ -n "$STAGED_FILES" ]; then
     echo "[GIT HOOK] Running clang-format on staged C++ files..."
     for FILE in $STAGED_FILES; do
         if [ -f "$FILE" ]; then
-            $CLANG_FORMAT -i -style=file "$FILE"
+            "$CLANG_FORMAT" -i -style=file "$FILE"
             git add "$FILE"
         fi
     done
@@ -26,7 +26,7 @@ fi
 PYTHON_BIN=$(command -v python3 || command -v python)
 if [ -n "$PYTHON_BIN" ] && [ -n "$STAGED_FILES" ] && [ -f "scripts/verify_iwyu_cstdint.py" ]; then
     echo "[GIT HOOK] Verifying <cstdint> and IWYU compliance on staged C++ files..."
-    $PYTHON_BIN scripts/verify_iwyu_cstdint.py --files $STAGED_FILES --strict
+    "$PYTHON_BIN" scripts/verify_iwyu_cstdint.py --files $STAGED_FILES --strict
     HOOK_STATUS=$?
     if [ $HOOK_STATUS -ne 0 ]; then
         echo "[GIT HOOK ERROR] <cstdint> / IWYU verification failed. Please fix violations before committing."

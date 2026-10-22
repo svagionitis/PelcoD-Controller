@@ -1,9 +1,16 @@
 #include "MockSonyCamera.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <mutex>
+#include <utility>
+#include <vector>
+
 #include <Transport/TransportTypes.h>
 
 namespace Visca::Sony {
 
-MockSonyCamera::MockSonyCamera(SonyCameraModelType model, uint8_t address)
+MockSonyCamera::MockSonyCamera(SonyCameraModelType model, std::uint8_t address)
     : m_modelType(model)
     , m_address(address)
 {
@@ -33,7 +40,7 @@ bool MockSonyCamera::isOpen() const noexcept
     return m_open.load();
 }
 
-bool MockSonyCamera::sendData(const std::vector<uint8_t>& data)
+bool MockSonyCamera::sendData(const std::vector<std::uint8_t>& data)
 {
     if (!m_open.load()) {
         return false;
@@ -54,13 +61,13 @@ void MockSonyCamera::setStateCallback(StateChangedCallback callback)
     m_stateCallback = std::move(callback);
 }
 
-bool MockSonyCamera::setBaudRate(uint32_t baudRate)
+bool MockSonyCamera::setBaudRate(std::uint32_t baudRate)
 {
     m_baudRate = baudRate;
     return true;
 }
 
-uint32_t MockSonyCamera::getBaudRate() const noexcept
+std::uint32_t MockSonyCamera::getBaudRate() const noexcept
 {
     return m_baudRate;
 }
@@ -77,52 +84,52 @@ SonyCameraModelType MockSonyCamera::modelType() const noexcept
     return m_modelType;
 }
 
-void MockSonyCamera::setCameraAddress(uint8_t address) noexcept
+void MockSonyCamera::setCameraAddress(std::uint8_t address) noexcept
 {
     std::scoped_lock lock(m_mutex);
     m_address = address;
 }
 
-uint8_t MockSonyCamera::cameraAddress() const noexcept
+std::uint8_t MockSonyCamera::cameraAddress() const noexcept
 {
     std::scoped_lock lock(m_mutex);
     return m_address;
 }
 
-uint16_t MockSonyCamera::zoomPosition() const noexcept
+std::uint16_t MockSonyCamera::zoomPosition() const noexcept
 {
     std::scoped_lock lock(m_mutex);
     return m_zoomPosition;
 }
 
-void MockSonyCamera::setZoomPosition(uint16_t pos) noexcept
+void MockSonyCamera::setZoomPosition(std::uint16_t pos) noexcept
 {
     std::scoped_lock lock(m_mutex);
     m_zoomPosition = pos;
 }
 
-uint16_t MockSonyCamera::focusPosition() const noexcept
+std::uint16_t MockSonyCamera::focusPosition() const noexcept
 {
     std::scoped_lock lock(m_mutex);
     return m_focusPosition;
 }
 
-void MockSonyCamera::setFocusPosition(uint16_t pos) noexcept
+void MockSonyCamera::setFocusPosition(std::uint16_t pos) noexcept
 {
     std::scoped_lock lock(m_mutex);
     m_focusPosition = pos;
 }
 
-uint8_t MockSonyCamera::registerValue(uint8_t reg) const noexcept
+std::uint8_t MockSonyCamera::registerValue(std::uint8_t reg) const noexcept
 {
     std::scoped_lock lock(m_mutex);
-    return m_registers[reg & 0x7F];
+    return m_registers[static_cast<std::size_t>(reg & 0x7FU)];
 }
 
-void MockSonyCamera::setRegisterValue(uint8_t reg, uint8_t val) noexcept
+void MockSonyCamera::setRegisterValue(std::uint8_t reg, std::uint8_t val) noexcept
 {
     std::scoped_lock lock(m_mutex);
-    m_registers[reg & 0x7F] = val;
+    m_registers[static_cast<std::size_t>(reg & 0x7FU)] = val;
 }
 
 SonyExposureMode MockSonyCamera::exposureMode() const noexcept
@@ -168,12 +175,12 @@ void MockSonyCamera::processIncomingFrame(const ViscaFrame& frame)
 
     // AddressSet broadcast (88 30 01 FF)
     if (frame.size() == 4 && frame[0] == 0x88 && frame[1] == 0x30 && frame[2] == 0x01) {
-        const uint8_t nextAddress = static_cast<uint8_t>(m_address + 1);
+        const std::uint8_t nextAddress = static_cast<std::uint8_t>(m_address + 1);
         sendResponse(ViscaFrame { 0x88, 0x30, nextAddress, kViscaTerminator });
         return;
     }
 
-    const uint8_t respHdr = static_cast<uint8_t>(0x80 | ((m_address & 0x07) << 4));
+    const std::uint8_t respHdr = static_cast<std::uint8_t>(0x80 | ((m_address & 0x07) << 4));
 
     // IF_Clear broadcast (88 01 00 01 FF) or targeted IF_Clear
     if ((frame.isBroadcast() || frame.destinationAddress() == m_address) && frame.size() == 5 && frame[1] == 0x01
@@ -191,13 +198,13 @@ void MockSonyCamera::processIncomingFrame(const ViscaFrame& frame)
 
     // Cancel command (8x 2s FF)
     if (frame.size() == 3 && (frame[1] & 0xF0) == 0x20) {
-        const uint8_t s = static_cast<uint8_t>(frame[1] & 0x0F);
+        const std::uint8_t s = static_cast<std::uint8_t>(frame[1] & 0x0F);
         if (s == 1) {
             m_socket1Busy = false;
         } else if (s == 2) {
             m_socket2Busy = false;
         }
-        sendResponse(ViscaFrame { respHdr, static_cast<uint8_t>(0x60 | s), 0x04, kViscaTerminator });
+        sendResponse(ViscaFrame { respHdr, static_cast<std::uint8_t>(0x60 | s), 0x04, kViscaTerminator });
         return;
     }
 
@@ -211,12 +218,12 @@ void MockSonyCamera::processIncomingFrame(const ViscaFrame& frame)
 
 void MockSonyCamera::handleInquiry(const ViscaFrame& frame)
 {
-    const uint8_t respHdr = static_cast<uint8_t>(0x80 | ((m_address & 0x07) << 4));
+    const std::uint8_t respHdr = static_cast<std::uint8_t>(0x80 | ((m_address & 0x07) << 4));
 
     // CAM_VersionInq (8x 09 00 02 FF)
     if (frame.size() == 5 && frame[2] == 0x00 && frame[3] == 0x02) {
-        uint8_t modelH = 0x07;
-        uint8_t modelL = 0x11; // Default EV9520L
+        std::uint8_t modelH = 0x07;
+        std::uint8_t modelL = 0x11; // Default EV9520L
         if (m_modelType == SonyCameraModelType::FCB_EW9500H) {
             modelL = 0x0F;
         } else if (m_modelType == SonyCameraModelType::GenericSony) {
@@ -240,20 +247,22 @@ void MockSonyCamera::handleInquiry(const ViscaFrame& frame)
     // CAM_ZoomPosInq (8x 09 04 47 FF)
     if (frame.size() == 5 && frame[2] == 0x04 && frame[3] == 0x47) {
         const auto zNibbles = ViscaFrame::packWordNibbles(m_zoomPosition);
-        sendResponse(ViscaFrame { respHdr, 0x50, zNibbles[0], zNibbles[1], zNibbles[2], zNibbles[3], kViscaTerminator });
+        sendResponse(
+            ViscaFrame { respHdr, 0x50, zNibbles[0], zNibbles[1], zNibbles[2], zNibbles[3], kViscaTerminator });
         return;
     }
 
     // CAM_FocusPosInq (8x 09 04 48 FF)
     if (frame.size() == 5 && frame[2] == 0x04 && frame[3] == 0x48) {
         const auto fNibbles = ViscaFrame::packWordNibbles(m_focusPosition);
-        sendResponse(ViscaFrame { respHdr, 0x50, fNibbles[0], fNibbles[1], fNibbles[2], fNibbles[3], kViscaTerminator });
+        sendResponse(
+            ViscaFrame { respHdr, 0x50, fNibbles[0], fNibbles[1], fNibbles[2], fNibbles[3], kViscaTerminator });
         return;
     }
 
     // CAM_ExpModeInq (8x 09 04 39 FF)
     if (frame.size() == 5 && frame[2] == 0x04 && frame[3] == 0x39) {
-        sendResponse(ViscaFrame { respHdr, 0x50, static_cast<uint8_t>(m_exposureMode), kViscaTerminator });
+        sendResponse(ViscaFrame { respHdr, 0x50, static_cast<std::uint8_t>(m_exposureMode), kViscaTerminator });
         return;
     }
 
@@ -280,7 +289,7 @@ void MockSonyCamera::handleInquiry(const ViscaFrame& frame)
 
     // CAM_WBModeInq (8x 09 04 35 FF)
     if (frame.size() == 5 && frame[2] == 0x04 && frame[3] == 0x35) {
-        sendResponse(ViscaFrame { respHdr, 0x50, static_cast<uint8_t>(m_wbMode), kViscaTerminator });
+        sendResponse(ViscaFrame { respHdr, 0x50, static_cast<std::uint8_t>(m_wbMode), kViscaTerminator });
         return;
     }
 
@@ -298,16 +307,16 @@ void MockSonyCamera::handleInquiry(const ViscaFrame& frame)
 
     // Register Inquiry (8x 09 04 24 mm FF)
     if (frame.size() == 6 && frame[2] == 0x04 && frame[3] == 0x24) {
-        const uint8_t reg = static_cast<uint8_t>(frame[4] & 0x7F);
-        const uint8_t val = m_registers[reg];
-        sendResponse(ViscaFrame { respHdr, 0x50, static_cast<uint8_t>((val >> 4) & 0x0F),
-            static_cast<uint8_t>(val & 0x0F), kViscaTerminator });
+        const std::uint8_t reg = static_cast<std::uint8_t>(frame[4] & 0x7F);
+        const std::uint8_t val = m_registers[static_cast<std::size_t>(reg)];
+        sendResponse(ViscaFrame { respHdr, 0x50, static_cast<std::uint8_t>((val >> 4) & 0x0F),
+            static_cast<std::uint8_t>(val & 0x0F), kViscaTerminator });
         return;
     }
 
     // Block Inquiries (8x 09 7E 7E 0p FF)
     if (frame.size() == 6 && frame[2] == 0x7E && frame[3] == 0x7E) {
-        const uint8_t blockIdx = static_cast<uint8_t>(frame[4] & 0x0F);
+        const std::uint8_t blockIdx = static_cast<std::uint8_t>(frame[4] & 0x0F);
         switch (blockIdx) {
         case 0:
             sendResponse(buildBlock00Response());
@@ -337,12 +346,12 @@ void MockSonyCamera::handleInquiry(const ViscaFrame& frame)
 
 void MockSonyCamera::handleCommand(const ViscaFrame& frame)
 {
-    const uint8_t respHdr = static_cast<uint8_t>(0x80 | ((m_address & 0x07) << 4));
+    const std::uint8_t respHdr = static_cast<std::uint8_t>(0x80 | ((m_address & 0x07) << 4));
 
     if (m_injectedError != ViscaErrorCode::None) {
         const auto err = m_injectedError;
         m_injectedError = ViscaErrorCode::None;
-        sendResponse(ViscaFrame { respHdr, 0x60, static_cast<uint8_t>(err), kViscaTerminator });
+        sendResponse(ViscaFrame { respHdr, 0x60, static_cast<std::uint8_t>(err), kViscaTerminator });
         return;
     }
 
@@ -356,18 +365,18 @@ void MockSonyCamera::handleCommand(const ViscaFrame& frame)
         m_socket2Busy = true;
     } else {
         // Both sockets busy -> Buffer Full
-        sendResponse(
-            ViscaFrame { respHdr, 0x60, static_cast<uint8_t>(ViscaErrorCode::CommandBufferFull), kViscaTerminator });
+        sendResponse(ViscaFrame {
+            respHdr, 0x60, static_cast<std::uint8_t>(ViscaErrorCode::CommandBufferFull), kViscaTerminator });
         return;
     }
 
     // Dispatch ACK (y0 4s FF)
-    const uint8_t ackByte = (sock == ViscaSocket::Socket1) ? 0x41 : 0x42;
+    const std::uint8_t ackByte = (sock == ViscaSocket::Socket1) ? 0x41 : 0x42;
     sendResponse(ViscaFrame { respHdr, ackByte, kViscaTerminator });
 
     // Execute command mutations
     if (frame.size() >= 5 && frame[1] == 0x01 && frame[2] == 0x04) {
-        const uint8_t cmdCategory = frame[3];
+        const std::uint8_t cmdCategory = frame[3];
 
         if (cmdCategory == 0x47 && frame.size() >= 9) {
             // Zoom Direct
@@ -383,13 +392,13 @@ void MockSonyCamera::handleCommand(const ViscaFrame& frame)
             m_exposureMode = static_cast<SonyExposureMode>(frame[4]);
         } else if (cmdCategory == 0x4A && frame.size() >= 9) {
             // Shutter Direct
-            m_shutterPosition = static_cast<uint8_t>(((frame[6] & 0x0F) << 4) | (frame[7] & 0x0F));
+            m_shutterPosition = static_cast<std::uint8_t>(((frame[6] & 0x0F) << 4) | (frame[7] & 0x0F));
         } else if (cmdCategory == 0x4B && frame.size() >= 9) {
             // Iris Direct
-            m_irisPosition = static_cast<uint8_t>(((frame[6] & 0x0F) << 4) | (frame[7] & 0x0F));
+            m_irisPosition = static_cast<std::uint8_t>(((frame[6] & 0x0F) << 4) | (frame[7] & 0x0F));
         } else if (cmdCategory == 0x4C && frame.size() >= 9) {
             // Gain Direct
-            m_gainPosition = static_cast<uint8_t>(((frame[6] & 0x0F) << 4) | (frame[7] & 0x0F));
+            m_gainPosition = static_cast<std::uint8_t>(((frame[6] & 0x0F) << 4) | (frame[7] & 0x0F));
         } else if (cmdCategory == 0x34 && frame.size() >= 6) {
             // Stabilizer
             if (frame[4] == 0x00) {
@@ -413,9 +422,9 @@ void MockSonyCamera::handleCommand(const ViscaFrame& frame)
             m_icrOn = (frame[4] == 0x02);
         } else if (cmdCategory == 0x24 && frame.size() >= 8) {
             // Write Register (8x 01 04 24 mm 0p 0q FF)
-            const uint8_t reg = static_cast<uint8_t>(frame[4] & 0x7F);
-            const uint8_t val = static_cast<uint8_t>(((frame[5] & 0x0F) << 4) | (frame[6] & 0x0F));
-            m_registers[reg] = val;
+            const std::uint8_t reg = static_cast<std::uint8_t>(frame[4] & 0x7F);
+            const std::uint8_t val = static_cast<std::uint8_t>(((frame[5] & 0x0F) << 4) | (frame[6] & 0x0F));
+            m_registers[static_cast<std::size_t>(reg)] = val;
         }
     }
 
@@ -427,18 +436,18 @@ void MockSonyCamera::handleCommand(const ViscaFrame& frame)
     }
 
     // Dispatch Completion (y0 5s FF)
-    const uint8_t compByte = (sock == ViscaSocket::Socket1) ? 0x51 : 0x52;
+    const std::uint8_t compByte = (sock == ViscaSocket::Socket1) ? 0x51 : 0x52;
     sendResponse(ViscaFrame { respHdr, compByte, kViscaTerminator });
 }
 
 ViscaFrame MockSonyCamera::buildBlock00Response() const
 {
-    const uint8_t respHdr = static_cast<uint8_t>(0x80 | ((m_address & 0x07) << 4));
+    const std::uint8_t respHdr = static_cast<std::uint8_t>(0x80 | ((m_address & 0x07) << 4));
     const auto zNibbles = ViscaFrame::packWordNibbles(m_zoomPosition);
     const auto fNibbles = ViscaFrame::packWordNibbles(m_focusPosition);
     const auto lNibbles = ViscaFrame::packWordNibbles(m_focusNearLimit);
 
-    uint8_t b2 = 0x00;
+    std::uint8_t b2 = 0x00;
     if (m_focusAuto)
         b2 |= 0x01;
     if (m_dzoomOn)
@@ -452,29 +461,29 @@ ViscaFrame MockSonyCamera::buildBlock00Response() const
 
 ViscaFrame MockSonyCamera::buildBlock01Response() const
 {
-    const uint8_t respHdr = static_cast<uint8_t>(0x80 | ((m_address & 0x07) << 4));
-    uint8_t b2 = 0x00;
+    const std::uint8_t respHdr = static_cast<std::uint8_t>(0x80 | ((m_address & 0x07) << 4));
+    std::uint8_t b2 = 0x00;
     if (m_exposureCompOn)
         b2 |= 0x02;
 
-    const auto rNibbles = ViscaFrame::packByteNibbles(static_cast<uint8_t>(m_rGain & 0xFF));
-    const auto bNibbles = ViscaFrame::packByteNibbles(static_cast<uint8_t>(m_bGain & 0xFF));
+    const auto rNibbles = ViscaFrame::packByteNibbles(static_cast<std::uint8_t>(m_rGain & 0xFF));
+    const auto bNibbles = ViscaFrame::packByteNibbles(static_cast<std::uint8_t>(m_bGain & 0xFF));
 
-    return ViscaFrame { respHdr, 0x50, b2, static_cast<uint8_t>(m_wbMode),
+    return ViscaFrame { respHdr, 0x50, b2, static_cast<std::uint8_t>(m_wbMode),
         0x05, // Aperture
-        static_cast<uint8_t>(m_exposureMode), m_shutterPosition, m_irisPosition, m_gainPosition, m_exposureCompPosition,
-        0x00, rNibbles[0], rNibbles[1], bNibbles[0], bNibbles[1], kViscaTerminator };
+        static_cast<std::uint8_t>(m_exposureMode), m_shutterPosition, m_irisPosition, m_gainPosition,
+        m_exposureCompPosition, 0x00, rNibbles[0], rNibbles[1], bNibbles[0], bNibbles[1], kViscaTerminator };
 }
 
 ViscaFrame MockSonyCamera::buildBlock02Response() const
 {
-    const uint8_t respHdr = static_cast<uint8_t>(0x80 | ((m_address & 0x07) << 4));
-    uint8_t b2 = 0x01; // Power On
+    const std::uint8_t respHdr = static_cast<std::uint8_t>(0x80 | ((m_address & 0x07) << 4));
+    std::uint8_t b2 = 0x01; // Power On
     if (m_modelType == SonyCameraModelType::FCB_EV9520L) {
         b2 |= 0x10; // ICR Color
     }
 
-    uint8_t b3 = 0x00;
+    std::uint8_t b3 = 0x00;
     if (m_stabilizerMode == SonyStabilizerMode::SuperPlus) {
         b3 |= 0x03;
     } else if (m_stabilizerMode == SonyStabilizerMode::Super) {
@@ -494,7 +503,7 @@ ViscaFrame MockSonyCamera::buildBlock02Response() const
 
 ViscaFrame MockSonyCamera::buildBlock03Response() const
 {
-    const uint8_t respHdr = static_cast<uint8_t>(0x80 | ((m_address & 0x07) << 4));
+    const std::uint8_t respHdr = static_cast<std::uint8_t>(0x80 | ((m_address & 0x07) << 4));
     return ViscaFrame { respHdr, 0x50,
         0x05, // Features provided
         0x00, 0x00, // DZoom pos
@@ -509,9 +518,9 @@ ViscaFrame MockSonyCamera::buildBlock03Response() const
 
 ViscaFrame MockSonyCamera::buildBlock04Response() const
 {
-    const uint8_t respHdr = static_cast<uint8_t>(0x80 | ((m_address & 0x07) << 4));
-    const uint8_t defogByte = (m_defogMode != SonyDefogMode::Off) ? 0x01 : 0x00;
-    const uint8_t defogLvl = static_cast<uint8_t>(m_defogMode);
+    const std::uint8_t respHdr = static_cast<std::uint8_t>(0x80 | ((m_address & 0x07) << 4));
+    const std::uint8_t defogByte = (m_defogMode != SonyDefogMode::Off) ? 0x01 : 0x00;
+    const std::uint8_t defogLvl = static_cast<std::uint8_t>(m_defogMode);
 
     return ViscaFrame { respHdr, 0x50, 0x00, 0x00, 0x00,
         0x02, // Brightness comp
