@@ -274,6 +274,14 @@ private:
     void formatVideoEncoderConfigXml(const VideoEncoderConfig& cfg, std::ostringstream& body, const std::string& prefix,
         const std::string& elemName) const;
 
+    /// @brief Serializes a PTZConfiguration into compliant ONVIF XML.
+    /// @param[in] cfg PTZ configuration.
+    /// @param[out] body Target output stream.
+    /// @param[in] prefix Namespace prefix ("tt" or "tptz").
+    /// @param[in] elemName Root element tag name.
+    void formatPtzConfigXml(const PTZConfiguration& cfg, std::ostringstream& body, const std::string& prefix,
+        const std::string& elemName) const;
+
     [[nodiscard]] std::string generateMetadataStreamXml(const MetadataStreamPayload& payload) const;
     [[nodiscard]] std::string resolveHost(const httplib::Request& req) const;
     [[nodiscard]] bool isProfileValid(std::string_view token) const;
@@ -393,6 +401,9 @@ private:
     std::vector<VideoSourceConfig> m_internalVideoSources {};
     std::vector<VideoEncoderConfig> m_internalVideoEncoders {};
     std::uint32_t m_nextProfileId { 2 };
+
+    mutable std::mutex m_ptzConfigMutex {};
+    std::vector<PTZConfiguration> m_internalPtzConfigs {};
 
     std::atomic<ProvisioningState> m_provisioningState { ProvisioningState::Unprovisioned };
     std::atomic<DiscoveryMode> m_discoveryMode { DiscoveryMode::Discoverable };

@@ -433,19 +433,19 @@ sequenceDiagram
 
 ---
 
-### Phase 5: PTZ & Events Profile S Completeness `[OPEN]`
+### Phase 5: PTZ & Events Profile S Completeness `[RESOLVED]`
 
-- **Task 5.1: PTZ `SetConfiguration` & `GetServiceCapabilities`** `[OPEN]`  
+- **Task 5.1: PTZ `SetConfiguration` & `GetServiceCapabilities`** `[RESOLVED]`  
   In [`libs/Onvif/OnvifServer.cpp`](../libs/Onvif/OnvifServer.cpp):
   - `SetConfiguration`: Parse `<tptz:PTZConfiguration>`, validate spaces and limits, update PTZ configuration in store, and return `<tptz:SetConfigurationResponse/>`.
   - `GetServiceCapabilities`: Return `<tptz:Capabilities EFlip="false" Reverse="false" GetCompatibleConfigurations="true" MoveStatus="true" StatusPosition="true"/>`.
   - Verify token existence across all PTZ operations, returning `SoapFault::noProfile()` or `SoapFault::noToken()`.
-- **Task 5.2: Event `SetSynchronizationPoint` & State Initialization** `[OPEN]`  
+- **Task 5.2: Event `SetSynchronizationPoint` & State Initialization** `[RESOLVED]`  
   In [`libs/Onvif/SubscriptionManager.h`](../libs/Onvif/SubscriptionManager.h) and [`libs/Onvif/SubscriptionManager.cpp`](../libs/Onvif/SubscriptionManager.cpp):
   - Implement `SubscriptionManager::setSynchronizationPoint(const std::string& subId)`.
   - Enqueue initial state `OnvifEvent` objects with `PropertyOperation = "Initialized"` (e.g. RelayOutput state, DigitalInput state, MotionAlarm state).
   - In `OnvifServer::handleEventService` / `handlePullPointService`: Handle `SetSynchronizationPoint`, invoke `SubscriptionManager`, and return `<tev:SetSynchronizationPointResponse/>`.
-- **Task 5.3: Event `GetServiceCapabilities` & Topic Filter Parsing** `[OPEN]`  
+- **Task 5.3: Event `GetServiceCapabilities` & Topic Filter Parsing** `[RESOLVED]`  
   - Return `<tev:Capabilities WSSubscriptionPolicySupport="true" WSPullPointSupport="true" MaxPullPoints="10" PersistentNotificationStorage="false"/>`.
   - In `CreatePullPointSubscription` and `Subscribe`, parse `<wsnt:Filter>` and store topic filter expression in subscription state for matching during event dispatch.
 

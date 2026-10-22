@@ -54,14 +54,17 @@ public:
 
     /// @brief Creates a new PullPoint subscription with enforced quotas and lease limits.
     /// @param[in] termTimeStr Optional ISO 8601 duration or dateTime.
+    /// @param[in] topicFilter Optional topic expression filter.
     /// @return SubCreateResult with assigned ID and ISO 8601 termination timestamp.
-    [[nodiscard]] SubCreateResult createPullSub(std::string_view termTimeStr);
+    [[nodiscard]] SubCreateResult createPullSub(std::string_view termTimeStr, std::string_view topicFilter = "");
 
     /// @brief Creates a new Push subscription for a verified consumer URL.
     /// @param[in] consumerUrl Verified target push URL.
     /// @param[in] termTimeStr Optional ISO 8601 duration or dateTime.
+    /// @param[in] topicFilter Optional topic expression filter.
     /// @return SubCreateResult with assigned ID and ISO 8601 termination timestamp.
-    [[nodiscard]] SubCreateResult createPushSub(std::string_view consumerUrl, std::string_view termTimeStr);
+    [[nodiscard]] SubCreateResult createPushSub(
+        std::string_view consumerUrl, std::string_view termTimeStr, std::string_view topicFilter = "");
 
     /// @brief Extends the lease termination time for an existing active subscription.
     /// @param[in] subId Subscription token ID.
@@ -113,6 +116,17 @@ public:
     /// @return Clamped duration in seconds.
     [[nodiscard]] std::chrono::seconds parseLease(std::string_view termStr) const;
 
+    /// @brief Triggers synchronization point, enqueuing current initial state events into subscription queues.
+    /// @param[in] subId Optional subscription ID; if empty, synchronizes all active pull subscriptions.
+    /// @return True if at least one matching active subscription was found and synchronized; false otherwise.
+    [[nodiscard]] bool setSynchronizationPoint(std::string_view subId = "");
+
+    /// @brief Evaluates whether an event topic matches a WS-Notification topic filter expression.
+    /// @param[in] eventTopic Event topic (e.g. "tns1:RuleEngine/CellMotionDetector/Motion").
+    /// @param[in] filter Subscribed topic expression (e.g. "tns1:Device/*", "RuleEngine//.").
+    /// @return True if eventTopic matches the filter or filter is empty; false otherwise.
+    [[nodiscard]] static bool matchesTopicFilter(std::string_view eventTopic, std::string_view filter);
+
     /// @brief Starts the background TTL sweeper thread.
     void start();
 
@@ -123,6 +137,7 @@ private:
     struct PullPointSub {
         std::string id {};
         std::chrono::steady_clock::time_point terminationTime {};
+        std::string topicFilter {};
         std::deque<OnvifEvent> queue {};
         std::mutex mutex {};
         std::condition_variable cv {};
@@ -132,6 +147,7 @@ private:
         std::string id {};
         std::string consumerUrl {};
         std::chrono::steady_clock::time_point terminationTime {};
+        std::string topicFilter {};
     };
 
     NotificationConfig m_config;

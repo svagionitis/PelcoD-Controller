@@ -287,6 +287,9 @@ struct OnvifServerConfig {
     std::vector<VideoEncoderConfig> defaultVideoEncoderConfigs { { "VideoEncoderConfig_1", "VideoEncoderConfig", 1,
         "H264", 1920, 1080, 5.0f, 30.0f, 4096, 30, "Main", "PT30S" } };
 
+    /// @brief Default PTZ configurations (Profile S).
+    std::vector<PTZConfiguration> defaultPTZConfigs { { "PTZConfig_1", "PTZConfig", 1, "PTZNode_1" } };
+
     /// @brief Default media profiles (Profile S).
     std::vector<ServerMediaProfile> defaultMediaProfiles { { "ProfileToken_1", "MainProfile", true,
         "VideoSourceConfig_1", "VideoEncoderConfig_1", "PTZConfig_1", "MetadataConfig_1" } };

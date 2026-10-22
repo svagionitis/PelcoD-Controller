@@ -77,7 +77,7 @@ namespace {
         ss << "      <wsnt:NotificationMessage>\r\n"
            << "        <wsnt:Topic Dialect=\"http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet\" "
            << "xmlns:tns1=\"http://www.onvif.org/ver10/topics\">" << Xml::escapeXmlText(ev.topic) << "</wsnt:Topic>\r\n"
-           << "        <wsnt:Message>\r\n"
+           << "        <wsnt:Message PropertyOperation=\"" << Xml::escapeXmlAttr(op) << "\">\r\n"
            << "          <tt:Message UtcTime=\"" << Xml::escapeXmlAttr(ev.utcTime) << "\" "
            << "PropertyOperation=\"" << Xml::escapeXmlAttr(op) << "\">\r\n";
 
@@ -147,6 +147,92 @@ namespace {
     [[nodiscard]] bool isLoopbackHost(const std::string& host) noexcept
     {
         return (host.rfind("127.", 0U) == 0U) || (host == "localhost") || (host == "::1") || (host == "[::1]");
+    }
+
+    [[nodiscard]] std::optional<float> parseOptionalFloatText(const char* str) noexcept
+    {
+        if (str == nullptr || *str == '\0') {
+            return std::nullopt;
+        }
+        char* end = nullptr;
+        const float val = std::strtof(str, &end);
+        if (end == str || !std::isfinite(val)) {
+            return std::nullopt;
+        }
+        return val;
+    }
+
+    [[nodiscard]] std::string_view trimWhitespace(std::string_view s) noexcept
+    {
+        while (!s.empty() && (s.front() == ' ' || s.front() == '\t' || s.front() == '\r' || s.front() == '\n')) {
+            s.remove_prefix(1);
+        }
+        while (!s.empty() && (s.back() == ' ' || s.back() == '\t' || s.back() == '\r' || s.back() == '\n')) {
+            s.remove_suffix(1);
+        }
+        return s;
+    }
+
+    [[nodiscard]] bool isValidPanTiltSpaceUri(std::string_view rawUri) noexcept
+    {
+        const auto uri = trimWhitespace(rawUri);
+        if (uri.empty()) {
+            return true;
+        }
+        return uri == "http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionGenericSpace"
+            || uri == "http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionSphericalSpace"
+            || uri == "http://www.onvif.org/ver10/tptz/PanTiltSpaces/TranslationGenericSpace"
+            || uri == "http://www.onvif.org/ver10/tptz/PanTiltSpaces/VelocityGenericSpace";
+    }
+
+    [[nodiscard]] bool isValidZoomSpaceUri(std::string_view rawUri) noexcept
+    {
+        const auto uri = trimWhitespace(rawUri);
+        if (uri.empty()) {
+            return true;
+        }
+        return uri == "http://www.onvif.org/ver10/tptz/ZoomSpaces/PositionGenericSpace"
+            || uri == "http://www.onvif.org/ver10/tptz/ZoomSpaces/TranslationGenericSpace"
+            || uri == "http://www.onvif.org/ver10/tptz/ZoomSpaces/VelocityGenericSpace";
+    }
+
+    void appendPtzNodeXml(std::ostringstream& body)
+    {
+        body << "      <tptz:PTZNode token=\"PTZNode_1\">\r\n"
+             << "        <tt:Name>PTZNode</tt:Name>\r\n"
+             << "        <tt:SupportedPTZSpaces>\r\n"
+             << "          <tt:AbsolutePanTiltPositionSpace>\r\n"
+             << "            <tt:URI>http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionGenericSpace</tt:URI>\r\n"
+             << "            <tt:XRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
+             << "            <tt:YRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:YRange>\r\n"
+             << "          </tt:AbsolutePanTiltPositionSpace>\r\n"
+             << "          <tt:AbsolutePanTiltPositionSpace>\r\n"
+             << "            <tt:URI>http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionSphericalSpace</tt:URI>\r\n"
+             << "            <tt:XRange><tt:Min>0.0</tt:Min><tt:Max>360.0</tt:Max></tt:XRange>\r\n"
+             << "            <tt:YRange><tt:Min>-90.0</tt:Min><tt:Max>90.0</tt:Max></tt:YRange>\r\n"
+             << "          </tt:AbsolutePanTiltPositionSpace>\r\n"
+             << "          <tt:ContinuousPanTiltVelocitySpace>\r\n"
+             << "            <tt:URI>http://www.onvif.org/ver10/tptz/PanTiltSpaces/VelocityGenericSpace</tt:URI>\r\n"
+             << "            <tt:XRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
+             << "            <tt:YRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:YRange>\r\n"
+             << "          </tt:ContinuousPanTiltVelocitySpace>\r\n"
+             << "          <tt:ContinuousZoomVelocitySpace>\r\n"
+             << "            <tt:URI>http://www.onvif.org/ver10/tptz/ZoomSpaces/VelocityGenericSpace</tt:URI>\r\n"
+             << "            <tt:XRange><tt:Min>0.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
+             << "          </tt:ContinuousZoomVelocitySpace>\r\n"
+             << "        </tt:SupportedPTZSpaces>\r\n"
+             << "        <tt:MaximumNumberOfPresets>255</tt:MaximumNumberOfPresets>\r\n"
+             << "        <tt:HomeSupported>true</tt:HomeSupported>\r\n"
+             << "        <tt:GeoMove>true</tt:GeoMove>\r\n"
+             << "        <tt:AuxiliaryCommands>tt:Wiper|On</tt:AuxiliaryCommands>\r\n"
+             << "        <tt:AuxiliaryCommands>tt:Wiper|Off</tt:AuxiliaryCommands>\r\n"
+             << "        <tt:AuxiliaryCommands>tt:Washer|On</tt:AuxiliaryCommands>\r\n"
+             << "        <tt:AuxiliaryCommands>tt:Washer|Off</tt:AuxiliaryCommands>\r\n"
+             << "        <tt:AuxiliaryCommands>tt:IR|On</tt:AuxiliaryCommands>\r\n"
+             << "        <tt:AuxiliaryCommands>tt:IR|Off</tt:AuxiliaryCommands>\r\n"
+             << "        <tt:AuxiliaryCommands>Aux1On</tt:AuxiliaryCommands>\r\n"
+             << "        <tt:AuxiliaryCommands>Aux1Off</tt:AuxiliaryCommands>\r\n"
+             << "      </tptz:PTZNode>\r\n";
     }
 
     /// @brief Stable, secret-free label for an authentication outcome (access log).
@@ -523,6 +609,7 @@ OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> 
     m_internalProfiles = m_config.defaultMediaProfiles;
     m_internalVideoSources = m_config.defaultVideoSourceConfigs;
     m_internalVideoEncoders = m_config.defaultVideoEncoderConfigs;
+    m_internalPtzConfigs = m_config.defaultPTZConfigs;
 
     m_internalMasks = m_config.defaultMasks;
     m_internalMaskOptions = m_config.defaultMaskOptions;
@@ -2449,9 +2536,63 @@ void OnvifServer::formatVideoEncoderConfigXml(const VideoEncoderConfig& cfg, std
          << "          <tt:TTL>5</tt:TTL>\r\n"
          << "          <tt:AutoStart>false</tt:AutoStart>\r\n"
          << "        </tt:Multicast>\r\n"
-         << "        <tt:SessionTimeout>"
+         << "          <tt:SessionTimeout>"
          << Xml::escapeXmlText(cfg.sessionTimeout.empty() ? "PT30S" : cfg.sessionTimeout) << "</tt:SessionTimeout>\r\n"
          << "      </" << prefix << ":" << elemName << ">\r\n";
+}
+
+void OnvifServer::formatPtzConfigXml(
+    const PTZConfiguration& cfg, std::ostringstream& body, const std::string& prefix, const std::string& elemName) const
+{
+    body << "      <" << prefix << ":" << elemName << " token=\"" << Xml::escapeXmlAttr(cfg.token) << "\">\r\n"
+         << "        <tt:Name>" << Xml::escapeXmlText(cfg.name) << "</tt:Name>\r\n"
+         << "        <tt:UseCount>" << cfg.useCount << "</tt:UseCount>\r\n"
+         << "        <tt:NodeToken>" << Xml::escapeXmlText(cfg.nodeToken) << "</tt:NodeToken>\r\n";
+    if (!cfg.defaultAbsolutePanTiltPositionSpace.empty()) {
+        body << "        <tt:DefaultAbsolutePanTiltPositionSpace>"
+             << Xml::escapeXmlText(cfg.defaultAbsolutePanTiltPositionSpace)
+             << "</tt:DefaultAbsolutePanTiltPositionSpace>\r\n";
+    }
+    if (!cfg.defaultRelativePanTiltTranslationSpace.empty()) {
+        body << "        <tt:DefaultRelativePanTiltTranslationSpace>"
+             << Xml::escapeXmlText(cfg.defaultRelativePanTiltTranslationSpace)
+             << "</tt:DefaultRelativePanTiltTranslationSpace>\r\n";
+    }
+    if (!cfg.defaultContinuousPanTiltVelocitySpace.empty()) {
+        body << "        <tt:DefaultContinuousPanTiltVelocitySpace>"
+             << Xml::escapeXmlText(cfg.defaultContinuousPanTiltVelocitySpace)
+             << "</tt:DefaultContinuousPanTiltVelocitySpace>\r\n";
+    }
+    if (!cfg.defaultContinuousZoomVelocitySpace.empty()) {
+        body << "        <tt:DefaultContinuousZoomVelocitySpace>"
+             << Xml::escapeXmlText(cfg.defaultContinuousZoomVelocitySpace)
+             << "</tt:DefaultContinuousZoomVelocitySpace>\r\n";
+    }
+    if (!cfg.defaultPtzTimeout.empty()) {
+        body << "        <tt:DefaultPTZTimeout>" << Xml::escapeXmlText(cfg.defaultPtzTimeout)
+             << "</tt:DefaultPTZTimeout>\r\n";
+    }
+    if (!cfg.panTiltLimits.uri.empty()) {
+        body << "        <tt:PanTiltLimits>\r\n"
+             << "          <tt:Range>\r\n"
+             << "            <tt:URI>" << Xml::escapeXmlText(cfg.panTiltLimits.uri) << "</tt:URI>\r\n"
+             << "            <tt:XRange><tt:Min>" << cfg.panTiltLimits.minX << "</tt:Min><tt:Max>"
+             << cfg.panTiltLimits.maxX << "</tt:Max></tt:XRange>\r\n"
+             << "            <tt:YRange><tt:Min>" << cfg.panTiltLimits.minY << "</tt:Min><tt:Max>"
+             << cfg.panTiltLimits.maxY << "</tt:Max></tt:YRange>\r\n"
+             << "          </tt:Range>\r\n"
+             << "        </tt:PanTiltLimits>\r\n";
+    }
+    if (!cfg.zoomLimits.uri.empty()) {
+        body << "        <tt:ZoomLimits>\r\n"
+             << "          <tt:Range>\r\n"
+             << "            <tt:URI>" << Xml::escapeXmlText(cfg.zoomLimits.uri) << "</tt:URI>\r\n"
+             << "            <tt:XRange><tt:Min>" << cfg.zoomLimits.minX << "</tt:Min><tt:Max>" << cfg.zoomLimits.maxX
+             << "</tt:Max></tt:XRange>\r\n"
+             << "          </tt:Range>\r\n"
+             << "        </tt:ZoomLimits>\r\n";
+    }
+    body << "      </" << prefix << ":" << elemName << ">\r\n";
 }
 
 void OnvifServer::formatProfileXml(
@@ -2526,17 +2667,18 @@ void OnvifServer::formatProfileXml(
     }
 
     if (!prof.ptzToken.empty()) {
-        body << "        <tt:PTZConfiguration token=\"" << Xml::escapeXmlAttr(prof.ptzToken) << "\">\r\n"
-             << "          <tt:Name>PTZConfig</tt:Name>\r\n"
-             << "          <tt:UseCount>1</tt:UseCount>\r\n"
-             << "          <tt:NodeToken>PTZNode_1</tt:NodeToken>\r\n"
-             << "          "
-                "<tt:DefaultContinuousPanTiltVelocitySpace>http://www.onvif.org/ver10/tptz/PanTiltSpaces/"
-                "VelocityGenericSpace</tt:DefaultContinuousPanTiltVelocitySpace>\r\n"
-             << "          "
-                "<tt:DefaultContinuousZoomVelocitySpace>http://www.onvif.org/ver10/tptz/ZoomSpaces/"
-                "VelocityGenericSpace</tt:DefaultContinuousZoomVelocitySpace>\r\n"
-             << "        </tt:PTZConfiguration>\r\n";
+        PTZConfiguration ptzCfg;
+        ptzCfg.token = prof.ptzToken;
+        {
+            std::lock_guard<std::mutex> lock(m_ptzConfigMutex);
+            for (const auto& c : m_internalPtzConfigs) {
+                if (c.token == prof.ptzToken) {
+                    ptzCfg = c;
+                    break;
+                }
+            }
+        }
+        formatPtzConfigXml(ptzCfg, body, "tt", "PTZConfiguration");
     }
 
     if (!prof.metadataToken.empty()) {
@@ -3822,7 +3964,12 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
 
     std::ostringstream body;
 
-    if (opName.find("ContinuousMove") != std::string::npos) {
+    if (isOp(opName, "GetServiceCapabilities")) {
+        body << "    <tptz:GetServiceCapabilitiesResponse>\r\n"
+             << "      <tptz:Capabilities EFlip=\"false\" Reverse=\"false\" GetCompatibleConfigurations=\"true\" "
+                "MoveStatus=\"true\" StatusPosition=\"true\"/>\r\n"
+             << "    </tptz:GetServiceCapabilitiesResponse>\r\n";
+    } else if (opName.find("ContinuousMove") != std::string::npos) {
         const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
         const std::string profToken = profNode ? profNode.text().as_string() : "";
         if (!isProfileValid(profToken)) {
@@ -4112,7 +4259,14 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
             ptzHandler->handleSetHomePosition();
         }
         body << "    <tptz:SetHomePositionResponse/>\r\n";
-    } else if (opName.find("SendAuxiliaryCommand") != std::string::npos) {
+    } else if (isOp(opName, "SendAuxiliaryCommand")) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
         const pugi::xml_node auxNode = doc.select_node("//*[local-name()='AuxiliaryData']").node();
         const std::string auxData = auxNode ? auxNode.text().as_string() : "";
         std::string auxResp = auxData;
@@ -4122,8 +4276,21 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         body << "    <tptz:SendAuxiliaryCommandResponse>\r\n"
              << "      <tptz:AuxiliaryResponse>" << Xml::escapeXmlText(auxResp) << "</tptz:AuxiliaryResponse>\r\n"
              << "    </tptz:SendAuxiliaryCommandResponse>\r\n";
-    } else if (opName.find("GetConfigurationOptions") != std::string::npos
-        || opName.find("GetConfigurationOption") != std::string::npos) {
+    } else if (isOp(opName, "GetConfigurationOptions") || isOp(opName, "GetConfigurationOption")) {
+        const pugi::xml_node cfgTokNode = doc.select_node("//*[local-name()='ConfigurationToken']").node();
+        if (cfgTokNode) {
+            const std::string cfgTok = cfgTokNode.text().as_string();
+            if (!cfgTok.empty()) {
+                std::lock_guard<std::mutex> lock(m_ptzConfigMutex);
+                const auto it = std::find_if(m_internalPtzConfigs.begin(), m_internalPtzConfigs.end(),
+                    [&cfgTok](const PTZConfiguration& c) { return c.token == cfgTok; });
+                if (it == m_internalPtzConfigs.end()) {
+                    sendSoapResponse(res, SoapFault::noToken(), 400);
+                    return;
+                }
+            }
+        }
+
         body << "    <tptz:GetConfigurationOptionsResponse>\r\n"
              << "      <tptz:PTZConfigurationOptions>\r\n"
              << "        <tt:Spaces>\r\n"
@@ -4157,7 +4324,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
              << "          </tt:ContinuousPanTiltVelocitySpace>\r\n"
              << "          <tt:ContinuousZoomVelocitySpace>\r\n"
              << "            <tt:URI>http://www.onvif.org/ver10/tptz/ZoomSpaces/VelocityGenericSpace</tt:URI>\r\n"
-             << "            <tt:XRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
+             << "            <tt:XRange><tt:Min>0.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
              << "          </tt:ContinuousZoomVelocitySpace>\r\n"
              << "        </tt:Spaces>\r\n"
              << "        <tt:PTZTimeout>\r\n"
@@ -4166,60 +4333,226 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
              << "        </tt:PTZTimeout>\r\n"
              << "      </tptz:PTZConfigurationOptions>\r\n"
              << "    </tptz:GetConfigurationOptionsResponse>\r\n";
-    } else if (opName.find("GetConfigurations") != std::string::npos
-        || opName.find("GetConfiguration") != std::string::npos) {
-        body << "    <tptz:GetConfigurationsResponse>\r\n"
-             << "      <tptz:PTZConfiguration token=\"PTZConfig_1\">\r\n"
-             << "        <tt:Name>PTZConfig</tt:Name>\r\n"
-             << "        <tt:UseCount>1</tt:UseCount>\r\n"
-             << "        <tt:NodeToken>PTZNode_1</tt:NodeToken>\r\n"
-             << "        "
-                "<tt:DefaultContinuousPanTiltVelocitySpace>http://www.onvif.org/ver10/tptz/PanTiltSpaces/"
-                "VelocityGenericSpace</tt:DefaultContinuousPanTiltVelocitySpace>\r\n"
-             << "        "
-                "<tt:DefaultContinuousZoomVelocitySpace>http://www.onvif.org/ver10/tptz/ZoomSpaces/"
-                "VelocityGenericSpace</tt:DefaultContinuousZoomVelocitySpace>\r\n"
-             << "      </tptz:PTZConfiguration>\r\n"
-             << "    </tptz:GetConfigurationsResponse>\r\n";
-    } else if (opName.find("GetNodes") != std::string::npos || opName.find("GetNode") != std::string::npos) {
-        body << "    <tptz:GetNodesResponse>\r\n"
-             << "      <tptz:PTZNode token=\"PTZNode_1\">\r\n"
-             << "        <tt:Name>PTZNode</tt:Name>\r\n"
-             << "        <tt:SupportedPTZSpaces>\r\n"
-             << "          <tt:AbsolutePanTiltPositionSpace>\r\n"
-             << "            <tt:URI>http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionGenericSpace</tt:URI>\r\n"
-             << "            <tt:XRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
-             << "            <tt:YRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:YRange>\r\n"
-             << "          </tt:AbsolutePanTiltPositionSpace>\r\n"
-             << "          <tt:AbsolutePanTiltPositionSpace>\r\n"
-             << "            <tt:URI>http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionSphericalSpace</tt:URI>\r\n"
-             << "            <tt:XRange><tt:Min>0.0</tt:Min><tt:Max>360.0</tt:Max></tt:XRange>\r\n"
-             << "            <tt:YRange><tt:Min>-90.0</tt:Min><tt:Max>90.0</tt:Max></tt:YRange>\r\n"
-             << "          </tt:AbsolutePanTiltPositionSpace>\r\n"
-             << "          <tt:ContinuousPanTiltVelocitySpace>\r\n"
-             << "            <tt:URI>http://www.onvif.org/ver10/tptz/PanTiltSpaces/VelocityGenericSpace</tt:URI>\r\n"
-             << "            <tt:XRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
-             << "            <tt:YRange><tt:Min>-1.0</tt:Min><tt:Max>1.0</tt:Max></tt:YRange>\r\n"
-             << "          </tt:ContinuousPanTiltVelocitySpace>\r\n"
-             << "          <tt:ContinuousZoomVelocitySpace>\r\n"
-             << "            <tt:URI>http://www.onvif.org/ver10/tptz/ZoomSpaces/VelocityGenericSpace</tt:URI>\r\n"
-             << "            <tt:XRange><tt:Min>0.0</tt:Min><tt:Max>1.0</tt:Max></tt:XRange>\r\n"
-             << "          </tt:ContinuousZoomVelocitySpace>\r\n"
-             << "        </tt:SupportedPTZSpaces>\r\n"
-             << "        <tt:MaximumNumberOfPresets>255</tt:MaximumNumberOfPresets>\r\n"
-             << "        <tt:HomeSupported>true</tt:HomeSupported>\r\n"
-             << "        <tt:GeoMove>true</tt:GeoMove>\r\n"
-             << "        <tt:AuxiliaryCommands>tt:Wiper|On</tt:AuxiliaryCommands>\r\n"
-             << "        <tt:AuxiliaryCommands>tt:Wiper|Off</tt:AuxiliaryCommands>\r\n"
-             << "        <tt:AuxiliaryCommands>tt:Washer|On</tt:AuxiliaryCommands>\r\n"
-             << "        <tt:AuxiliaryCommands>tt:Washer|Off</tt:AuxiliaryCommands>\r\n"
-             << "        <tt:AuxiliaryCommands>tt:IR|On</tt:AuxiliaryCommands>\r\n"
-             << "        <tt:AuxiliaryCommands>tt:IR|Off</tt:AuxiliaryCommands>\r\n"
-             << "        <tt:AuxiliaryCommands>Aux1On</tt:AuxiliaryCommands>\r\n"
-             << "        <tt:AuxiliaryCommands>Aux1Off</tt:AuxiliaryCommands>\r\n"
-             << "      </tptz:PTZNode>\r\n"
-             << "    </tptz:GetNodesResponse>\r\n";
-    } else if (opName.find("GetPresets") != std::string::npos) {
+    } else if (isOp(opName, "GetConfigurations")) {
+        body << "    <tptz:GetConfigurationsResponse>\r\n";
+        {
+            std::lock_guard<std::mutex> lock(m_ptzConfigMutex);
+            for (const auto& cfg : m_internalPtzConfigs) {
+                formatPtzConfigXml(cfg, body, "tptz", "PTZConfiguration");
+            }
+        }
+        body << "    </tptz:GetConfigurationsResponse>\r\n";
+    } else if (isOp(opName, "GetConfiguration")) {
+        const pugi::xml_node cfgTokNode = doc.select_node("//*[local-name()='PTZConfigurationToken']").node();
+        const std::string cfgTok = cfgTokNode ? cfgTokNode.text().as_string() : "";
+        std::lock_guard<std::mutex> lock(m_ptzConfigMutex);
+        const auto it = std::find_if(m_internalPtzConfigs.begin(), m_internalPtzConfigs.end(),
+            [&cfgTok](const PTZConfiguration& c) { return c.token == cfgTok; });
+        if (cfgTok.empty() || it == m_internalPtzConfigs.end()) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
+        }
+        body << "    <tptz:GetConfigurationResponse>\r\n";
+        formatPtzConfigXml(*it, body, "tptz", "PTZConfiguration");
+        body << "    </tptz:GetConfigurationResponse>\r\n";
+    } else if (isOp(opName, "GetCompatibleConfigurations")) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+        body << "    <tptz:GetCompatibleConfigurationsResponse>\r\n";
+        {
+            std::lock_guard<std::mutex> lock(m_ptzConfigMutex);
+            for (const auto& cfg : m_internalPtzConfigs) {
+                formatPtzConfigXml(cfg, body, "tptz", "PTZConfiguration");
+            }
+        }
+        body << "    </tptz:GetCompatibleConfigurationsResponse>\r\n";
+    } else if (isOp(opName, "SetConfiguration")) {
+        const pugi::xml_node cfgNode = doc.select_node("//*[local-name()='PTZConfiguration']").node();
+        if (!cfgNode) {
+            sendSoapResponse(res, SoapFault::invalidArgVal("Missing PTZConfiguration"), 400);
+            return;
+        }
+
+        const std::string token = cfgNode.attribute("token").as_string();
+        if (token.empty()) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
+        }
+
+        std::lock_guard<std::mutex> lock(m_ptzConfigMutex);
+        auto it = std::find_if(m_internalPtzConfigs.begin(), m_internalPtzConfigs.end(),
+            [&token](const PTZConfiguration& c) { return c.token == token; });
+        if (it == m_internalPtzConfigs.end()) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
+        }
+
+        auto updatedCfg = *it;
+
+        const pugi::xml_node nameNode = cfgNode.select_node("./*[local-name()='Name']").node();
+        if (nameNode) {
+            updatedCfg.name = std::string { trimWhitespace(nameNode.text().as_string()) };
+        }
+
+        const pugi::xml_node useCountNode = cfgNode.select_node("./*[local-name()='UseCount']").node();
+        if (useCountNode) {
+            updatedCfg.useCount = useCountNode.text().as_int(updatedCfg.useCount);
+        }
+
+        const pugi::xml_node nodeTokNode = cfgNode.select_node("./*[local-name()='NodeToken']").node();
+        if (nodeTokNode) {
+            const std::string nodeTok = std::string { trimWhitespace(nodeTokNode.text().as_string()) };
+            if (nodeTok != "PTZNode_1") {
+                sendSoapResponse(res, SoapFault::invalidArgVal("Unknown NodeToken"), 400);
+                return;
+            }
+            updatedCfg.nodeToken = nodeTok;
+        }
+
+        const pugi::xml_node absPtSpaceNode
+            = cfgNode.select_node("./*[local-name()='DefaultAbsolutePanTiltPositionSpace']").node();
+        if (absPtSpaceNode) {
+            const std::string space = absPtSpaceNode.text().as_string();
+            if (!isValidPanTiltSpaceUri(space)) {
+                sendSoapResponse(
+                    res, SoapFault::invalidArgVal("Unsupported DefaultAbsolutePanTiltPositionSpace URI"), 400);
+                return;
+            }
+            updatedCfg.defaultAbsolutePanTiltPositionSpace = std::string { trimWhitespace(space) };
+        }
+
+        const pugi::xml_node relPtSpaceNode
+            = cfgNode.select_node("./*[local-name()='DefaultRelativePanTiltTranslationSpace']").node();
+        if (relPtSpaceNode) {
+            const std::string space = relPtSpaceNode.text().as_string();
+            if (!isValidPanTiltSpaceUri(space)) {
+                sendSoapResponse(
+                    res, SoapFault::invalidArgVal("Unsupported DefaultRelativePanTiltTranslationSpace URI"), 400);
+                return;
+            }
+            updatedCfg.defaultRelativePanTiltTranslationSpace = std::string { trimWhitespace(space) };
+        }
+
+        const pugi::xml_node contPtSpaceNode
+            = cfgNode.select_node("./*[local-name()='DefaultContinuousPanTiltVelocitySpace']").node();
+        if (contPtSpaceNode) {
+            const std::string space = contPtSpaceNode.text().as_string();
+            if (!isValidPanTiltSpaceUri(space)) {
+                sendSoapResponse(
+                    res, SoapFault::invalidArgVal("Unsupported DefaultContinuousPanTiltVelocitySpace URI"), 400);
+                return;
+            }
+            updatedCfg.defaultContinuousPanTiltVelocitySpace = std::string { trimWhitespace(space) };
+        }
+
+        const pugi::xml_node contZSpaceNode
+            = cfgNode.select_node("./*[local-name()='DefaultContinuousZoomVelocitySpace']").node();
+        if (contZSpaceNode) {
+            const std::string space = contZSpaceNode.text().as_string();
+            if (!isValidZoomSpaceUri(space)) {
+                sendSoapResponse(
+                    res, SoapFault::invalidArgVal("Unsupported DefaultContinuousZoomVelocitySpace URI"), 400);
+                return;
+            }
+            updatedCfg.defaultContinuousZoomVelocitySpace = std::string { trimWhitespace(space) };
+        }
+
+        const pugi::xml_node timeoutNode = cfgNode.select_node("./*[local-name()='DefaultPTZTimeout']").node();
+        if (timeoutNode) {
+            updatedCfg.defaultPtzTimeout = std::string { trimWhitespace(timeoutNode.text().as_string()) };
+        }
+
+        const pugi::xml_node ptLimitsNode
+            = cfgNode.select_node("./*[local-name()='PanTiltLimits']/*[local-name()='Range']").node();
+        if (ptLimitsNode) {
+            const pugi::xml_node uriNode = ptLimitsNode.select_node("./*[local-name()='URI']").node();
+            const std::string uri = uriNode ? std::string { trimWhitespace(uriNode.text().as_string()) } : "";
+            if (!uri.empty() && !isValidPanTiltSpaceUri(uri)) {
+                sendSoapResponse(res, SoapFault::invalidArgVal("Unsupported PanTiltLimits URI"), 400);
+                return;
+            }
+
+            const pugi::xml_node xRange = ptLimitsNode.select_node("./*[local-name()='XRange']").node();
+            if (xRange) {
+                const auto minVal
+                    = parseOptionalFloatText(xRange.select_node("./*[local-name()='Min']").node().text().as_string());
+                const auto maxVal
+                    = parseOptionalFloatText(xRange.select_node("./*[local-name()='Max']").node().text().as_string());
+                if (!minVal || !maxVal || (*minVal > *maxVal)) {
+                    sendSoapResponse(res, SoapFault::invalidArgVal("Invalid PanTiltLimits XRange"), 400);
+                    return;
+                }
+                updatedCfg.panTiltLimits.minX = *minVal;
+                updatedCfg.panTiltLimits.maxX = *maxVal;
+            }
+
+            const pugi::xml_node yRange = ptLimitsNode.select_node("./*[local-name()='YRange']").node();
+            if (yRange) {
+                const auto minVal
+                    = parseOptionalFloatText(yRange.select_node("./*[local-name()='Min']").node().text().as_string());
+                const auto maxVal
+                    = parseOptionalFloatText(yRange.select_node("./*[local-name()='Max']").node().text().as_string());
+                if (!minVal || !maxVal || (*minVal > *maxVal)) {
+                    sendSoapResponse(res, SoapFault::invalidArgVal("Invalid PanTiltLimits YRange"), 400);
+                    return;
+                }
+                updatedCfg.panTiltLimits.minY = *minVal;
+                updatedCfg.panTiltLimits.maxY = *maxVal;
+            }
+            if (!uri.empty()) {
+                updatedCfg.panTiltLimits.uri = uri;
+            }
+        }
+
+        const pugi::xml_node zoomLimitsNode
+            = cfgNode.select_node("./*[local-name()='ZoomLimits']/*[local-name()='Range']").node();
+        if (zoomLimitsNode) {
+            const pugi::xml_node uriNode = zoomLimitsNode.select_node("./*[local-name()='URI']").node();
+            const std::string uri = uriNode ? std::string { trimWhitespace(uriNode.text().as_string()) } : "";
+            if (!uri.empty() && !isValidZoomSpaceUri(uri)) {
+                sendSoapResponse(res, SoapFault::invalidArgVal("Unsupported ZoomLimits URI"), 400);
+                return;
+            }
+
+            const pugi::xml_node xRange = zoomLimitsNode.select_node("./*[local-name()='XRange']").node();
+            if (xRange) {
+                const auto minVal
+                    = parseOptionalFloatText(xRange.select_node("./*[local-name()='Min']").node().text().as_string());
+                const auto maxVal
+                    = parseOptionalFloatText(xRange.select_node("./*[local-name()='Max']").node().text().as_string());
+                if (!minVal || !maxVal || (*minVal > *maxVal)) {
+                    sendSoapResponse(res, SoapFault::invalidArgVal("Invalid ZoomLimits XRange"), 400);
+                    return;
+                }
+                updatedCfg.zoomLimits.minX = *minVal;
+                updatedCfg.zoomLimits.maxX = *maxVal;
+            }
+            if (!uri.empty()) {
+                updatedCfg.zoomLimits.uri = uri;
+            }
+        }
+
+        *it = updatedCfg;
+        body << "    <tptz:SetConfigurationResponse/>\r\n";
+    } else if (isOp(opName, "GetNodes")) {
+        body << "    <tptz:GetNodesResponse>\r\n";
+        appendPtzNodeXml(body);
+        body << "    </tptz:GetNodesResponse>\r\n";
+    } else if (isOp(opName, "GetNode")) {
+        const pugi::xml_node nodeTokNode = doc.select_node("//*[local-name()='NodeToken']").node();
+        const std::string nodeTok = nodeTokNode ? nodeTokNode.text().as_string() : "";
+        if (nodeTok != "PTZNode_1") {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
+        }
+        body << "    <tptz:GetNodeResponse>\r\n";
+        appendPtzNodeXml(body);
+        body << "    </tptz:GetNodeResponse>\r\n";
+    } else if (isOp(opName, "GetPresets")) {
         const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
         const std::string profToken = profNode ? profNode.text().as_string() : "";
         if (!isProfileValid(profToken)) {
@@ -4237,7 +4570,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
             }
         }
         body << "    </tptz:GetPresetsResponse>\r\n";
-    } else if (opName.find("SetPreset") != std::string::npos) {
+    } else if (isOp(opName, "SetPreset")) {
         const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
         const std::string profToken = profNode ? profNode.text().as_string() : "";
         if (!isProfileValid(profToken)) {
@@ -4259,7 +4592,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         body << "    <tptz:SetPresetResponse>\r\n"
              << "      <tptz:PTZPresetToken>" << Xml::escapeXmlText(assignedToken) << "</tptz:PTZPresetToken>\r\n"
              << "    </tptz:SetPresetResponse>\r\n";
-    } else if (opName.find("GotoPreset") != std::string::npos) {
+    } else if (isOp(opName, "GotoPreset")) {
         const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
         const std::string profToken = profNode ? profNode.text().as_string() : "";
         if (!isProfileValid(profToken)) {
@@ -4276,7 +4609,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         }
 
         body << "    <tptz:GotoPresetResponse/>\r\n";
-    } else if (opName.find("RemovePresetTour") != std::string::npos) {
+    } else if (isOp(opName, "RemovePresetTour")) {
         const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
         const std::string profToken = profNode ? profNode.text().as_string() : "";
         if (!isProfileValid(profToken)) {
@@ -4291,7 +4624,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
             return;
         }
         body << "    <tptz:RemovePresetTourResponse/>\r\n";
-    } else if (opName.find("RemovePreset") != std::string::npos) {
+    } else if (isOp(opName, "RemovePreset")) {
         const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
         const std::string profToken = profNode ? profNode.text().as_string() : "";
         if (!isProfileValid(profToken)) {
@@ -4308,7 +4641,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         }
 
         body << "    <tptz:RemovePresetResponse/>\r\n";
-    } else if (opName.find("GetStatus") != std::string::npos) {
+    } else if (isOp(opName, "GetStatus")) {
         const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
         const std::string profToken = profNode ? profNode.text().as_string() : "";
         if (!isProfileValid(profToken)) {
@@ -4333,7 +4666,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
              << "        </tt:MoveStatus>\r\n"
              << "      </tptz:PTZStatus>\r\n"
              << "    </tptz:GetStatusResponse>\r\n";
-    } else if (opName.find("GetPresetTours") != std::string::npos) {
+    } else if (isOp(opName, "GetPresetTours")) {
         const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
         const std::string profToken = profNode ? profNode.text().as_string() : "";
         if (!isProfileValid(profToken)) {
@@ -4349,7 +4682,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
             }
         }
         body << "    </tptz:GetPresetToursResponse>\r\n";
-    } else if (opName.find("GetPresetTourOptions") != std::string::npos) {
+    } else if (isOp(opName, "GetPresetTourOptions")) {
         const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
         const std::string profToken = profNode ? profNode.text().as_string() : "";
         if (!isProfileValid(profToken)) {
@@ -4373,7 +4706,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
              << "        </tt:TourSpot>\r\n"
              << "      </tptz:Options>\r\n"
              << "    </tptz:GetPresetTourOptionsResponse>\r\n";
-    } else if (opName.find("GetPresetTour") != std::string::npos) {
+    } else if (isOp(opName, "GetPresetTour")) {
         const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
         const std::string profToken = profNode ? profNode.text().as_string() : "";
         if (!isProfileValid(profToken)) {
@@ -4383,15 +4716,19 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
 
         const pugi::xml_node tokNode = doc.select_node("//*[local-name()='PresetTourToken']").node();
         const std::string tourTok = tokNode ? tokNode.text().as_string() : "";
-        body << "    <tptz:GetPresetTourResponse>\r\n";
-        if (ptzHandler) {
-            const auto tourOpt = ptzHandler->handleGetPresetTour(tourTok);
-            if (tourOpt) {
-                appendPresetTourXml(body, *tourOpt);
-            }
+        if (tourTok.empty() || !ptzHandler) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
         }
+        const auto tourOpt = ptzHandler->handleGetPresetTour(tourTok);
+        if (!tourOpt) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
+        }
+        body << "    <tptz:GetPresetTourResponse>\r\n";
+        appendPresetTourXml(body, *tourOpt);
         body << "    </tptz:GetPresetTourResponse>\r\n";
-    } else if (opName.find("CreatePresetTour") != std::string::npos) {
+    } else if (isOp(opName, "CreatePresetTour")) {
         const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
         const std::string profToken = profNode ? profNode.text().as_string() : "";
         if (!isProfileValid(profToken)) {
@@ -4406,7 +4743,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         body << "    <tptz:CreatePresetTourResponse>\r\n"
              << "      <tptz:PresetTourToken>" << Xml::escapeXmlText(assignedToken) << "</tptz:PresetTourToken>\r\n"
              << "    </tptz:CreatePresetTourResponse>\r\n";
-    } else if (opName.find("ModifyPresetTour") != std::string::npos) {
+    } else if (isOp(opName, "ModifyPresetTour")) {
         const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
         const std::string profToken = profNode ? profNode.text().as_string() : "";
         if (!isProfileValid(profToken)) {
@@ -4415,46 +4752,63 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         }
 
         const pugi::xml_node tourNode = doc.select_node("//*[local-name()='PresetTour']").node();
-        if (tourNode && ptzHandler) {
-            PresetTour tour {};
-            tour.token = tourNode.attribute("token").as_string();
-            const pugi::xml_node nameNode = tourNode.select_node("./*[local-name()='Name']").node();
-            if (nameNode)
-                tour.name = nameNode.text().as_string();
-            const pugi::xml_node autoStartNode = tourNode.select_node("./*[local-name()='AutoStart']").node();
-            if (autoStartNode)
-                tour.autoStart = autoStartNode.text().as_bool(false);
+        if (!tourNode || !ptzHandler) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
+        }
+        PresetTour tour {};
+        tour.token = tourNode.attribute("token").as_string();
+        if (tour.token.empty()) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
+        }
 
-            const auto spotNodes = tourNode.select_nodes("./*[local-name()='TourSpot']");
-            for (const auto& it : spotNodes) {
-                PresetTourSpot spot {};
-                const pugi::xml_node pTok = it.node().select_node(".//*[local-name()='PresetToken']").node();
-                if (pTok)
-                    spot.presetToken = pTok.text().as_string();
-                const pugi::xml_node speedNode
-                    = it.node().select_node(".//*[local-name()='Speed']/*[local-name()='PanTilt']").node();
-                if (speedNode) {
-                    spot.speed = speedNode.attribute("x").as_float(1.0f);
-                }
-                const pugi::xml_node stayNode = it.node().select_node(".//*[local-name()='StayTime']").node();
-                if (stayNode) {
-                    std::string st = stayNode.text().as_string();
-                    std::size_t pos = (st.rfind("PT", 0) == 0) ? 2 : 0;
-                    std::uint32_t val = 0;
-                    while (pos < st.size() && std::isdigit(static_cast<unsigned char>(st[pos]))) {
-                        val = val * 10 + static_cast<std::uint32_t>(st[pos] - '0');
-                        ++pos;
-                    }
-                    spot.stayTimeSeconds = (val > 0) ? val : 5U;
-                }
-                if (!spot.presetToken.empty()) {
-                    tour.spots.push_back(std::move(spot));
-                }
+        const pugi::xml_node nameNode = tourNode.select_node("./*[local-name()='Name']").node();
+        if (nameNode)
+            tour.name = nameNode.text().as_string();
+        const pugi::xml_node autoStartNode = tourNode.select_node("./*[local-name()='AutoStart']").node();
+        if (autoStartNode)
+            tour.autoStart = autoStartNode.text().as_bool(false);
+
+        const auto spotNodes = tourNode.select_nodes("./*[local-name()='TourSpot']");
+        for (const auto& itSpot : spotNodes) {
+            PresetTourSpot spot {};
+            const pugi::xml_node pTok = itSpot.node().select_node(".//*[local-name()='PresetToken']").node();
+            if (pTok)
+                spot.presetToken = pTok.text().as_string();
+            const pugi::xml_node speedNode
+                = itSpot.node().select_node(".//*[local-name()='Speed']/*[local-name()='PanTilt']").node();
+            if (speedNode) {
+                spot.speed = speedNode.attribute("x").as_float(1.0f);
             }
-            ptzHandler->handleModifyPresetTour(tour);
+            const pugi::xml_node stayNode = itSpot.node().select_node(".//*[local-name()='StayTime']").node();
+            if (stayNode) {
+                std::string st = stayNode.text().as_string();
+                std::size_t pos = (st.rfind("PT", 0) == 0) ? 2 : 0;
+                std::uint32_t val = 0;
+                while (pos < st.size() && std::isdigit(static_cast<unsigned char>(st[pos]))) {
+                    val = val * 10 + static_cast<std::uint32_t>(st[pos] - '0');
+                    ++pos;
+                }
+                spot.stayTimeSeconds = (val > 0) ? val : 5U;
+            }
+            if (!spot.presetToken.empty()) {
+                tour.spots.push_back(std::move(spot));
+            }
+        }
+        if (!ptzHandler->handleModifyPresetTour(tour)) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
         }
         body << "    <tptz:ModifyPresetTourResponse/>\r\n";
-    } else if (opName.find("OperatePresetTour") != std::string::npos) {
+    } else if (isOp(opName, "OperatePresetTour")) {
+        const pugi::xml_node profNode = doc.select_node("//*[local-name()='ProfileToken']").node();
+        const std::string profToken = profNode ? profNode.text().as_string() : "";
+        if (!isProfileValid(profToken)) {
+            sendSoapResponse(res, SoapFault::noProfile(), 400);
+            return;
+        }
+
         const pugi::xml_node tokNode = doc.select_node("//*[local-name()='PresetTourToken']").node();
         const pugi::xml_node opNode = doc.select_node("//*[local-name()='Operation']").node();
         const std::string tourTok = tokNode ? tokNode.text().as_string() : "";
@@ -4466,9 +4820,11 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         else if (opVal == "Pause")
             tourOp = PresetTourOperation::Pause;
 
-        if (ptzHandler) {
-            ptzHandler->handleOperatePresetTour(tourTok, tourOp);
+        if (tourTok.empty() || !ptzHandler || !ptzHandler->handleOperatePresetTour(tourTok, tourOp)) {
+            sendSoapResponse(res, SoapFault::noToken(), 400);
+            return;
         }
+        body << "    <tptz:OperatePresetTourResponse/>\r\n";
     } else {
         sendSoapResponse(res, SoapFault::actionNotSupported(), 500);
         return;
@@ -4912,16 +5268,24 @@ void OnvifServer::handleEventService(const httplib::Request& req, httplib::Respo
 
     std::ostringstream body;
 
-    if (opName.find("CreatePullPointSubscription") != std::string::npos) {
+    if (isOp(opName, "GetServiceCapabilities")) {
+        body << "    <tev:GetServiceCapabilitiesResponse>\r\n"
+             << "      <tev:Capabilities WSSubscriptionPolicySupport=\"true\" WSPullPointSupport=\"true\" "
+                "MaxPullPoints=\"10\" PersistentNotificationStorage=\"false\"/>\r\n"
+             << "    </tev:GetServiceCapabilitiesResponse>\r\n";
+    } else if (isOp(opName, "CreatePullPointSubscription")) {
         const pugi::xml_node initTermNode = doc.select_node("//*[local-name()='InitialTerminationTime']").node();
         const std::string initTermStr = initTermNode ? initTermNode.text().as_string() : "";
+
+        const pugi::xml_node topicNode = doc.select_node("//*[local-name()='TopicExpression']").node();
+        const std::string topicFilter = topicNode ? topicNode.text().as_string() : "";
 
         if (!m_subManager) {
             sendSoapResponse(res, SoapFault::subscribeCreationFailed("Event service unavailable"), 500);
             return;
         }
 
-        const auto result = m_subManager->createPullSub(initTermStr);
+        const auto result = m_subManager->createPullSub(initTermStr, topicFilter);
         if (!result.success) {
             sendSoapResponse(res, SoapFault::subscribeCreationFailed(result.errorReason), 500);
             return;
@@ -4953,12 +5317,15 @@ void OnvifServer::handleEventService(const httplib::Request& req, httplib::Respo
         const pugi::xml_node initTermNode = doc.select_node("//*[local-name()='InitialTerminationTime']").node();
         const std::string initTermStr = initTermNode ? initTermNode.text().as_string() : "";
 
+        const pugi::xml_node topicNode = doc.select_node("//*[local-name()='TopicExpression']").node();
+        const std::string topicFilter = topicNode ? topicNode.text().as_string() : "";
+
         if (!m_subManager) {
             sendSoapResponse(res, SoapFault::subscribeCreationFailed("Event service unavailable"), 500);
             return;
         }
 
-        const auto result = m_subManager->createPushSub(consumerUrl, initTermStr);
+        const auto result = m_subManager->createPushSub(consumerUrl, initTermStr, topicFilter);
         if (!result.success) {
             sendSoapResponse(res, SoapFault::subscribeCreationFailed(result.errorReason), 500);
             return;
@@ -4975,7 +5342,12 @@ void OnvifServer::handleEventService(const httplib::Request& req, httplib::Respo
              << "      <wsnt:CurrentTime>" << curTime << "</wsnt:CurrentTime>\r\n"
              << "      <wsnt:TerminationTime>" << result.terminationTimeUtc << "</wsnt:TerminationTime>\r\n"
              << "    </wsnt:SubscribeResponse>\r\n";
-    } else if (opName.find("GetEventProperties") != std::string::npos) {
+    } else if (isOp(opName, "SetSynchronizationPoint")) {
+        if (m_subManager) {
+            static_cast<void>(m_subManager->setSynchronizationPoint(""));
+        }
+        body << "    <tev:SetSynchronizationPointResponse/>\r\n";
+    } else if (isOp(opName, "GetEventProperties")) {
         body << "    <tev:GetEventPropertiesResponse>\r\n"
              << "      "
                 "<tev:TopicNamespaceLocation>http://www.onvif.org/onvif/ver10/topics/topicns.xml</"
@@ -5030,7 +5402,18 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
 
     std::ostringstream body;
 
-    if (opName.find("PullMessages") != std::string::npos) {
+    if (isOp(opName, "GetServiceCapabilities")) {
+        body << "    <tev:GetServiceCapabilitiesResponse>\r\n"
+             << "      <tev:Capabilities WSSubscriptionPolicySupport=\"true\" WSPullPointSupport=\"true\" "
+                "MaxPullPoints=\"10\" PersistentNotificationStorage=\"false\"/>\r\n"
+             << "    </tev:GetServiceCapabilitiesResponse>\r\n";
+    } else if (isOp(opName, "SetSynchronizationPoint")) {
+        if (subId.empty() || !m_subManager || !m_subManager->setSynchronizationPoint(subId)) {
+            sendSoapResponse(res, SoapFault::resourceUnknown("Subscription does not exist"), 400);
+            return;
+        }
+        body << "    <tev:SetSynchronizationPointResponse/>\r\n";
+    } else if (isOp(opName, "PullMessages")) {
         if (subId.empty()) {
             sendSoapResponse(res, SoapFault::resourceUnknown("Missing subscription ID in URI"), 400);
             return;
@@ -5062,7 +5445,7 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
         }
 
         body << "    </tev:PullMessagesResponse>\r\n";
-    } else if (opName.find("Unsubscribe") != std::string::npos) {
+    } else if (isOp(opName, "Unsubscribe")) {
         if (subId.empty()) {
             sendSoapResponse(res, SoapFault::resourceUnknown("Missing subscription ID in URI"), 400);
             return;
@@ -5073,7 +5456,7 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
             return;
         }
         body << "    <wsnt:UnsubscribeResponse/>\r\n";
-    } else if (opName.find("Renew") != std::string::npos) {
+    } else if (isOp(opName, "Renew")) {
         if (subId.empty()) {
             sendSoapResponse(res, SoapFault::resourceUnknown("Missing subscription ID in URI"), 400);
             return;

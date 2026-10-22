@@ -208,6 +208,48 @@ struct VideoEncoderConfig {
     std::string sessionTimeout { "PT30S" }; ///< RTSP session timeout
 };
 
+/// @struct PanTiltLimits
+/// @brief Range limits for PTZ pan/tilt movements (ONVIF Profile S).
+struct PanTiltLimits {
+    std::string uri { "http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionGenericSpace" }; ///< Space URI
+    float minX { -1.0f }; ///< Minimum pan coordinate
+    float maxX { 1.0f }; ///< Maximum pan coordinate
+    float minY { -1.0f }; ///< Minimum tilt coordinate
+    float maxY { 1.0f }; ///< Maximum tilt coordinate
+};
+
+/// @struct ZoomLimits
+/// @brief Range limits for PTZ optical zoom movements (ONVIF Profile S).
+struct ZoomLimits {
+    std::string uri { "http://www.onvif.org/ver10/tptz/ZoomSpaces/PositionGenericSpace" }; ///< Space URI
+    float minX { 0.0f }; ///< Minimum zoom coordinate
+    float maxX { 1.0f }; ///< Maximum zoom coordinate
+};
+
+/// @struct PTZConfiguration
+/// @brief Configuration parameters for a PTZ node attachment (ONVIF Profile S).
+struct PTZConfiguration {
+    std::string token { "PTZConfig_1" }; ///< Unique configuration token
+    std::string name { "PTZConfig" }; ///< User-friendly configuration name
+    int useCount { 1 }; ///< Number of profiles referencing this configuration
+    std::string nodeToken { "PTZNode_1" }; ///< Bound physical PTZ node identifier
+    std::string defaultAbsolutePanTiltPositionSpace {
+        "http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionGenericSpace"
+    }; ///< Default absolute position space
+    std::string defaultRelativePanTiltTranslationSpace {
+        "http://www.onvif.org/ver10/tptz/PanTiltSpaces/TranslationGenericSpace"
+    }; ///< Default relative translation space
+    std::string defaultContinuousPanTiltVelocitySpace {
+        "http://www.onvif.org/ver10/tptz/PanTiltSpaces/VelocityGenericSpace"
+    }; ///< Default continuous velocity space
+    std::string defaultContinuousZoomVelocitySpace {
+        "http://www.onvif.org/ver10/tptz/ZoomSpaces/VelocityGenericSpace"
+    }; ///< Default continuous zoom space
+    std::string defaultPtzTimeout { "PT10S" }; ///< Default timeout for continuous movements
+    PanTiltLimits panTiltLimits {}; ///< Physical motion range limits for pan/tilt
+    ZoomLimits zoomLimits {}; ///< Physical motion range limits for zoom
+};
+
 /// @struct Point2D
 /// @brief 2D coordinate pair normalized to [0.0, 1.0] for video analytics geometry.
 struct Point2D {

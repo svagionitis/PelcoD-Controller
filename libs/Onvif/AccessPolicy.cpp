@@ -125,7 +125,9 @@ namespace {
         { "StopMulticastStreaming", C::Actuate },
     } };
 
-    constexpr std::array<OpRule, 25U> kPtz { {
+    constexpr std::array<OpRule, 28U> kPtz { {
+        { "GetServiceCapabilities", C::PreAuth },
+        { "GetCompatibleConfigurations", C::ReadMedia },
         { "GetConfigurationOptions", C::ReadMedia },
         { "GetConfigurations", C::ReadMedia },
         { "GetConfiguration", C::ReadMedia },
@@ -151,6 +153,7 @@ namespace {
         { "CreatePresetTour", C::Actuate },
         { "ModifyPresetTour", C::Actuate },
         { "OperatePresetTour", C::Actuate },
+        { "SetConfiguration", C::Actuate },
     } };
 
     constexpr std::array<OpRule, 10U> kImaging { {
@@ -179,13 +182,16 @@ namespace {
         { "SetRelayOutputState", C::Actuate },
     } };
 
-    constexpr std::array<OpRule, 3U> kEvents { {
+    constexpr std::array<OpRule, 5U> kEvents { {
+        { "GetServiceCapabilities", C::PreAuth },
         { "CreatePullPointSubscription", C::ReadMedia },
         { "Subscribe", C::ReadMedia },
         { "GetEventProperties", C::ReadMedia },
+        { "SetSynchronizationPoint", C::ReadMedia },
     } };
 
-    constexpr std::array<OpRule, 4U> kPullPoint { {
+    constexpr std::array<OpRule, 5U> kPullPoint { {
+        { "GetServiceCapabilities", C::PreAuth },
         { "PullMessages", C::ReadMedia },
         { "Unsubscribe", C::ReadMedia },
         { "Renew", C::ReadMedia },

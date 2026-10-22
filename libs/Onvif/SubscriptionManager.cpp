@@ -191,7 +191,7 @@ std::chrono::seconds SubscriptionManager::parseLease(std::string_view termStr) c
     return m_config.defaultLease;
 }
 
-SubCreateResult SubscriptionManager::createPullSub(std::string_view termTimeStr)
+SubCreateResult SubscriptionManager::createPullSub(std::string_view termTimeStr, std::string_view topicFilter)
 {
     std::scoped_lock lock(m_mutex);
     // Sweep expired before checking quota
@@ -212,6 +212,7 @@ SubCreateResult SubscriptionManager::createPullSub(std::string_view termTimeStr)
     const auto subId { std::to_string(m_nextSubId++) };
     auto sub { std::make_shared<PullPointSub>() };
     sub->id = subId;
+    sub->topicFilter = std::string { topicFilter };
     sub->terminationTime = nowSteady + lease;
 
     m_pullSubs[subId] = sub;
@@ -220,7 +221,8 @@ SubCreateResult SubscriptionManager::createPullSub(std::string_view termTimeStr)
     return { true, subId, formatIso8601Utc(termSys), "" };
 }
 
-SubCreateResult SubscriptionManager::createPushSub(std::string_view consumerUrl, std::string_view termTimeStr)
+SubCreateResult SubscriptionManager::createPushSub(
+    std::string_view consumerUrl, std::string_view termTimeStr, std::string_view topicFilter)
 {
     std::scoped_lock lock(m_mutex);
     const auto nowSteady { std::chrono::steady_clock::now() };
@@ -241,6 +243,7 @@ SubCreateResult SubscriptionManager::createPushSub(std::string_view consumerUrl,
     PushSub sub {};
     sub.id = subId;
     sub.consumerUrl = std::string { consumerUrl };
+    sub.topicFilter = std::string { topicFilter };
     sub.terminationTime = nowSteady + lease;
 
     m_pushSubs[subId] = std::move(sub);
@@ -384,12 +387,14 @@ void SubscriptionManager::publishEvent(const OnvifEvent& event, std::vector<std:
             }
             it = m_pullSubs.erase(it);
         } else {
-            std::scoped_lock subLock(it->second->mutex);
-            while (it->second->queue.size() >= m_config.maxQueuePerSubscription) {
-                it->second->queue.pop_front();
+            if (matchesTopicFilter(event.topic, it->second->topicFilter)) {
+                std::scoped_lock subLock(it->second->mutex);
+                while (it->second->queue.size() >= m_config.maxQueuePerSubscription) {
+                    it->second->queue.pop_front();
+                }
+                it->second->queue.push_back(event);
+                it->second->cv.notify_one();
             }
-            it->second->queue.push_back(event);
-            it->second->cv.notify_one();
             ++it;
         }
     }
@@ -398,12 +403,162 @@ void SubscriptionManager::publishEvent(const OnvifEvent& event, std::vector<std:
         if (it->second.terminationTime <= nowSteady) {
             it = m_pushSubs.erase(it);
         } else {
-            if (!it->second.consumerUrl.empty()) {
+            if (!it->second.consumerUrl.empty() && matchesTopicFilter(event.topic, it->second.topicFilter)) {
                 outPushUrls.push_back(it->second.consumerUrl);
             }
             ++it;
         }
     }
+}
+
+bool SubscriptionManager::matchesTopicFilter(std::string_view eventTopic, std::string_view filter)
+{
+    // Trim whitespace from filter
+    while (!filter.empty()
+        && (filter.front() == ' ' || filter.front() == '\t' || filter.front() == '\r' || filter.front() == '\n')) {
+        filter.remove_prefix(1);
+    }
+    while (!filter.empty()
+        && (filter.back() == ' ' || filter.back() == '\t' || filter.back() == '\r' || filter.back() == '\n')) {
+        filter.remove_suffix(1);
+    }
+    if (filter.empty()) {
+        return true;
+    }
+
+    // Strip namespace prefix (e.g. "tns1:")
+    const auto stripNs = [](std::string_view s) noexcept -> std::string_view {
+        const auto colon = s.find(':');
+        const auto slash = s.find('/');
+        if (colon != std::string_view::npos && (slash == std::string_view::npos || colon < slash)) {
+            return s.substr(colon + 1);
+        }
+        return s;
+    };
+
+    const std::string_view ePath { stripNs(eventTopic) };
+    const std::string_view fPath { stripNs(filter) };
+
+    if (fPath == ePath) {
+        return true;
+    }
+
+    // Handle multi-level recursive wildcard "//." or "//"
+    if (fPath.size() >= 3 && fPath.substr(fPath.size() - 3) == "//.") {
+        const std::string_view prefix = fPath.substr(0, fPath.size() - 3);
+        if (ePath.rfind(prefix, 0) == 0 && (ePath.size() == prefix.size() || ePath[prefix.size()] == '/')) {
+            return true;
+        }
+    }
+    if (fPath.size() >= 2 && fPath.substr(fPath.size() - 2) == "//") {
+        const std::string_view prefix = fPath.substr(0, fPath.size() - 2);
+        if (ePath.rfind(prefix, 0) == 0 && (ePath.size() == prefix.size() || ePath[prefix.size()] == '/')) {
+            return true;
+        }
+    }
+
+    // Handle trailing wildcard "/*"
+    if (fPath.size() >= 2 && fPath.substr(fPath.size() - 2) == "/*") {
+        const std::string_view prefix = fPath.substr(0, fPath.size() - 2);
+        if (ePath.rfind(prefix, 0) == 0 && (ePath.size() == prefix.size() || ePath[prefix.size()] == '/')) {
+            return true;
+        }
+    }
+
+    // Handle prefix without wildcard e.g. "Device/Trigger" matching "Device/Trigger/Relay"
+    if (ePath.rfind(fPath, 0) == 0 && (ePath.size() == fPath.size() || ePath[fPath.size()] == '/')) {
+        return true;
+    }
+
+    // Segment-by-segment matching with "*" wildcards
+    std::size_t fStart { 0 };
+    std::size_t eStart { 0 };
+    while (fStart < fPath.size() && eStart < ePath.size()) {
+        const auto fEnd = fPath.find('/', fStart);
+        const auto eEnd = ePath.find('/', eStart);
+        const auto fSeg
+            = fPath.substr(fStart, (fEnd == std::string_view::npos) ? std::string_view::npos : (fEnd - fStart));
+        const auto eSeg
+            = ePath.substr(eStart, (eEnd == std::string_view::npos) ? std::string_view::npos : (eEnd - eStart));
+
+        if (fSeg == "//" || fSeg == "//.") {
+            return true;
+        }
+        if (fSeg != "*" && fSeg != eSeg) {
+            return false;
+        }
+
+        if (fEnd == std::string_view::npos || eEnd == std::string_view::npos) {
+            return (fEnd == std::string_view::npos && eEnd == std::string_view::npos);
+        }
+        fStart = fEnd + 1;
+        eStart = eEnd + 1;
+    }
+
+    return false;
+}
+
+bool SubscriptionManager::setSynchronizationPoint(std::string_view subId)
+{
+    std::scoped_lock lock(m_mutex);
+    const auto nowSteady { std::chrono::steady_clock::now() };
+    const auto nowSys { std::chrono::system_clock::now() };
+    const std::string curTime { formatIso8601Utc(nowSys) };
+
+    const std::vector<OnvifEvent> initialEvents { { "tns1:Device/Trigger/Relay", "RelayToken", "Relay_1",
+                                                      "LogicalState", "inactive", curTime, "Initialized" },
+        { "tns1:Device/Trigger/DigitalInput", "InputToken", "Input_1", "LogicalState", "false", curTime,
+            "Initialized" },
+        { "tns1:RuleEngine/CellMotionDetector/Motion", "VideoSourceConfigurationToken", "VideoSourceToken_1",
+            "IsMotion", "false", curTime, "Initialized" } };
+
+    auto enqueueForSub = [&](const std::shared_ptr<PullPointSub>& sub) {
+        std::scoped_lock subLock(sub->mutex);
+        for (const auto& ev : initialEvents) {
+            if (matchesTopicFilter(ev.topic, sub->topicFilter)) {
+                while (sub->queue.size() >= m_config.maxQueuePerSubscription) {
+                    sub->queue.pop_front();
+                }
+                sub->queue.push_back(ev);
+            }
+        }
+        sub->cv.notify_one();
+    };
+
+    if (subId.empty()) {
+        bool any { false };
+        for (auto it { m_pullSubs.begin() }; it != m_pullSubs.end();) {
+            if (it->second->terminationTime <= nowSteady) {
+                {
+                    std::scoped_lock subLock(it->second->mutex);
+                    it->second->cv.notify_all();
+                }
+                it = m_pullSubs.erase(it);
+            } else {
+                enqueueForSub(it->second);
+                any = true;
+                ++it;
+            }
+        }
+        return any;
+    }
+
+    const std::string idStr { subId };
+    const auto it = m_pullSubs.find(idStr);
+    if (it == m_pullSubs.end()) {
+        return false;
+    }
+    if (it->second->terminationTime <= nowSteady) {
+        {
+            std::scoped_lock subLock(it->second->mutex);
+            it->second->cv.notify_all();
+        }
+        m_pullSubs.erase(it);
+        return false;
+    }
+
+    enqueueForSub(it->second);
+    return true;
 }
 
 std::size_t SubscriptionManager::sweepExpired()
