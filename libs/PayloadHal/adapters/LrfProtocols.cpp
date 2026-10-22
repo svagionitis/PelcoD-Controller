@@ -3,7 +3,6 @@
 
 #include "LrfProtocols.h"
 
-#include <cctype>
 #include <cstddef>
 #include <cstdint>
 
@@ -25,7 +24,7 @@ namespace {
     {
         const auto first = str.find_first_not_of(" \t\r\n");
         if (first == std::string_view::npos) {
-            return {};
+            return { };
         }
         const auto last = str.find_last_not_of(" \t\r\n");
         return str.substr(first, (last - first + 1));
@@ -72,15 +71,32 @@ namespace {
         }
 
         auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), outVal);
-        return (ec == std::errc {} && ptr == str.data() + str.size());
+        return (ec == std::errc { } && ptr == str.data() + str.size());
+    }
+
+    [[nodiscard]] constexpr char toUpperAscii(char ch) noexcept
+    {
+        return ((ch >= 'a') && (ch <= 'z')) ? static_cast<char>((ch - 'a') + 'A') : ch;
     }
 
     std::string toUpperSafe(std::string_view str)
     {
-        std::string upper(str);
-        std::transform(upper.begin(), upper.end(), upper.begin(),
-            [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+        std::string upper { };
+        upper.reserve(str.size());
+        for (const char c : str) {
+            upper.push_back(toUpperAscii(c));
+        }
         return upper;
+    }
+
+    [[nodiscard]] std::vector<std::uint8_t> stringToBytes(std::string_view text)
+    {
+        std::vector<std::uint8_t> bytes { };
+        bytes.reserve(text.size());
+        for (const char ch : text) {
+            bytes.push_back(static_cast<std::uint8_t>(ch));
+        }
+        return bytes;
     }
 
 } // namespace
@@ -173,7 +189,7 @@ std::vector<LrfTargetMeasurement> NmeaLrfParser::parseIncomingBytes(const std::u
 
         std::uint8_t expectedCs = 0;
         const auto [pCs, ecCs] = std::from_chars(csStr.data(), csStr.data() + csStr.size(), expectedCs, 16);
-        if (ecCs != std::errc {} || pCs != csStr.data() + csStr.size()) {
+        if (ecCs != std::errc { } || pCs != csStr.data() + csStr.size()) {
             continue;
         }
 
@@ -227,7 +243,7 @@ std::vector<LrfTargetMeasurement> NmeaLrfParser::parseIncomingBytes(const std::u
             }
         }
 
-        LrfTargetMeasurement meas {};
+        LrfTargetMeasurement meas { };
         meas.valid = valid;
         meas.slantRangeMeters = valid ? distanceMeters : 0.0;
         meas.signalQualityRatio = std::nullopt;
@@ -258,19 +274,19 @@ std::size_t NmeaLrfParser::getRxBufferSize() const noexcept
 std::vector<std::uint8_t> NmeaLrfParser::buildArmCommand()
 {
     const std::string cmd = formatNmeaSentence("GPLRF,ARM");
-    return { cmd.begin(), cmd.end() };
+    return stringToBytes(cmd);
 }
 
 std::vector<std::uint8_t> NmeaLrfParser::buildDisarmCommand()
 {
     const std::string cmd = formatNmeaSentence("GPLRF,DISARM");
-    return { cmd.begin(), cmd.end() };
+    return stringToBytes(cmd);
 }
 
 std::vector<std::uint8_t> NmeaLrfParser::buildFireCommand()
 {
     const std::string cmd = formatNmeaSentence("GPLRF,FIRE");
-    return { cmd.begin(), cmd.end() };
+    return stringToBytes(cmd);
 }
 
 std::vector<std::uint8_t> NmeaLrfParser::buildContinuousCommand(LrfMode mode)
@@ -282,13 +298,13 @@ std::vector<std::uint8_t> NmeaLrfParser::buildContinuousCommand(LrfMode mode)
         rate = 10;
     }
     const std::string cmd = formatNmeaSentence("GPLRF,RATE," + std::to_string(rate));
-    return { cmd.begin(), cmd.end() };
+    return stringToBytes(cmd);
 }
 
 std::vector<std::uint8_t> NmeaLrfParser::buildStopCommand()
 {
     const std::string cmd = formatNmeaSentence("GPLRF,STOP");
-    return { cmd.begin(), cmd.end() };
+    return stringToBytes(cmd);
 }
 
 // =============================================================================
@@ -383,7 +399,7 @@ std::vector<LrfTargetMeasurement> AsciiLrfParser::parseIncomingBytes(const std::
             }
         }
 
-        LrfTargetMeasurement meas {};
+        LrfTargetMeasurement meas { };
         meas.valid = valid;
         meas.slantRangeMeters = valid ? distanceMeters : 0.0;
         meas.signalQualityRatio = std::nullopt;
@@ -414,19 +430,19 @@ std::size_t AsciiLrfParser::getRxBufferSize() const noexcept
 std::vector<std::uint8_t> AsciiLrfParser::buildArmCommand()
 {
     const std::string cmd = m_config.customArmCmd.empty() ? "ARM\r\n" : m_config.customArmCmd;
-    return { cmd.begin(), cmd.end() };
+    return stringToBytes(cmd);
 }
 
 std::vector<std::uint8_t> AsciiLrfParser::buildDisarmCommand()
 {
     const std::string cmd = m_config.customDisarmCmd.empty() ? "DISARM\r\n" : m_config.customDisarmCmd;
-    return { cmd.begin(), cmd.end() };
+    return stringToBytes(cmd);
 }
 
 std::vector<std::uint8_t> AsciiLrfParser::buildFireCommand()
 {
     const std::string cmd = m_config.customFireCmd.empty() ? "FIRE\r\n" : m_config.customFireCmd;
-    return { cmd.begin(), cmd.end() };
+    return stringToBytes(cmd);
 }
 
 std::vector<std::uint8_t> AsciiLrfParser::buildContinuousCommand(LrfMode mode)
@@ -438,13 +454,13 @@ std::vector<std::uint8_t> AsciiLrfParser::buildContinuousCommand(LrfMode mode)
         rate = 10;
     }
     const std::string cmd = "RATE " + std::to_string(rate) + "\r\n";
-    return { cmd.begin(), cmd.end() };
+    return stringToBytes(cmd);
 }
 
 std::vector<std::uint8_t> AsciiLrfParser::buildStopCommand()
 {
     const std::string cmd = "STOP\r\n";
-    return { cmd.begin(), cmd.end() };
+    return stringToBytes(cmd);
 }
 
 // =============================================================================
@@ -455,7 +471,7 @@ namespace {
 
     constexpr std::array<std::uint16_t, 256> generateCrc16CcittTable() noexcept
     {
-        std::array<std::uint16_t, 256> table {};
+        std::array<std::uint16_t, 256> table { };
         for (std::uint32_t i = 0U; i < 256U; ++i) {
             std::uint32_t cur = i << 8U;
             for (std::uint32_t bit = 0U; bit < 8U; ++bit) {
@@ -492,7 +508,7 @@ std::uint16_t BinaryLrfParser::computeCrc16(const std::uint8_t* data, std::size_
 std::vector<std::uint8_t> BinaryLrfParser::buildBinaryPacket(std::uint8_t cmd, const std::vector<std::uint8_t>& payload)
 {
     if (payload.size() > kMaxPayloadLength) {
-        return {};
+        return { };
     }
 
     std::vector<std::uint8_t> packet;
@@ -569,9 +585,9 @@ std::vector<LrfTargetMeasurement> BinaryLrfParser::parseIncomingBytes(const std:
             break; // Await more incoming stream bytes
         }
 
-        const std::uint16_t expectedCrc = static_cast<std::uint16_t>(
-            (static_cast<std::uint32_t>(m_rxBuffer[offset + 4U + payloadLen]) << 8U)
-            | static_cast<std::uint32_t>(m_rxBuffer[offset + 5U + payloadLen]));
+        const std::uint16_t expectedCrc
+            = static_cast<std::uint16_t>((static_cast<std::uint32_t>(m_rxBuffer[offset + 4U + payloadLen]) << 8U)
+                | static_cast<std::uint32_t>(m_rxBuffer[offset + 5U + payloadLen]));
 
         const std::uint16_t computedCrc = computeCrc16(m_rxBuffer.data() + offset, 4U + payloadLen);
         if (computedCrc != expectedCrc) {
@@ -598,7 +614,7 @@ std::vector<LrfTargetMeasurement> BinaryLrfParser::parseIncomingBytes(const std:
                 tempC = static_cast<double>(static_cast<std::int8_t>(m_rxBuffer[offset + 10]));
             }
 
-            LrfTargetMeasurement meas {};
+            LrfTargetMeasurement meas { };
             meas.valid = (status == 0 && distMm > 0);
             meas.slantRangeMeters = meas.valid ? (static_cast<double>(distMm) / 1000.0) : 0.0;
             meas.signalQualityRatio = meas.valid ? quality : std::nullopt;
@@ -631,17 +647,17 @@ std::size_t BinaryLrfParser::getRxBufferSize() const noexcept
 
 std::vector<std::uint8_t> BinaryLrfParser::buildArmCommand()
 {
-    return buildBinaryPacket(kCmdArm, {});
+    return buildBinaryPacket(kCmdArm, { });
 }
 
 std::vector<std::uint8_t> BinaryLrfParser::buildDisarmCommand()
 {
-    return buildBinaryPacket(kCmdDisarm, {});
+    return buildBinaryPacket(kCmdDisarm, { });
 }
 
 std::vector<std::uint8_t> BinaryLrfParser::buildFireCommand()
 {
-    return buildBinaryPacket(kCmdFireSingle, {});
+    return buildBinaryPacket(kCmdFireSingle, { });
 }
 
 std::vector<std::uint8_t> BinaryLrfParser::buildContinuousCommand(LrfMode mode)
@@ -657,7 +673,7 @@ std::vector<std::uint8_t> BinaryLrfParser::buildContinuousCommand(LrfMode mode)
 
 std::vector<std::uint8_t> BinaryLrfParser::buildStopCommand()
 {
-    return buildBinaryPacket(kCmdStop, {});
+    return buildBinaryPacket(kCmdStop, { });
 }
 
 // =============================================================================

@@ -85,6 +85,16 @@ public:
         }
     }
 
+    void injectString(std::string_view text)
+    {
+        std::vector<std::uint8_t> data { };
+        data.reserve(text.size());
+        for (const char ch : text) {
+            data.push_back(static_cast<std::uint8_t>(ch));
+        }
+        injectData(data);
+    }
+
     void injectDisconnect()
     {
         StateChangedCallback cb;
@@ -113,9 +123,9 @@ public:
 private:
     mutable std::mutex m_mutex;
     bool m_open { false };
-    DataReceivedCallback m_dataCb {};
-    StateChangedCallback m_stateCb {};
-    std::vector<std::vector<std::uint8_t>> m_sentPackets {};
+    DataReceivedCallback m_dataCb { };
+    StateChangedCallback m_stateCb { };
+    std::vector<std::vector<std::uint8_t>> m_sentPackets { };
 };
 
 } // namespace
@@ -224,7 +234,7 @@ TEST(TestSerialLrfAdapter, ReceiveNmeaMeasurement)
     adapter->registerMeasurementCallback([&](const LrfTargetMeasurement& m) { receivedMeas = m; });
 
     const std::string echo = NmeaLrfParser::formatNmeaSentence("GPLRF,1780.25,M,OK");
-    mockTransport->injectData({ echo.begin(), echo.end() });
+    mockTransport->injectString(echo);
 
     ASSERT_TRUE(receivedMeas.has_value());
     EXPECT_TRUE(receivedMeas->valid);
@@ -247,14 +257,14 @@ TEST(TestSerialLrfAdapter, RangeGatingRejectsClutter)
 
     // 1. Clutter near target (50m)
     const std::string echoNear = NmeaLrfParser::formatNmeaSentence("GPLRF,50.0,M,OK");
-    mockTransport->injectData({ echoNear.begin(), echoNear.end() });
+    mockTransport->injectString(echoNear);
     auto meas1 = adapter->lastMeasurement();
     ASSERT_TRUE(meas1.has_value());
     EXPECT_FALSE(meas1->valid); // Rejected by near-gate!
 
     // 2. Valid target inside gate (1500m)
     const std::string echoValid = NmeaLrfParser::formatNmeaSentence("GPLRF,1500.0,M,OK");
-    mockTransport->injectData({ echoValid.begin(), echoValid.end() });
+    mockTransport->injectString(echoValid);
     auto meas2 = adapter->lastMeasurement();
     ASSERT_TRUE(meas2.has_value());
     EXPECT_TRUE(meas2->valid);
@@ -262,7 +272,7 @@ TEST(TestSerialLrfAdapter, RangeGatingRejectsClutter)
 
     // 3. Target beyond max gate (3500m)
     const std::string echoFar = NmeaLrfParser::formatNmeaSentence("GPLRF,3500.0,M,OK");
-    mockTransport->injectData({ echoFar.begin(), echoFar.end() });
+    mockTransport->injectString(echoFar);
     auto meas3 = adapter->lastMeasurement();
     ASSERT_TRUE(meas3.has_value());
     EXPECT_FALSE(meas3->valid); // Rejected by far-gate!
@@ -366,7 +376,7 @@ TEST(TestSerialLrfAdapter, ConcurrentOperationsThreadSafety)
     // Thread 1: Ingesting data concurrently
     std::thread ingestionThread([&] {
         const std::string sentence = NmeaLrfParser::formatNmeaSentence("GPLRF,1500.0,M,OK");
-        std::vector<std::uint8_t> data {};
+        std::vector<std::uint8_t> data { };
         data.reserve(sentence.size());
         for (const char ch : sentence) {
             data.push_back(static_cast<std::uint8_t>(ch));

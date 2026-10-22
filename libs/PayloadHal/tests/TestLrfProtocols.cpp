@@ -2,8 +2,24 @@
 /// @brief Unit tests for NMEA, ASCII, and Binary LRF wire protocol parsers.
 
 #include "adapters/LrfProtocols.h"
+
 #include <clocale>
+#include <cstddef>
+#include <cstdint>
+
+#include <string>
+#include <vector>
+
 #include <gtest/gtest.h>
+
+namespace {
+
+std::string bytesToString(const std::vector<std::uint8_t>& bytes)
+{
+    return std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+}
+
+} // namespace
 
 using namespace PayloadHal;
 
@@ -26,7 +42,7 @@ TEST(TestLrfProtocols, NmeaParseValidSentence)
 {
     NmeaLrfParser parser;
     const std::string msg = NmeaLrfParser::formatNmeaSentence("GPLRF,1250.50,M,OK");
-    auto results = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(msg.data()), msg.size());
+    auto results = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(msg.data()), msg.size());
 
     ASSERT_EQ(results.size(), 1U);
     EXPECT_TRUE(results[0].valid);
@@ -40,7 +56,7 @@ TEST(TestLrfProtocols, NmeaParseFeetConversion)
     NmeaLrfParser parser;
     // 1000 feet = 304.8 meters
     const std::string msg = NmeaLrfParser::formatNmeaSentence("GPLRF,1000.0,FT,OK");
-    auto results = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(msg.data()), msg.size());
+    auto results = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(msg.data()), msg.size());
 
     ASSERT_EQ(results.size(), 1U);
     EXPECT_TRUE(results[0].valid);
@@ -51,7 +67,7 @@ TEST(TestLrfProtocols, NmeaParseErrorOrNoTarget)
 {
     NmeaLrfParser parser;
     const std::string msg = NmeaLrfParser::formatNmeaSentence("GPLRF,0.0,M,FAIL");
-    auto results = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(msg.data()), msg.size());
+    auto results = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(msg.data()), msg.size());
 
     ASSERT_EQ(results.size(), 1U);
     EXPECT_FALSE(results[0].valid);
@@ -63,7 +79,7 @@ TEST(TestLrfProtocols, NmeaCorruptedChecksumRejection)
     NmeaLrfParser parser;
     // Correct CS is 27, inject bad CS 99
     const std::string badMsg = "$GPLRF,1250.50,M,OK*99\r\n";
-    auto results = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(badMsg.data()), badMsg.size());
+    auto results = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(badMsg.data()), badMsg.size());
     EXPECT_TRUE(results.empty());
 }
 
@@ -74,10 +90,10 @@ TEST(TestLrfProtocols, NmeaStreamFragmentation)
     ASSERT_GT(msg.size(), 6U);
 
     // Feed in two chunks
-    auto r1 = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(msg.data()), 6);
+    auto r1 = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(msg.data()), 6);
     EXPECT_TRUE(r1.empty());
 
-    auto r2 = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(msg.data() + 6), msg.size() - 6);
+    auto r2 = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(msg.data() + 6), msg.size() - 6);
     ASSERT_EQ(r2.size(), 1U);
     EXPECT_TRUE(r2[0].valid);
     EXPECT_NEAR(r2[0].slantRangeMeters, 2400.0, 0.001);
@@ -87,19 +103,19 @@ TEST(TestLrfProtocols, NmeaCommandGeneration)
 {
     NmeaLrfParser parser;
     const auto arm = parser.buildArmCommand();
-    const std::string armStr(arm.begin(), arm.end());
+    const std::string armStr = bytesToString(arm);
     EXPECT_EQ(armStr, NmeaLrfParser::formatNmeaSentence("GPLRF,ARM"));
 
     const auto disarm = parser.buildDisarmCommand();
-    const std::string disarmStr(disarm.begin(), disarm.end());
+    const std::string disarmStr = bytesToString(disarm);
     EXPECT_EQ(disarmStr, NmeaLrfParser::formatNmeaSentence("GPLRF,DISARM"));
 
     const auto fire = parser.buildFireCommand();
-    const std::string fireStr(fire.begin(), fire.end());
+    const std::string fireStr = bytesToString(fire);
     EXPECT_EQ(fireStr, NmeaLrfParser::formatNmeaSentence("GPLRF,FIRE"));
 
     const auto cont5 = parser.buildContinuousCommand(LrfMode::Continuous5Hz);
-    const std::string cont5Str(cont5.begin(), cont5.end());
+    const std::string cont5Str = bytesToString(cont5);
     EXPECT_EQ(cont5Str, NmeaLrfParser::formatNmeaSentence("GPLRF,RATE,5"));
 }
 
@@ -111,7 +127,7 @@ TEST(TestLrfProtocols, AsciiParseRColonPrefix)
 {
     AsciiLrfParser parser;
     const std::string msg = "R: 1420.75\r\n";
-    auto results = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(msg.data()), msg.size());
+    auto results = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(msg.data()), msg.size());
 
     ASSERT_EQ(results.size(), 1U);
     EXPECT_TRUE(results[0].valid);
@@ -122,7 +138,7 @@ TEST(TestLrfProtocols, AsciiParseDistPrefixWithUnits)
 {
     AsciiLrfParser parser;
     const std::string msg = "DIST: 855.2 m\r\n";
-    auto results = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(msg.data()), msg.size());
+    auto results = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(msg.data()), msg.size());
 
     ASSERT_EQ(results.size(), 1U);
     EXPECT_TRUE(results[0].valid);
@@ -133,12 +149,12 @@ TEST(TestLrfProtocols, AsciiParseErrorStrings)
 {
     AsciiLrfParser parser;
     const std::string msg1 = "ERROR: TARGET NOT FOUND\r\n";
-    auto r1 = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(msg1.data()), msg1.size());
+    auto r1 = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(msg1.data()), msg1.size());
     ASSERT_EQ(r1.size(), 1U);
     EXPECT_FALSE(r1[0].valid);
 
     const std::string msg2 = "NO_TARGET\r\n";
-    auto r2 = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(msg2.data()), msg2.size());
+    auto r2 = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(msg2.data()), msg2.size());
     ASSERT_EQ(r2.size(), 1U);
     EXPECT_FALSE(r2[0].valid);
 }
@@ -151,13 +167,13 @@ TEST(TestLrfProtocols, AsciiCommands)
     AsciiLrfParser parser(cfg);
 
     const auto arm = parser.buildArmCommand();
-    EXPECT_EQ(std::string(arm.begin(), arm.end()), "LASER_ARM\r\n");
+    EXPECT_EQ(bytesToString(arm), "LASER_ARM\r\n");
 
     const auto disarm = parser.buildDisarmCommand();
-    EXPECT_EQ(std::string(disarm.begin(), disarm.end()), "LASER_SAFE\r\n");
+    EXPECT_EQ(bytesToString(disarm), "LASER_SAFE\r\n");
 
     const auto fire = parser.buildFireCommand();
-    EXPECT_EQ(std::string(fire.begin(), fire.end()), "FIRE\r\n");
+    EXPECT_EQ(bytesToString(fire), "FIRE\r\n");
 }
 
 TEST(TestLrfProtocols, AsciiDecoupledConfig)
@@ -176,22 +192,22 @@ TEST(TestLrfProtocols, AsciiDecoupledConfig)
     EXPECT_EQ(parser.config().customFireCmd, "CUSTOM_FIRE\r\n");
 
     const auto arm = parser.buildArmCommand();
-    EXPECT_EQ(std::string(arm.begin(), arm.end()), "CUSTOM_ARM\r\n");
+    EXPECT_EQ(bytesToString(arm), "CUSTOM_ARM\r\n");
 
     const auto disarm = parser.buildDisarmCommand();
-    EXPECT_EQ(std::string(disarm.begin(), disarm.end()), "CUSTOM_DISARM\r\n");
+    EXPECT_EQ(bytesToString(disarm), "CUSTOM_DISARM\r\n");
 
     const auto fire = parser.buildFireCommand();
-    EXPECT_EQ(std::string(fire.begin(), fire.end()), "CUSTOM_FIRE\r\n");
+    EXPECT_EQ(bytesToString(fire), "CUSTOM_FIRE\r\n");
 
     // Also verify default-constructed parser uses standard defaults
     AsciiLrfParser defaultParser;
     const auto defArm = defaultParser.buildArmCommand();
-    EXPECT_EQ(std::string(defArm.begin(), defArm.end()), "ARM\r\n");
+    EXPECT_EQ(bytesToString(defArm), "ARM\r\n");
     const auto defDisarm = defaultParser.buildDisarmCommand();
-    EXPECT_EQ(std::string(defDisarm.begin(), defDisarm.end()), "DISARM\r\n");
+    EXPECT_EQ(bytesToString(defDisarm), "DISARM\r\n");
     const auto defFire = defaultParser.buildFireCommand();
-    EXPECT_EQ(std::string(defFire.begin(), defFire.end()), "FIRE\r\n");
+    EXPECT_EQ(bytesToString(defFire), "FIRE\r\n");
 
     // Verify factory creation using SerialLrfConfig with nested AsciiProtocolConfig
     SerialLrfConfig serialCfg;
@@ -200,7 +216,7 @@ TEST(TestLrfProtocols, AsciiDecoupledConfig)
     auto factoryParser = createLrfParser(serialCfg);
     ASSERT_NE(factoryParser, nullptr);
     const auto factoryArm = factoryParser->buildArmCommand();
-    EXPECT_EQ(std::string(factoryArm.begin(), factoryArm.end()), "NESTED_ARM\r\n");
+    EXPECT_EQ(bytesToString(factoryArm), "NESTED_ARM\r\n");
 }
 
 // =============================================================================
@@ -219,10 +235,10 @@ TEST(TestLrfProtocols, BinaryParseEchoReport)
     // Dist: 1500000 mm = 1500.0 m (0x0016E360)
     // Quality: 240
     // Temp: 28 C
-    std::vector<uint8_t> frame = { 0xAA, 0x55, 0x10, 0x07, 0x00, 0x00, 0x16, 0xE3, 0x60, 240, 28 };
-    const uint16_t crc = BinaryLrfParser::computeCrc16(frame.data(), frame.size());
-    frame.push_back(static_cast<uint8_t>((crc >> 8) & 0xFF));
-    frame.push_back(static_cast<uint8_t>(crc & 0xFF));
+    std::vector<std::uint8_t> frame = { 0xAA, 0x55, 0x10, 0x07, 0x00, 0x00, 0x16, 0xE3, 0x60, 240, 28 };
+    const std::uint16_t crc = BinaryLrfParser::computeCrc16(frame.data(), frame.size());
+    frame.push_back(static_cast<std::uint8_t>((crc >> 8) & 0xFF));
+    frame.push_back(static_cast<std::uint8_t>(crc & 0xFF));
 
     auto results = parser.parseIncomingBytes(frame.data(), frame.size());
     ASSERT_EQ(results.size(), 1U);
@@ -244,10 +260,10 @@ TEST(TestLrfProtocols, BinaryParseEchoReportMinimalPayload)
     // Len: 5
     // Status: 0x00
     // Dist: 1500000 mm = 1500.0 m (0x0016E360)
-    std::vector<uint8_t> frame = { 0xAA, 0x55, 0x10, 0x05, 0x00, 0x00, 0x16, 0xE3, 0x60 };
-    const uint16_t crc = BinaryLrfParser::computeCrc16(frame.data(), frame.size());
-    frame.push_back(static_cast<uint8_t>((crc >> 8) & 0xFF));
-    frame.push_back(static_cast<uint8_t>(crc & 0xFF));
+    std::vector<std::uint8_t> frame = { 0xAA, 0x55, 0x10, 0x05, 0x00, 0x00, 0x16, 0xE3, 0x60 };
+    const std::uint16_t crc = BinaryLrfParser::computeCrc16(frame.data(), frame.size());
+    frame.push_back(static_cast<std::uint8_t>((crc >> 8) & 0xFF));
+    frame.push_back(static_cast<std::uint8_t>(crc & 0xFF));
 
     auto results = parser.parseIncomingBytes(frame.data(), frame.size());
     ASSERT_EQ(results.size(), 1U);
@@ -261,7 +277,7 @@ TEST(TestLrfProtocols, AsciiParseNoSyntheticTelemetry)
 {
     AsciiLrfParser parser;
     const std::string msg = "R: 1250.5\r\n";
-    auto results = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(msg.data()), msg.size());
+    auto results = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(msg.data()), msg.size());
 
     ASSERT_EQ(results.size(), 1U);
     EXPECT_TRUE(results[0].valid);
@@ -273,7 +289,7 @@ TEST(TestLrfProtocols, AsciiParseNoSyntheticTelemetry)
 TEST(TestLrfProtocols, BinaryCrcCorruptionRejection)
 {
     BinaryLrfParser parser;
-    std::vector<uint8_t> frame = {
+    std::vector<std::uint8_t> frame = {
         0xAA, 0x55, 0x10, 0x07, 0x00, 0x00, 0x16, 0xE3, 0x60, 240, 28, 0xDE, 0xAD // Invalid CRC
     };
 
@@ -285,8 +301,8 @@ TEST(TestLrfProtocols, BinaryCrc16StandardVectors)
 {
     // 1. Standard CCITT-FALSE test vector "123456789" -> 0x29B1
     const std::string standardVector = "123456789";
-    const auto crc1
-        = BinaryLrfParser::computeCrc16(reinterpret_cast<const uint8_t*>(standardVector.data()), standardVector.size());
+    const auto crc1 = BinaryLrfParser::computeCrc16(
+        reinterpret_cast<const std::uint8_t*>(standardVector.data()), standardVector.size());
     EXPECT_EQ(crc1, 0x29B1U);
 
     // 2. Empty input / null pointer safety
@@ -297,7 +313,7 @@ TEST(TestLrfProtocols, BinaryCrc16StandardVectors)
     EXPECT_EQ(BinaryLrfParser::computeCrc16(&dummy, 0), 0xFFFFU);
 
     // 3. Known packet CRC
-    const std::vector<uint8_t> syncPacket = { 0xAA, 0x55, 0x01, 0x00 };
+    const std::vector<std::uint8_t> syncPacket = { 0xAA, 0x55, 0x01, 0x00 };
     const auto crc2 = BinaryLrfParser::computeCrc16(syncPacket.data(), syncPacket.size());
     EXPECT_EQ(crc2, 0x8012U);
 }
@@ -346,7 +362,8 @@ TEST(TestLrfProtocols, LocaleIndependenceUnderCommaDecimalPoint)
     // 1. Test NMEA parsing under comma locale
     NmeaLrfParser nmeaParser;
     const std::string nmeaMsg = NmeaLrfParser::formatNmeaSentence("GPLRF,1250.50,M,OK");
-    auto nmeaResults = nmeaParser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(nmeaMsg.data()), nmeaMsg.size());
+    auto nmeaResults
+        = nmeaParser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(nmeaMsg.data()), nmeaMsg.size());
 
     ASSERT_EQ(nmeaResults.size(), 1U);
     EXPECT_TRUE(nmeaResults[0].valid);
@@ -356,7 +373,7 @@ TEST(TestLrfProtocols, LocaleIndependenceUnderCommaDecimalPoint)
     AsciiLrfParser asciiParser;
     const std::string asciiMsg = "R: 1420.75\r\n";
     auto asciiResults
-        = asciiParser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(asciiMsg.data()), asciiMsg.size());
+        = asciiParser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(asciiMsg.data()), asciiMsg.size());
 
     ASSERT_EQ(asciiResults.size(), 1U);
     EXPECT_TRUE(asciiResults[0].valid);
@@ -405,22 +422,23 @@ TEST(TestLrfProtocols, NmeaParseOmittedFields)
     // 1. Trailing comma with status omitted: should still succeed and parse range
     const std::string msgWithTrailingComma = NmeaLrfParser::formatNmeaSentence("GPLRF,1250.50,M,");
     auto res1 = parser.parseIncomingBytes(
-        reinterpret_cast<const uint8_t*>(msgWithTrailingComma.data()), msgWithTrailingComma.size());
+        reinterpret_cast<const std::uint8_t*>(msgWithTrailingComma.data()), msgWithTrailingComma.size());
     ASSERT_EQ(res1.size(), 1U);
     EXPECT_TRUE(res1[0].valid);
     EXPECT_NEAR(res1[0].slantRangeMeters, 1250.50, 0.001);
 
     // 2. Empty distance with error status: should produce valid=false measurement
     const std::string msgEmptyDist = NmeaLrfParser::formatNmeaSentence("GPLRF,,M,ERR");
-    auto res2 = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(msgEmptyDist.data()), msgEmptyDist.size());
+    auto res2
+        = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(msgEmptyDist.data()), msgEmptyDist.size());
     ASSERT_EQ(res2.size(), 1U);
     EXPECT_FALSE(res2[0].valid);
     EXPECT_EQ(res2[0].slantRangeMeters, 0.0);
 
     // 3. Unit omitted: should fall back and still parse distance
     const std::string msgOmittedUnit = NmeaLrfParser::formatNmeaSentence("GPLRF,800.25,,OK");
-    auto res3
-        = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(msgOmittedUnit.data()), msgOmittedUnit.size());
+    auto res3 = parser.parseIncomingBytes(
+        reinterpret_cast<const std::uint8_t*>(msgOmittedUnit.data()), msgOmittedUnit.size());
     ASSERT_EQ(res3.size(), 1U);
     EXPECT_TRUE(res3[0].valid);
     EXPECT_NEAR(res3[0].slantRangeMeters, 800.25, 0.001);
@@ -434,7 +452,7 @@ TEST(TestLrfProtocols, AsciiParseSignedCharNoise)
     // std::toupper with raw negative char invokes undefined behavior; toUpperSafe casts to unsigned char.
     const std::string noiseAndValid = "\x80\xFF\xFE\r\nERROR: \x80\r\nR: 1650.25\r\n";
     auto results
-        = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(noiseAndValid.data()), noiseAndValid.size());
+        = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(noiseAndValid.data()), noiseAndValid.size());
 
     ASSERT_EQ(results.size(), 3U);
     EXPECT_FALSE(results[0].valid); // Pure noise line is rejected
@@ -446,12 +464,12 @@ TEST(TestLrfProtocols, AsciiParseSignedCharNoise)
 TEST(TestLrfProtocols, BinaryPayloadLengthValidation)
 {
     // 1. Oversized payload (> 255 bytes) must be rejected to prevent silent truncation of the 1-byte length field
-    std::vector<uint8_t> oversizedPayload(256, 0x42);
+    std::vector<std::uint8_t> oversizedPayload(256, 0x42);
     const auto oversizedPacket = BinaryLrfParser::buildBinaryPacket(0x01, oversizedPayload);
     EXPECT_TRUE(oversizedPacket.empty());
 
     // 2. Maximum supported payload (exactly 255 bytes) should be constructed cleanly
-    std::vector<uint8_t> maxPayload(255, 0x7E);
+    std::vector<std::uint8_t> maxPayload(255, 0x7E);
     const auto validMaxPacket = BinaryLrfParser::buildBinaryPacket(0x02, maxPayload);
     ASSERT_EQ(validMaxPacket.size(), 6U + 255U);
     EXPECT_EQ(validMaxPacket[0], BinaryLrfParser::kSyncByte1);
@@ -461,10 +479,10 @@ TEST(TestLrfProtocols, BinaryPayloadLengthValidation)
 
     // 3. Incoming malformed EchoReport with payloadLen < 5 must not produce any measurements
     BinaryLrfParser parser;
-    std::vector<uint8_t> truncatedEcho = { 0xAA, 0x55, 0x10, 0x03, 0x00, 0x01, 0x02 };
-    const uint16_t crcTrunc = BinaryLrfParser::computeCrc16(truncatedEcho.data(), truncatedEcho.size());
-    truncatedEcho.push_back(static_cast<uint8_t>((crcTrunc >> 8) & 0xFF));
-    truncatedEcho.push_back(static_cast<uint8_t>(crcTrunc & 0xFF));
+    std::vector<std::uint8_t> truncatedEcho = { 0xAA, 0x55, 0x10, 0x03, 0x00, 0x01, 0x02 };
+    const std::uint16_t crcTrunc = BinaryLrfParser::computeCrc16(truncatedEcho.data(), truncatedEcho.size());
+    truncatedEcho.push_back(static_cast<std::uint8_t>((crcTrunc >> 8) & 0xFF));
+    truncatedEcho.push_back(static_cast<std::uint8_t>(crcTrunc & 0xFF));
 
     auto resultsTrunc = parser.parseIncomingBytes(truncatedEcho.data(), truncatedEcho.size());
     EXPECT_TRUE(resultsTrunc.empty());
@@ -475,7 +493,8 @@ TEST(TestLrfProtocols, NmeaBufferGrowthBoundedUnderCorruptedStream)
     NmeaLrfParser parser;
     // Feed 10,000 bytes of stream noise with no newline character
     const std::string noise(10000, 'X');
-    const auto noiseResults = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(noise.data()), noise.size());
+    const auto noiseResults
+        = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(noise.data()), noise.size());
     EXPECT_TRUE(noiseResults.empty());
 
     // Buffer size must be strictly bounded by kMaxRxBufferSize to prevent DoS / memory exhaustion
@@ -484,7 +503,7 @@ TEST(TestLrfProtocols, NmeaBufferGrowthBoundedUnderCorruptedStream)
     // Stream recovery: after corrupted stream overflow, incoming valid sentence must parse successfully
     const std::string validSentence = NmeaLrfParser::formatNmeaSentence("GPLRF,1850.50,M,OK");
     auto results
-        = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(validSentence.data()), validSentence.size());
+        = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(validSentence.data()), validSentence.size());
     ASSERT_EQ(results.size(), 1U);
     EXPECT_TRUE(results[0].valid);
     EXPECT_NEAR(results[0].slantRangeMeters, 1850.50, 0.001);
@@ -495,7 +514,8 @@ TEST(TestLrfProtocols, AsciiBufferGrowthBoundedUnderCorruptedStream)
     AsciiLrfParser parser;
     // Feed 10,000 bytes of non-delimited noise
     const std::string noise(10000, 'A');
-    const auto noiseResults = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(noise.data()), noise.size());
+    const auto noiseResults
+        = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(noise.data()), noise.size());
     EXPECT_TRUE(noiseResults.empty());
 
     EXPECT_LE(parser.getRxBufferSize(), ILrfProtocolParser::kMaxRxBufferSize);
@@ -503,7 +523,7 @@ TEST(TestLrfProtocols, AsciiBufferGrowthBoundedUnderCorruptedStream)
     // Verify recovery with valid reading
     const std::string validReading = "R: 2450.25\r\n";
     auto results
-        = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(validReading.data()), validReading.size());
+        = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(validReading.data()), validReading.size());
     ASSERT_EQ(results.size(), 1U);
     EXPECT_TRUE(results[0].valid);
     EXPECT_NEAR(results[0].slantRangeMeters, 2450.25, 0.001);
@@ -513,7 +533,7 @@ TEST(TestLrfProtocols, BinaryBufferGrowthBoundedUnderCorruptedStream)
 {
     BinaryLrfParser parser;
     // Feed stream noise containing false sync markers with oversized expected lengths that stall parsing
-    std::vector<uint8_t> noise;
+    std::vector<std::uint8_t> noise;
     for (int i = 0; i < 40; ++i) {
         noise.push_back(BinaryLrfParser::kSyncByte1);
         noise.push_back(BinaryLrfParser::kSyncByte2);
@@ -528,10 +548,10 @@ TEST(TestLrfProtocols, BinaryBufferGrowthBoundedUnderCorruptedStream)
     EXPECT_LE(parser.getRxBufferSize(), ILrfProtocolParser::kMaxRxBufferSize);
 
     // Verify subsequent valid packet parses cleanly
-    std::vector<uint8_t> frame = { 0xAA, 0x55, 0x10, 0x07, 0x00, 0x00, 0x03, 0xE8, 0x00, 200, 22 };
-    const uint16_t crc = BinaryLrfParser::computeCrc16(frame.data(), frame.size());
-    frame.push_back(static_cast<uint8_t>((crc >> 8) & 0xFF));
-    frame.push_back(static_cast<uint8_t>(crc & 0xFF));
+    std::vector<std::uint8_t> frame = { 0xAA, 0x55, 0x10, 0x07, 0x00, 0x00, 0x03, 0xE8, 0x00, 200, 22 };
+    const std::uint16_t crc = BinaryLrfParser::computeCrc16(frame.data(), frame.size());
+    frame.push_back(static_cast<std::uint8_t>((crc >> 8) & 0xFF));
+    frame.push_back(static_cast<std::uint8_t>(crc & 0xFF));
 
     auto results = parser.parseIncomingBytes(frame.data(), frame.size());
     ASSERT_EQ(results.size(), 1U);
@@ -543,20 +563,20 @@ TEST(TestLrfProtocols, BinaryBatchParsingWithInterleavedNoise)
 {
     BinaryLrfParser parser;
 
-    auto makeFrame = [](uint32_t distMm) {
-        std::vector<uint8_t> f = { 0xAA, 0x55, 0x10, 0x07, 0x00, static_cast<uint8_t>((distMm >> 24) & 0xFF),
-            static_cast<uint8_t>((distMm >> 16) & 0xFF), static_cast<uint8_t>((distMm >> 8) & 0xFF),
-            static_cast<uint8_t>(distMm & 0xFF), 220, 25 };
-        const uint16_t c = BinaryLrfParser::computeCrc16(f.data(), f.size());
-        f.push_back(static_cast<uint8_t>((c >> 8) & 0xFF));
-        f.push_back(static_cast<uint8_t>(c & 0xFF));
+    auto makeFrame = [](std::uint32_t distMm) {
+        std::vector<std::uint8_t> f = { 0xAA, 0x55, 0x10, 0x07, 0x00, static_cast<std::uint8_t>((distMm >> 24) & 0xFF),
+            static_cast<std::uint8_t>((distMm >> 16) & 0xFF), static_cast<std::uint8_t>((distMm >> 8) & 0xFF),
+            static_cast<std::uint8_t>(distMm & 0xFF), 220, 25 };
+        const std::uint16_t c = BinaryLrfParser::computeCrc16(f.data(), f.size());
+        f.push_back(static_cast<std::uint8_t>((c >> 8) & 0xFF));
+        f.push_back(static_cast<std::uint8_t>(c & 0xFF));
         return f;
     };
 
-    std::vector<uint8_t> batch;
+    std::vector<std::uint8_t> batch;
     // 1. Noise chunk (500 bytes with no sync pattern)
     for (int i = 0; i < 500; ++i) {
-        batch.push_back(static_cast<uint8_t>((i * 7) & 0xFF));
+        batch.push_back(static_cast<std::uint8_t>((i * 7) & 0xFF));
     }
     // 2. Frame 1 (1200.0 m)
     const auto f1 = makeFrame(1200000);
@@ -598,7 +618,7 @@ TEST(TestLrfProtocols, NmeaBatchParsingWithMultipleSentences)
     }
     batch += "$GPLRF,9999."; // trailing incomplete fragment
 
-    auto results = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(batch.data()), batch.size());
+    auto results = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(batch.data()), batch.size());
     ASSERT_EQ(results.size(), 20U);
     for (std::size_t i = 0; i < 20U; ++i) {
         EXPECT_TRUE(results[i].valid);
@@ -609,7 +629,7 @@ TEST(TestLrfProtocols, NmeaBatchParsingWithMultipleSentences)
     // Complete the trailing fragment
     const std::string full = NmeaLrfParser::formatNmeaSentence("GPLRF,9999.50,M,OK");
     const std::string rem = full.substr(std::string("$GPLRF,9999.").size());
-    auto resFinal = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(rem.data()), rem.size());
+    auto resFinal = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(rem.data()), rem.size());
     ASSERT_EQ(resFinal.size(), 1U);
     EXPECT_TRUE(resFinal[0].valid);
     EXPECT_NEAR(resFinal[0].slantRangeMeters, 9999.50, 0.001);
@@ -625,7 +645,7 @@ TEST(TestLrfProtocols, AsciiBatchParsingWithMultipleLines)
     }
     batch += "R: 777"; // trailing incomplete
 
-    auto results = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(batch.data()), batch.size());
+    auto results = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(batch.data()), batch.size());
     ASSERT_EQ(results.size(), 20U);
     for (std::size_t i = 0; i < 20U; ++i) {
         EXPECT_TRUE(results[i].valid);
@@ -634,7 +654,7 @@ TEST(TestLrfProtocols, AsciiBatchParsingWithMultipleLines)
     EXPECT_EQ(parser.getRxBufferSize(), std::string("R: 777").size());
 
     const std::string rem = ".50\r\n";
-    auto resFinal = parser.parseIncomingBytes(reinterpret_cast<const uint8_t*>(rem.data()), rem.size());
+    auto resFinal = parser.parseIncomingBytes(reinterpret_cast<const std::uint8_t*>(rem.data()), rem.size());
     ASSERT_EQ(resFinal.size(), 1U);
     EXPECT_TRUE(resFinal[0].valid);
     EXPECT_NEAR(resFinal[0].slantRangeMeters, 777.50, 0.001);

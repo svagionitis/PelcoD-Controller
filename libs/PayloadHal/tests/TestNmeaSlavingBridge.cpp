@@ -47,13 +47,13 @@ namespace {
         bool sendData(const std::vector<std::uint8_t>& data) override
         {
             std::lock_guard<std::mutex> lock(m_txMutex);
-            m_sentPackets.push_back(std::string(data.begin(), data.end()));
+            m_sentPackets.push_back(std::string(reinterpret_cast<const char*>(data.data()), data.size()));
             return true;
         }
 
         void injectString(std::string_view text)
         {
-            std::vector<std::uint8_t> data {};
+            std::vector<std::uint8_t> data { };
             data.reserve(text.size());
             for (const char ch : text) {
                 data.push_back(static_cast<std::uint8_t>(ch));
@@ -63,8 +63,8 @@ namespace {
 
     private:
         std::atomic<bool> m_isOpen { false };
-        mutable std::mutex m_txMutex {};
-        std::vector<std::string> m_sentPackets {};
+        mutable std::mutex m_txMutex { };
+        std::vector<std::string> m_sentPackets { };
     };
 
     TEST(TestNmeaSlavingBridge, RadarTargetForwardProjection)
@@ -270,7 +270,7 @@ namespace {
         const std::string hdt = Nmea::NmeaChecksum::frameSentence("HEHDT,000.0,T");
         transport->injectString(hdt);
 
-        Nmea::RsdData rsd {};
+        Nmea::RsdData rsd { };
         rsd.cursorRangeNmi = 2.0; // 2 Nautical Miles North
         rsd.cursorBearingDeg = 0.0;
         rsd.valid = true;
@@ -297,7 +297,7 @@ namespace {
 
         NmeaSlavingBridge bridge(nmeaDevice, geoLock);
 
-        Nmea::BwcData bwc {};
+        Nmea::BwcData bwc { };
         bwc.waypointCoordinates = { 36.5, -121.8 };
         bwc.waypointId = "MONTEREY_BUOY";
         bwc.valid = true;
@@ -337,7 +337,7 @@ namespace {
 
         [[nodiscard]] std::pair<std::string, std::size_t> toArmoredPayload() const
         {
-            std::vector<std::uint8_t> bytes {};
+            std::vector<std::uint8_t> bytes { };
             std::size_t bitIdx { 0U };
             while (bitIdx < m_bits.size()) {
                 std::uint8_t b { 0U };
@@ -350,7 +350,7 @@ namespace {
                 bytes.push_back(b);
             }
             const std::size_t fillBits = (bytes.size() * 6U - m_bits.size()) % 6U;
-            std::string payload {};
+            std::string payload { };
             payload.reserve(bytes.size());
             for (std::uint8_t v : bytes) {
                 v &= 0x3FU;
@@ -361,13 +361,13 @@ namespace {
         }
 
     private:
-        std::vector<std::uint8_t> m_bits {};
+        std::vector<std::uint8_t> m_bits { };
     };
 
     [[nodiscard]] std::string createTestClassAPosition(std::uint32_t mmsi, Nmea::AisNavStatus navStatus, double latDeg,
         double lonDeg, double sogKnots = 0.0, double cogDeg = 0.0)
     {
-        TestAisBitWriter writer {};
+        TestAisBitWriter writer { };
         writer.writeBits(1U, 6U); // Type 1
         writer.writeBits(0U, 2U); // Repeat indicator
         writer.writeBits(mmsi, 30U); // Source MMSI
@@ -397,7 +397,7 @@ namespace {
 
     [[nodiscard]] std::string createTestSafetyBroadcast(std::uint32_t mmsi, const std::string& text)
     {
-        TestAisBitWriter writer {};
+        TestAisBitWriter writer { };
         writer.writeBits(14U, 6U); // Type 14
         writer.writeBits(0U, 2U); // Repeat indicator
         writer.writeBits(mmsi, 30U); // Source MMSI
