@@ -12,21 +12,21 @@ namespace Visca {
 /// @struct ViscaAckResponse
 /// @brief Represents a parsed socket ACK packet (y0 4s FF).
 struct ViscaAckResponse {
-    uint8_t cameraAddress { 0 }; ///< Address of responding camera (1..7)
+    std::uint8_t cameraAddress { 0 }; ///< Address of responding camera (1..7)
     ViscaSocket socket { ViscaSocket::None }; ///< Acknowledged execution socket
 };
 
 /// @struct ViscaCompletionResponse
 /// @brief Represents a parsed command completion packet (y0 5s FF).
 struct ViscaCompletionResponse {
-    uint8_t cameraAddress { 0 }; ///< Address of responding camera (1..7)
+    std::uint8_t cameraAddress { 0 }; ///< Address of responding camera (1..7)
     ViscaSocket socket { ViscaSocket::None }; ///< Completed execution socket (or None for general completion)
 };
 
 /// @struct ViscaErrorResponse
 /// @brief Represents a parsed error packet (y0 6s ee FF).
 struct ViscaErrorResponse {
-    uint8_t cameraAddress { 0 }; ///< Address of responding camera (1..7)
+    std::uint8_t cameraAddress { 0 }; ///< Address of responding camera (1..7)
     ViscaSocket socket { ViscaSocket::None }; ///< Socket associated with error, if any
     ViscaErrorCode code { ViscaErrorCode::None }; ///< Parsed error code
 };
@@ -34,11 +34,11 @@ struct ViscaErrorResponse {
 /// @struct ViscaVersionInfo
 /// @brief Parsed hardware and firmware version information from CAM_VersionInq (y0 50 gg gg hh hh jj jj kk FF).
 struct ViscaVersionInfo {
-    uint8_t cameraAddress { 0 }; ///< Responding camera ID
-    uint16_t vendorId { 0 }; ///< Vendor ID (0x0020 for Sony)
-    uint16_t modelId { 0 }; ///< Model ID (0x0711 = EV9520L, 0x070F = EW9500H)
-    uint16_t romVersion { 0 }; ///< Firmware ROM version
-    uint8_t maxSockets { 0 }; ///< Maximum supported concurrent sockets (usually 2)
+    std::uint8_t cameraAddress { 0 }; ///< Responding camera ID
+    std::uint16_t vendorId { 0 }; ///< Vendor ID (0x0020 for Sony)
+    std::uint16_t modelId { 0 }; ///< Model ID (0x0711 = EV9520L, 0x070F = EW9500H)
+    std::uint16_t romVersion { 0 }; ///< Firmware ROM version
+    std::uint8_t maxSockets { 0 }; ///< Maximum supported concurrent sockets (usually 2)
 
     /// @brief Checks if the vendor ID matches Sony Corporation (0x0020).
     [[nodiscard]] bool isSony() const noexcept
@@ -50,7 +50,7 @@ struct ViscaVersionInfo {
 /// @struct ViscaAddressSetResponse
 /// @brief Parsed response from an AddressSet command (88 30 0p FF).
 struct ViscaAddressSetResponse {
-    uint8_t cameraCount { 0 }; ///< Number of daisy-chained cameras detected on bus (p - 1)
+    std::uint8_t cameraCount { 0 }; ///< Number of daisy-chained cameras detected on bus (p - 1)
 };
 
 /// @class ViscaParser
