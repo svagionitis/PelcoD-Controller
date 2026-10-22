@@ -26,3 +26,42 @@
 - **Header Decoupling:** In header files, prefer forward declarations (`class Foo;`, `struct Bar;`) for types referenced only by pointer or reference to minimize compilation coupling and avoid circular dependencies. Full definitions are included in the corresponding `.cpp` file.
 - **Unused Headers:** Prune any unused `#include` statements to reduce compile times and header pollution.
 - **Header Guards:** Headers must always begin with `#pragma once`. Legacy `#ifndef` guards are banned.
+
+## STL Algorithms & Range Type Safety
+- **Value-Type Matching on Algorithm Callables:** Lambdas and callables passed to Standard Library algorithms (`std::transform`, `std::search`, `std::find_if`) must accept the range's exact `value_type` (e.g., `char` when operating on `std::string` or `std::string_view`, never implicit conversion to `unsigned char` in template arguments). Any type transformation must be explicitly cast inside the callable body.
+- **Prohibition of Implicit Range Conversions:** Iterator-range constructors across differing signed/unsigned types (e.g. `std::vector<std::uint8_t>(str.begin(), str.end())`) are strictly forbidden as they invoke implicit conversions inside `<xmemory>` / `<vector>` that trigger MSVC warning C4365 under `/WX`. Use an explicit loop with `reserve()` + `push_back(static_cast<std::uint8_t>(ch))` or a safe conversion helper (`stringToBytes()`).
+- **Deterministic ASCII Protocol Helpers:** Protocol tokens (UUIDs, HTTP headers, URI schemes) must be processed using locale-independent ASCII helpers (`toLowerAscii`, `toUpperAscii`, `equalsIgnoreCaseAscii`, `containsIgnoreCaseAscii`) rather than `<cctype>` functions (`std::tolower`) to avoid undefined behavior on negative `char` values and eliminate dependence on global C/C++ locales (CERT STR37-C).
+- **Zero Allocations in `noexcept` Network Ingress:** Functions marked `noexcept` on network packet ingest and validation paths must not perform dynamic heap allocations (`std::string`, `std::vector`, `new`). Instead, operate on `std::string_view`, stack arrays, or pre-allocated buffers to prevent `std::bad_alloc` from triggering `std::terminate` (CERT ERR55-CPP).
+
+### ASCII Diagram: Range Conversion & Algorithm Predicate Matching
+
+```
+  BANNED (Implicit STL Conversion):
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
+    std::vector<std::uint8_t> v(s.begin(), s.end());  // C4365 in STL <xmemory>
+
+  REQUIRED (Explicit Project Conversion):
+    // 1. Exact value_type in lambda:
+    std::transform(s.begin(), s.end(), s.begin(), [](char c) noexcept { return toLowerAscii(c); });
+    // 2. Explicit cast in project code:
+    std::vector<std::uint8_t> v {};
+    v.reserve(s.size());
+    for (const char ch : s) { v.push_back(static_cast<std::uint8_t>(ch)); }
+```
+
+### Mermaid Diagram: Range Conversion & Algorithm Predicate Matching
+
+```mermaid
+flowchart TD
+    subgraph Banned["Banned: Implicit Library Conversions"]
+        B1["char Range"] --> B2["STL Template (algorithm / vector)"]
+        B2 -->|"implicit conversion in STL header"| B3["C4365 under /WX (MSVC Build Failure)"]
+    end
+
+    subgraph Required["Required: Explicit Project Conversions"]
+        R1["char Range"] --> R2["Exact value_type Lambda: [](char c)"]
+        R1 --> R3["Explicit static_cast<std::uint8_t> in loop"]
+        R2 --> OK["Zero Warnings / Cross-Compiler Clean"]
+        R3 --> OK
+    end
+```

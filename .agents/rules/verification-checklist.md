@@ -21,4 +21,6 @@ Before presenting any C++17 code snippet or committing changes, internally verif
 14. If there are diagrams involved, add both ASCII and mermaid diagrams.
 15. Did I explicitly `#include <cstdint>` in every file using fixed-width integers, and are all integer types strictly qualified with `std::` (e.g., `std::uint8_t`, `std::int32_t`)?
 16. Does the code adhere to **IWYU (Include-What-You-Use)**: directly including every header for symbols, types, or templates used, never relying on transitive/indirect includes, and using forward declarations in headers where pointer/reference usage suffices?
+17. Do callables passed to STL algorithms (and iterator-range constructors) use the range's exact value_type, with any conversion made explicit inside project code?
+18. Are functions marked `noexcept` on network paths completely free of heap allocations (`std::string`, `std::vector`, `new`) to prevent `std::terminate` under memory exhaustion (CERT ERR55-CPP)?
 
