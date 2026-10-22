@@ -158,7 +158,7 @@ if(NOT LIVE555_FOUND)
             foreach(_dir ${LIVE555_INCLUDE_DIRS})
                 target_include_directories(${_target} PUBLIC $<BUILD_INTERFACE:${_dir}>)
             endforeach()
-            target_compile_definitions(${_target} PUBLIC NO_OPENSSL=1 NO_STD_LIB=1 SOCKLEN_T=socklen_t)
+            target_compile_definitions(${_target} PUBLIC NO_OPENSSL=1 NO_STD_LIB=1 NO_SSTREAM=1 SOCKLEN_T=socklen_t)
             if(NOT WIN32)
                 target_compile_definitions(${_target} PUBLIC _FILE_OFFSET_BITS=64 _LARGEFILE_SOURCE)
             endif()
@@ -166,12 +166,27 @@ if(NOT LIVE555_FOUND)
                 target_compile_options(${_target} PRIVATE -include limits.h)
             endif()
             set_target_properties(${_target} PROPERTIES
+                POSITION_INDEPENDENT_CODE ON
                 AUTOMOC OFF
                 AUTOUIC OFF
                 AUTORCC OFF
             )
             if(WIN32)
                 target_compile_definitions(${_target} PUBLIC _CRT_SECURE_NO_WARNINGS _WINSOCK_DEPRECATED_NO_WARNINGS NO_GETIFADDRS=1)
+            endif()
+            if(MSVC)
+                if(ENABLE_HARDENING)
+                    target_compile_options(${_target} PRIVATE
+                        /guard:cf
+                        /guard:ehcont
+                    )
+                    if(ENABLE_SPECTRE_MITIGATION)
+                        target_compile_options(${_target} PRIVATE /Qspectre)
+                    endif()
+                    target_compile_definitions(${_target} PRIVATE
+                        $<$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>:_ITERATOR_DEBUG_LEVEL=1>
+                    )
+                endif()
             endif()
         endforeach()
 
