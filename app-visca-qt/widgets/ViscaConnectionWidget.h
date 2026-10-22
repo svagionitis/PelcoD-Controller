@@ -3,8 +3,8 @@
 /// @file ViscaConnectionWidget.h
 /// @brief Toolbar widget managing transport selection, address, and connection state for VISCA cameras.
 
-#include <SonyCameraModel.h>
-#include <Transport/ITransport.h>
+#include <cstdint>
+#include <memory>
 
 #include <QComboBox>
 #include <QLabel>
@@ -14,7 +14,8 @@
 #include <QStackedWidget>
 #include <QWidget>
 
-#include <memory>
+#include <SonyCameraModel.h>
+#include <Transport/ITransport.h>
 
 namespace ViscaApp {
 
@@ -28,13 +29,13 @@ public:
     ~ViscaConnectionWidget() override = default;
 
     [[nodiscard]] std::shared_ptr<::Transport::ITransport> createConfiguredTransport() const;
-    [[nodiscard]] uint8_t selectedAddress() const noexcept;
-    void setSelectedAddress(uint8_t address);
+    [[nodiscard]] std::uint8_t selectedAddress() const noexcept;
+    void setSelectedAddress(std::uint8_t address);
 
     [[nodiscard]] static QStringList enumerateSerialPorts();
 
 signals:
-    void connectRequested(std::shared_ptr<::Transport::ITransport> transport, uint8_t address);
+    void connectRequested(std::shared_ptr<::Transport::ITransport> transport, std::uint8_t address);
     void disconnectRequested();
 
 public slots:

@@ -3,6 +3,10 @@
 
 #include "ViscaBusScanDialog.h"
 
+#include <cstdint>
+#include <memory>
+#include <utility>
+
 #include <QColor>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -106,7 +110,7 @@ void ViscaBusScanDialog::handleStartScan()
 void ViscaBusScanDialog::handleApply()
 {
     if (m_selectedAddress > 0) {
-        emit cameraSelected(static_cast<uint8_t>(m_selectedAddress), m_selectedModelName);
+        emit cameraSelected(static_cast<std::uint8_t>(m_selectedAddress), m_selectedModelName);
         accept();
     }
 }

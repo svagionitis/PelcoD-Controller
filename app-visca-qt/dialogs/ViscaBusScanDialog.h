@@ -3,9 +3,8 @@
 /// @file ViscaBusScanDialog.h
 /// @brief Modal dialog for discovering and selecting Sony / VISCA cameras on daisy chain.
 
-#include "../QViscaBusScanner.h"
-#include <SonyCameraModel.h>
-#include <Transport/ITransport.h>
+#include <cstdint>
+#include <memory>
 
 #include <QDialog>
 #include <QLabel>
@@ -13,7 +12,9 @@
 #include <QPushButton>
 #include <QTableWidget>
 
-#include <memory>
+#include "../QViscaBusScanner.h"
+#include <SonyCameraModel.h>
+#include <Transport/ITransport.h>
 
 namespace ViscaApp {
 
@@ -32,7 +33,7 @@ public:
     }
 
 signals:
-    void cameraSelected(uint8_t address, const QString& modelName);
+    void cameraSelected(std::uint8_t address, const QString& modelName);
 
 private slots:
     void handleStartScan();
@@ -58,7 +59,7 @@ private:
     QTableWidget* tableResults { nullptr };
 
     int m_selectedAddress { -1 };
-    QString m_selectedModelName {};
+    QString m_selectedModelName { };
 };
 
 } // namespace ViscaApp

@@ -2,11 +2,10 @@
 /// @brief Implementation of VISCA connection management toolbar widget.
 
 #include "ViscaConnectionWidget.h"
-#include "../dialogs/ViscaBusScanDialog.h"
-#include <MockSonyCamera.h>
-#include <Transport/SerialTransport.h>
-#include <Transport/TcpTransport.h>
-#include <Transport/UdpTransport.h>
+
+#include <cstdint>
+#include <memory>
+#include <string>
 
 #include <QDir>
 #include <QHBoxLayout>
@@ -15,6 +14,12 @@
 #if defined(Q_OS_WIN)
 #include <QSettings>
 #endif
+
+#include "../dialogs/ViscaBusScanDialog.h"
+#include <MockSonyCamera.h>
+#include <Transport/SerialTransport.h>
+#include <Transport/TcpTransport.h>
+#include <Transport/UdpTransport.h>
 
 namespace ViscaApp {
 
@@ -202,15 +207,15 @@ void ViscaConnectionWidget::refreshSerialPorts()
     }
 }
 
-uint8_t ViscaConnectionWidget::selectedAddress() const noexcept
+std::uint8_t ViscaConnectionWidget::selectedAddress() const noexcept
 {
-    return static_cast<uint8_t>(spinAddress->value());
+    return static_cast<std::uint8_t>(spinAddress->value());
 }
 
-void ViscaConnectionWidget::setSelectedAddress(uint8_t address)
+void ViscaConnectionWidget::setSelectedAddress(std::uint8_t address)
 {
-    if (address >= 1 && address <= 7) {
-        spinAddress->setValue(address);
+    if (address >= 1U && address <= 7U) {
+        spinAddress->setValue(static_cast<int>(address));
     }
 }
 
@@ -240,7 +245,7 @@ std::shared_ptr<::Transport::ITransport> ViscaConnectionWidget::createConfigured
     if (mode == 0) {
         // Serial
         const QString portName = cmbSerialPort->currentText().trimmed();
-        const uint32_t baud = cmbBaudRate->currentText().toUInt();
+        const std::uint32_t baud = static_cast<std::uint32_t>(cmbBaudRate->currentText().toUInt());
         if (portName.isEmpty()) {
             return nullptr;
         }
@@ -250,15 +255,16 @@ std::shared_ptr<::Transport::ITransport> ViscaConnectionWidget::createConfigured
     if (mode == 1) {
         // TCP
         const QString host = editTcpHost->text().trimmed();
-        const uint16_t port = static_cast<uint16_t>(spinTcpPort->value());
+        const std::uint16_t port = static_cast<std::uint16_t>(spinTcpPort->value());
         return std::make_shared<::Transport::TcpTransport>(host.toStdString(), port);
     }
 
     if (mode == 2) {
         // UDP
         const QString host = editUdpHost->text().trimmed();
-        const uint16_t port = static_cast<uint16_t>(spinUdpPort->value());
-        return std::make_shared<::Transport::UdpTransport>(host.toStdString(), port, 0);
+        const std::uint16_t port = static_cast<std::uint16_t>(spinUdpPort->value());
+        const std::uint16_t localPort = 0U;
+        return std::make_shared<::Transport::UdpTransport>(host.toStdString(), port, localPort);
     }
 
     if (mode == 3) {
@@ -281,7 +287,7 @@ void ViscaConnectionWidget::handleScanBus()
 
     ViscaBusScanDialog dlg(transport, this);
     connect(&dlg, &ViscaBusScanDialog::cameraSelected, this,
-        [this](uint8_t address, const QString& /*model*/) { setSelectedAddress(address); });
+        [this](std::uint8_t address, const QString& /*model*/) { setSelectedAddress(address); });
     dlg.exec();
 }
 
