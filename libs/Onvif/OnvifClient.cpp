@@ -5,6 +5,7 @@
 #include <cstring>
 #include <ctime>
 
+#include <algorithm>
 #include <chrono>
 #include <iomanip>
 #include <optional>
@@ -21,6 +22,8 @@
 #include "XmlUtils.h"
 
 namespace Onvif {
+
+using namespace Xml;
 
 namespace {
 
@@ -102,9 +105,132 @@ namespace {
         return ss.str();
     }
 
-} // namespace
+    MediaProfile parseSingleMediaProfileNode(const pugi::xml_node& node)
+    {
+        MediaProfile prof {};
+        prof.token = node.attribute("token").as_string();
+        if (prof.token.empty()) {
+            const auto tokenChild = findNodeWithSuffix(node, "token");
+            if (tokenChild) {
+                prof.token = tokenChild.text().as_string();
+            }
+        }
 
-using namespace Xml;
+        const auto nameNode = findNodeWithSuffix(node, "Name");
+        if (nameNode) {
+            prof.name = nameNode.text().as_string();
+        }
+
+        prof.fixed = node.attribute("fixed").as_bool(false);
+
+        const auto vscNode = findRecursiveNodeWithSuffix(node, "VideoSourceConfiguration");
+        if (vscNode) {
+            prof.vscToken = vscNode.attribute("token").as_string();
+            const auto srcTokNode = findNodeWithSuffix(vscNode, "SourceToken");
+            if (srcTokNode) {
+                prof.videoSourceToken = srcTokNode.text().as_string();
+            } else {
+                prof.videoSourceToken = prof.vscToken;
+            }
+        }
+
+        const auto vecNode = findRecursiveNodeWithSuffix(node, "VideoEncoderConfiguration");
+        if (vecNode) {
+            prof.vecToken = vecNode.attribute("token").as_string();
+            const auto resNode = findNodeWithSuffix(vecNode, "Resolution");
+            if (resNode) {
+                prof.videoWidth = findNodeWithSuffix(resNode, "Width").text().as_int(0);
+                prof.videoHeight = findNodeWithSuffix(resNode, "Height").text().as_int(0);
+            }
+            const auto encNode = findNodeWithSuffix(vecNode, "Encoding");
+            if (encNode) {
+                prof.videoEncoding = encNode.text().as_string();
+            }
+        }
+
+        const auto ptzNode = findRecursiveNodeWithSuffix(node, "PTZConfiguration");
+        if (ptzNode) {
+            prof.ptzToken = ptzNode.attribute("token").as_string();
+        }
+
+        const auto metaNode = findRecursiveNodeWithSuffix(node, "MetadataConfiguration");
+        if (metaNode) {
+            prof.metadataToken = metaNode.attribute("token").as_string();
+        }
+
+        return prof;
+    }
+
+    VideoEncoderConfig parseSingleVideoEncoderConfigNode(const pugi::xml_node& node)
+    {
+        VideoEncoderConfig cfg {};
+        cfg.token = node.attribute("token").as_string();
+        if (cfg.token.empty()) {
+            const auto tokChild = findNodeWithSuffix(node, "token");
+            if (tokChild) {
+                cfg.token = tokChild.text().as_string();
+            }
+        }
+
+        const auto nameNode = findNodeWithSuffix(node, "Name");
+        if (nameNode) {
+            cfg.name = nameNode.text().as_string();
+        }
+
+        const auto useCountNode = findNodeWithSuffix(node, "UseCount");
+        if (useCountNode) {
+            cfg.useCount = useCountNode.text().as_int(1);
+        }
+
+        const auto encNode = findNodeWithSuffix(node, "Encoding");
+        if (encNode) {
+            cfg.encoding = encNode.text().as_string();
+        }
+
+        const auto resNode = findNodeWithSuffix(node, "Resolution");
+        if (resNode) {
+            cfg.width = findNodeWithSuffix(resNode, "Width").text().as_int(1920);
+            cfg.height = findNodeWithSuffix(resNode, "Height").text().as_int(1080);
+        }
+
+        const auto qualNode = findNodeWithSuffix(node, "Quality");
+        if (qualNode) {
+            cfg.quality = qualNode.text().as_float(5.0f);
+        }
+
+        const auto rcNode = findNodeWithSuffix(node, "RateControl");
+        if (rcNode) {
+            const auto fpsNode = findNodeWithSuffix(rcNode, "FrameRateLimit");
+            if (fpsNode) {
+                cfg.frameRateLimit = fpsNode.text().as_float(30.0f);
+            }
+            const auto brNode = findNodeWithSuffix(rcNode, "BitrateLimit");
+            if (brNode) {
+                cfg.bitrateLimitKbps = brNode.text().as_int(4096);
+            }
+        }
+
+        const auto h264Node = findNodeWithSuffix(node, "H264");
+        if (h264Node) {
+            const auto govNode = findNodeWithSuffix(h264Node, "GovLength");
+            if (govNode) {
+                cfg.govLength = govNode.text().as_int(30);
+            }
+            const auto profNode = findNodeWithSuffix(h264Node, "H264Profile");
+            if (profNode) {
+                cfg.h264Profile = profNode.text().as_string();
+            }
+        }
+
+        const auto timeoutNode = findNodeWithSuffix(node, "SessionTimeout");
+        if (timeoutNode) {
+            cfg.sessionTimeout = timeoutNode.text().as_string();
+        }
+
+        return cfg;
+    }
+
+} // namespace
 
 OnvifClient::OnvifClient(std::string deviceEndpoint, SecurityCredentials credentials, TlsConfig tlsConfig)
     : m_deviceEndpoint(std::move(deviceEndpoint))
@@ -531,49 +657,244 @@ std::vector<MediaProfile> OnvifClient::parseProfilesResponse(const std::string& 
     collectNodesWithSuffix(doc, "Profiles", profileNodes);
 
     for (const auto& node : profileNodes) {
-        MediaProfile prof {};
-        prof.token = node.attribute("token").as_string();
-        if (prof.token.empty()) {
-            const auto tokenChild = findNodeWithSuffix(node, "token");
-            if (tokenChild) {
-                prof.token = tokenChild.text().as_string();
-            }
-        }
-
-        const auto nameNode = findNodeWithSuffix(node, "Name");
-        if (nameNode) {
-            prof.name = nameNode.text().as_string();
-        }
-
-        const auto vscNode = findRecursiveNodeWithSuffix(node, "VideoSourceConfiguration");
-        if (vscNode) {
-            const auto srcTokNode = findNodeWithSuffix(vscNode, "SourceToken");
-            if (srcTokNode) {
-                prof.videoSourceToken = srcTokNode.text().as_string();
-            } else {
-                prof.videoSourceToken = vscNode.attribute("token").as_string();
-            }
-        }
-
-        const auto vecNode = findRecursiveNodeWithSuffix(node, "VideoEncoderConfiguration");
-        if (vecNode) {
-            const auto resNode = findNodeWithSuffix(vecNode, "Resolution");
-            if (resNode) {
-                prof.videoWidth = findNodeWithSuffix(resNode, "Width").text().as_int(0);
-                prof.videoHeight = findNodeWithSuffix(resNode, "Height").text().as_int(0);
-            }
-            const auto encNode = findNodeWithSuffix(vecNode, "Encoding");
-            if (encNode) {
-                prof.videoEncoding = encNode.text().as_string();
-            }
-        }
-
+        MediaProfile prof = parseSingleMediaProfileNode(node);
         if (!prof.token.empty()) {
             profiles.push_back(std::move(prof));
         }
     }
 
     return profiles;
+}
+
+std::optional<MediaProfile> OnvifClient::parseProfileResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto profNode = findRecursiveNodeWithSuffix(doc, "Profile");
+    if (!profNode) {
+        return std::nullopt;
+    }
+
+    MediaProfile prof = parseSingleMediaProfileNode(profNode);
+    if (prof.token.empty()) {
+        return std::nullopt;
+    }
+    return prof;
+}
+
+std::optional<MediaProfile> OnvifClient::parseCreateProfileResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto profNode = findRecursiveNodeWithSuffix(doc, "Profile");
+    if (!profNode) {
+        return std::nullopt;
+    }
+
+    MediaProfile prof = parseSingleMediaProfileNode(profNode);
+    if (prof.token.empty()) {
+        return std::nullopt;
+    }
+    return prof;
+}
+
+std::vector<VideoEncoderConfig> OnvifClient::parseVideoEncoderConfigsResponse(const std::string& xml)
+{
+    std::vector<VideoEncoderConfig> configs {};
+
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return configs;
+    }
+
+    std::vector<pugi::xml_node> nodes {};
+    collectNodesWithSuffix(doc, "Configurations", nodes);
+    if (nodes.empty()) {
+        collectNodesWithSuffix(doc, "Configuration", nodes);
+    }
+
+    for (const auto& node : nodes) {
+        VideoEncoderConfig cfg = parseSingleVideoEncoderConfigNode(node);
+        if (!cfg.token.empty()) {
+            configs.push_back(std::move(cfg));
+        }
+    }
+
+    return configs;
+}
+
+std::vector<VideoEncoderConfig> OnvifClient::parseVideoEncConfigsResponse(const std::string& xml)
+{
+    return parseVideoEncoderConfigsResponse(xml);
+}
+
+std::optional<VideoEncoderConfig> OnvifClient::parseVideoEncoderConfigResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto node = findRecursiveNodeWithSuffix(doc, "Configuration");
+    if (!node) {
+        return std::nullopt;
+    }
+
+    VideoEncoderConfig cfg = parseSingleVideoEncoderConfigNode(node);
+    if (cfg.token.empty()) {
+        return std::nullopt;
+    }
+    return cfg;
+}
+
+std::optional<VideoEncoderConfig> OnvifClient::parseVideoEncConfigResponse(const std::string& xml)
+{
+    return parseVideoEncoderConfigResponse(xml);
+}
+
+std::optional<VideoEncoderOptions> OnvifClient::parseVideoEncoderOptionsResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto optionsNode = findRecursiveNodeWithSuffix(doc, "Options");
+    if (!optionsNode) {
+        return std::nullopt;
+    }
+
+    VideoEncoderOptions options {};
+
+    const auto qualNode = findNodeWithSuffix(optionsNode, "QualityRange");
+    if (qualNode) {
+        const auto minNode = findNodeWithSuffix(qualNode, "Min");
+        const auto maxNode = findNodeWithSuffix(qualNode, "Max");
+        if (minNode) {
+            options.qualityRange.min = minNode.text().as_int(1);
+        }
+        if (maxNode) {
+            options.qualityRange.max = maxNode.text().as_int(10);
+        }
+    }
+
+    const auto h264Node = findNodeWithSuffix(optionsNode, "H264");
+    if (h264Node) {
+        const auto govNode = findNodeWithSuffix(h264Node, "GovLengthRange");
+        if (govNode) {
+            const auto minNode = findNodeWithSuffix(govNode, "Min");
+            const auto maxNode = findNodeWithSuffix(govNode, "Max");
+            options.govLengthRange.min = minNode ? minNode.text().as_int(1) : govNode.attribute("Min").as_int(1);
+            options.govLengthRange.max = maxNode ? maxNode.text().as_int(120) : govNode.attribute("Max").as_int(120);
+        }
+
+        const auto fpsNode = findNodeWithSuffix(h264Node, "FrameRateRange");
+        if (fpsNode) {
+            const auto minNode = findNodeWithSuffix(fpsNode, "Min");
+            const auto maxNode = findNodeWithSuffix(fpsNode, "Max");
+            options.frameRateRange.min = minNode ? minNode.text().as_int(1) : fpsNode.attribute("Min").as_int(1);
+            options.frameRateRange.max = maxNode ? maxNode.text().as_int(30) : fpsNode.attribute("Max").as_int(30);
+        }
+
+        const auto encIntNode = findNodeWithSuffix(h264Node, "EncodingIntervalRange");
+        if (encIntNode) {
+            const auto minNode = findNodeWithSuffix(encIntNode, "Min");
+            const auto maxNode = findNodeWithSuffix(encIntNode, "Max");
+            options.encodingIntervalRange.min
+                = minNode ? minNode.text().as_int(1) : encIntNode.attribute("Min").as_int(1);
+            options.encodingIntervalRange.max
+                = maxNode ? maxNode.text().as_int(1) : encIntNode.attribute("Max").as_int(1);
+        }
+
+        std::vector<pugi::xml_node> resNodes {};
+        collectNodesWithSuffix(h264Node, "ResolutionsAvailable", resNodes);
+        for (const auto& res : resNodes) {
+            VideoResolution vr {};
+            vr.width = findNodeWithSuffix(res, "Width").text().as_int(0);
+            vr.height = findNodeWithSuffix(res, "Height").text().as_int(0);
+            if (vr.width > 0 && vr.height > 0) {
+                options.resolutions.push_back(vr);
+            }
+        }
+
+        std::vector<pugi::xml_node> profNodes {};
+        collectNodesWithSuffix(h264Node, "H264ProfilesSupported", profNodes);
+        for (const auto& prof : profNodes) {
+            const std::string name = prof.text().as_string();
+            if (!name.empty()) {
+                options.h264Profiles.push_back(name);
+            }
+        }
+    }
+
+    return options;
+}
+
+std::optional<VideoEncoderOptions> OnvifClient::parseVideoEncOptionsResponse(const std::string& xml)
+{
+    return parseVideoEncoderOptionsResponse(xml);
+}
+
+std::optional<DiscoveryMode> OnvifClient::parseDiscoveryModeResponse(const std::string& xml)
+{
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return std::nullopt;
+    }
+
+    const auto modeNode = findRecursiveNodeWithSuffix(doc, "DiscoveryMode");
+    if (!modeNode) {
+        return std::nullopt;
+    }
+
+    const std::string_view modeStr = modeNode.text().as_string();
+    if (modeStr == "Discoverable") {
+        return DiscoveryMode::Discoverable;
+    }
+    if (modeStr == "NonDiscoverable") {
+        return DiscoveryMode::NonDiscoverable;
+    }
+    return std::nullopt;
+}
+
+std::vector<NetworkProtocolConfig> OnvifClient::parseNetworkProtocolsResponse(const std::string& xml)
+{
+    std::vector<NetworkProtocolConfig> protocols {};
+
+    pugi::xml_document doc {};
+    if (!doc.load_string(xml.c_str())) {
+        return protocols;
+    }
+
+    std::vector<pugi::xml_node> nodes {};
+    collectNodesWithSuffix(doc, "NetworkProtocols", nodes);
+
+    for (const auto& node : nodes) {
+        NetworkProtocolConfig proto {};
+        const auto nameNode = findNodeWithSuffix(node, "Name");
+        if (nameNode) {
+            proto.name = nameNode.text().as_string();
+        }
+        const auto enabledNode = findNodeWithSuffix(node, "Enabled");
+        if (enabledNode) {
+            proto.enabled = enabledNode.text().as_bool(true);
+        }
+        const auto portNode = findNodeWithSuffix(node, "Port");
+        if (portNode) {
+            proto.port = portNode.text().as_int(80);
+        }
+        if (!proto.name.empty()) {
+            protocols.push_back(std::move(proto));
+        }
+    }
+
+    return protocols;
 }
 
 std::vector<MediaProfile> OnvifClient::getProfiles()
@@ -584,6 +905,197 @@ std::vector<MediaProfile> OnvifClient::getProfiles()
     }
 
     return parseProfilesResponse(resp.body);
+}
+
+std::optional<MediaProfile> OnvifClient::getProfile(const std::string& token)
+{
+    std::ostringstream ss {};
+    ss << "<trt:GetProfile>\n"
+       << "  <trt:ProfileToken>" << Xml::escapeXmlText(token) << "</trt:ProfileToken>\n"
+       << "</trt:GetProfile>";
+
+    const HttpResponse resp = sendSoapRequest(getMediaEndpoint(), ss.str());
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+
+    return parseProfileResponse(resp.body);
+}
+
+std::optional<MediaProfile> OnvifClient::createProfile(const std::string& name, const std::string& token)
+{
+    std::ostringstream ss {};
+    ss << "<trt:CreateProfile>\n"
+       << "  <trt:Name>" << Xml::escapeXmlText(name) << "</trt:Name>\n";
+    if (!token.empty()) {
+        ss << "  <trt:Token>" << Xml::escapeXmlText(token) << "</trt:Token>\n";
+    }
+    ss << "</trt:CreateProfile>";
+
+    const HttpResponse resp = sendSoapRequest(getMediaEndpoint(), ss.str());
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+
+    return parseCreateProfileResponse(resp.body);
+}
+
+bool OnvifClient::deleteProfile(const std::string& token)
+{
+    std::ostringstream ss {};
+    ss << "<trt:DeleteProfile>\n"
+       << "  <trt:ProfileToken>" << Xml::escapeXmlText(token) << "</trt:ProfileToken>\n"
+       << "</trt:DeleteProfile>";
+
+    return sendSoapAction(getMediaEndpoint(), ss.str());
+}
+
+std::vector<VideoEncoderConfig> OnvifClient::getVideoEncoderConfigurations()
+{
+    const HttpResponse resp = sendSoapRequest(getMediaEndpoint(), "<trt:GetVideoEncoderConfigurations/>");
+    if (!resp.isSuccess()) {
+        return {};
+    }
+
+    return parseVideoEncoderConfigsResponse(resp.body);
+}
+
+std::optional<VideoEncoderConfig> OnvifClient::getVideoEncoderConfiguration(const std::string& token)
+{
+    std::ostringstream ss {};
+    ss << "<trt:GetVideoEncoderConfiguration>\n"
+       << "  <trt:ConfigurationToken>" << Xml::escapeXmlText(token) << "</trt:ConfigurationToken>\n"
+       << "</trt:GetVideoEncoderConfiguration>";
+
+    const HttpResponse resp = sendSoapRequest(getMediaEndpoint(), ss.str());
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+
+    return parseVideoEncoderConfigResponse(resp.body);
+}
+
+std::optional<VideoEncoderOptions> OnvifClient::getVideoEncoderConfigurationOptions(const std::string& token)
+{
+    std::ostringstream ss {};
+    ss << "<trt:GetVideoEncoderConfigurationOptions>\n";
+    if (!token.empty()) {
+        ss << "  <trt:ConfigurationToken>" << Xml::escapeXmlText(token) << "</trt:ConfigurationToken>\n";
+    }
+    ss << "</trt:GetVideoEncoderConfigurationOptions>";
+
+    const HttpResponse resp = sendSoapRequest(getMediaEndpoint(), ss.str());
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+
+    return parseVideoEncoderOptionsResponse(resp.body);
+}
+
+std::optional<VideoEncoderOptions> OnvifClient::getVideoEncoderOptions(const std::string& token)
+{
+    return getVideoEncoderConfigurationOptions(token);
+}
+
+bool OnvifClient::setVideoEncoderConfiguration(const VideoEncoderConfig& config)
+{
+    std::ostringstream ss {};
+    ss << "<trt:SetVideoEncoderConfiguration>\n"
+       << "  <trt:Configuration token=\"" << Xml::escapeXmlAttr(config.token) << "\">\n"
+       << "    <tt:Name>" << Xml::escapeXmlText(config.name) << "</tt:Name>\n"
+       << "    <tt:UseCount>" << config.useCount << "</tt:UseCount>\n"
+       << "    <tt:Encoding>" << Xml::escapeXmlText(config.encoding) << "</tt:Encoding>\n"
+       << "    <tt:Resolution>\n"
+       << "      <tt:Width>" << config.width << "</tt:Width>\n"
+       << "      <tt:Height>" << config.height << "</tt:Height>\n"
+       << "    </tt:Resolution>\n"
+       << "    <tt:Quality>" << config.quality << "</tt:Quality>\n"
+       << "    <tt:RateControl>\n"
+       << "      <tt:FrameRateLimit>" << static_cast<int>(config.frameRateLimit) << "</tt:FrameRateLimit>\n"
+       << "      <tt:EncodingInterval>1</tt:EncodingInterval>\n"
+       << "      <tt:BitrateLimit>" << config.bitrateLimitKbps << "</tt:BitrateLimit>\n"
+       << "    </tt:RateControl>\n";
+    if (config.encoding == "H264") {
+        ss << "    <tt:H264>\n"
+           << "      <tt:GovLength>" << config.govLength << "</tt:GovLength>\n"
+           << "      <tt:H264Profile>" << Xml::escapeXmlText(config.h264Profile.empty() ? "Main" : config.h264Profile)
+           << "</tt:H264Profile>\n"
+           << "    </tt:H264>\n";
+    }
+    ss << "    <tt:Multicast>\n"
+       << "      <tt:Address>\n"
+       << "        <tt:Type>IPv4</tt:Type>\n"
+       << "        <tt:IPv4Address>0.0.0.0</tt:IPv4Address>\n"
+       << "      </tt:Address>\n"
+       << "      <tt:Port>0</tt:Port>\n"
+       << "      <tt:TTL>5</tt:TTL>\n"
+       << "      <tt:AutoStart>false</tt:AutoStart>\n"
+       << "    </tt:Multicast>\n"
+       << "    <tt:SessionTimeout>"
+       << Xml::escapeXmlText(config.sessionTimeout.empty() ? "PT30S" : config.sessionTimeout)
+       << "</tt:SessionTimeout>\n"
+       << "  </trt:Configuration>\n"
+       << "  <trt:ForcePersistence>true</trt:ForcePersistence>\n"
+       << "</trt:SetVideoEncoderConfiguration>";
+
+    return sendSoapAction(getMediaEndpoint(), ss.str());
+}
+
+bool OnvifClient::mediaSetSyncPoint(const std::string& profileToken)
+{
+    std::ostringstream ss {};
+    ss << "<trt:SetSynchronizationPoint>\n"
+       << "  <trt:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</trt:ProfileToken>\n"
+       << "</trt:SetSynchronizationPoint>";
+
+    return sendSoapAction(getMediaEndpoint(), ss.str());
+}
+
+std::optional<DiscoveryMode> OnvifClient::getDiscoveryMode()
+{
+    const HttpResponse resp = sendSoapRequest(getDeviceEndpoint(), "<tds:GetDiscoveryMode/>");
+    if (!resp.isSuccess()) {
+        return std::nullopt;
+    }
+
+    return parseDiscoveryModeResponse(resp.body);
+}
+
+bool OnvifClient::setDiscoveryMode(DiscoveryMode mode)
+{
+    const char* modeStr = (mode == DiscoveryMode::NonDiscoverable) ? "NonDiscoverable" : "Discoverable";
+    std::ostringstream ss {};
+    ss << "<tds:SetDiscoveryMode>\n"
+       << "  <tds:DiscoveryMode>" << modeStr << "</tds:DiscoveryMode>\n"
+       << "</tds:SetDiscoveryMode>";
+
+    return sendSoapAction(getDeviceEndpoint(), ss.str());
+}
+
+std::vector<NetworkProtocolConfig> OnvifClient::getNetworkProtocols()
+{
+    const HttpResponse resp = sendSoapRequest(getDeviceEndpoint(), "<tds:GetNetworkProtocols/>");
+    if (!resp.isSuccess()) {
+        return {};
+    }
+
+    return parseNetworkProtocolsResponse(resp.body);
+}
+
+bool OnvifClient::setNetworkProtocols(const std::vector<NetworkProtocolConfig>& protocols)
+{
+    std::ostringstream ss {};
+    ss << "<tds:SetNetworkProtocols>\n";
+    for (const auto& proto : protocols) {
+        ss << "  <tds:NetworkProtocols>\n"
+           << "    <tt:Name>" << Xml::escapeXmlText(proto.name) << "</tt:Name>\n"
+           << "    <tt:Enabled>" << (proto.enabled ? "true" : "false") << "</tt:Enabled>\n"
+           << "    <tt:Port>" << proto.port << "</tt:Port>\n"
+           << "  </tds:NetworkProtocols>\n";
+    }
+    ss << "</tds:SetNetworkProtocols>";
+
+    return sendSoapAction(getDeviceEndpoint(), ss.str());
 }
 
 std::optional<StreamUriInfo> OnvifClient::parseStreamUriResponse(const std::string& xml)

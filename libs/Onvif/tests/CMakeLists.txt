@@ -39,4 +39,4 @@ add_onvif_test(TestAsciiUtils TestAsciiUtils.cpp)
 add_onvif_test(TestOnvifSnapshot TestOnvifSnapshot.cpp)
 add_onvif_test(TestOnvifPtzProfileS TestOnvifPtzProfileS.cpp)
 add_onvif_test(TestOnvifEventsProfileS TestOnvifEventsProfileS.cpp)
-
+add_onvif_test(TestOnvifClientProfileS TestOnvifClientProfileS.cpp)

@@ -91,23 +91,6 @@ struct PasswordPolicyConfig {
     bool rejectCommonDefaults { true };
 };
 
-/// @enum DiscoveryMode
-/// @brief Operational discovery mode of the ONVIF device (Profile S / Core §8.1).
-enum class DiscoveryMode : std::uint8_t { Discoverable, NonDiscoverable };
-
-/// @struct NetworkProtocolConfig
-/// @brief Operational configuration for an ONVIF network protocol endpoint (ONVIF Core §8.2 / Profile S §7.2).
-struct NetworkProtocolConfig {
-    /// @brief Protocol name (e.g. "HTTP", "HTTPS", "RTSP").
-    std::string name {};
-
-    /// @brief Operational enable/disable state.
-    bool enabled { true };
-
-    /// @brief Port number (1-65535).
-    int port { 8080 };
-};
-
 /// @struct VideoSourceConfig
 /// @brief Configuration parameters for a video sensor/source attachment (ONVIF Profile S).
 struct VideoSourceConfig {

@@ -40,13 +40,17 @@ While P0 (Security Hardening) and P1 (Protocol Correctness, SOAP faults, and eve
 | Snapshot Delivery    | /onvif/snapshot returns HTTP 501   | Valid HTTP 200 image/jpeg payload         | RESOLVED      |
 |                      | despite GetSnapshotUri advertising | for snapshot verification and VMS checks  | (Phase 4)     |
 +----------------------+------------------------------------+-------------------------------------------+---------------+
-| PTZ Service          | Missing: SetConfiguration,         | Full configuration modification;          | OPEN          |
+| PTZ Service          | Missing: SetConfiguration,         | Full configuration modification;          | RESOLVED      |
 | (tptz)               | GetServiceCapabilities;            | PTZ service capabilities;                 | (Phase 5)     |
 |                      | Missing token validation faults    | ter:NoProfile and ter:NoToken faults      |               |
 +----------------------+------------------------------------+-------------------------------------------+---------------+
-| Events Service       | Missing: SetSynchronizationPoint,  | PullPoint state synchronization (sends    | OPEN          |
+| Events Service       | Missing: SetSynchronizationPoint,  | PullPoint state synchronization (sends    | RESOLVED      |
 | (tev)                | GetServiceCapabilities,            | Initialized property events); Topic       | (Phase 5)     |
 |                      | Topic Filter parsing               | expression filter matching                |               |
++----------------------+------------------------------------+-------------------------------------------+---------------+
+| Client Support       | Missing Profile S client APIs:     | Full client-side Profile S invocation     | RESOLVED      |
+| (OnvifClient)        | Media profile, VEC, options, sync, | and response parsing for Media, Device,   | (Phase 6)     |
+|                      | discovery mode, network protocols  | PTZ, and Event operations                 |               |
 +----------------------+------------------------------------+-------------------------------------------+---------------+
 ```
 
@@ -451,9 +455,9 @@ sequenceDiagram
 
 ---
 
-### Phase 6: Client-Side Profile S Support (`OnvifClient`) `[IN PROGRESS]`
+### Phase 6: Client-Side Profile S Support (`OnvifClient`) `[RESOLVED]`
 
-- **Task 6.1: Media Profile & Video Encoder Configuration Client APIs** `[OPEN]`  
+- **Task 6.1: Media Profile & Video Encoder Configuration Client APIs** `[RESOLVED]`  
   In [`libs/Onvif/OnvifClient.h`](../libs/Onvif/OnvifClient.h) and [`libs/Onvif/OnvifClient.cpp`](../libs/Onvif/OnvifClient.cpp):
   - Add `getProfile(const std::string& token)`.
   - Add `createProfile(const std::string& name, const std::string& token = "")`.
@@ -462,10 +466,11 @@ sequenceDiagram
   - Add `getVideoEncoderConfigurationOptions(const std::string& token)`.
   - Add `setVideoEncoderConfiguration(const VideoEncoderConfig& config)`.
   - Add `mediaSetSyncPoint(const std::string& profileToken)`.
-- **Task 6.2: Device Discovery Mode & Protocol Client APIs** `[OPEN]`  
+- **Task 6.2: Device Discovery Mode & Protocol Client APIs** `[RESOLVED]`  
   - Add `getDiscoveryMode()`.
   - Add `setDiscoveryMode(DiscoveryMode mode)`.
   - Add `getNetworkProtocols()`.
+  - Add `setNetworkProtocols(const std::vector<NetworkProtocolConfig>& protocols)`.
 - **Task 6.3: Snapshot Fetch Client API** `[RESOLVED]`  
   - Add `getSnapshot(const std::string& snapshotUri) -> std::optional<std::vector<std::uint8_t>>`.
 
@@ -503,6 +508,10 @@ Following the project TDD rules, dedicated unit, conformance, and end-to-end tes
 | TestOnvifPtzProfileS.SetConfigurationAndCaps         | Verifies PTZ SetConfiguration & ServiceCaps.   |
 | TestOnvifEventsProfileS.SetSyncPointEnqueuesInit     | Verifies SetSynchronizationPoint generates     |
 |                                                      | PropertyOperation="Initialized" events.        |
+| TestOnvifClientProfileS.ClientServerMediaRoundtrip   | Verifies client profile lifecycle & parsing.   |
+| TestOnvifClientProfileS.ClientServerVideoEncoderRoundtrip | Verifies client VEC options, queries & set.|
+| TestOnvifClientProfileS.ClientServerDiscoveryAndProtocolsRoundtrip | Verifies client discovery mode & protocols.|
+| TestOnvifClientProfileS.ClientServerSnapshotRoundtrip | Verifies client snapshot URI & image fetch.   |
 +------------------------------------------------------+------------------------------------------------+
 ```
 
@@ -515,14 +524,18 @@ cmake --build build --target TestOnvifDiscoveryProfileS -j$(nproc)
 cmake --build build --target TestOnvifDeviceProfileS -j$(nproc)
 cmake --build build --target TestOnvifMediaProfileS -j$(nproc)
 cmake --build build --target TestOnvifSnapshot -j$(nproc)
+cmake --build build --target TestOnvifPtzProfileS -j$(nproc)
 cmake --build build --target TestOnvifEventsProfileS -j$(nproc)
+cmake --build build --target TestOnvifClientProfileS -j$(nproc)
 
 # 2. Run dedicated test binaries directly
 ./build/libs/Onvif/tests/TestOnvifDiscoveryProfileS
 ./build/libs/Onvif/tests/TestOnvifDeviceProfileS
 ./build/libs/Onvif/tests/TestOnvifMediaProfileS
 ./build/libs/Onvif/tests/TestOnvifSnapshot
+./build/libs/Onvif/tests/TestOnvifPtzProfileS
 ./build/libs/Onvif/tests/TestOnvifEventsProfileS
+./build/libs/Onvif/tests/TestOnvifClientProfileS
 
 # 3. Verify thread safety under ThreadSanitizer
 cmake -B build-tsan -S . -DPELCOD_ENABLE_ONVIF=ON -DCMAKE_CXX_FLAGS="-fsanitize=thread"

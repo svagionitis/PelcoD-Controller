@@ -209,6 +209,28 @@ public:
     /// @return True on success.
     bool deleteGeoLocation(const std::string& entityToken = "Device");
 
+    /// @brief Queries the operational discovery mode of the device.
+    /// @details Profile S §7.2 / ONVIF Core §8.1 GetDiscoveryMode.
+    /// @return Active DiscoveryMode, or nullopt on communication failure.
+    [[nodiscard]] std::optional<DiscoveryMode> getDiscoveryMode();
+
+    /// @brief Configures device discovery mode (Discoverable vs NonDiscoverable).
+    /// @details Profile S §7.2 / ONVIF Core §8.1 SetDiscoveryMode.
+    /// @param[in] mode Target DiscoveryMode enum value.
+    /// @return True on success.
+    bool setDiscoveryMode(DiscoveryMode mode);
+
+    /// @brief Queries network protocol configurations (HTTP, HTTPS, RTSP ports and status).
+    /// @details Profile S §7.2 / ONVIF Core §8.2 GetNetworkProtocols.
+    /// @return Vector of NetworkProtocolConfig records.
+    [[nodiscard]] std::vector<NetworkProtocolConfig> getNetworkProtocols();
+
+    /// @brief Updates network protocol ports and enable states.
+    /// @details Profile S §7.2 / ONVIF Core §8.2 SetNetworkProtocols.
+    /// @param[in] protocols List of protocol configurations to update.
+    /// @return True on success.
+    bool setNetworkProtocols(const std::vector<NetworkProtocolConfig>& protocols);
+
     // =========================================================================
     // Media Service
     // =========================================================================
@@ -216,6 +238,59 @@ public:
     /// @brief Queries available media profiles (resolutions, tokens, codecs).
     /// @return List of MediaProfile records.
     [[nodiscard]] std::vector<MediaProfile> getProfiles();
+
+    /// @brief Queries a single media profile by token.
+    /// @details Profile S §8.2 / Media ver10 GetProfile.
+    /// @param[in] token Media profile token (e.g. "ProfileToken_1").
+    /// @return MediaProfile record or nullopt on failure / not found.
+    [[nodiscard]] std::optional<MediaProfile> getProfile(const std::string& token);
+
+    /// @brief Creates a dynamic media profile on the camera.
+    /// @details Profile S §8.2 / Media ver10 CreateProfile.
+    /// @param[in] name User-friendly profile name.
+    /// @param[in] token Optional requested profile token.
+    /// @return Created MediaProfile record or nullopt on failure.
+    [[nodiscard]] std::optional<MediaProfile> createProfile(const std::string& name, const std::string& token = "");
+
+    /// @brief Deletes a dynamic media profile from the camera.
+    /// @details Profile S §8.2 / Media ver10 DeleteProfile. Fixed profiles cannot be deleted.
+    /// @param[in] token Media profile token to delete.
+    /// @return True on success, false on failure or if profile is fixed.
+    bool deleteProfile(const std::string& token);
+
+    /// @brief Queries list of all video encoder configurations on the device.
+    /// @details Profile S §8.2 / Media ver10 GetVideoEncoderConfigurations.
+    /// @return Vector of VideoEncoderConfig records.
+    [[nodiscard]] std::vector<VideoEncoderConfig> getVideoEncoderConfigurations();
+
+    /// @brief Queries a specific video encoder configuration by token.
+    /// @details Profile S §8.2 / Media ver10 GetVideoEncoderConfiguration.
+    /// @param[in] token Configuration token (e.g. "VideoEncoderConfig_1").
+    /// @return VideoEncoderConfig record or nullopt on failure.
+    [[nodiscard]] std::optional<VideoEncoderConfig> getVideoEncoderConfiguration(const std::string& token);
+
+    /// @brief Queries supported video encoder options and limits.
+    /// @details Profile S §8.2 / Media ver10 GetVideoEncoderConfigurationOptions.
+    /// @param[in] token Optional configuration or profile token.
+    /// @return VideoEncoderOptions or nullopt on failure.
+    [[nodiscard]] std::optional<VideoEncoderOptions> getVideoEncoderConfigurationOptions(const std::string& token = "");
+
+    /// @brief Concise alias for getVideoEncoderConfigurationOptions (< 30 chars).
+    /// @param[in] token Optional configuration or profile token.
+    /// @return VideoEncoderOptions or nullopt on failure.
+    [[nodiscard]] std::optional<VideoEncoderOptions> getVideoEncoderOptions(const std::string& token = "");
+
+    /// @brief Updates video encoder configuration settings.
+    /// @details Profile S §8.2 / Media ver10 SetVideoEncoderConfiguration.
+    /// @param[in] config Updated video encoder configuration parameters.
+    /// @return True on success.
+    bool setVideoEncoderConfiguration(const VideoEncoderConfig& config);
+
+    /// @brief Requests the media service to emit an instantaneous decoder refresh (IDR) keyframe.
+    /// @details Profile S §8.2 / Media ver10 SetSynchronizationPoint.
+    /// @param[in] profileToken Target media profile token.
+    /// @return True on success.
+    bool mediaSetSyncPoint(const std::string& profileToken);
 
     /// @brief Resolves RTSP stream URI for a given media profile.
     /// @param[in] profileToken Media profile token (e.g. "Profile_1").
@@ -928,6 +1003,56 @@ public:
     /// @param[in] xml Raw response XML.
     /// @return Vector of MediaProfile objects.
     [[nodiscard]] static std::vector<MediaProfile> parseProfilesResponse(const std::string& xml);
+
+    /// @brief Parses GetProfile XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return MediaProfile record or nullopt on failure.
+    [[nodiscard]] static std::optional<MediaProfile> parseProfileResponse(const std::string& xml);
+
+    /// @brief Parses CreateProfile XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Created MediaProfile or nullopt on failure.
+    [[nodiscard]] static std::optional<MediaProfile> parseCreateProfileResponse(const std::string& xml);
+
+    /// @brief Parses GetVideoEncoderConfigurations XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Vector of VideoEncoderConfig objects.
+    [[nodiscard]] static std::vector<VideoEncoderConfig> parseVideoEncoderConfigsResponse(const std::string& xml);
+
+    /// @brief Concise alias for parseVideoEncoderConfigsResponse (< 30 chars).
+    /// @param[in] xml Raw response XML.
+    /// @return Vector of VideoEncoderConfig objects.
+    [[nodiscard]] static std::vector<VideoEncoderConfig> parseVideoEncConfigsResponse(const std::string& xml);
+
+    /// @brief Parses GetVideoEncoderConfiguration XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return VideoEncoderConfig record or nullopt on failure.
+    [[nodiscard]] static std::optional<VideoEncoderConfig> parseVideoEncoderConfigResponse(const std::string& xml);
+
+    /// @brief Concise alias for parseVideoEncoderConfigResponse (< 30 chars).
+    /// @param[in] xml Raw response XML.
+    /// @return VideoEncoderConfig record or nullopt on failure.
+    [[nodiscard]] static std::optional<VideoEncoderConfig> parseVideoEncConfigResponse(const std::string& xml);
+
+    /// @brief Parses GetVideoEncoderConfigurationOptions XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return VideoEncoderOptions or nullopt on failure.
+    [[nodiscard]] static std::optional<VideoEncoderOptions> parseVideoEncoderOptionsResponse(const std::string& xml);
+
+    /// @brief Concise alias for parseVideoEncoderOptionsResponse (< 30 chars).
+    /// @param[in] xml Raw response XML.
+    /// @return VideoEncoderOptions or nullopt on failure.
+    [[nodiscard]] static std::optional<VideoEncoderOptions> parseVideoEncOptionsResponse(const std::string& xml);
+
+    /// @brief Parses GetDiscoveryMode XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return DiscoveryMode or nullopt on failure.
+    [[nodiscard]] static std::optional<DiscoveryMode> parseDiscoveryModeResponse(const std::string& xml);
+
+    /// @brief Parses GetNetworkProtocols XML response.
+    /// @param[in] xml Raw response XML.
+    /// @return Vector of NetworkProtocolConfig records.
+    [[nodiscard]] static std::vector<NetworkProtocolConfig> parseNetworkProtocolsResponse(const std::string& xml);
 
     /// @brief Parses GetStreamUri XML response.
     /// @param[in] xml Raw response XML.

@@ -41,6 +41,23 @@ struct MediaProfile {
     int videoHeight { 0 }; ///< Native video resolution height in pixels
     std::string videoEncoding; ///< Encoding format (e.g. "H264", "H265", "JPEG")
     std::string videoSourceToken {}; ///< Video source configuration token for imaging service
+    bool fixed { false }; ///< True if profile is fixed/immutable
+    std::string vscToken {}; ///< Video source configuration token
+    std::string vecToken {}; ///< Video encoder configuration token
+    std::string ptzToken {}; ///< PTZ configuration token
+    std::string metadataToken {}; ///< Metadata configuration token
+};
+
+/// @enum DiscoveryMode
+/// @brief Operational discovery mode of the ONVIF device (Profile S / Core §8.1).
+enum class DiscoveryMode : std::uint8_t { Discoverable, NonDiscoverable };
+
+/// @struct NetworkProtocolConfig
+/// @brief Operational configuration for an ONVIF network protocol endpoint (ONVIF Core §8.2 / Profile S §7.2).
+struct NetworkProtocolConfig {
+    std::string name {}; ///< Protocol name (e.g. "HTTP", "HTTPS", "RTSP")
+    bool enabled { true }; ///< Operational enable/disable state
+    int port { 8080 }; ///< Port number (1-65535)
 };
 
 /// @struct StreamUriInfo
@@ -207,6 +224,35 @@ struct VideoEncoderConfig {
     std::string h264Profile { "Main" }; ///< H.264 profile ("Baseline", "Main", "High", "Extended")
     std::string sessionTimeout { "PT30S" }; ///< RTSP session timeout
 };
+
+/// @struct VideoResolution
+/// @brief Video frame resolution in pixels.
+struct VideoResolution {
+    int width { 1920 }; ///< Frame width in pixels
+    int height { 1080 }; ///< Frame height in pixels
+};
+
+/// @struct IntRange
+/// @brief Inclusive integer range.
+struct IntRange {
+    int min { 0 }; ///< Minimum boundary
+    int max { 0 }; ///< Maximum boundary
+};
+
+/// @struct VideoEncoderOptions
+/// @brief Supported video encoding options and ranges (Media ver10 GetVideoEncoderConfigurationOptions).
+struct VideoEncoderOptions {
+    IntRange qualityRange { 1, 10 }; ///< Quality level range
+    IntRange govLengthRange { 1, 120 }; ///< GOV/keyframe interval range
+    IntRange frameRateRange { 1, 30 }; ///< Framerate range in fps
+    IntRange encodingIntervalRange { 1, 1 }; ///< Encoding interval range
+    std::vector<VideoResolution> resolutions {}; ///< Available video resolutions
+    std::vector<std::string> h264Profiles {}; ///< Supported H.264 profiles
+};
+
+/// @typedef VideoEncoderConfigurationOptions
+/// @brief Type alias for VideoEncoderOptions for strict schema alignment.
+using VideoEncoderConfigurationOptions = VideoEncoderOptions;
 
 /// @struct PanTiltLimits
 /// @brief Range limits for PTZ pan/tilt movements (ONVIF Profile S).
