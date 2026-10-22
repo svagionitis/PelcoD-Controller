@@ -99,4 +99,9 @@ if(Python3_FOUND)
         WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
         COMMENT "Verifying <cstdint> and IWYU compliance across C++ sources"
     )
+    add_custom_target(check-type-conversions
+        COMMAND ${Python3_EXECUTABLE} "${PROJECT_SOURCE_DIR}/scripts/verify_type_conversions.py"
+        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+        COMMENT "Verifying MISRA 7.0.6 and CERT INT31-C range conversions across C++ sources"
+    )
 endif()

@@ -473,7 +473,61 @@ which configures a temporary build tree with `-DENABLE_SYSTEM_HEADERS_AUDIT=ON -
 **Objectives:**
 Establish a formal, mandatory Continuous Integration gate running MSVC with `/W4 /WX /w14365` to prevent signed/unsigned template regressions from entering the master branch.
 
-#### GitHub Actions Workflow Specification: `.github/workflows/windows-msvc.yml`
+#### Architectural Diagram: MSVC CI Pipeline Flow
+
+```
++---------------------------------------------------------------------------------------------------+
+|                           MSVC CI PIPELINE EXECUTION ARCHITECTURE                                 |
++---------------------------------------------------------------------------------------------------+
+|  GitHub Event: Push / Pull Request to master / Manual Dispatch                                    |
+|         │                                                                                         |
+|         ▼                                                                                         |
+|  Matrix Runner: windows-2022 (Config: Debug, Release)                                             |
+|         │                                                                                         |
+|         ├──► 1. actions/checkout@v4                                                               |
+|         ├──► 2. ilammy/msvc-dev-cmd@v1 (Environment init for MSVC 2022)                           |
+|         ├──► 3. ashutoshvarma/setup-ninja@v1                                                      |
+|         ├──► 4. jurplel/install-qt-action@v3 (Qt 6.6.1 win64_msvc2019_64 with caching)           |
+|         ├──► 5. actions/cache@v4 (Restore vcpkg installed libs & binary archives)                 |
+|         ├──► 6. CMake Configure (-G "Visual Studio 17 2022" -A x64 /W4 /WX /w14365 /we4365)       |
+|         ├──► 7. Build All Targets (cmake --build build --config <Config> --parallel)              |
+|         └──► 8. Run CTest Suite (ctest --test-dir build -C <Config> --output-on-failure)         |
++---------------------------------------------------------------------------------------------------+
+```
+
+#### Mermaid Diagram: MSVC CI Pipeline Workflow
+
+```mermaid
+flowchart TD
+    subgraph Trigger["CI Event Trigger"]
+        T1["Push / PR to master"] --> G1["concurrency: cancel-in-progress"]
+        T2["workflow_dispatch"] --> G1
+    end
+
+    subgraph Matrix["Build Matrix: windows-2022"]
+        M1["Debug Config"]
+        M2["Release Config"]
+    end
+
+    G1 --> Matrix
+
+    subgraph Pipeline["Step Execution Sequence"]
+        S1["actions/checkout@v4"]
+        S2["ilammy/msvc-dev-cmd@v1<br/>(Visual Studio 2022 Dev Cmd)"]
+        S3["ashutoshvarma/setup-ninja@v1"]
+        S4["jurplel/install-qt-action@v3<br/>(Qt 6.6.1 msvc2019_64)"]
+        S5["actions/cache@v4<br/>(vcpkg binaries & archives)"]
+        S6["CMake Configure<br/>(/W4 /WX /w14365 /we4365)"]
+        S7["CMake Build<br/>(cmake --build build --parallel)"]
+        S8["CTest Execution<br/>(ctest --test-dir build --parallel)"]
+
+        S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8
+    end
+
+    Matrix --> S1
+```
+
+#### GitHub Actions Workflow Specification: [`.github/workflows/windows-msvc.yml`](../.github/workflows/windows-msvc.yml)
 
 ```yaml
 name: Windows MSVC Build & Strict Warning Audit
@@ -483,6 +537,7 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -497,6 +552,9 @@ jobs:
       matrix:
         config: [ Debug, Release ]
 
+    env:
+      QT_QPA_PLATFORM: offscreen
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -507,13 +565,23 @@ jobs:
       - name: Setup Ninja
         uses: ashutoshvarma/setup-ninja@v1
 
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.6.1'
+          arch: 'win64_msvc2019_64'
+          cache: true
+
       - name: Restore vcpkg Cache
         uses: actions/cache@v4
         with:
           path: |
             ${{ github.workspace }}/vcpkg_installed
+            ${{ github.workspace }}/build/vcpkg_installed
             C:/Users/runneradmin/AppData/Local/vcpkg/archives
           key: vcpkg-msvc-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-msvc-${{ runner.os }}-
 
       - name: Configure CMake
         run: |
@@ -580,12 +648,12 @@ Create a comprehensive unit test suite validating:
 
 ## 6. Verification Checklist & Compliance Sign-Off
 
-- [ ] **Checklist Update:** Added items 17 and 18 to [`.agents/rules/verification-checklist.md`](../.agents/rules/verification-checklist.md).
-- [ ] **Skill Update:** Synchronized [`.agents/skills/cpp-verification/SKILL.md`](../.agents/skills/cpp-verification/SKILL.md).
-- [ ] **Zero Transitive Includes:** `AsciiUtils.h` strictly adheres to IWYU with direct inclusions (`<cstddef>`, `<cstdint>`, `<algorithm>`, `<string>`, `<string_view>`, `<vector>`).
-- [ ] **Zero Heap Allocations:** All `AsciiUtils` character functions and case-insensitive comparisons are `constexpr` / `inline noexcept` without dynamic memory allocation.
-- [ ] **No Raw New/Delete:** Modern C++17 memory management maintained.
-- [ ] **Full Doxygen Documentation:** All public functions documented with `@brief`, `@details`, `@param`, `@return`.
-- [ ] **Relative File Paths:** All documentation links and file references use relative paths.
-- [ ] **Diagrams:** ASCII and Mermaid diagrams included for all structural and pipeline specifications.
-- [ ] **Cross-Compiler Build:** Passes clean on MSVC (`/W4 /WX /w14365`) and Clang/GCC (`-Wall -Wextra -pedantic -Wconversion -Wsign-conversion -Werror`).
+- [x] **Checklist Update:** Added items 17 and 18 to [`.agents/rules/verification-checklist.md`](../.agents/rules/verification-checklist.md).
+- [x] **Skill Update:** Synchronized [`.agents/skills/cpp-verification/SKILL.md`](../.agents/skills/cpp-verification/SKILL.md).
+- [x] **Zero Transitive Includes:** `AsciiUtils.h` strictly adheres to IWYU with direct inclusions (`<cstddef>`, `<cstdint>`, `<algorithm>`, `<string>`, `<string_view>`, `<vector>`).
+- [x] **Zero Heap Allocations:** All `AsciiUtils` character functions and case-insensitive comparisons are `constexpr` / `inline noexcept` without dynamic memory allocation.
+- [x] **No Raw New/Delete:** Modern C++17 memory management maintained.
+- [x] **Full Doxygen Documentation:** All public functions documented with `@brief`, `@details`, `@param`, `@return`.
+- [x] **Relative File Paths:** All documentation links and file references use relative paths.
+- [x] **Diagrams:** ASCII and Mermaid diagrams included for all structural and pipeline specifications.
+- [x] **Cross-Compiler Build:** Passes clean on MSVC (`/W4 /WX /w14365`) and Clang/GCC (`-Wall -Wextra -pedantic -Wconversion -Wsign-conversion -Werror`).

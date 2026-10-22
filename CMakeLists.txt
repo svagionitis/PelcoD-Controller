@@ -256,6 +256,10 @@ set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR};$ORIGIN
 # Testing & Code Coverage Configuration
 # ==============================================================================
 option(BUILD_TESTING "Build unit tests" ON)
+option(PELCOD_BUILD_TESTS "Build unit tests (alias for BUILD_TESTING)" ${BUILD_TESTING})
+if(DEFINED PELCOD_BUILD_TESTS)
+    set(BUILD_TESTING ${PELCOD_BUILD_TESTS})
+endif()
 option(PELCOD_ENABLE_COVERAGE "Enable code coverage instrumentation (GCC/Clang)" OFF)
 
 if(BUILD_TESTING)

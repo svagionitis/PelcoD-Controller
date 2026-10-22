@@ -1,0 +1,68 @@
+name: Windows MSVC Build & Strict Warning Audit
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  msvc-strict-build:
+    name: MSVC 2022 (W4 / WX / w14365) - ${{ matrix.config }}
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [ Debug, Release ]
+
+    env:
+      QT_QPA_PLATFORM: offscreen
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Visual Studio Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Setup Ninja
+        uses: ashutoshvarma/setup-ninja@v1
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.6.1'
+          arch: 'win64_msvc2019_64'
+          cache: true
+
+      - name: Restore vcpkg Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/vcpkg_installed
+            ${{ github.workspace }}/build/vcpkg_installed
+            C:/Users/runneradmin/AppData/Local/vcpkg/archives
+          key: vcpkg-msvc-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-msvc-${{ runner.os }}-
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DWARNINGS_AS_ERRORS=ON `
+            -DPELCOD_BUILD_TESTS=ON `
+            -DPELCOD_ENABLE_ONVIF=ON
+
+      - name: Build All Targets
+        run: |
+          cmake --build build --config ${{ matrix.config }} --parallel
+
+      - name: Run CTest Suite
+        run: |
+          ctest --test-dir build -C ${{ matrix.config }} --output-on-failure --parallel

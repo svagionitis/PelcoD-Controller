@@ -66,6 +66,7 @@ function(apply_compiler_flags TARGET_NAME)
                 /we4189             # Treat C4189 (unused initialized variable) as fatal error
                 /we4101             # Treat C4101 (unreferenced local variable) as fatal error
                 /we4505             # Treat C4505 (unreferenced local function) as fatal error
+                /we4365             # Treat C4365 (signed to unsigned conversion mismatch) as fatal error
             )
         endif()
 
