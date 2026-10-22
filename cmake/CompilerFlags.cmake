@@ -8,6 +8,15 @@ option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer (UBSan)" OFF)
 option(ENABLE_TSAN "Enable ThreadSanitizer (TSan)" OFF)
 option(ENABLE_HARDENING "Enable security hardening flags" ON)
 option(ENABLE_SPECTRE_MITIGATION "Enable MSVC Spectre mitigation (/Qspectre, requires VS Spectre-mitigated libs)" OFF)
+option(ENABLE_SYSTEM_HEADERS_AUDIT "Enable non-blocking Clang system headers warning audit (-Wsign-conversion -Wsystem-headers)" OFF)
+
+if(ENABLE_SYSTEM_HEADERS_AUDIT)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(STATUS "Clang System-Headers Audit ENABLED (non-blocking)")
+    else()
+        message(WARNING "ENABLE_SYSTEM_HEADERS_AUDIT requested but compiler is not Clang.")
+    endif()
+endif()
 
 function(apply_compiler_flags TARGET_NAME)
     set_target_properties(${TARGET_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -57,6 +66,15 @@ function(apply_compiler_flags TARGET_NAME)
                 /we4189             # Treat C4189 (unused initialized variable) as fatal error
                 /we4101             # Treat C4101 (unreferenced local variable) as fatal error
                 /we4505             # Treat C4505 (unreferenced local function) as fatal error
+            )
+        endif()
+
+        if(ENABLE_SYSTEM_HEADERS_AUDIT AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            target_compile_options(${TARGET_NAME} PRIVATE
+                /clang:-Wsign-conversion
+                /clang:-Wsystem-headers
+                /clang:-Wno-error=system-headers
+                /clang:-Wno-error=sign-conversion
             )
         endif()
 
@@ -110,6 +128,16 @@ function(apply_compiler_flags TARGET_NAME)
 
         if(WARNINGS_AS_ERRORS)
             target_compile_options(${TARGET_NAME} PRIVATE -Werror) # Treat all compiler warnings as fatal errors
+        endif()
+
+        if(ENABLE_SYSTEM_HEADERS_AUDIT AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            target_compile_options(${TARGET_NAME} PRIVATE
+                -Wsign-conversion
+                -Wsystem-headers
+                -Wno-error=system-headers
+                -Wno-error=sign-conversion
+                -Wno-invalid-constexpr
+            )
         endif()
 
         if(ENABLE_HARDENING AND NOT EMSCRIPTEN)
