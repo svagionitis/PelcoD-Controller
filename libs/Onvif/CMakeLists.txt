@@ -82,6 +82,7 @@ add_library(Onvif STATIC
     NotificationDispatcher.cpp
     SubscriptionManager.h
     SubscriptionManager.cpp
+    AsciiUtils.h
     GeodesyUtils.h
     adapters/PelcoDPtzAdapter.h
     adapters/PelcoDPtzAdapter.cpp

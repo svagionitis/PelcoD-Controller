@@ -3,9 +3,14 @@
 
 #include "PasswordPolicy.h"
 
+#include <cstddef>
+
 #include <algorithm>
 #include <array>
-#include <cctype>
+#include <string>
+#include <string_view>
+
+#include "AsciiUtils.h"
 
 namespace Onvif {
 
@@ -13,24 +18,6 @@ namespace {
 
     constexpr std::array<std::string_view, 12> kCommonDefaults { "admin", "password", "123456", "12345678", "pass",
         "default", "operator", "camera", "root", "guest", "service", "support" };
-
-    [[nodiscard]] char toLowerAscii(char ch) noexcept
-    {
-        return ((ch >= 'A') && (ch <= 'Z')) ? static_cast<char>((ch - 'A') + 'a') : ch;
-    }
-
-    [[nodiscard]] bool equalsIgnoreCase(std::string_view s1, std::string_view s2) noexcept
-    {
-        if (s1.size() != s2.size()) {
-            return false;
-        }
-        for (std::size_t i { 0U }; i < s1.size(); ++i) {
-            if (toLowerAscii(s1[i]) != toLowerAscii(s2[i])) {
-                return false;
-            }
-        }
-        return true;
-    }
 
     [[nodiscard]] char normalizeLeet(char ch) noexcept
     {
@@ -85,7 +72,7 @@ namespace {
 bool PasswordPolicy::isCommonDefault(std::string_view password) noexcept
 {
     return std::any_of(kCommonDefaults.begin(), kCommonDefaults.end(),
-        [password](std::string_view def) { return equalsIgnoreCase(password, def); });
+        [password](std::string_view def) { return equalsIgnoreCaseAscii(password, def); });
 }
 
 std::size_t PasswordPolicy::countClasses(std::string_view password) noexcept

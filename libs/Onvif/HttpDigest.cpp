@@ -3,19 +3,27 @@
 
 #include "HttpDigest.h"
 
-#include "OnvifCrypto.h"
-#include "OnvifSecurity.h"
+#include <cstddef>
+#include <cstdint>
+
+#include <algorithm>
+#include <chrono>
+#include <initializer_list>
+#include <limits>
+#include <map>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
 
-#include <algorithm>
-#include <cstddef>
-#include <initializer_list>
-#include <limits>
-#include <map>
-#include <optional>
-#include <utility>
+#include "AsciiUtils.h"
+#include "OnvifCrypto.h"
+#include "OnvifSecurity.h"
 
 namespace Onvif {
 
@@ -32,21 +40,6 @@ namespace {
 
     using ParamMap = std::map<std::string, std::string>;
 
-    [[nodiscard]] char toLowerAscii(char ch) noexcept
-    {
-        return ((ch >= 'A') && (ch <= 'Z')) ? static_cast<char>((ch - 'A') + 'a') : ch;
-    }
-
-    [[nodiscard]] std::string lower(std::string_view text)
-    {
-        std::string out {};
-        out.reserve(text.size());
-        for (const char ch : text) {
-            out.push_back(toLowerAscii(ch));
-        }
-        return out;
-    }
-
     [[nodiscard]] bool isSpace(char ch) noexcept
     {
         return (ch == ' ') || (ch == '\t');
@@ -54,7 +47,7 @@ namespace {
 
     [[nodiscard]] bool isHex(char ch) noexcept
     {
-        return ((ch >= '0') && (ch <= '9')) || ((ch >= 'a') && (ch <= 'f')) || ((ch >= 'A') && (ch <= 'F'));
+        return isAsciiHexDigit(ch);
     }
 
     /// @brief Parses the auth-param list of a Digest credential (RFC 7616 §3.4).
@@ -74,7 +67,7 @@ namespace {
             while ((pos < s.size()) && (s[pos] != '=') && (s[pos] != ',') && !isSpace(s[pos])) {
                 ++pos;
             }
-            const std::string name { lower(s.substr(nameStart, pos - nameStart)) };
+            const std::string name { toLowerAsciiString(s.substr(nameStart, pos - nameStart)) };
             while ((pos < s.size()) && isSpace(s[pos])) {
                 ++pos;
             }
@@ -231,7 +224,8 @@ AuthResult DigestValidator::validate(std::string_view header, std::string_view m
         return outcomeOnly(AuthOutcome::NoCredentials);
     }
     constexpr std::string_view kScheme { "digest" };
-    const bool schemeMatches { (header.size() >= kScheme.size()) && (lower(header.substr(0U, kScheme.size())) == kScheme)
+    const bool schemeMatches { (header.size() >= kScheme.size())
+        && (toLowerAsciiString(header.substr(0U, kScheme.size())) == kScheme)
         && ((header.size() == kScheme.size()) || isSpace(header[kScheme.size()])) };
     if (!schemeMatches) {
         return outcomeOnly(AuthOutcome::NoCredentials);
@@ -257,7 +251,8 @@ AuthResult DigestValidator::validate(std::string_view header, std::string_view m
     }
 
     const auto algIt { params->find("algorithm") };
-    const std::string algorithm { (algIt == params->end()) ? std::string { "md5" } : lower(algIt->second) };
+    const std::string algorithm { (algIt == params->end()) ? std::string { "md5" }
+                                                           : toLowerAsciiString(algIt->second) };
     const EVP_MD* md { nullptr };
     if (algorithm == "sha-256") {
         md = EVP_sha256();
@@ -268,7 +263,7 @@ AuthResult DigestValidator::validate(std::string_view header, std::string_view m
     }
 
     const bool ncOk { (nc->size() == 8U) && std::all_of(nc->begin(), nc->end(), [](char ch) { return isHex(ch); }) };
-    if ((*realm != m_config.realm) || (lower(*qop) != "auth") || !ncOk || (cnonce->size() > kMaxCnonce)
+    if ((*realm != m_config.realm) || (toLowerAsciiString(*qop) != "auth") || !ncOk || (cnonce->size() > kMaxCnonce)
         || (*dUri != uri)) {
         return outcomeOnly(AuthOutcome::InvalidCredentials);
     }
@@ -295,7 +290,7 @@ AuthResult DigestValidator::validate(std::string_view header, std::string_view m
         return outcomeOnly(AuthOutcome::InvalidCredentials);
     }
     const auto expected { Crypto::hexDigest(md, *ha1 + ":" + *nonce + ":" + *nc + ":" + *cnonce + ":auth:" + *ha2) };
-    const bool match { expected.has_value() && Crypto::constTimeEqual(*expected, lower(*response)) };
+    const bool match { expected.has_value() && Crypto::constTimeEqual(*expected, toLowerAsciiString(*response)) };
     if (!user.has_value() || !match) {
         return outcomeOnly(AuthOutcome::InvalidCredentials);
     }

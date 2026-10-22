@@ -15,50 +15,22 @@
 #include <netinet/in.h>
 #endif
 
+#include <cstddef>
+#include <cstdint>
+
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <charconv>
+#include <string>
+#include <string_view>
+
+#include "AsciiUtils.h"
 
 namespace Onvif {
 
-namespace {
-
-    /// @brief Converts an ASCII string view to lower case.
-    /// @param[in] in Input string view.
-    /// @return Lowercased string.
-    [[nodiscard]] std::string toLower(std::string_view in)
-    {
-        std::string out {};
-        out.reserve(in.size());
-        for (const char ch : in) {
-            out.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
-        }
-        return out;
-    }
-
-    /// @brief Checks if a string view equals another ignoring ASCII case.
-    /// @param[in] a First string.
-    /// @param[in] b Second string.
-    /// @return True if equal.
-    [[nodiscard]] bool iequals(std::string_view a, std::string_view b)
-    {
-        if (a.size() != b.size()) {
-            return false;
-        }
-        for (std::size_t i { 0U }; i < a.size(); ++i) {
-            if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-} // namespace
-
 bool NotificationUrlValidator::isLoopbackHost(std::string_view host)
 {
-    const std::string lower { toLower(host) };
+    const std::string lower { toLowerAsciiString(host) };
     if (lower == "localhost" || lower == "127.0.0.1" || lower == "::1" || lower == "[::1]") {
         return true;
     }
@@ -96,7 +68,7 @@ bool NotificationUrlValidator::isLoopbackHost(std::string_view host)
 
 bool NotificationUrlValidator::isMetadataHost(std::string_view host)
 {
-    const std::string lower { toLower(host) };
+    const std::string lower { toLowerAsciiString(host) };
     if (lower == "169.254.169.254" || lower == "instance-data" || lower == "metadata.google.internal") {
         return true;
     }
@@ -136,7 +108,7 @@ bool NotificationUrlValidator::isSensitivePort(std::uint16_t port)
 
 bool NotificationUrlValidator::isPrivateSubnet(std::string_view host)
 {
-    const std::string lower { toLower(host) };
+    const std::string lower { toLowerAsciiString(host) };
     in_addr addr4 {};
     if (::inet_pton(AF_INET, lower.c_str(), &addr4) == 1) {
         const std::uint32_t ip { ntohl(addr4.s_addr) };
@@ -188,7 +160,7 @@ UrlCheckResult NotificationUrlValidator::validateUrl(
         return result;
     }
 
-    const std::string scheme { toLower(url.substr(0U, schemeDelim)) };
+    const std::string scheme { toLowerAsciiString(url.substr(0U, schemeDelim)) };
     result.scheme = scheme;
     if (scheme != "http" && scheme != "https") {
         result.status = UrlCheckStatus::InvalidScheme;
@@ -310,7 +282,7 @@ UrlCheckResult NotificationUrlValidator::validateUrl(
 
     // Blocklist check
     for (const auto& blocked : config.blockedHosts) {
-        if (iequals(hostPart, blocked)) {
+        if (equalsIgnoreCaseAscii(hostPart, blocked)) {
             result.status = UrlCheckStatus::HostBlocked;
             result.reason = "Host matches administrator blacklist";
             return result;
@@ -321,7 +293,7 @@ UrlCheckResult NotificationUrlValidator::validateUrl(
     if (!config.allowedHosts.empty()) {
         bool allowed { false };
         for (const auto& whitelisted : config.allowedHosts) {
-            if (iequals(hostPart, whitelisted)) {
+            if (equalsIgnoreCaseAscii(hostPart, whitelisted)) {
                 allowed = true;
                 break;
             }

@@ -13,6 +13,8 @@
 
 #include <pugixml.hpp>
 
+#include "AsciiUtils.h"
+
 namespace Onvif {
 
 namespace {
@@ -25,31 +27,6 @@ namespace {
         }
         const auto end = str.find_last_not_of(" \t\r\n");
         return str.substr(start, end - start + 1);
-    }
-
-    /// @brief Folds an ASCII upper-case letter to lower-case.
-    /// @details Locale-independent; bytes outside 'A'..'Z' (including non-ASCII) are returned unchanged.
-    /// @param ch Input character.
-    /// @return Lower-case equivalent of @p ch for 'A'..'Z', otherwise @p ch.
-    [[nodiscard]] constexpr char toLowerAscii(char ch) noexcept
-    {
-        return ((ch >= 'A') && (ch <= 'Z')) ? static_cast<char>((ch - 'A') + 'a') : ch;
-    }
-
-    /// @brief Case-insensitive (ASCII) substring test without heap allocation.
-    /// @details Used for WS-Discovery self-message suppression; safe to call from noexcept functions.
-    /// @param text Haystack (MessageID / Address / RelatesTo text).
-    /// @param uuid Needle (local service UUID).
-    /// @return true if @p uuid occurs in @p text ignoring ASCII case, false otherwise or if either is empty.
-    [[nodiscard]] bool containsUuid(std::string_view text, std::string_view uuid) noexcept
-    {
-        if (uuid.empty() || (text.size() < uuid.size())) {
-            return false;
-        }
-
-        const auto it { std::search(text.cbegin(), text.cend(), uuid.cbegin(), uuid.cend(),
-            [](char lhs, char rhs) noexcept { return toLowerAscii(lhs) == toLowerAscii(rhs); }) };
-        return it != text.cend();
     }
 
     /// @brief Checks if a single probe scope matches an active device scope according to RFC 3986 rules.
@@ -67,14 +44,8 @@ namespace {
             const auto activeSchemeAuth
                 = (activeAuthEnd == std::string_view::npos) ? activeScope : activeScope.substr(0, activeAuthEnd);
 
-            if (probeSchemeAuth.size() != activeSchemeAuth.size()) {
+            if (!equalsIgnoreCaseAscii(probeSchemeAuth, activeSchemeAuth)) {
                 return false;
-            }
-
-            for (std::size_t i = 0; i < probeSchemeAuth.size(); ++i) {
-                if (toLowerAscii(probeSchemeAuth[i]) != toLowerAscii(activeSchemeAuth[i])) {
-                    return false;
-                }
             }
 
             const auto probePath
@@ -120,17 +91,17 @@ bool WsDiscoveryValidator::isSelfMessage(const pugi::xml_document& xmlDoc, const
     }
 
     const pugi::xml_node addrNode = xmlDoc.select_node("//*[local-name()='Address']").node();
-    if (addrNode && containsUuid(addrNode.text().as_string(), localServiceUuid)) {
+    if (addrNode && containsIgnoreCaseAscii(addrNode.text().as_string(), localServiceUuid)) {
         return true;
     }
 
     const pugi::xml_node msgIdNode = xmlDoc.select_node("//*[local-name()='MessageID']").node();
-    if (msgIdNode && containsUuid(msgIdNode.text().as_string(), localServiceUuid)) {
+    if (msgIdNode && containsIgnoreCaseAscii(msgIdNode.text().as_string(), localServiceUuid)) {
         return true;
     }
 
     const pugi::xml_node relatesNode = xmlDoc.select_node("//*[local-name()='RelatesTo']").node();
-    if (relatesNode && containsUuid(relatesNode.text().as_string(), localServiceUuid)) {
+    if (relatesNode && containsIgnoreCaseAscii(relatesNode.text().as_string(), localServiceUuid)) {
         return true;
     }
 
