@@ -16,7 +16,8 @@
 #include <algorithm>
 #include <vector>
 
-#include <opencv2/opencv.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 
 #include "Math/Gabor.h"
 
@@ -431,7 +432,7 @@ void GaborFilter::process(std::uint8_t* data, int width, int height, PixelFormat
         cv::cvtColor(mat, gray, cv::COLOR_RGB2GRAY);
     }
 
-    Math::Gabor2DConfig cfg {};
+    Math::Gabor2DConfig cfg { };
     cfg.wavelength = (m_wavelength > 0.0) ? m_wavelength : 8.0;
     cfg.orientationRad = m_orientationRad;
     cfg.sigma = cfg.wavelength * 0.56;

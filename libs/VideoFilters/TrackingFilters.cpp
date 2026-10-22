@@ -22,7 +22,10 @@
 #include <string>
 #include <vector>
 
-#include <opencv2/opencv.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/video/background_segm.hpp>
+#include <opencv2/video/tracking.hpp>
 
 namespace Video::Filters {
 
@@ -75,7 +78,7 @@ std::size_t MovingTargetIndicatorFilter::getTargetCount() const
 std::vector<MovingTargetIndicatorFilter::TargetBox> MovingTargetIndicatorFilter::getTargets() const
 {
     if (!m_impl) {
-        return {};
+        return { };
     }
     std::scoped_lock lock(m_impl->targetsMutex);
     return m_impl->targets;
@@ -508,7 +511,7 @@ CentroidTargetTrackerFilter::TargetState CentroidTargetTrackerFilter::getTargetS
     double lookaheadLatencySeconds) const
 {
     if (!m_impl) {
-        return {};
+        return { };
     }
     std::scoped_lock lock(m_impl->stateMutex);
     TargetState copy = m_impl->state;
@@ -698,7 +701,7 @@ CentroidTargetTrackerFilter::TrajectoryConfig CentroidTargetTrackerFilter::getTr
         std::scoped_lock lock(m_impl->stateMutex);
         return m_impl->trajectoryConfig;
     }
-    return {};
+    return { };
 }
 
 void CentroidTargetTrackerFilter::setPredictiveLeadConfig(const PredictiveLeadConfig& config) noexcept
@@ -718,7 +721,7 @@ CentroidTargetTrackerFilter::PredictiveLeadConfig CentroidTargetTrackerFilter::g
         std::scoped_lock lock(m_impl->stateMutex);
         return m_impl->predictiveLeadConfig;
     }
-    return {};
+    return { };
 }
 
 void CentroidTargetTrackerFilter::setBoresightLeadOffset(double leadX, double leadY) noexcept
@@ -1579,8 +1582,7 @@ void MotionHeatmapFilter::process(std::uint8_t* data, int width, int height, Pix
     cv::Mat motionFloat;
     motionMask.convertTo(motionFloat, CV_32F);
 
-    m_impl->accumHeatmap = m_impl->accumHeatmap * m_decayFactor
-        + motionFloat * (1.0 - m_decayFactor);
+    m_impl->accumHeatmap = m_impl->accumHeatmap * m_decayFactor + motionFloat * (1.0 - m_decayFactor);
 
     cv::Mat normHeatmap;
     cv::normalize(m_impl->accumHeatmap, normHeatmap, 0, 255, cv::NORM_MINMAX, CV_8U);

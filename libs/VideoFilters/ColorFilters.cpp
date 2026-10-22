@@ -7,10 +7,16 @@
 
 #if defined(PELCOD_HAS_FILTERS)
 
-#include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
+
+#include <algorithm>
 #include <numeric>
-#include <opencv2/opencv.hpp>
+#include <vector>
+
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 
 namespace Video::Filters {
 

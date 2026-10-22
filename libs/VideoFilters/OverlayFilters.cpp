@@ -7,13 +7,22 @@
 
 #if defined(PELCOD_HAS_FILTERS)
 
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <ctime>
+
 #include <algorithm>
 #include <chrono>
-#include <cmath>
-#include <ctime>
 #include <iomanip>
-#include <opencv2/opencv.hpp>
+#include <mutex>
 #include <sstream>
+#include <string>
+#include <vector>
+
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 
 namespace Video::Filters {
 
@@ -405,7 +414,7 @@ void TimestampWatermarkFilter::process(std::uint8_t* data, int width, int height
             auto now = std::chrono::system_clock::now();
             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
             std::time_t t = std::chrono::system_clock::to_time_t(now);
-            std::tm tmBuf {};
+            std::tm tmBuf { };
 #if defined(_WIN32)
             gmtime_s(&tmBuf, &t);
 #else

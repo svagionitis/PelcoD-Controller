@@ -7,10 +7,20 @@
 
 #if defined(PELCOD_HAS_FILTERS)
 
-#include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
-#include <opencv2/opencv.hpp>
+
+#include <algorithm>
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <vector>
+
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 
 namespace Video::Filters {
 
@@ -186,16 +196,16 @@ void StreamHealthOsdFilter::process(std::uint8_t* data, int width, int height, P
     }
 
     StreamHealthState state = StreamHealthState::Healthy;
-    StreamHealthMetrics metrics {};
+    StreamHealthMetrics metrics { };
     Position pos = Position::TopRight;
     Style style = Style::TacticalPill;
-    std::string label {};
+    std::string label { };
     bool showFps = true;
     bool showFreeze = true;
     bool showZones = false;
     bool pulse = true;
     double opacity = 0.65;
-    std::vector<ExclusionZone> zones {};
+    std::vector<ExclusionZone> zones { };
 
     {
         std::scoped_lock lock(m_mutex);

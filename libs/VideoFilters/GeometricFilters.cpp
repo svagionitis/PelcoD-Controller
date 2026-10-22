@@ -7,14 +7,23 @@
 
 #if defined(PELCOD_HAS_FILTERS)
 
-#include <algorithm>
-#include <chrono>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <opencv2/opencv.hpp>
+
+#include <algorithm>
+#include <chrono>
+#include <memory>
+#include <mutex>
 #include <utility>
 #include <vector>
+
+#include <opencv2/calib3d.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/video/tracking.hpp>
 
 namespace Video::Filters {
 
@@ -113,7 +122,7 @@ struct ImageStabilizationFilter::Impl {
     double lastDx { 0.0 };
     double lastDy { 0.0 };
     MotionCallback motionCb { nullptr };
-    std::chrono::steady_clock::time_point lastFrameTime {};
+    std::chrono::steady_clock::time_point lastFrameTime { };
 };
 
 ImageStabilizationFilter::ImageStabilizationFilter(
@@ -159,7 +168,7 @@ void ImageStabilizationFilter::reset()
         m_impl->smoothA = 0.0;
         m_impl->lastDx = 0.0;
         m_impl->lastDy = 0.0;
-        m_impl->lastFrameTime = {};
+        m_impl->lastFrameTime = { };
         m_impl->hasPrev = false;
     }
 }
