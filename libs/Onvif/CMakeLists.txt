@@ -51,6 +51,8 @@ add_library(Onvif STATIC
     WsDiscoveryServer.cpp
     WsDiscoveryValidator.h
     WsDiscoveryValidator.cpp
+    ScopeStore.h
+    ScopeStore.cpp
     OnvifServer.h
     OnvifServer.cpp
     ServiceRegistry.h

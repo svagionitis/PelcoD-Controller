@@ -649,7 +649,8 @@ OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> 
 
     m_subManager = std::make_unique<SubscriptionManager>(m_config.notification);
     m_dispatcher = std::make_unique<NotificationDispatcher>(m_config.notification);
-    m_discoveryServer = std::make_unique<WsDiscoveryServer>(m_config);
+    m_scopeStore = std::make_shared<ScopeStore>(m_config.scopes);
+    m_discoveryServer = std::make_unique<WsDiscoveryServer>(m_config, m_scopeStore);
     setupRoutes();
 }
 
@@ -780,7 +781,16 @@ bool OnvifServer::isRunning() const noexcept
 OnvifServerConfig OnvifServer::getConfig() const
 {
     std::scoped_lock lock(m_deviceMutex);
-    return m_config;
+    auto cfg = m_config;
+    if (m_scopeStore) {
+        cfg.scopes = m_scopeStore->getScopes();
+    }
+    return cfg;
+}
+
+std::shared_ptr<ScopeStore> OnvifServer::getScopeStore() const noexcept
+{
+    return m_scopeStore;
 }
 
 ProvisioningState OnvifServer::provisioningState() const noexcept
@@ -1668,12 +1678,12 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         const auto registry = ServiceRegistry::createDefault(true, true);
         body << registry.buildServicesXml(host, port, includeCap) << "\r\n";
     } else if (isOp(opName, "GetScopes")) {
-        std::vector<std::string> currentScopes;
+        const std::vector<std::string> currentScopes
+            = m_scopeStore ? m_scopeStore->getScopes() : std::vector<std::string> { };
         std::string devName;
         std::string model;
         {
             std::scoped_lock lock(m_deviceMutex);
-            currentScopes = m_config.scopes;
             devName = m_config.deviceName;
             model = m_config.model;
         }
@@ -1694,48 +1704,33 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         }
         body << "    </tds:GetScopesResponse>\r\n";
     } else if (isOp(opName, "AddScopes")) {
-        std::vector<std::string> updatedScopes;
-        {
-            std::scoped_lock lock(m_deviceMutex);
-            const auto scNodes = doc.select_nodes(".//*[local-name()='ScopeItem']");
-            for (const auto& sel : scNodes) {
-                m_config.scopes.push_back(sel.node().text().as_string());
-            }
-            updatedScopes = m_config.scopes;
+        std::vector<std::string> addedScopes;
+        const auto scNodes = doc.select_nodes(".//*[local-name()='ScopeItem']");
+        for (const auto& sel : scNodes) {
+            addedScopes.push_back(sel.node().text().as_string());
         }
-        if (m_discoveryServer) {
-            m_discoveryServer->updateScopes(updatedScopes);
+        if (m_scopeStore) {
+            m_scopeStore->addScopes(addedScopes);
         }
         body << "    <tds:AddScopesResponse/>\r\n";
     } else if (isOp(opName, "RemoveScopes")) {
-        std::vector<std::string> updatedScopes;
-        {
-            std::scoped_lock lock(m_deviceMutex);
-            const auto scNodes = doc.select_nodes(".//*[local-name()='ScopeItem']");
-            for (const auto& sel : scNodes) {
-                const std::string target = sel.node().text().as_string();
-                m_config.scopes.erase(
-                    std::remove(m_config.scopes.begin(), m_config.scopes.end(), target), m_config.scopes.end());
-            }
-            updatedScopes = m_config.scopes;
+        std::vector<std::string> removedScopes;
+        const auto scNodes = doc.select_nodes(".//*[local-name()='ScopeItem']");
+        for (const auto& sel : scNodes) {
+            removedScopes.push_back(sel.node().text().as_string());
         }
-        if (m_discoveryServer) {
-            m_discoveryServer->updateScopes(updatedScopes);
+        if (m_scopeStore) {
+            m_scopeStore->removeScopes(removedScopes);
         }
         body << "    <tds:RemoveScopesResponse/>\r\n";
     } else if (isOp(opName, "SetScopes")) {
-        std::vector<std::string> updatedScopes;
-        {
-            std::scoped_lock lock(m_deviceMutex);
-            m_config.scopes.clear();
-            const auto scNodes = doc.select_nodes(".//*[local-name()='ScopeItem']");
-            for (const auto& sel : scNodes) {
-                m_config.scopes.push_back(sel.node().text().as_string());
-            }
-            updatedScopes = m_config.scopes;
+        std::vector<std::string> newScopes;
+        const auto scNodes = doc.select_nodes(".//*[local-name()='ScopeItem']");
+        for (const auto& sel : scNodes) {
+            newScopes.push_back(sel.node().text().as_string());
         }
-        if (m_discoveryServer) {
-            m_discoveryServer->updateScopes(updatedScopes);
+        if (m_scopeStore) {
+            m_scopeStore->setScopes(newScopes);
         }
         body << "    <tds:SetScopesResponse/>\r\n";
     } else if (isOp(opName, "GetUsers")) {

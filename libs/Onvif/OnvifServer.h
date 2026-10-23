@@ -26,6 +26,7 @@
 #include "CredentialStore.h"
 #include "HttplibInclude.h"
 #include "OnvifServerTypes.h"
+#include "ScopeStore.h"
 #include "WsDiscoveryServer.h"
 
 namespace Onvif {
@@ -42,7 +43,7 @@ public:
     /// @param[in] config Server networking and metadata parameters.
     /// @param[in] ptzHandler Optional handler receiving PTZ motion and preset events.
     /// @param[in] imagingHandler Optional handler receiving Profile T imaging requests.
-    explicit OnvifServer(OnvifServerConfig config = {}, std::shared_ptr<IPtzHandler> ptzHandler = nullptr,
+    explicit OnvifServer(OnvifServerConfig config = { }, std::shared_ptr<IPtzHandler> ptzHandler = nullptr,
         std::shared_ptr<IImagingHandler> imagingHandler = nullptr, std::shared_ptr<IOsdHandler> osdHandler = nullptr,
         std::shared_ptr<IDeviceManagementHandler> deviceHandler = nullptr,
         std::shared_ptr<IDeviceIoHandler> deviceIoHandler = nullptr,
@@ -99,6 +100,10 @@ public:
     /// @brief Gets active server configuration.
     /// @return Copy of active OnvifServerConfig.
     [[nodiscard]] OnvifServerConfig getConfig() const;
+
+    /// @brief Gets the thread-safe canonical ScopeStore.
+    /// @return Shared pointer to ScopeStore instance.
+    [[nodiscard]] std::shared_ptr<ScopeStore> getScopeStore() const noexcept;
 
     /// @brief Sets or replaces the active PTZ handler.
     /// @param[in] handler New IPtzHandler instance.
@@ -287,9 +292,9 @@ private:
     [[nodiscard]] bool isProfileValid(std::string_view token) const;
 
     struct SoapRequest {
-        pugi::xml_node bodyNode {};
-        pugi::xml_node reqNode {};
-        std::string opName {};
+        pugi::xml_node bodyNode { };
+        pugi::xml_node reqNode { };
+        std::string opName { };
     };
 
     [[nodiscard]] std::optional<SoapRequest> parseSoapRequest(
@@ -308,110 +313,111 @@ private:
     void appendAuthFailLog(const std::string& remoteAddr, std::string_view what, std::string_view reason);
 
     OnvifServerConfig m_config;
-    RequestLogCallback m_logCallback {};
-    mutable std::mutex m_handlerMutex {};
-    std::shared_ptr<IPtzHandler> m_ptzHandler {};
-    std::shared_ptr<IImagingHandler> m_imagingHandler {};
-    std::shared_ptr<IOsdHandler> m_osdHandler {};
-    std::shared_ptr<IDeviceManagementHandler> m_deviceHandler {};
-    std::shared_ptr<IDeviceIoHandler> m_deviceIoHandler {};
-    std::shared_ptr<IMetadataHandler> m_metadataHandler {};
-    std::shared_ptr<IRecordingHandler> m_recordingHandler {};
-    std::shared_ptr<ISearchHandler> m_searchHandler {};
-    std::shared_ptr<IReplayHandler> m_replayHandler {};
-    std::shared_ptr<IAnalyticsHandler> m_analyticsHandler {};
-    std::shared_ptr<IMaskHandler> m_maskHandler {};
-    std::shared_ptr<IVideoSourceModeHandler> m_videoSourceModeHandler {};
-    std::shared_ptr<IThermalHandler> m_thermalHandler {};
-    std::unique_ptr<WsDiscoveryServer> m_discoveryServer {};
+    RequestLogCallback m_logCallback { };
+    mutable std::mutex m_handlerMutex { };
+    std::shared_ptr<IPtzHandler> m_ptzHandler { };
+    std::shared_ptr<IImagingHandler> m_imagingHandler { };
+    std::shared_ptr<IOsdHandler> m_osdHandler { };
+    std::shared_ptr<IDeviceManagementHandler> m_deviceHandler { };
+    std::shared_ptr<IDeviceIoHandler> m_deviceIoHandler { };
+    std::shared_ptr<IMetadataHandler> m_metadataHandler { };
+    std::shared_ptr<IRecordingHandler> m_recordingHandler { };
+    std::shared_ptr<ISearchHandler> m_searchHandler { };
+    std::shared_ptr<IReplayHandler> m_replayHandler { };
+    std::shared_ptr<IAnalyticsHandler> m_analyticsHandler { };
+    std::shared_ptr<IMaskHandler> m_maskHandler { };
+    std::shared_ptr<IVideoSourceModeHandler> m_videoSourceModeHandler { };
+    std::shared_ptr<IThermalHandler> m_thermalHandler { };
+    std::shared_ptr<ScopeStore> m_scopeStore { };
+    std::unique_ptr<WsDiscoveryServer> m_discoveryServer { };
     httplib::Server m_httpServer;
 
-    mutable std::mutex m_deviceMutex {};
-    std::shared_ptr<CredentialStore> m_credStore {};
-    std::unique_ptr<Authenticator> m_authenticator {};
-    std::vector<NetworkInterfaceConfig> m_internalNetworkInterfaces {};
-    std::vector<NetworkProtocolConfig> m_internalNetworkProtocols {};
+    mutable std::mutex m_deviceMutex { };
+    std::shared_ptr<CredentialStore> m_credStore { };
+    std::unique_ptr<Authenticator> m_authenticator { };
+    std::vector<NetworkInterfaceConfig> m_internalNetworkInterfaces { };
+    std::vector<NetworkProtocolConfig> m_internalNetworkProtocols { };
     std::string m_internalGateway { "192.168.1.1" };
-    DnsConfig m_internalDns {};
-    NtpConfig m_internalNtp {};
+    DnsConfig m_internalDns { };
+    NtpConfig m_internalNtp { };
     std::string m_internalHostname { "PelcoD-Bridge" };
-    SystemDateTimeConfig m_internalDateTime {};
+    SystemDateTimeConfig m_internalDateTime { };
 
-    mutable std::mutex m_certMutex {};
-    std::vector<OnvifCertificate> m_internalCertificates {};
+    mutable std::mutex m_certMutex { };
+    std::vector<OnvifCertificate> m_internalCertificates { };
     ClientCertificateMode m_internalClientCertMode { ClientCertificateMode::Off };
 
-    mutable std::mutex m_imagingMutex {};
-    FocusStatus20 m_internalFocusStatus {};
-    std::vector<ImagingPreset> m_internalImagingPresets {};
-    std::string m_currentImagingPresetToken {};
+    mutable std::mutex m_imagingMutex { };
+    FocusStatus20 m_internalFocusStatus { };
+    std::vector<ImagingPreset> m_internalImagingPresets { };
+    std::string m_currentImagingPresetToken { };
 
-    mutable std::mutex m_deviceIoMutex {};
-    std::vector<RelayOutputConfig> m_internalRelayOutputs {};
-    std::vector<DigitalInputConfig> m_internalDigitalInputs {};
+    mutable std::mutex m_deviceIoMutex { };
+    std::vector<RelayOutputConfig> m_internalRelayOutputs { };
+    std::vector<DigitalInputConfig> m_internalDigitalInputs { };
 
-    mutable std::mutex m_metadataMutex {};
-    std::vector<MetadataConfiguration> m_internalMetadataConfigs {};
+    mutable std::mutex m_metadataMutex { };
+    std::vector<MetadataConfiguration> m_internalMetadataConfigs { };
 
-    mutable std::mutex m_recordingMutex {};
-    std::vector<RecordingConfig> m_internalRecordings {};
-    std::vector<RecordingJob> m_internalRecordingJobs {};
-    ReplayConfiguration m_internalReplayConfig {};
+    mutable std::mutex m_recordingMutex { };
+    std::vector<RecordingConfig> m_internalRecordings { };
+    std::vector<RecordingJob> m_internalRecordingJobs { };
+    ReplayConfiguration m_internalReplayConfig { };
 
-    mutable std::mutex m_searchMutex {};
-    std::map<std::string, std::vector<RecordingSearchResult>> m_recordingSearches {};
-    std::map<std::string, std::vector<RecordedEventResult>> m_eventSearches {};
+    mutable std::mutex m_searchMutex { };
+    std::map<std::string, std::vector<RecordingSearchResult>> m_recordingSearches { };
+    std::map<std::string, std::vector<RecordedEventResult>> m_eventSearches { };
     std::uint32_t m_nextSearchId { 1 };
 
-    mutable std::mutex m_analyticsMutex {};
-    std::vector<AnalyticsRule> m_internalRules {};
-    std::vector<AnalyticsModule> m_internalModules {};
+    mutable std::mutex m_analyticsMutex { };
+    std::vector<AnalyticsRule> m_internalRules { };
+    std::vector<AnalyticsModule> m_internalModules { };
 
-    mutable std::mutex m_logMutex {};
-    std::deque<std::string> m_systemLogs {};
-    std::deque<std::string> m_accessLogs {};
+    mutable std::mutex m_logMutex { };
+    std::deque<std::string> m_systemLogs { };
+    std::deque<std::string> m_accessLogs { };
 
     std::chrono::steady_clock::time_point m_startTime { std::chrono::steady_clock::now() };
 
-    mutable std::mutex m_osdMutex {};
-    std::map<std::string, OsdConfig> m_internalOsds {};
+    mutable std::mutex m_osdMutex { };
+    std::map<std::string, OsdConfig> m_internalOsds { };
     std::uint32_t m_nextOsdId { 1 };
 
-    mutable std::mutex m_maskMutex {};
-    std::vector<PrivacyMask> m_internalMasks {};
-    MaskOptions m_internalMaskOptions {};
+    mutable std::mutex m_maskMutex { };
+    std::vector<PrivacyMask> m_internalMasks { };
+    MaskOptions m_internalMaskOptions { };
     std::uint32_t m_nextMaskId { 1 };
 
-    mutable std::mutex m_videoSourceModeMutex {};
-    std::vector<VideoSourceMode> m_internalVideoSourceModes {};
+    mutable std::mutex m_videoSourceModeMutex { };
+    std::vector<VideoSourceMode> m_internalVideoSourceModes { };
 
-    mutable std::mutex m_thermalMutex {};
-    RadiometryConfig m_internalRadiometryConfig {};
-    std::vector<RadiometrySpot> m_internalRadiometrySpots {};
-    std::vector<RadiometryBox> m_internalRadiometryBoxes {};
-    std::vector<ColorPalette> m_internalColorPalettes {};
+    mutable std::mutex m_thermalMutex { };
+    RadiometryConfig m_internalRadiometryConfig { };
+    std::vector<RadiometrySpot> m_internalRadiometrySpots { };
+    std::vector<RadiometryBox> m_internalRadiometryBoxes { };
+    std::vector<ColorPalette> m_internalColorPalettes { };
     std::string m_internalActiveColorPalette { "WhiteHot" };
-    ThermalCapabilities m_internalThermalCaps {};
+    ThermalCapabilities m_internalThermalCaps { };
 
-    std::unique_ptr<SubscriptionManager> m_subManager {};
-    std::unique_ptr<NotificationDispatcher> m_dispatcher {};
+    std::unique_ptr<SubscriptionManager> m_subManager { };
+    std::unique_ptr<NotificationDispatcher> m_dispatcher { };
 
-    mutable std::mutex m_mediaMutex {};
-    std::vector<ServerMediaProfile> m_internalProfiles {};
-    std::vector<VideoSourceConfig> m_internalVideoSources {};
-    std::vector<VideoEncoderConfig> m_internalVideoEncoders {};
+    mutable std::mutex m_mediaMutex { };
+    std::vector<ServerMediaProfile> m_internalProfiles { };
+    std::vector<VideoSourceConfig> m_internalVideoSources { };
+    std::vector<VideoEncoderConfig> m_internalVideoEncoders { };
     std::uint32_t m_nextProfileId { 2 };
 
-    mutable std::mutex m_ptzConfigMutex {};
-    std::vector<PTZConfiguration> m_internalPtzConfigs {};
+    mutable std::mutex m_ptzConfigMutex { };
+    std::vector<PTZConfiguration> m_internalPtzConfigs { };
 
     std::atomic<ProvisioningState> m_provisioningState { ProvisioningState::Unprovisioned };
     std::atomic<DiscoveryMode> m_discoveryMode { DiscoveryMode::Discoverable };
-    mutable std::mutex m_snapshotMutex {};
-    SnapshotProvider m_snapshotProvider {};
+    mutable std::mutex m_snapshotMutex { };
+    SnapshotProvider m_snapshotProvider { };
 
     std::atomic<bool> m_running { false };
-    std::thread m_httpThread {};
+    std::thread m_httpThread { };
 };
 
 } // namespace Onvif

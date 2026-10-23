@@ -507,12 +507,12 @@ const auto validSeconds = static_cast<std::int64_t>(daysValid) * kSecondsPerDay;
 - [x] Update all unit and integration test call sites.
 - [x] Verify through automated script that zero identifiers in `libs/Onvif` (excluding third-party headers and test macros) exceed 29 characters.
 
-### Phase 3: ScopeStore & Thread-Safe State Synchronization
-- Implement `libs/Onvif/ScopeStore.h` and `ScopeStore.cpp` using `std::shared_mutex`.
-- Update `OnvifServer` to store scopes in `std::shared_ptr<ScopeStore>`.
-- Update `WsDiscoveryServer` to accept the shared `ScopeStore` instance, eliminating stale local copies.
-- Register change observer on `ScopeStore` so scope additions/removals trigger multicast `Hello` and increment `MetadataVersion`.
-- Add unit test suite `TestOnvifScopeStore.cpp`.
+### Phase 3: ScopeStore & Thread-Safe State Synchronization ([Detailed Plan](onvif_p3_phase3_scopestore_plan.md)) - COMPLETED
+- [x] Implement `libs/Onvif/ScopeStore.h` and `ScopeStore.cpp` using `std::shared_mutex`.
+- [x] Update `OnvifServer` to store scopes in `std::shared_ptr<ScopeStore>`.
+- [x] Update `WsDiscoveryServer` to accept the shared `ScopeStore` instance, eliminating stale local copies.
+- [x] Register change observer on `ScopeStore` so scope additions/removals trigger multicast `Hello` and increment `MetadataVersion`.
+- [x] Add unit test suite `TestOnvifScopeStore.cpp`.
 
 ### Phase 4: Declarative `SoapRouter` Engine
 - Implement `libs/Onvif/SoapRouter.h` and `SoapRouter.cpp` supporting `{namespaceUri, localName}` hashing and dispatch.

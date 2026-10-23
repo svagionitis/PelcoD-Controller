@@ -5,9 +5,11 @@
 
 #include <array>
 #include <chrono>
+#include <memory>
 #include <random>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <Transport/SocketUtils.h>
@@ -36,7 +38,7 @@ namespace {
         probeTarget.sin_port = htons(53);
 
         if (connect(probeSock, reinterpret_cast<struct sockaddr*>(&probeTarget), sizeof(probeTarget)) == 0) {
-            sockaddr_in localAddr {};
+            sockaddr_in localAddr { };
             Net::SockOptLenType addrLen = sizeof(localAddr);
             if (getsockname(probeSock, reinterpret_cast<struct sockaddr*>(&localAddr), &addrLen) == 0) {
                 char ipStr[INET_ADDRSTRLEN] { 0 };
@@ -52,14 +54,23 @@ namespace {
 
 } // namespace
 
-WsDiscoveryServer::WsDiscoveryServer(OnvifServerConfig config)
+WsDiscoveryServer::WsDiscoveryServer(OnvifServerConfig config, std::shared_ptr<ScopeStore> scopeStore)
     : m_config(std::move(config))
+    , m_scopeStore(std::move(scopeStore))
     , m_discoveryMode(m_config.discoveryMode)
     , m_rateLimiter(m_config.discovery.maxResponsesPerSecPerIp, m_config.discovery.maxGlobalResponsesPerSec)
 {
     if (m_config.serviceUuid.empty()) {
         m_config.serviceUuid = generateRandomUuid();
     }
+    if (!m_scopeStore) {
+        m_scopeStore = std::make_shared<ScopeStore>(m_config.scopes);
+    }
+    m_scopeStore->registerObserver([this](std::uint32_t /*version*/) {
+        if (m_running.load(std::memory_order_relaxed) && (m_discoveryMode.load() == DiscoveryMode::Discoverable)) {
+            broadcastHello();
+        }
+    });
 }
 
 WsDiscoveryServer::~WsDiscoveryServer()
@@ -83,7 +94,7 @@ bool WsDiscoveryServer::start()
     int reuse = 1;
     setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&reuse), sizeof(reuse));
 
-    sockaddr_in bindAddr {};
+    sockaddr_in bindAddr { };
     bindAddr.sin_family = AF_INET;
     bindAddr.sin_port = htons(kMulticastPort);
     bindAddr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -94,7 +105,7 @@ bool WsDiscoveryServer::start()
     }
 
     // Join WS-Discovery multicast group
-    ip_mreq mreq {};
+    ip_mreq mreq { };
     inet_pton(AF_INET, kMulticastIp, &mreq.imr_multiaddr.s_addr);
     mreq.imr_interface.s_addr = htonl(INADDR_ANY);
     setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, reinterpret_cast<const char*>(&mreq), sizeof(mreq));
@@ -122,7 +133,7 @@ void WsDiscoveryServer::broadcastHello()
         return;
     }
 
-    sockaddr_in mcastDest {};
+    sockaddr_in mcastDest { };
     mcastDest.sin_family = AF_INET;
     mcastDest.sin_port = htons(kMulticastPort);
     inet_pton(AF_INET, kMulticastIp, &mcastDest.sin_addr);
@@ -148,12 +159,18 @@ DiscoveryMode WsDiscoveryServer::getDiscoveryMode() const noexcept
 
 std::uint32_t WsDiscoveryServer::getMetadataVersion() const noexcept
 {
+    if (m_scopeStore) {
+        return m_scopeStore->getMetadataVersion();
+    }
     std::scoped_lock lock(m_scopeMutex);
     return m_metadataVersion;
 }
 
 std::vector<std::string> WsDiscoveryServer::getActiveScopes() const
 {
+    if (m_scopeStore) {
+        return m_scopeStore->getActiveScopes(m_config.deviceName, m_config.model);
+    }
     std::vector<std::string> scopes;
     scopes.push_back("onvif://www.onvif.org/type/video_encoder");
     scopes.push_back("onvif://www.onvif.org/type/ptz");
@@ -177,7 +194,7 @@ void WsDiscoveryServer::stop()
     const Net::SocketHandle sock = m_sockFd;
     if (sock != Net::InvalidSocket) {
         // Broadcast Bye departure
-        sockaddr_in mcastDest {};
+        sockaddr_in mcastDest { };
         mcastDest.sin_family = AF_INET;
         mcastDest.sin_port = htons(kMulticastPort);
         inet_pton(AF_INET, kMulticastIp, &mcastDest.sin_addr);
@@ -206,10 +223,10 @@ bool WsDiscoveryServer::isRunning() const noexcept
 void WsDiscoveryServer::runListener()
 {
     const Net::SocketHandle sock = m_sockFd;
-    std::array<char, 8192> buffer {};
+    std::array<char, 8192> buffer { };
 
     while (m_running) {
-        Net::PollFd pfd {};
+        Net::PollFd pfd { };
         pfd.fd = sock;
         pfd.events = POLLIN;
 
@@ -218,7 +235,7 @@ void WsDiscoveryServer::runListener()
             continue;
         }
 
-        sockaddr_in senderAddr {};
+        sockaddr_in senderAddr { };
         Net::SockOptLenType senderLen = sizeof(senderAddr);
         const auto recvd = recvfrom(sock, buffer.data(), static_cast<Net::SockBufLenType>(buffer.size() - 1), 0,
             reinterpret_cast<struct sockaddr*>(&senderAddr), &senderLen);
@@ -260,7 +277,7 @@ void WsDiscoveryServer::runListener()
 
         // Random jitter delay APP_MAX_DELAY (0 to maxAppDelayMs) per WS-Discovery §7.2 / Profile S §6.1
         if (m_config.discovery.maxAppDelayMs > 0U && m_running) {
-            std::random_device rd {};
+            std::random_device rd { };
             std::mt19937 gen(rd());
             std::uniform_int_distribution<std::uint32_t> dis(0U, m_config.discovery.maxAppDelayMs);
             const auto delayMs = dis(gen);
@@ -319,8 +336,11 @@ std::string WsDiscoveryServer::createProbeMatchesPayload(
         << "          onvif://www.onvif.org/hardware/" << Xml::escapeXml(m_config.model) << "\r\n";
 
     {
-        std::scoped_lock lock(m_scopeMutex);
-        for (const auto& scope : m_config.scopes) {
+        const auto configScopes = m_scopeStore ? m_scopeStore->getScopes() : [this]() {
+            std::scoped_lock lock(m_scopeMutex);
+            return m_config.scopes;
+        }();
+        for (const auto& scope : configScopes) {
             oss << "          " << Xml::escapeXml(scope) << "\r\n";
         }
     }
@@ -366,8 +386,11 @@ std::string WsDiscoveryServer::createHelloPayload(const std::string& localIp) co
         << "        onvif://www.onvif.org/hardware/" << Xml::escapeXml(m_config.model) << "\r\n";
 
     {
-        std::scoped_lock lock(m_scopeMutex);
-        for (const auto& scope : m_config.scopes) {
+        const auto configScopes = m_scopeStore ? m_scopeStore->getScopes() : [this]() {
+            std::scoped_lock lock(m_scopeMutex);
+            return m_config.scopes;
+        }();
+        for (const auto& scope : configScopes) {
             oss << "        " << Xml::escapeXml(scope) << "\r\n";
         }
     }
@@ -385,6 +408,10 @@ std::string WsDiscoveryServer::createHelloPayload(const std::string& localIp) co
 
 void WsDiscoveryServer::updateScopes(const std::vector<std::string>& scopes)
 {
+    if (m_scopeStore) {
+        m_scopeStore->setScopes(scopes);
+        return;
+    }
     {
         std::scoped_lock lock(m_scopeMutex);
         m_config.scopes = scopes;
@@ -393,6 +420,11 @@ void WsDiscoveryServer::updateScopes(const std::vector<std::string>& scopes)
     if (m_running && (m_discoveryMode.load() == DiscoveryMode::Discoverable)) {
         broadcastHello();
     }
+}
+
+std::shared_ptr<ScopeStore> WsDiscoveryServer::getScopeStore() const noexcept
+{
+    return m_scopeStore;
 }
 
 std::string WsDiscoveryServer::createByePayload() const

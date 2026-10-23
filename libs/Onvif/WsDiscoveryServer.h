@@ -4,6 +4,7 @@
 /// @brief WS-Discovery multicast responder daemon for ONVIF device discovery.
 
 #include "OnvifServerTypes.h"
+#include "ScopeStore.h"
 #include "WsDiscoveryCommon.h"
 #include "WsDiscoveryValidator.h"
 #include <Transport/SocketUtils.h>
@@ -24,9 +25,10 @@ namespace Net = Transport::Net;
 /// @brief Listens on UDP multicast 239.255.255.250:3702 for Probe messages and replies with ProbeMatches.
 class WsDiscoveryServer {
 public:
-    /// @brief Constructs WS-Discovery server with given configuration.
+    /// @brief Constructs WS-Discovery server with given configuration and optional shared ScopeStore.
     /// @param[in] config Server configuration containing device parameters and port.
-    explicit WsDiscoveryServer(OnvifServerConfig config);
+    /// @param[in] scopeStore Optional shared ScopeStore instance (created if nullptr).
+    explicit WsDiscoveryServer(OnvifServerConfig config, std::shared_ptr<ScopeStore> scopeStore = nullptr);
 
     /// @brief Destructor stops listening thread and cleans up socket resources.
     ~WsDiscoveryServer();
@@ -87,16 +89,21 @@ public:
     /// @param[in] scopes List of active scope URIs.
     void updateScopes(const std::vector<std::string>& scopes);
 
+    /// @brief Gets the active ScopeStore used by discovery.
+    /// @return Shared pointer to ScopeStore.
+    [[nodiscard]] std::shared_ptr<ScopeStore> getScopeStore() const noexcept;
+
 private:
     void runListener();
 
-    mutable std::mutex m_scopeMutex {};
+    mutable std::mutex m_scopeMutex { };
     OnvifServerConfig m_config;
+    std::shared_ptr<ScopeStore> m_scopeStore { nullptr };
     std::atomic<bool> m_running { false };
     std::atomic<DiscoveryMode> m_discoveryMode { DiscoveryMode::Discoverable };
     std::uint32_t m_metadataVersion { 1U };
-    mutable AppSequenceTracker m_appSequence {};
-    std::thread m_thread {};
+    mutable AppSequenceTracker m_appSequence { };
+    std::thread m_thread { };
 
     Net::SocketHandle m_sockFd { Net::InvalidSocket };
     DiscoveryRateLimiter m_rateLimiter;
