@@ -133,7 +133,8 @@ DispatchResult SoapRouter::dispatch(
     }
 
     const auto& entry = it->second;
-    if (!AccessPolicy::permits(ctx.principal.level, entry.accessClass)) {
+    const bool allowUnprovisionedCreateUsers = (ctx.isUnprovisioned && localName == "CreateUsers");
+    if (!allowUnprovisionedCreateUsers && !AccessPolicy::permits(ctx.principal.level, entry.accessClass)) {
         DispatchResult res { };
         res.status = DispatchStatus::NotAuthorized;
         res.httpStatusCode = (ctx.principal.level == OnvifUserLevel::Anonymous) ? 401 : 400;
@@ -161,7 +162,7 @@ DispatchResult SoapRouter::dispatch(
             res.httpStatusCode = handlerRes.httpStatusCode;
             const std::string subcode = handlerRes.faultSubcode.empty() ? "ter:InvalidArgVal" : handlerRes.faultSubcode;
             const std::string reason = handlerRes.faultReason.empty() ? "Operation failed" : handlerRes.faultReason;
-            res.responseXml = SoapFault::sender(subcode, "", reason);
+            res.responseXml = SoapFault::sender(subcode, handlerRes.faultSecondarySubcode, reason);
         }
         return res;
     } catch (const std::exception& e) {

@@ -522,16 +522,23 @@ const auto validSeconds = static_cast<std::int64_t>(daysValid) * kSecondsPerDay;
 - [x] Add unit tests in `TestOnvifSoapRouter.cpp` covering exact matches, namespace mismatch rejections, prefix/default resolution, role authorization failures, fault responses, exception containment, and concurrent stress testing (13/13 passing).
 - [x] Integrate `SoapRouter` into `OnvifServer` (`registerSoapRoutes`, `getSoapRouter`, and `handleDeviceService` dispatch).
 
-### Phase 5: Service Modularization (Decomposing `OnvifServer.cpp`)
-- Extract modular services from `OnvifServer.cpp` into dedicated translation units:
-  - `libs/Onvif/services/DeviceService.h/.cpp` (~450 LOC)
-  - `libs/Onvif/services/MediaService.h/.cpp` (~480 LOC)
-  - `libs/Onvif/services/PtzService.h/.cpp` (~400 LOC)
-  - `libs/Onvif/services/EventService.h/.cpp` (~380 LOC)
-  - `libs/Onvif/services/ImagingService.h/.cpp` (~250 LOC)
-  - `libs/Onvif/services/AnalyticsService.h/.cpp` (~200 LOC)
-- Ensure all response generation uses DOM-based `pugi::xml_document` or auto-escaping XML builders.
-- Keep all new service files strictly under 500 LOC.
+### Phase 5: Service Modularization (Decomposing `OnvifServer.cpp`) ([Detailed Plan](onvif_p3_phase5_service_modularization_plan.md)) - **COMPLETED**
+- [x] Extract modular services from `OnvifServer.cpp` into dedicated translation units:
+  - `libs/Onvif/services/DeviceService.h/.cpp` (129 / 491 LOC) & `DeviceServiceNet.cpp` (491 LOC)
+  - `libs/Onvif/services/MediaService.h/.cpp` (109 / 339 LOC), `MediaServiceExt.cpp` (486 LOC), `MediaServiceConfigs.cpp` (289 LOC)
+  - `libs/Onvif/services/PtzService.h/.cpp` (84 / 446 LOC) & `PtzServiceTours.cpp` (342 LOC)
+  - `libs/Onvif/services/EventService.h/.cpp` (59 / 306 LOC)
+  - `libs/Onvif/services/ImagingService.h/.cpp` (52 / 244 LOC)
+  - `libs/Onvif/services/AnalyticsService.h/.cpp` (58 / 436 LOC)
+  - `libs/Onvif/services/DeviceIoService.h/.cpp` (57 / 202 LOC)
+  - `libs/Onvif/services/ThermalService.h/.cpp` (63 / 282 LOC)
+  - `libs/Onvif/services/RecordingService.h/.cpp` (84 / 484 LOC) & `RecordingServiceSearch.cpp` (233 LOC)
+- [x] Extract XML response generation into dedicated builders:
+  - `libs/Onvif/services/builders/DeviceXmlBuilder.h/.cpp` (75 / 396 LOC)
+  - `libs/Onvif/services/builders/MediaXmlBuilder.h/.cpp` (63 / 276 LOC)
+  - `libs/Onvif/services/builders/PtzXmlBuilder.h/.cpp` (43 / 203 LOC)
+- [x] Reduce `OnvifServer.cpp` from 6,720 LOC to 489 LOC (all files strictly < 500 LOC).
+- [x] 100% test pass rate across all ONVIF test suites (334 / 334 tests passing).
 
 ### Phase 6: Pimpl Encapsulation of `OnvifServer`
 - Define `struct OnvifServer::Impl` inside `OnvifServer.cpp`.

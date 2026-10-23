@@ -51,6 +51,8 @@ struct SoapContext {
     std::string peerAddress { }; ///< Client IP address string.
     std::string requestUrl { }; ///< Target HTTP request URI path.
     std::string serviceName { }; ///< Human-readable service name (e.g. "Device", "PTZ").
+    std::string host { }; ///< Resolved host candidate for URI construction.
+    bool isUnprovisioned { false }; ///< True when server is in unprovisioned commissioning state.
 };
 
 /// @enum DispatchStatus
@@ -70,6 +72,7 @@ struct SoapHandlerResult {
     int httpStatusCode { 200 }; ///< Target HTTP response status code.
     std::string responseBody { }; ///< Serialized XML response fragment (Body child).
     std::string faultSubcode { }; ///< Optional ONVIF subcode if failed (e.g. "ter:InvalidArgVal").
+    std::string faultSecondarySubcode { }; ///< Optional secondary subcode (e.g. "ter:NoToken").
     std::string faultReason { }; ///< Human-readable explanation if failed.
 
     /// @brief Factory creating a successful operation result.
@@ -89,13 +92,16 @@ struct SoapHandlerResult {
     /// @param[in] subcode Qualified fault subcode (e.g. "ter:InvalidArgVal").
     /// @param[in] reason Human-readable explanation.
     /// @param[in] code HTTP status code (defaults to 400).
+    /// @param[in] secondary Optional secondary subcode (e.g. "ter:NoToken").
     /// @return Formatted fault SoapHandlerResult.
-    [[nodiscard]] static SoapHandlerResult fault(std::string subcode, std::string reason, int code = 400)
+    [[nodiscard]] static SoapHandlerResult fault(
+        std::string subcode, std::string reason, int code = 400, std::string secondary = "")
     {
         SoapHandlerResult res { };
         res.success = false;
         res.httpStatusCode = code;
         res.faultSubcode = std::move(subcode);
+        res.faultSecondarySubcode = std::move(secondary);
         res.faultReason = std::move(reason);
         return res;
     }

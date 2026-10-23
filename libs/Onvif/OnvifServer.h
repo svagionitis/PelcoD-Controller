@@ -29,6 +29,7 @@
 #include "ScopeStore.h"
 #include "SoapRouter.h"
 #include "WsDiscoveryServer.h"
+#include "services/IService.h"
 
 namespace Onvif {
 
@@ -236,66 +237,13 @@ public:
 
 private:
     void setupRoutes();
-    void registerSoapRoutes();
-    void handleDeviceService(const httplib::Request& req, httplib::Response& res);
-    void handleMediaService(const httplib::Request& req, httplib::Response& res);
-    void handleMedia2Service(const httplib::Request& req, httplib::Response& res);
-    void handlePtzService(const httplib::Request& req, httplib::Response& res);
-    void handleImagingService(const httplib::Request& req, httplib::Response& res);
-    void handleDeviceIoService(const httplib::Request& req, httplib::Response& res);
-    void handleEventService(const httplib::Request& req, httplib::Response& res);
-    void handleSubscriptionService(const httplib::Request& req, httplib::Response& res);
-    void handleAnalyticsService(const httplib::Request& req, httplib::Response& res);
+
+    void handleSoapEndpoint(const httplib::Request& req, httplib::Response& res, std::string_view serviceName,
+        std::string_view fallbackNs = { });
     void handleMetadataStream(const httplib::Request& req, httplib::Response& res);
-    void handleRecordingService(const httplib::Request& req, httplib::Response& res);
-    void handleSearchService(const httplib::Request& req, httplib::Response& res);
-    void handleReplayService(const httplib::Request& req, httplib::Response& res);
-    void handleThermalService(const httplib::Request& req, httplib::Response& res);
-
-    void processOsdRequest(
-        const std::string& opName, const pugi::xml_document& doc, std::ostringstream& body, const std::string& prefix);
-    void processMetadataRequest(
-        const std::string& opName, const pugi::xml_document& doc, std::ostringstream& body, const std::string& prefix);
-    void processMaskRequest(
-        const std::string& opName, const pugi::xml_document& doc, std::ostringstream& body, const std::string& prefix);
-    void processVideoSourceModeRequest(
-        const std::string& opName, const pugi::xml_document& doc, std::ostringstream& body, const std::string& prefix);
-
-    /// @brief Serializes a ServerMediaProfile into compliant ONVIF Profile XML.
-    /// @param[in] prof Profile data model.
-    /// @param[out] body Target output stream.
-    /// @param[in] prefix Namespace prefix ("trt" or "tr2").
-    /// @param[in] isSingleProfile Whether to emit singular <trt:Profile> or plural <trt:Profiles>.
-    void formatProfileXml(const ServerMediaProfile& prof, std::ostringstream& body, const std::string& prefix,
-        bool isSingleProfile) const;
-
-    /// @brief Serializes a VideoSourceConfig into compliant ONVIF XML.
-    /// @param[in] cfg Video source configuration.
-    /// @param[out] body Target output stream.
-    /// @param[in] prefix Namespace prefix ("trt" or "tr2").
-    /// @param[in] elemName Root element tag name.
-    void formatVideoSourceConfigXml(const VideoSourceConfig& cfg, std::ostringstream& body, const std::string& prefix,
-        const std::string& elemName) const;
-
-    /// @brief Serializes a VideoEncoderConfig into compliant ONVIF XML.
-    /// @param[in] cfg Video encoder configuration.
-    /// @param[out] body Target output stream.
-    /// @param[in] prefix Namespace prefix ("trt" or "tr2").
-    /// @param[in] elemName Root element tag name.
-    void formatVideoEncoderConfigXml(const VideoEncoderConfig& cfg, std::ostringstream& body, const std::string& prefix,
-        const std::string& elemName) const;
-
-    /// @brief Serializes a PTZConfiguration into compliant ONVIF XML.
-    /// @param[in] cfg PTZ configuration.
-    /// @param[out] body Target output stream.
-    /// @param[in] prefix Namespace prefix ("tt" or "tptz").
-    /// @param[in] elemName Root element tag name.
-    void formatPtzConfigXml(const PTZConfiguration& cfg, std::ostringstream& body, const std::string& prefix,
-        const std::string& elemName) const;
 
     [[nodiscard]] std::string generateMetadataStreamXml(const MetadataStreamPayload& payload) const;
     [[nodiscard]] std::string resolveHost(const httplib::Request& req) const;
-    [[nodiscard]] bool isProfileValid(std::string_view token) const;
 
     struct SoapRequest {
         pugi::xml_node bodyNode { };
@@ -405,8 +353,8 @@ private:
     std::string m_internalActiveColorPalette { "WhiteHot" };
     ThermalCapabilities m_internalThermalCaps { };
 
-    std::unique_ptr<SubscriptionManager> m_subManager { };
-    std::unique_ptr<NotificationDispatcher> m_dispatcher { };
+    std::shared_ptr<SubscriptionManager> m_subManager { };
+    std::shared_ptr<NotificationDispatcher> m_dispatcher { };
 
     mutable std::mutex m_mediaMutex { };
     std::vector<ServerMediaProfile> m_internalProfiles { };
@@ -425,6 +373,7 @@ private:
     std::atomic<bool> m_running { false };
     std::thread m_httpThread { };
     SoapRouter m_soapRouter { };
+    std::vector<std::unique_ptr<IService>> m_services { };
     Principal m_lastAuthPrincipal { };
 };
 

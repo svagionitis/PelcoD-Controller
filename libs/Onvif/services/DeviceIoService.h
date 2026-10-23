@@ -1,0 +1,56 @@
+#pragma once
+
+/// @file DeviceIoService.h
+/// @brief Modular ONVIF DeviceIO Service (tmd) dispatcher.
+
+#include <functional>
+#include <memory>
+#include <string_view>
+#include <vector>
+
+#include "IService.h"
+#include "OnvifServerTypes.h"
+#include "OnvifTypes.h"
+#include "SoapRouter.h"
+
+namespace Onvif {
+
+class IDeviceIoHandler;
+
+/// @struct DeviceIoServiceContext
+/// @brief External port handlers and environment injected into DeviceIoService.
+struct DeviceIoServiceContext {
+    std::function<std::shared_ptr<IDeviceIoHandler>()> getDeviceIoHandler { };
+    std::vector<RelayOutputConfig> defaultRelays { };
+    std::vector<DigitalInputConfig> defaultInputs { };
+};
+
+/// @class DeviceIoService
+/// @brief Modular service implementation for ONVIF DeviceIO (tmd WSDL).
+class DeviceIoService : public IService {
+public:
+    explicit DeviceIoService(DeviceIoServiceContext ctx);
+    ~DeviceIoService() override = default;
+
+    DeviceIoService(const DeviceIoService&) = delete;
+    DeviceIoService& operator=(const DeviceIoService&) = delete;
+    DeviceIoService(DeviceIoService&&) = default;
+    DeviceIoService& operator=(DeviceIoService&&) = default;
+
+    void registerRoutes(SoapRouter& router) override;
+    [[nodiscard]] std::string_view serviceName() const noexcept override;
+
+private:
+    SoapHandlerResult handleGetRelays(const SoapContext& ctx);
+    SoapHandlerResult handleGetRelayOptions(const SoapContext& ctx);
+    SoapHandlerResult handleSetRelaySettings(const SoapContext& ctx);
+    SoapHandlerResult handleSetRelayState(const SoapContext& ctx);
+    SoapHandlerResult handleGetInputs(const SoapContext& ctx);
+    SoapHandlerResult handleGetInputOptions(const SoapContext& ctx);
+
+    DeviceIoServiceContext m_ctx;
+    std::vector<RelayOutputConfig> m_relays { };
+    std::vector<DigitalInputConfig> m_inputs { };
+};
+
+} // namespace Onvif

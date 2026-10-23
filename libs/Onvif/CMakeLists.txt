@@ -55,7 +55,10 @@ add_library(Onvif STATIC
     ScopeStore.cpp
     OnvifServer.h
     OnvifServer.cpp
+    OnvifServerRoutes.cpp
+    OnvifServerAuth.cpp
     ServiceRegistry.h
+
     ServiceRegistry.cpp
     OnvifAuthTypes.h
     OpenSslRaII.h
@@ -93,14 +96,47 @@ add_library(Onvif STATIC
     GeodesyUtils.h
     adapters/PelcoDPtzAdapter.h
     adapters/PelcoDPtzAdapter.cpp
+    services/IService.h
+    services/builders/DeviceXmlBuilder.h
+    services/builders/DeviceXmlBuilder.cpp
+    services/builders/MediaXmlBuilder.h
+    services/builders/MediaXmlBuilder.cpp
+    services/builders/PtzXmlBuilder.h
+    services/builders/PtzXmlBuilder.cpp
+    services/DeviceService.h
+    services/DeviceService.cpp
+    services/DeviceServiceNet.cpp
+    services/MediaService.h
+    services/MediaService.cpp
+    services/MediaServiceExt.cpp
+    services/MediaServiceConfigs.cpp
+    services/PtzService.h
+    services/PtzService.cpp
+    services/PtzServiceTours.cpp
+    services/ImagingService.h
+    services/ImagingService.cpp
+    services/EventService.h
+    services/EventService.cpp
+    services/AnalyticsService.h
+    services/AnalyticsService.cpp
+    services/DeviceIoService.h
+    services/DeviceIoService.cpp
+    services/ThermalService.h
+    services/ThermalService.cpp
+    services/RecordingService.h
+    services/RecordingService.cpp
+    services/RecordingServiceSearch.cpp
 )
 
 target_include_directories(Onvif PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/adapters>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/services>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/services/builders>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
     $<INSTALL_INTERFACE:include>
 )
+
 
 target_link_libraries(Onvif PUBLIC
     CURL::libcurl

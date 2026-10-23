@@ -14,8 +14,9 @@ namespace Onvif {
 /// @brief Encapsulates HTTP response data and status code.
 struct HttpResponse {
     long statusCode { 0 }; ///< HTTP response code (e.g. 200, 401, 500)
-    std::string body {}; ///< Response payload body
-    std::string errorMessage {}; ///< curl error message if request failed
+    std::string body { }; ///< Response payload body
+    std::string errorMessage { }; ///< curl error message if request failed
+    std::string headers { }; ///< Response headers
 
     /// @brief Checks if response indicates HTTP success (2xx).
     /// @return True if HTTP status code is 200-299.
@@ -79,12 +80,12 @@ public:
     [[nodiscard]] HttpResponse sendGet(const std::string& url);
 
 private:
-    [[nodiscard]] HttpResponse executeRequest(void* curlHandle, const std::string& url);
+    [[nodiscard]] HttpResponse executeRequest(void* curlHandle, const std::string& url, bool withHttpAuth = true);
 
     std::chrono::milliseconds m_timeout { 5000 };
-    TlsConfig m_tlsConfig {};
-    std::string m_httpUser {};
-    std::string m_httpPass {};
+    TlsConfig m_tlsConfig { };
+    std::string m_httpUser { };
+    std::string m_httpPass { };
 };
 
 } // namespace Onvif
