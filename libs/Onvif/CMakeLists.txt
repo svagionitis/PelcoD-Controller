@@ -79,6 +79,8 @@ add_library(Onvif STATIC
     Authenticator.cpp
     SoapFault.h
     SoapFault.cpp
+    SoapRouter.h
+    SoapRouter.cpp
     NotificationUrlValidator.h
     NotificationUrlValidator.cpp
     NotificationDispatcher.h

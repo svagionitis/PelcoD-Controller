@@ -27,6 +27,7 @@
 #include "HttplibInclude.h"
 #include "OnvifServerTypes.h"
 #include "ScopeStore.h"
+#include "SoapRouter.h"
 #include "WsDiscoveryServer.h"
 
 namespace Onvif {
@@ -104,6 +105,10 @@ public:
     /// @brief Gets the thread-safe canonical ScopeStore.
     /// @return Shared pointer to ScopeStore instance.
     [[nodiscard]] std::shared_ptr<ScopeStore> getScopeStore() const noexcept;
+
+    /// @brief Gets a const reference to the internal declarative SOAP operation router.
+    /// @return Const reference to SoapRouter.
+    [[nodiscard]] const SoapRouter& getSoapRouter() const noexcept;
 
     /// @brief Sets or replaces the active PTZ handler.
     /// @param[in] handler New IPtzHandler instance.
@@ -231,6 +236,7 @@ public:
 
 private:
     void setupRoutes();
+    void registerSoapRoutes();
     void handleDeviceService(const httplib::Request& req, httplib::Response& res);
     void handleMediaService(const httplib::Request& req, httplib::Response& res);
     void handleMedia2Service(const httplib::Request& req, httplib::Response& res);
@@ -418,6 +424,8 @@ private:
 
     std::atomic<bool> m_running { false };
     std::thread m_httpThread { };
+    SoapRouter m_soapRouter { };
+    Principal m_lastAuthPrincipal { };
 };
 
 } // namespace Onvif

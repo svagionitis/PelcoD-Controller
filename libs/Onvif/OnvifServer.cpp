@@ -793,6 +793,11 @@ std::shared_ptr<ScopeStore> OnvifServer::getScopeStore() const noexcept
     return m_scopeStore;
 }
 
+const SoapRouter& OnvifServer::getSoapRouter() const noexcept
+{
+    return m_soapRouter;
+}
+
 ProvisioningState OnvifServer::provisioningState() const noexcept
 {
     return m_provisioningState.load();
@@ -1110,6 +1115,8 @@ bool OnvifServer::isProfileValid(std::string_view token) const
 
 void OnvifServer::setupRoutes()
 {
+    registerSoapRoutes();
+
     m_httpServer.Post("/onvif/device_service",
         [this](const httplib::Request& req, httplib::Response& res) { handleDeviceService(req, res); });
 
@@ -1180,6 +1187,90 @@ void OnvifServer::setupRoutes()
     });
 }
 
+void OnvifServer::registerSoapRoutes()
+{
+    m_soapRouter.registerRoute(
+        "http://www.onvif.org/ver10/device/wsdl", "GetWsdlUrl", AccessClass::PreAuth, [](const SoapContext&) {
+            return SoapHandlerResult::ok("    <tds:GetWsdlUrlResponse>\r\n"
+                                         "      <tds:WsdlUrl>http://www.onvif.org/ver10/device/wsdl</tds:WsdlUrl>\r\n"
+                                         "    </tds:GetWsdlUrlResponse>\r\n");
+        });
+
+    m_soapRouter.registerRoute("http://www.onvif.org/ver10/device/wsdl", "GetEndpointReference", AccessClass::PreAuth,
+        [this](const SoapContext&) {
+            const std::string uuid
+                = m_config.serviceUuid.empty() ? "urn:uuid:00000000-0000-0000-0000-000000000001" : m_config.serviceUuid;
+            std::ostringstream ss;
+            ss << "    <tds:GetEndpointReferenceResponse>\r\n"
+               << "      <tds:GUID>" << Xml::escapeXmlText(uuid) << "</tds:GUID>\r\n"
+               << "    </tds:GetEndpointReferenceResponse>\r\n";
+            return SoapHandlerResult::ok(ss.str());
+        });
+
+    m_soapRouter.registerRoute(
+        "http://www.onvif.org/ver10/device/wsdl", "GetHostname", AccessClass::PreAuth, [this](const SoapContext&) {
+            const auto deviceHandler = getDeviceManagementHandler();
+            std::string hn;
+            if (deviceHandler) {
+                hn = deviceHandler->handleGetHostname();
+            } else {
+                std::scoped_lock lock(m_deviceMutex);
+                hn = m_internalHostname;
+            }
+            std::ostringstream ss;
+            ss << "    <tds:GetHostnameResponse>\r\n"
+               << "      <tds:HostnameInformation>\r\n"
+               << "        <tt:FromDHCP>false</tt:FromDHCP>\r\n"
+               << "        <tt:Name>" << Xml::escapeXmlText(hn) << "</tt:Name>\r\n"
+               << "      </tds:HostnameInformation>\r\n"
+               << "    </tds:GetHostnameResponse>\r\n";
+            return SoapHandlerResult::ok(ss.str());
+        });
+
+    m_soapRouter.registerRoute("http://www.onvif.org/ver10/device/wsdl", "SetHostname", AccessClass::WriteSystem,
+        [this](const SoapContext& ctx) {
+            const auto hnNode = ctx.reqNode.select_node(".//*[local-name()='Name']").node();
+            const std::string hn = hnNode ? hnNode.text().as_string() : "";
+            const auto deviceHandler = getDeviceManagementHandler();
+            if (deviceHandler) {
+                deviceHandler->handleSetHostname(hn);
+            }
+            {
+                std::scoped_lock lock(m_deviceMutex);
+                m_internalHostname = hn;
+            }
+            return SoapHandlerResult::ok("    <tds:SetHostnameResponse/>\r\n");
+        });
+
+    m_soapRouter.registerRoute(
+        "http://www.onvif.org/ver10/device/wsdl", "GetDiscoveryMode", AccessClass::PreAuth, [this](const SoapContext&) {
+            const auto mode = m_discoveryMode.load();
+            const std::string modeStr = (mode == DiscoveryMode::NonDiscoverable) ? "NonDiscoverable" : "Discoverable";
+            std::ostringstream ss;
+            ss << "    <tds:GetDiscoveryModeResponse>\r\n"
+               << "      <tds:DiscoveryMode>" << modeStr << "</tds:DiscoveryMode>\r\n"
+               << "    </tds:GetDiscoveryModeResponse>\r\n";
+            return SoapHandlerResult::ok(ss.str());
+        });
+
+    m_soapRouter.registerRoute("http://www.onvif.org/ver10/device/wsdl", "SetDiscoveryMode", AccessClass::WriteSystem,
+        [this](const SoapContext& ctx) {
+            const auto modeNode = ctx.reqNode.select_node(".//*[local-name()='DiscoveryMode']").node();
+            if (!modeNode) {
+                return SoapHandlerResult::fault("ter:InvalidArgVal", "Invalid discovery mode", 400);
+            }
+            const std::string_view modeStr = modeNode.text().as_string();
+            if (modeStr == "Discoverable") {
+                setDiscoveryMode(DiscoveryMode::Discoverable);
+            } else if (modeStr == "NonDiscoverable") {
+                setDiscoveryMode(DiscoveryMode::NonDiscoverable);
+            } else {
+                return SoapHandlerResult::fault("ter:InvalidArgVal", "Invalid discovery mode", 400);
+            }
+            return SoapHandlerResult::ok("    <tds:SetDiscoveryModeResponse/>\r\n");
+        });
+}
+
 std::optional<OnvifServer::SoapRequest> OnvifServer::parseSoapRequest(
     const httplib::Request& req, httplib::Response& res, std::string_view serviceName, pugi::xml_document& doc)
 {
@@ -1206,15 +1297,18 @@ bool OnvifServer::authorize(const httplib::Request& req, httplib::Response& res,
     const std::string& opName, const pugi::xml_document& doc)
 {
     if (!m_config.auth.enabled) {
+        m_lastAuthPrincipal = Principal { "admin", OnvifUserLevel::Administrator };
         return true;
     }
     const AccessClass required { AccessPolicy::classify(serviceName, opName) };
 
     if (m_provisioningState.load() == ProvisioningState::Unprovisioned) {
         if ((required == AccessClass::PreAuth) || isOp(opName, "GetDeviceInformation")) {
+            m_lastAuthPrincipal = Principal { "", OnvifUserLevel::Anonymous };
             return true;
         }
         if (isOp(opName, "CreateUsers")) {
+            m_lastAuthPrincipal = Principal { "", OnvifUserLevel::Anonymous };
             return true;
         }
         sendSoapResponse(res, SoapFault::deviceUnprovisioned(), 400);
@@ -1222,6 +1316,7 @@ bool OnvifServer::authorize(const httplib::Request& req, httplib::Response& res,
     }
 
     if (required == AccessClass::PreAuth) {
+        m_lastAuthPrincipal = Principal { "", OnvifUserLevel::Anonymous };
         return true;
     }
 
@@ -1243,6 +1338,7 @@ bool OnvifServer::authorize(const httplib::Request& req, httplib::Response& res,
         rejectForbidden(req, res, result.principal, what);
         return false;
     }
+    m_lastAuthPrincipal = result.principal;
     return true;
 }
 
@@ -1348,6 +1444,22 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
     const auto& [bodyNode, reqNode, opName] = *soap;
     appendAccessLog("Device", opName, req.remote_addr);
     const auto deviceHandler = getDeviceManagementHandler();
+
+    SoapContext ctx { };
+    ctx.reqNode = reqNode;
+    ctx.principal = m_lastAuthPrincipal;
+    ctx.peerAddress = req.remote_addr;
+    ctx.requestUrl = req.path;
+    ctx.serviceName = "Device";
+
+    const auto routerResult = m_soapRouter.dispatch(reqNode, ctx, "http://www.onvif.org/ver10/device/wsdl");
+    if (routerResult.status == DispatchStatus::Success) {
+        sendSoapResponse(res, routerResult.responseXml, routerResult.httpStatusCode);
+        return;
+    } else if (routerResult.status != DispatchStatus::ActionNotSupported) {
+        sendSoapResponse(res, routerResult.responseXml, routerResult.httpStatusCode);
+        return;
+    }
 
     const std::string host = resolveHost(req);
     const int port = m_config.port;

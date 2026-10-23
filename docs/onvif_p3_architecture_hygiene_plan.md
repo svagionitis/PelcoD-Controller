@@ -514,11 +514,13 @@ const auto validSeconds = static_cast<std::int64_t>(daysValid) * kSecondsPerDay;
 - [x] Register change observer on `ScopeStore` so scope additions/removals trigger multicast `Hello` and increment `MetadataVersion`.
 - [x] Add unit test suite `TestOnvifScopeStore.cpp`.
 
-### Phase 4: Declarative `SoapRouter` Engine
-- Implement `libs/Onvif/SoapRouter.h` and `SoapRouter.cpp` supporting `{namespaceUri, localName}` hashing and dispatch.
-- Integrate access-level checks (`UserRole`) directly into `RouteEntry`.
-- Route unmatched requests to `SoapFault::makeReceiverFault("ter:ActionNotSupported", ...)`.
-- Add unit tests in `TestOnvifSoapRouter.cpp` covering exact matches, namespace mismatch rejections, and role authorization failures.
+### Phase 4: Declarative `SoapRouter` Engine ([Detailed Plan](onvif_p3_phase4_soap_router_plan.md)) - COMPLETED
+- [x] Implement `libs/Onvif/SoapRouter.h` and `SoapRouter.cpp` supporting `{namespaceUri, localName}` hashing and dispatch.
+- [x] Integrate access-level checks (`AccessClass`) directly into `RouteEntry`.
+- [x] Route unmatched requests to `SoapFault::makeReceiverFault("ter:ActionNotSupported", ...)`.
+- [x] Implement XML prefix and default/ancestor namespace resolution.
+- [x] Add unit tests in `TestOnvifSoapRouter.cpp` covering exact matches, namespace mismatch rejections, prefix/default resolution, role authorization failures, fault responses, exception containment, and concurrent stress testing (13/13 passing).
+- [x] Integrate `SoapRouter` into `OnvifServer` (`registerSoapRoutes`, `getSoapRouter`, and `handleDeviceService` dispatch).
 
 ### Phase 5: Service Modularization (Decomposing `OnvifServer.cpp`)
 - Extract modular services from `OnvifServer.cpp` into dedicated translation units:
