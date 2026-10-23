@@ -22,18 +22,18 @@ namespace Onvif {
 /// @struct OnvifCapabilities
 /// @brief Service endpoints discovered via GetCapabilities.
 struct OnvifCapabilities {
-    std::string deviceXAddr {}; ///< Device service endpoint
-    std::string mediaXAddr {}; ///< Media service endpoint
-    std::string media2XAddr {}; ///< Media2 service endpoint (Profile T)
-    std::string ptzXAddr {}; ///< PTZ service endpoint
-    std::string eventsXAddr {}; ///< Events service endpoint
-    std::string imagingXAddr {}; ///< Imaging service endpoint
-    std::string deviceIoXAddr {}; ///< DeviceIO service endpoint
-    std::string recordingXAddr {}; ///< Recording service endpoint (Profile G)
-    std::string searchXAddr {}; ///< Search service endpoint (Profile G)
-    std::string replayXAddr {}; ///< Replay service endpoint (Profile G)
-    std::string analyticsXAddr {}; ///< Analytics service endpoint (Profile M & T)
-    std::string thermalXAddr {}; ///< Thermal service endpoint (ver10/thermal/wsdl)
+    std::string deviceXAddr { }; ///< Device service endpoint
+    std::string mediaXAddr { }; ///< Media service endpoint
+    std::string media2XAddr { }; ///< Media2 service endpoint (Profile T)
+    std::string ptzXAddr { }; ///< PTZ service endpoint
+    std::string eventsXAddr { }; ///< Events service endpoint
+    std::string imagingXAddr { }; ///< Imaging service endpoint
+    std::string deviceIoXAddr { }; ///< DeviceIO service endpoint
+    std::string recordingXAddr { }; ///< Recording service endpoint (Profile G)
+    std::string searchXAddr { }; ///< Search service endpoint (Profile G)
+    std::string replayXAddr { }; ///< Replay service endpoint (Profile G)
+    std::string analyticsXAddr { }; ///< Analytics service endpoint (Profile M & T)
+    std::string thermalXAddr { }; ///< Thermal service endpoint (ver10/thermal/wsdl)
 };
 
 /// @class OnvifClient
@@ -44,7 +44,7 @@ public:
     /// @param[in] deviceEndpoint Device service URL (e.g. http://192.168.1.100/onvif/device_service).
     /// @param[in] credentials Authentication credentials.
     /// @param[in] tlsConfig TLS verification options.
-    explicit OnvifClient(std::string deviceEndpoint, SecurityCredentials credentials = {}, TlsConfig tlsConfig = {});
+    explicit OnvifClient(std::string deviceEndpoint, SecurityCredentials credentials = { }, TlsConfig tlsConfig = { });
 
     /// @brief Virtual destructor.
     virtual ~OnvifClient() = default;
@@ -269,16 +269,19 @@ public:
     /// @return VideoEncoderConfig record or nullopt on failure.
     [[nodiscard]] std::optional<VideoEncoderConfig> getVideoEncoderConfiguration(const std::string& token);
 
-    /// @brief Queries supported video encoder options and limits.
+    /// @brief Queries supported video encoder options and limits (< 30 chars).
     /// @details Profile S §8.2 / Media ver10 GetVideoEncoderConfigurationOptions.
     /// @param[in] token Optional configuration or profile token.
     /// @return VideoEncoderOptions or nullopt on failure.
-    [[nodiscard]] std::optional<VideoEncoderOptions> getVideoEncoderConfigurationOptions(const std::string& token = "");
+    [[nodiscard]] std::optional<VideoEncoderOptions> getVideoEncoderConfigOptions(const std::string& token = "");
 
-    /// @brief Concise alias for getVideoEncoderConfigurationOptions (< 30 chars).
+    /// @brief Concise alias for getVideoEncoderConfigOptions (< 30 chars).
     /// @param[in] token Optional configuration or profile token.
     /// @return VideoEncoderOptions or nullopt on failure.
-    [[nodiscard]] std::optional<VideoEncoderOptions> getVideoEncoderOptions(const std::string& token = "");
+    [[nodiscard]] std::optional<VideoEncoderOptions> getVideoEncoderOptions(const std::string& token = "")
+    {
+        return getVideoEncoderConfigOptions(token);
+    }
 
     /// @brief Updates video encoder configuration settings.
     /// @details Profile S §8.2 / Media ver10 SetVideoEncoderConfiguration.
@@ -712,11 +715,11 @@ public:
     /// @return True on success.
     bool setMetadataConfiguration(const MetadataConfiguration& config);
 
-    /// @brief Queries metadata streaming capability options.
+    /// @brief Queries metadata streaming capability options (< 30 chars).
     /// @param[in] configToken Configuration token.
     /// @param[in] profileToken Profile token (optional).
     /// @return MetadataConfigurationOptions or nullopt on failure.
-    [[nodiscard]] std::optional<MetadataConfigurationOptions> getMetadataConfigurationOptions(
+    [[nodiscard]] std::optional<MetadataConfigurationOptions> getMetaConfigOptions(
         const std::string& configToken, const std::string& profileToken = "");
 
     /// @brief Fetches live snapshot of current ONVIF metadata stream (telemetry, detected objects, events).
@@ -994,10 +997,10 @@ public:
     /// @return Extracted OnvifCapabilities.
     [[nodiscard]] static std::optional<OnvifCapabilities> parseCapabilitiesResponse(const std::string& xml);
 
-    /// @brief Parses GetDeviceInformation XML response.
+    /// @brief Parses GetDeviceInformation XML response (< 30 chars).
     /// @param[in] xml Raw response XML.
     /// @return Extracted DeviceInformation.
-    [[nodiscard]] static std::optional<DeviceInformation> parseDeviceInformationResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<DeviceInformation> parseDeviceInformationResp(const std::string& xml);
 
     /// @brief Parses GetProfiles XML response.
     /// @param[in] xml Raw response XML.
@@ -1014,32 +1017,32 @@ public:
     /// @return Created MediaProfile or nullopt on failure.
     [[nodiscard]] static std::optional<MediaProfile> parseCreateProfileResponse(const std::string& xml);
 
-    /// @brief Parses GetVideoEncoderConfigurations XML response.
+    /// @brief Parses GetVideoEncoderConfigurations XML response (< 30 chars).
     /// @param[in] xml Raw response XML.
     /// @return Vector of VideoEncoderConfig objects.
-    [[nodiscard]] static std::vector<VideoEncoderConfig> parseVideoEncoderConfigsResponse(const std::string& xml);
+    [[nodiscard]] static std::vector<VideoEncoderConfig> parseVideoEncoderConfigsResp(const std::string& xml);
 
-    /// @brief Concise alias for parseVideoEncoderConfigsResponse (< 30 chars).
+    /// @brief Concise alias for parseVideoEncoderConfigsResp (< 30 chars).
     /// @param[in] xml Raw response XML.
     /// @return Vector of VideoEncoderConfig objects.
     [[nodiscard]] static std::vector<VideoEncoderConfig> parseVideoEncConfigsResponse(const std::string& xml);
 
-    /// @brief Parses GetVideoEncoderConfiguration XML response.
+    /// @brief Parses GetVideoEncoderConfiguration XML response (< 30 chars).
     /// @param[in] xml Raw response XML.
     /// @return VideoEncoderConfig record or nullopt on failure.
-    [[nodiscard]] static std::optional<VideoEncoderConfig> parseVideoEncoderConfigResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<VideoEncoderConfig> parseVideoEncoderConfigResp(const std::string& xml);
 
-    /// @brief Concise alias for parseVideoEncoderConfigResponse (< 30 chars).
+    /// @brief Concise alias for parseVideoEncoderConfigResp (< 30 chars).
     /// @param[in] xml Raw response XML.
     /// @return VideoEncoderConfig record or nullopt on failure.
     [[nodiscard]] static std::optional<VideoEncoderConfig> parseVideoEncConfigResponse(const std::string& xml);
 
-    /// @brief Parses GetVideoEncoderConfigurationOptions XML response.
+    /// @brief Parses GetVideoEncoderConfigurationOptions XML response (< 30 chars).
     /// @param[in] xml Raw response XML.
     /// @return VideoEncoderOptions or nullopt on failure.
-    [[nodiscard]] static std::optional<VideoEncoderOptions> parseVideoEncoderOptionsResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<VideoEncoderOptions> parseVideoEncoderOptionsResp(const std::string& xml);
 
-    /// @brief Concise alias for parseVideoEncoderOptionsResponse (< 30 chars).
+    /// @brief Concise alias for parseVideoEncoderOptionsResp (< 30 chars).
     /// @param[in] xml Raw response XML.
     /// @return VideoEncoderOptions or nullopt on failure.
     [[nodiscard]] static std::optional<VideoEncoderOptions> parseVideoEncOptionsResponse(const std::string& xml);
@@ -1094,10 +1097,10 @@ public:
     /// @return Assigned tour token or nullopt on failure.
     [[nodiscard]] static std::optional<std::string> parseCreatePresetTourResponse(const std::string& xml);
 
-    /// @brief Parses SendAuxiliaryCommand XML response.
+    /// @brief Parses SendAuxiliaryCommand XML response (< 30 chars).
     /// @param[in] xml Raw response XML.
     /// @return Extracted auxiliary response string or nullopt on failure.
-    [[nodiscard]] static std::optional<std::string> parseSendAuxiliaryCommandResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<std::string> parseSendAuxCommandResp(const std::string& xml);
 
     /// @brief Parses SystemReboot Device XML response.
     /// @param[in] xml Raw response XML.
@@ -1109,10 +1112,10 @@ public:
     /// @return Extracted ImagingSettings or nullopt on parse failure.
     [[nodiscard]] static std::optional<ImagingSettings> parseImagingSettingsResponse(const std::string& xml);
 
-    /// @brief Parses CreatePullPointSubscription XML response.
+    /// @brief Parses CreatePullPointSubscription XML response (< 30 chars).
     /// @param[in] xml Raw response XML.
     /// @return Extracted subscription reference URL or nullopt on failure.
-    [[nodiscard]] static std::optional<std::string> parseCreatePullPointSubscriptionResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<std::string> parseCreatePullPointSubResp(const std::string& xml);
 
     /// @brief Parses PullMessagesResponse XML response into event list.
     /// @param[in] xml Raw response XML.
@@ -1139,15 +1142,15 @@ public:
     /// @return Vector of OnvifUser records.
     [[nodiscard]] static std::vector<OnvifUser> parseUsersResponse(const std::string& xml);
 
-    /// @brief Parses GetNetworkInterfaces XML response.
+    /// @brief Parses GetNetworkInterfaces XML response (< 30 chars).
     /// @param[in] xml Raw response XML.
     /// @return Vector of NetworkInterfaceConfig records.
-    [[nodiscard]] static std::vector<NetworkInterfaceConfig> parseNetworkInterfacesResponse(const std::string& xml);
+    [[nodiscard]] static std::vector<NetworkInterfaceConfig> parseNetworkInterfacesResp(const std::string& xml);
 
-    /// @brief Parses GetNetworkDefaultGateway XML response.
+    /// @brief Parses GetNetworkDefaultGateway XML response (< 30 chars).
     /// @param[in] xml Raw response XML.
     /// @return Gateway address string.
-    [[nodiscard]] static std::string parseNetworkDefaultGatewayResponse(const std::string& xml);
+    [[nodiscard]] static std::string parseDefaultGatewayResp(const std::string& xml);
 
     /// @brief Parses GetDNS XML response.
     /// @param[in] xml Raw response XML.
@@ -1189,22 +1192,20 @@ public:
     /// @return Vector of DigitalInputConfig.
     [[nodiscard]] static std::vector<DigitalInputConfig> parseDigitalInputsResponse(const std::string& xml);
 
-    /// @brief Parses GetMetadataConfigurations XML response.
+    /// @brief Parses GetMetadataConfigurations XML response (< 30 chars).
     /// @param[in] xml Raw response XML.
     /// @return Vector of MetadataConfiguration structures.
-    [[nodiscard]] static std::vector<MetadataConfiguration> parseMetadataConfigurationsResponse(const std::string& xml);
+    [[nodiscard]] static std::vector<MetadataConfiguration> parseMetaConfigsResp(const std::string& xml);
 
-    /// @brief Parses GetMetadataConfiguration XML response.
+    /// @brief Parses GetMetadataConfiguration XML response (< 30 chars).
     /// @param[in] xml Raw response XML.
     /// @return MetadataConfiguration or nullopt on failure.
-    [[nodiscard]] static std::optional<MetadataConfiguration> parseMetadataConfigurationResponse(
-        const std::string& xml);
+    [[nodiscard]] static std::optional<MetadataConfiguration> parseMetaConfigResp(const std::string& xml);
 
-    /// @brief Parses GetMetadataConfigurationOptions XML response.
+    /// @brief Parses GetMetadataConfigurationOptions XML response (< 30 chars).
     /// @param[in] xml Raw response XML.
     /// @return MetadataConfigurationOptions or nullopt on failure.
-    [[nodiscard]] static std::optional<MetadataConfigurationOptions> parseMetadataConfigurationOptionsResponse(
-        const std::string& xml);
+    [[nodiscard]] static std::optional<MetadataConfigurationOptions> parseMetaConfigOptionsResp(const std::string& xml);
 
     /// @brief Parses Profile M / Profile T MetadataStream XML document.
     /// @param[in] xml Raw response XML.
@@ -1216,53 +1217,50 @@ public:
     /// @return Extracted log text or nullopt on failure.
     [[nodiscard]] static std::optional<std::string> parseSystemLogResponse(const std::string& xml);
 
-    /// @brief Parses GetSystemSupportInformation XML response.
+    /// @brief Parses GetSystemSupportInformation XML response (< 30 chars).
     /// @param[in] xml Raw response XML.
     /// @return Extracted SystemSupportInfo or nullopt on failure.
-    [[nodiscard]] static std::optional<SystemSupportInfo> parseSystemSupportInformationResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<SystemSupportInfo> parseSystemSupportInfoResp(const std::string& xml);
 
     /// @brief Parses GetSystemBackup XML response.
     /// @param[in] xml Raw response XML.
     /// @return Backup archive payload string or nullopt on failure.
     [[nodiscard]] static std::optional<std::string> parseSystemBackupResponse(const std::string& xml);
 
-    /// @brief Parses GetEndpointReference XML response.
+    /// @brief Parses GetEndpointReference XML response (< 30 chars).
     /// @param[in] xml Raw response XML.
     /// @return Endpoint GUID string or nullopt on failure.
-    [[nodiscard]] static std::optional<std::string> parseEndpointReferenceResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<std::string> parseEndpointReferenceResp(const std::string& xml);
 
     // =========================================================================
     // Profile G & PKI XML Parsing Helpers
     // =========================================================================
 
     [[nodiscard]] static std::vector<OnvifCertificate> parseCertificatesResponse(const std::string& xml);
-    [[nodiscard]] static std::optional<CertificateInformation> parseCertificateInformationResponse(
-        const std::string& xml);
-    [[nodiscard]] static std::optional<OnvifCertificate> parseCreateCertificateResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<CertificateInformation> parseCertInformationResp(const std::string& xml);
+    [[nodiscard]] static std::optional<OnvifCertificate> parseCreateCertificateResp(const std::string& xml);
     [[nodiscard]] static std::optional<Pkcs10Request> parsePkcs10RequestResponse(const std::string& xml);
-    [[nodiscard]] static std::optional<ClientCertificateMode> parseClientCertificateModeResponse(
-        const std::string& xml);
+    [[nodiscard]] static std::optional<ClientCertificateMode> parseClientCertModeResp(const std::string& xml);
 
     [[nodiscard]] static std::vector<RecordingConfig> parseRecordingsResponse(const std::string& xml);
     [[nodiscard]] static std::optional<std::string> parseCreateRecordingResponse(const std::string& xml);
-    [[nodiscard]] static std::optional<RecordingConfig> parseRecordingConfigurationResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<RecordingConfig> parseRecordingConfigResp(const std::string& xml);
     [[nodiscard]] static std::vector<RecordingJob> parseRecordingJobsResponse(const std::string& xml);
-    [[nodiscard]] static std::optional<std::string> parseCreateRecordingJobResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<std::string> parseCreateRecordJobResp(const std::string& xml);
     [[nodiscard]] static std::optional<RecordingSummary> parseRecordingSummaryResponse(const std::string& xml);
     [[nodiscard]] static std::optional<std::string> parseCreateTrackResponse(const std::string& xml);
 
     [[nodiscard]] static std::optional<std::string> parseFindRecordingsResponse(const std::string& xml);
-    [[nodiscard]] static std::vector<RecordingSearchResult> parseRecordingSearchResultsResponse(const std::string& xml);
+    [[nodiscard]] static std::vector<RecordingSearchResult> parseRecordingSearchResp(const std::string& xml);
     [[nodiscard]] static std::optional<std::string> parseFindEventsResponse(const std::string& xml);
-    [[nodiscard]] static std::vector<RecordedEventResult> parseEventSearchResultsResponse(const std::string& xml);
+    [[nodiscard]] static std::vector<RecordedEventResult> parseEventSearchResultsResp(const std::string& xml);
 
     [[nodiscard]] static std::optional<std::string> parseReplayUriResponse(const std::string& xml);
-    [[nodiscard]] static std::optional<ReplayConfiguration> parseReplayConfigurationResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<ReplayConfiguration> parseReplayConfigResp(const std::string& xml);
 
     [[nodiscard]] static std::vector<AnalyticsRuleDescription> parseSupportedRulesResponse(const std::string& xml);
     [[nodiscard]] static std::vector<AnalyticsRule> parseRulesResponse(const std::string& xml);
-    [[nodiscard]] static std::vector<AnalyticsModuleDescription> parseSupportedAnalyticsModulesResponse(
-        const std::string& xml);
+    [[nodiscard]] static std::vector<AnalyticsModuleDescription> parseAnalyticsModulesResp(const std::string& xml);
     [[nodiscard]] static std::vector<AnalyticsModule> parseAnalyticsModulesResponse(const std::string& xml);
     [[nodiscard]] static std::optional<LocationEntity> parseGetGeoLocationResponse(const std::string& xml);
 
@@ -1271,9 +1269,9 @@ public:
     [[nodiscard]] static std::optional<PrivacyMask> parseMaskResponse(const std::string& xml);
     [[nodiscard]] static std::optional<std::string> parseCreateMaskResponse(const std::string& xml);
     [[nodiscard]] static std::vector<VideoSourceMode> parseVideoSourceModesResponse(const std::string& xml);
-    [[nodiscard]] static std::optional<bool> parseSetVideoSourceModeResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<bool> parseSetVideoSourceModeResp(const std::string& xml);
 
-    [[nodiscard]] static std::optional<RadiometryConfig> parseRadiometryConfigurationResponse(const std::string& xml);
+    [[nodiscard]] static std::optional<RadiometryConfig> parseRadiometryConfigResp(const std::string& xml);
     [[nodiscard]] static std::vector<RadiometrySpot> parseRadiometrySpotsResponse(const std::string& xml);
     [[nodiscard]] static std::vector<RadiometryBox> parseRadiometryBoxesResponse(const std::string& xml);
     [[nodiscard]] static std::vector<ColorPalette> parseColorPalettesResponse(const std::string& xml);
@@ -1289,10 +1287,10 @@ private:
     [[nodiscard]] std::string getMediaEndpoint();
     [[nodiscard]] std::string getDeviceIoEndpoint();
 
-    std::string m_deviceEndpoint {};
-    SecurityCredentials m_credentials {};
-    OnvifCapabilities m_capabilities {};
-    OnvifHttpClient m_httpClient {};
+    std::string m_deviceEndpoint { };
+    SecurityCredentials m_credentials { };
+    OnvifCapabilities m_capabilities { };
+    OnvifHttpClient m_httpClient { };
 };
 
 } // namespace Onvif

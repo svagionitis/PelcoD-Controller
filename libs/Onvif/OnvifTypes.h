@@ -40,12 +40,12 @@ struct MediaProfile {
     int videoWidth { 0 }; ///< Native video resolution width in pixels
     int videoHeight { 0 }; ///< Native video resolution height in pixels
     std::string videoEncoding; ///< Encoding format (e.g. "H264", "H265", "JPEG")
-    std::string videoSourceToken {}; ///< Video source configuration token for imaging service
+    std::string videoSourceToken { }; ///< Video source configuration token for imaging service
     bool fixed { false }; ///< True if profile is fixed/immutable
-    std::string vscToken {}; ///< Video source configuration token
-    std::string vecToken {}; ///< Video encoder configuration token
-    std::string ptzToken {}; ///< PTZ configuration token
-    std::string metadataToken {}; ///< Metadata configuration token
+    std::string vscToken { }; ///< Video source configuration token
+    std::string vecToken { }; ///< Video encoder configuration token
+    std::string ptzToken { }; ///< PTZ configuration token
+    std::string metadataToken { }; ///< Metadata configuration token
 };
 
 /// @enum DiscoveryMode
@@ -55,7 +55,7 @@ enum class DiscoveryMode : std::uint8_t { Discoverable, NonDiscoverable };
 /// @struct NetworkProtocolConfig
 /// @brief Operational configuration for an ONVIF network protocol endpoint (ONVIF Core §8.2 / Profile S §7.2).
 struct NetworkProtocolConfig {
-    std::string name {}; ///< Protocol name (e.g. "HTTP", "HTTPS", "RTSP")
+    std::string name { }; ///< Protocol name (e.g. "HTTP", "HTTPS", "RTSP")
     bool enabled { true }; ///< Operational enable/disable state
     int port { 8080 }; ///< Port number (1-65535)
 };
@@ -82,8 +82,8 @@ struct PtzStatus {
 /// @struct PtzPreset
 /// @brief Stored pan/tilt/zoom preset position on the camera.
 struct PtzPreset {
-    std::string token {}; ///< Unique preset identifier token, e.g. "1" or "Preset_1"
-    std::string name {}; ///< User-friendly preset label, e.g. "Front Gate"
+    std::string token { }; ///< Unique preset identifier token, e.g. "1" or "Preset_1"
+    std::string name { }; ///< User-friendly preset label, e.g. "Front Gate"
     double pan { 0.0 }; ///< Normalized pan position [-1.0 to +1.0] if provided
     double tilt { 0.0 }; ///< Normalized tilt position [-1.0 to +1.0] if provided
     double zoom { 0.0 }; ///< Normalized zoom position [0.0 to 1.0] if provided
@@ -108,7 +108,7 @@ struct FocusMove {
 struct FocusStatus20 {
     float position { 0.0f }; ///< Current optical focus position [0.0 to 1.0]
     std::string moveStatus { "IDLE" }; ///< Status: "IDLE", "MOVING", "UNKNOWN"
-    std::string error {}; ///< Error detail if any
+    std::string error { }; ///< Error detail if any
 };
 
 /// @struct ExposureSettings
@@ -124,9 +124,9 @@ struct ExposureSettings {
 /// @struct ImagingPreset
 /// @brief Saved optical configuration profile.
 struct ImagingPreset {
-    std::string token {}; ///< Unique preset token
+    std::string token { }; ///< Unique preset token
     std::string type { "Custom" }; ///< Type: "Clear", "B/W", "Custom"
-    std::string name {}; ///< User-friendly preset label
+    std::string name { }; ///< User-friendly preset label
 };
 
 /// @struct ImagingSettings
@@ -142,19 +142,19 @@ struct ImagingSettings {
     bool wideDynamicRange { false }; ///< Wide Dynamic Range (WDR) enable
     float wdrLevel { 0.0f }; ///< WDR level [0.0 to 100.0]
     std::string autoFocusMode { "AUTO" }; ///< Auto-focus mode: "AUTO" or "MANUAL"
-    ExposureSettings exposure {}; ///< Exposure and iris parameters
-    FocusStatus20 focusStatus {}; ///< Current focus position and movement status
+    ExposureSettings exposure { }; ///< Exposure and iris parameters
+    FocusStatus20 focusStatus { }; ///< Current focus position and movement status
 };
 
 /// @struct OnvifEvent
 /// @brief Real-time event notification (ONVIF PullPoint NotificationMessage).
 struct OnvifEvent {
-    std::string topic {}; ///< Event topic, e.g. "tns1:RuleEngine/CellMotionDetector/Motion"
-    std::string sourceName {}; ///< Source item name, e.g. "VideoSourceConfigurationToken"
-    std::string sourceValue {}; ///< Source item value, e.g. "VideoSourceToken_1"
-    std::string dataName {}; ///< Data item name, e.g. "IsMotion" or "State"
-    std::string dataValue {}; ///< Data item value, e.g. "true" or "false"
-    std::string utcTime {}; ///< Notification timestamp from camera
+    std::string topic { }; ///< Event topic, e.g. "tns1:RuleEngine/CellMotionDetector/Motion"
+    std::string sourceName { }; ///< Source item name, e.g. "VideoSourceConfigurationToken"
+    std::string sourceValue { }; ///< Source item value, e.g. "VideoSourceToken_1"
+    std::string dataName { }; ///< Data item name, e.g. "IsMotion" or "State"
+    std::string dataValue { }; ///< Data item value, e.g. "true" or "false"
+    std::string utcTime { }; ///< Notification timestamp from camera
     std::string propertyOperation { "Changed" }; ///< Operation type: "Initialized", "Deleted", or "Changed"
 };
 
@@ -169,7 +169,7 @@ enum class PresetTourState : std::uint8_t { Idle, Touring, Paused, Extended };
 /// @struct PresetTourSpot
 /// @brief A waypoint/destination preset within an ONVIF Preset Tour.
 struct PresetTourSpot {
-    std::string presetToken {}; ///< Target preset token, e.g. "1" or "Preset_1"
+    std::string presetToken { }; ///< Target preset token, e.g. "1" or "Preset_1"
     float speed { 1.0f }; ///< Speed ratio [0.0 to 1.0]
     std::uint32_t stayTimeSeconds { 5U }; ///< Dwell duration in seconds at this preset
 };
@@ -177,11 +177,11 @@ struct PresetTourSpot {
 /// @struct PresetTour
 /// @brief Sequence of presets visited in an automated tour (ONVIF PTZ Service).
 struct PresetTour {
-    std::string token {}; ///< Unique tour token identifier, e.g. "Tour_1"
-    std::string name {}; ///< User-friendly tour label, e.g. "Perimeter Patrol"
+    std::string token { }; ///< Unique tour token identifier, e.g. "Tour_1"
+    std::string name { }; ///< User-friendly tour label, e.g. "Perimeter Patrol"
     PresetTourState status { PresetTourState::Idle }; ///< Current operational status
     bool autoStart { false }; ///< Automatically start tour upon boot/profile activation
-    std::vector<PresetTourSpot> spots {}; ///< Sequence of tour spots
+    std::vector<PresetTourSpot> spots { }; ///< Sequence of tour spots
 };
 
 /// @enum OsdType
@@ -195,13 +195,13 @@ enum class OsdPositionType : std::uint8_t { UpperLeft, UpperRight, LowerLeft, Lo
 /// @struct OsdConfig
 /// @brief Configuration parameters for an ONVIF On-Screen Display (OSD) overlay.
 struct OsdConfig {
-    std::string token {}; ///< Unique OSD token, e.g. "OSD_1"
+    std::string token { }; ///< Unique OSD token, e.g. "OSD_1"
     std::string videoSourceToken { "VideoSource_1" }; ///< Video source attachment
     OsdType type { OsdType::Text }; ///< Text or Image overlay
     OsdPositionType position { OsdPositionType::UpperLeft }; ///< Corner or custom position
     float customX { 0.0f }; ///< Normalized X coordinate [-1.0 to 1.0] if position is Custom
     float customY { 0.0f }; ///< Normalized Y coordinate [-1.0 to 1.0] if position is Custom
-    std::string plainText {}; ///< Text string displayed on screen
+    std::string plainText { }; ///< Text string displayed on screen
     std::uint32_t fontSize { 24U }; ///< Rendered font point size
     bool isDateAndTime { false }; ///< If true, overlays dynamic date/time
     std::string dateFormat { "YYYY/MM/DD" }; ///< Date format string
@@ -246,8 +246,8 @@ struct VideoEncoderOptions {
     IntRange govLengthRange { 1, 120 }; ///< GOV/keyframe interval range
     IntRange frameRateRange { 1, 30 }; ///< Framerate range in fps
     IntRange encodingIntervalRange { 1, 1 }; ///< Encoding interval range
-    std::vector<VideoResolution> resolutions {}; ///< Available video resolutions
-    std::vector<std::string> h264Profiles {}; ///< Supported H.264 profiles
+    std::vector<VideoResolution> resolutions { }; ///< Available video resolutions
+    std::vector<std::string> h264Profiles { }; ///< Supported H.264 profiles
 };
 
 /// @typedef VideoEncoderConfigurationOptions
@@ -292,8 +292,8 @@ struct PTZConfiguration {
         "http://www.onvif.org/ver10/tptz/ZoomSpaces/VelocityGenericSpace"
     }; ///< Default continuous zoom space
     std::string defaultPtzTimeout { "PT10S" }; ///< Default timeout for continuous movements
-    PanTiltLimits panTiltLimits {}; ///< Physical motion range limits for pan/tilt
-    ZoomLimits zoomLimits {}; ///< Physical motion range limits for zoom
+    PanTiltLimits panTiltLimits { }; ///< Physical motion range limits for pan/tilt
+    ZoomLimits zoomLimits { }; ///< Physical motion range limits for zoom
 };
 
 /// @struct Point2D
@@ -306,7 +306,7 @@ struct Point2D {
 /// @struct AnalyticsRule
 /// @brief Analytics rule definition for ONVIF Analytics Service (Profile M & Profile T).
 struct AnalyticsRule {
-    std::string name {}; ///< Rule identifier name, e.g. "MyLineTripwire", "PerimeterZone"
+    std::string name { }; ///< Rule identifier name, e.g. "MyLineTripwire", "PerimeterZone"
     std::string type {
         "CellMotionDetector"
     }; ///< Rule algorithm type ("CellMotionDetector", "LineDetector", "FieldDetector", "LoiteringDetector")
@@ -318,13 +318,13 @@ struct AnalyticsRule {
     std::string direction { "Any" }; ///< Direction: "LeftToRight", "RightToLeft", "Any"
 
     // Parameters for FieldDetector and LoiteringDetector
-    std::vector<Point2D> polygon {}; ///< 2D polygon vertices defining region of interest
+    std::vector<Point2D> polygon { }; ///< 2D polygon vertices defining region of interest
 
     // Parameters for LoiteringDetector
     double dwellTimeSeconds { 5.0 }; ///< Minimum continuous dwell time in seconds to trigger alarm
 
     // Classification filtering (Profile M)
-    std::vector<std::string> objectClasses {}; ///< Allowed classes (e.g. "Human", "Vehicle"), empty = all
+    std::vector<std::string> objectClasses { }; ///< Allowed classes (e.g. "Human", "Vehicle"), empty = all
     float minConfidence { 0.5f }; ///< Minimum confidence threshold for classification
 
     // Sensitivity for CellMotionDetector
@@ -334,23 +334,23 @@ struct AnalyticsRule {
 /// @struct AnalyticsRuleDescription
 /// @brief Description of a supported analytics rule algorithm.
 struct AnalyticsRuleDescription {
-    std::string ruleType {}; ///< Rule algorithm type name (e.g. "tt:LineDetector")
-    std::vector<std::string> supportedParameters {}; ///< List of configurable parameters
+    std::string ruleType { }; ///< Rule algorithm type name (e.g. "tt:LineDetector")
+    std::vector<std::string> supportedParameters { }; ///< List of configurable parameters
 };
 
 /// @struct AnalyticsModule
 /// @brief Configuration of an ONVIF Analytics Module (Profile M / T).
 struct AnalyticsModule {
-    std::string name {}; ///< Module instance identifier name
+    std::string name { }; ///< Module instance identifier name
     std::string type { "MotionDetector" }; ///< Module algorithm type (e.g. "tt:MotionDetector", "tt:ObjectClassifier")
-    std::map<std::string, std::string> parameters {}; ///< Key-value parameter dictionary
+    std::map<std::string, std::string> parameters { }; ///< Key-value parameter dictionary
 };
 
 /// @struct AnalyticsModuleDescription
 /// @brief Description of a supported analytics module.
 struct AnalyticsModuleDescription {
-    std::string moduleType {}; ///< Module algorithm type name
-    std::vector<std::string> supportedParameters {}; ///< List of supported parameter keys
+    std::string moduleType { }; ///< Module algorithm type name
+    std::vector<std::string> supportedParameters { }; ///< List of supported parameter keys
 };
 
 /// @enum OnvifUserLevel
@@ -401,8 +401,8 @@ enum class OnvifUserLevel : std::uint8_t { Administrator, Operator, User, Anonym
 /// @struct OnvifUser
 /// @brief User account on the ONVIF device for authentication and access control.
 struct OnvifUser {
-    std::string username {}; ///< User login name
-    std::string password {}; ///< Password (plaintext or hash)
+    std::string username { }; ///< User login name
+    std::string password { }; ///< Password (plaintext or hash)
     OnvifUserLevel level { OnvifUserLevel::User }; ///< Role authorization level
 };
 
@@ -423,22 +423,22 @@ struct NetworkInterfaceConfig {
     std::string name { "eth0" }; ///< System device name
     std::string hwAddress { "00:11:22:33:44:55" }; ///< Physical MAC address
     int mtu { 1500 }; ///< Maximum transmission unit in bytes
-    NetworkIPv4Config ipv4 {}; ///< IPv4 parameters
+    NetworkIPv4Config ipv4 { }; ///< IPv4 parameters
 };
 
 /// @struct DnsConfig
 /// @brief Domain Name System (DNS) server configuration.
 struct DnsConfig {
     bool fromDhcp { true }; ///< True if DNS servers are retrieved from DHCP
-    std::vector<std::string> searchDomains {}; ///< Search domain suffixes
-    std::vector<std::string> dnsServers {}; ///< Configured DNS server IP addresses
+    std::vector<std::string> searchDomains { }; ///< Search domain suffixes
+    std::vector<std::string> dnsServers { }; ///< Configured DNS server IP addresses
 };
 
 /// @struct NtpConfig
 /// @brief Network Time Protocol (NTP) server configuration.
 struct NtpConfig {
     bool fromDhcp { true }; ///< True if NTP servers are acquired from DHCP
-    std::vector<std::string> manualServers {}; ///< Explicit NTP server hostnames or IPs
+    std::vector<std::string> manualServers { }; ///< Explicit NTP server hostnames or IPs
 };
 
 /// @enum FactoryDefaultType
@@ -474,7 +474,7 @@ enum class RelayIdleState : std::uint8_t { Open, Closed };
 /// @struct RelayOutputConfig
 /// @brief Configuration and state for an ONVIF Relay Output (Profile S/T).
 struct RelayOutputConfig {
-    std::string token {}; ///< Unique relay token, e.g. "Relay_1"
+    std::string token { }; ///< Unique relay token, e.g. "Relay_1"
     RelayMode mode { RelayMode::Bistable }; ///< Operating mode
     float delayTimeSeconds { 0.0f }; ///< Delay duration in seconds for Monostable mode
     RelayIdleState idleState { RelayIdleState::Open }; ///< Open or Closed when unenergized
@@ -484,7 +484,7 @@ struct RelayOutputConfig {
 /// @struct DigitalInputConfig
 /// @brief Configuration and state for an ONVIF Digital Input (sensor input).
 struct DigitalInputConfig {
-    std::string token {}; ///< Unique input token, e.g. "Input_1"
+    std::string token { }; ///< Unique input token, e.g. "Input_1"
     RelayIdleState idleState { RelayIdleState::Open }; ///< Normal contact idle state
     std::string sensorType { "Manual" }; ///< Sensor description, e.g. "Alarm", "PIR", "Manual"
     bool active { false }; ///< Current live contact state
@@ -549,18 +549,18 @@ struct AnalyticsObject {
     int objectId { 0 }; ///< Unique object tracking identifier
     std::string className { "Human" }; ///< Object class: "Human", "Vehicle", "Bike", "Bag"
     float confidence { 1.0f }; ///< Classification confidence [0.0, 1.0]
-    BoundingBox boundingBox {}; ///< Spatial position on frame
+    BoundingBox boundingBox { }; ///< Spatial position on frame
     float speed { 0.0f }; ///< Estimated speed in m/s
-    GeoLocation geoLocation {}; ///< Geographic location if calibrated
+    GeoLocation geoLocation { }; ///< Geographic location if calibrated
 };
 
 /// @struct AnalyticsFrame
 /// @brief Video analytics time-slice frame containing detected objects (Profile M).
 struct AnalyticsFrame {
-    std::string utcTime {}; ///< Frame timestamp in ISO 8601 UTC
+    std::string utcTime { }; ///< Frame timestamp in ISO 8601 UTC
     int frameWidth { 1920 }; ///< Frame pixel width
     int frameHeight { 1080 }; ///< Frame pixel height
-    std::vector<AnalyticsObject> objects {}; ///< Detected objects
+    std::vector<AnalyticsObject> objects { }; ///< Detected objects
 };
 
 /// @struct MetadataConfiguration
@@ -587,9 +587,9 @@ struct MetadataConfigurationOptions {
 /// @struct MetadataStreamPayload
 /// @brief Full snapshot of active metadata (PTZ status, analytics frame, and events).
 struct MetadataStreamPayload {
-    std::optional<PtzStatus> ptzStatus {}; ///< Current PTZ kinematics
-    std::optional<AnalyticsFrame> analyticsFrame {}; ///< Detected objects
-    std::vector<OnvifEvent> events {}; ///< Recent event notifications
+    std::optional<PtzStatus> ptzStatus { }; ///< Current PTZ kinematics
+    std::optional<AnalyticsFrame> analyticsFrame { }; ///< Detected objects
+    std::vector<OnvifEvent> events { }; ///< Recent event notifications
 };
 
 /// @enum SystemLogType
@@ -617,15 +617,15 @@ struct SystemSupportInfo {
     std::uint32_t memoryTotalMb { 0 }; ///< Total RAM in megabytes
     std::uint32_t activeConnections { 0 }; ///< Number of open client connections
     std::string storageState { "OK" }; ///< Storage / filesystem health
-    std::string rawDiagnostics {}; ///< Text diagnostic dump
+    std::string rawDiagnostics { }; ///< Text diagnostic dump
 };
 
 /// @struct SystemBackupData
 /// @brief Configuration archive for backup and restore operations.
 struct SystemBackupData {
-    std::string backupTimestamp {}; ///< ISO timestamp when backup was created
-    std::string configPayloadJson {}; ///< Serialized settings JSON/XML payload
-    std::string checksum {}; ///< Checksum verification string
+    std::string backupTimestamp { }; ///< ISO timestamp when backup was created
+    std::string configPayloadJson { }; ///< Serialized settings JSON/XML payload
+    std::string checksum { }; ///< Checksum verification string
 };
 
 // =========================================================================
@@ -667,7 +667,7 @@ enum class RecordingTrackType : std::uint8_t { Video, Audio, Metadata };
 struct RecordingTrack {
     std::string trackToken { "Track_Video" }; ///< Track token
     RecordingTrackType trackType { RecordingTrackType::Video }; ///< Track type
-    std::string description {}; ///< Description
+    std::string description { }; ///< Description
 };
 
 /// @struct RecordingConfig
@@ -677,14 +677,14 @@ struct RecordingConfig {
     std::string sourceToken { "VideoSource_1" }; ///< Bound video source
     std::string content { "Primary surveillance recording" }; ///< Descriptive label
     std::string maximumRetentionTime { "P30D" }; ///< Maximum retention time ISO 8601 duration
-    std::vector<RecordingTrack> tracks {}; ///< Associated recorded tracks
+    std::vector<RecordingTrack> tracks { }; ///< Associated recorded tracks
 };
 
 /// @struct RecordingSummary
 /// @brief Aggregated storage volume and time statistics for recordings.
 struct RecordingSummary {
-    std::string dataFrom {}; ///< Earliest recording timestamp (ISO 8601 UTC)
-    std::string dataUntil {}; ///< Latest recording timestamp (ISO 8601 UTC)
+    std::string dataFrom { }; ///< Earliest recording timestamp (ISO 8601 UTC)
+    std::string dataUntil { }; ///< Latest recording timestamp (ISO 8601 UTC)
     int numberRecordings { 0 }; ///< Total number of recording containers
     std::uint64_t totalStorageBytes { 0 }; ///< Total disk bytes consumed
 };
@@ -718,21 +718,21 @@ struct RecordingJob {
 /// @struct RecordingSearchResult
 /// @brief Match item returned from a historical recording search query.
 struct RecordingSearchResult {
-    std::string recordingToken {}; ///< Matching recording token
-    std::string trackToken {}; ///< Matching track token
-    std::string earliestTime {}; ///< Earliest segment timestamp
-    std::string latestTime {}; ///< Latest segment timestamp
+    std::string recordingToken { }; ///< Matching recording token
+    std::string trackToken { }; ///< Matching track token
+    std::string earliestTime { }; ///< Earliest segment timestamp
+    std::string latestTime { }; ///< Latest segment timestamp
     std::string searchState { "Completed" }; ///< State of the search
 };
 
 /// @struct RecordedEventResult
 /// @brief Historical event notification found within recorded time slices.
 struct RecordedEventResult {
-    std::string recordingToken {}; ///< Originating recording container
-    std::string eventTime {}; ///< Event timestamp (ISO 8601 UTC)
-    std::string topic {}; ///< ONVIF event topic
-    std::string source {}; ///< Event source name/value
-    std::string data {}; ///< Event data payload
+    std::string recordingToken { }; ///< Originating recording container
+    std::string eventTime { }; ///< Event timestamp (ISO 8601 UTC)
+    std::string topic { }; ///< ONVIF event topic
+    std::string source { }; ///< Event source name/value
+    std::string data { }; ///< Event data payload
 };
 
 /// @struct ReplayConfiguration
@@ -749,10 +749,10 @@ struct ReplayConfiguration {
 /// @brief X.509 certificate metadata and validity attributes.
 struct CertificateInformation {
     std::string certificateId { "Cert_1" }; ///< Unique certificate identifier
-    std::string subject {}; ///< X.509 Distinguished Name subject
-    std::string issuer {}; ///< Certificate Authority or self-signed issuer
-    std::string validNotBefore {}; ///< Start of validity period
-    std::string validNotAfter {}; ///< Expiration timestamp
+    std::string subject { }; ///< X.509 Distinguished Name subject
+    std::string issuer { }; ///< Certificate Authority or self-signed issuer
+    std::string validNotBefore { }; ///< Start of validity period
+    std::string validNotAfter { }; ///< Expiration timestamp
     std::string keyAlgorithm { "RSA" }; ///< Public key algorithm
     bool isDefault { false }; ///< True if bound as default TLS server cert
 };
@@ -761,16 +761,16 @@ struct CertificateInformation {
 /// @brief Complete certificate record including raw DER base64 representation.
 struct OnvifCertificate {
     std::string certificateId { "Cert_1" }; ///< Certificate ID
-    std::string x509DerBase64 {}; ///< Base64-encoded DER X.509 certificate data
-    CertificateInformation info {}; ///< Decoded metadata
+    std::string x509DerBase64 { }; ///< Base64-encoded DER X.509 certificate data
+    CertificateInformation info { }; ///< Decoded metadata
 };
 
 /// @struct Pkcs10Request
 /// @brief PKCS#10 Certificate Signing Request (CSR) generated on device.
 struct Pkcs10Request {
-    std::string certificateId {}; ///< Associated certificate ID
-    std::string subject {}; ///< Requested subject DN
-    std::string csrBase64 {}; ///< Base64-encoded PKCS#10 CSR payload
+    std::string certificateId { }; ///< Associated certificate ID
+    std::string subject { }; ///< Requested subject DN
+    std::string csrBase64 { }; ///< Base64-encoded PKCS#10 CSR payload
 };
 
 /// @enum ClientCertificateMode
@@ -791,8 +791,10 @@ enum class ClientCertificateMode : std::uint8_t { Off, Optional, Required };
     }
 }
 
-/// @brief Parses ClientCertificateMode from string representation.
-[[nodiscard]] inline ClientCertificateMode clientCertificateModeFromString(const std::string& str)
+/// @brief Parses ClientCertificateMode from string representation (< 30 chars).
+/// @param[in] str Input mode string ("Optional", "Required", or "Off").
+/// @return ClientCertificateMode enumeration value.
+[[nodiscard]] inline ClientCertificateMode clientCertModeFromString(const std::string& str) noexcept
 {
     if (str == "Optional" || str == "optional") {
         return ClientCertificateMode::Optional;
@@ -832,19 +834,19 @@ struct GeoOrientation {
 /// @brief Geolocation container for a device or video source entity (ONVIF Device Management).
 struct LocationEntity {
     std::string entity { "Device" }; ///< Entity type ("Device", "VideoSource")
-    std::string token {}; ///< Entity token identifier
+    std::string token { }; ///< Entity token identifier
     bool fixed { true }; ///< True if coordinates are statically configured
-    GeoLocation location {}; ///< WGS84 coordinates
-    GeoOrientation orientation {}; ///< 3-axis mounting orientation
+    GeoLocation location { }; ///< WGS84 coordinates
+    GeoOrientation orientation { }; ///< 3-axis mounting orientation
 };
 
 /// @struct GeoMoveTarget
 /// @brief Parameters for directing PTZ camera toward a geographic location (ONVIF PTZ GeoMove).
 struct GeoMoveTarget {
-    GeoLocation targetGeo {}; ///< Target WGS84 coordinate
-    std::optional<float> speed {}; ///< PTZ movement speed ratio [0.0, 1.0]
-    std::optional<float> areaWidth {}; ///< Target framing area width in meters (for auto-zoom)
-    std::optional<float> areaHeight {}; ///< Target framing area height in meters (for auto-zoom)
+    GeoLocation targetGeo { }; ///< Target WGS84 coordinate
+    std::optional<float> speed { }; ///< PTZ movement speed ratio [0.0, 1.0]
+    std::optional<float> areaWidth { }; ///< Target framing area width in meters (for auto-zoom)
+    std::optional<float> areaHeight { }; ///< Target framing area height in meters (for auto-zoom)
 };
 
 /// @struct SphericalPosition
@@ -898,11 +900,11 @@ struct MaskColor {
 /// @struct PrivacyMask
 /// @brief Privacy exclusion mask definition (ONVIF Profile T / Media2).
 struct PrivacyMask {
-    std::string token {}; ///< Unique mask identifier (e.g. "Mask_1")
-    std::string configurationToken {}; ///< Associated VideoSourceConfiguration token
-    std::vector<Point2D> polygon {}; ///< Geometric vertices in normalized coordinates [0.0, 1.0]
+    std::string token { }; ///< Unique mask identifier (e.g. "Mask_1")
+    std::string configurationToken { }; ///< Associated VideoSourceConfiguration token
+    std::vector<Point2D> polygon { }; ///< Geometric vertices in normalized coordinates [0.0, 1.0]
     MaskType type { MaskType::Color }; ///< Mask type (Color, Pixelated, Blurred)
-    MaskColor color {}; ///< Fill color for MaskType::Color
+    MaskColor color { }; ///< Fill color for MaskType::Color
     bool enabled { true }; ///< Whether mask is actively rendered
 };
 
@@ -921,14 +923,14 @@ struct MaskOptions {
 /// @struct VideoSourceMode
 /// @brief Sensor capture resolution and framerate mode (ONVIF Profile T / Media2).
 struct VideoSourceMode {
-    std::string token {}; ///< Mode identifier (e.g. "Mode_1080p60", "Mode_4K30")
+    std::string token { }; ///< Mode identifier (e.g. "Mode_1080p60", "Mode_4K30")
     bool enabled { false }; ///< True if this mode is currently active
     float maxFramerate { 30.0f }; ///< Maximum framerate supported in this mode
     int width { 1920 }; ///< Maximum image width in pixels
     int height { 1080 }; ///< Maximum image height in pixels
     std::vector<std::string> encodings { "H264", "H265" }; ///< Supported video encodings
     bool reboot { false }; ///< True if applying mode triggers hardware reboot
-    std::string description {}; ///< Human-readable mode label
+    std::string description { }; ///< Human-readable mode label
 };
 
 /// @enum RadiometryAlarmType
@@ -952,7 +954,7 @@ struct RadiometryConfig {
 /// @struct RadiometrySpot
 /// @brief Single point spotmeter temperature measurement (ONVIF Thermal Service).
 struct RadiometrySpot {
-    std::string token {}; ///< Unique spot token (e.g. "Spot_1")
+    std::string token { }; ///< Unique spot token (e.g. "Spot_1")
     Point2D position { 0.5f, 0.5f }; ///< Normalized coordinates [0.0, 1.0]
     std::string label { "Spot 1" }; ///< Human-readable label
     float temperature { 25.0f }; ///< Measured temperature in Celsius
@@ -961,7 +963,7 @@ struct RadiometrySpot {
 /// @struct RadiometryBox
 /// @brief Rectangular area temperature measurement zone (ONVIF Thermal Service).
 struct RadiometryBox {
-    std::string token {}; ///< Unique box token (e.g. "Box_1")
+    std::string token { }; ///< Unique box token (e.g. "Box_1")
     Point2D topLeft { 0.25f, 0.25f }; ///< Normalized top-left coordinates [0.0, 1.0]
     Point2D bottomRight { 0.75f, 0.75f }; ///< Normalized bottom-right coordinates [0.0, 1.0]
     std::string label { "Area 1" }; ///< Human-readable label
@@ -973,7 +975,7 @@ struct RadiometryBox {
 /// @struct RadiometryAlarmConfig
 /// @brief Radiometric temperature threshold alarm configuration (ONVIF Thermal Service).
 struct RadiometryAlarmConfig {
-    std::string token {}; ///< Associated spot or box token
+    std::string token { }; ///< Associated spot or box token
     float thresholdTemperature { 50.0f }; ///< Alarm temperature threshold in Celsius
     float hysteresis { 2.0f }; ///< Alarm hysteresis in Celsius
     RadiometryAlarmType alarmType { RadiometryAlarmType::HighTemperature }; ///< High or Low alarm
@@ -983,8 +985,8 @@ struct RadiometryAlarmConfig {
 /// @struct ColorPalette
 /// @brief Thermal false-color visualization palette (ONVIF Thermal Service).
 struct ColorPalette {
-    std::string token {}; ///< Palette token (e.g. "WhiteHot", "Ironbow")
-    std::string name {}; ///< Display name
+    std::string token { }; ///< Palette token (e.g. "WhiteHot", "Ironbow")
+    std::string name { }; ///< Display name
     bool isDefault { false }; ///< Whether this is the camera's default palette
 };
 

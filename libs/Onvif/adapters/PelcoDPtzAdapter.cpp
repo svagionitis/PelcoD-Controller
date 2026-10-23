@@ -361,7 +361,7 @@ std::string PelcoDPtzAdapter::handleSetPreset(const std::string& name, const std
         assignedToken = std::to_string(m_nextPresetId++);
     }
 
-    PtzPreset preset {};
+    PtzPreset preset { };
     preset.token = assignedToken;
     preset.name = name.empty() ? ("Preset " + assignedToken) : name;
 
@@ -410,7 +410,7 @@ bool PelcoDPtzAdapter::handleGotoPreset(const std::string& token)
     }
 
     if (dispatched && m_eventPublisher) {
-        OnvifEvent ev {};
+        OnvifEvent ev { };
         ev.topic = "tns1:PTZController/PTZPresets/Reached";
         ev.sourceName = "PresetToken";
         ev.sourceValue = token;
@@ -447,7 +447,7 @@ bool PelcoDPtzAdapter::handleRemovePreset(const std::string& token)
 std::vector<PtzPreset> PelcoDPtzAdapter::handleGetPresets()
 {
     std::scoped_lock lock(m_mutex);
-    std::vector<PtzPreset> result {};
+    std::vector<PtzPreset> result { };
     result.reserve(m_presets.size());
     for (const auto& [tok, preset] : m_presets) {
         result.push_back(preset);
@@ -457,7 +457,7 @@ std::vector<PtzPreset> PelcoDPtzAdapter::handleGetPresets()
 
 PtzStatus PelcoDPtzAdapter::handleGetStatus()
 {
-    PtzStatus status {};
+    PtzStatus status { };
     if (!m_device) {
         return status;
     }
@@ -493,7 +493,7 @@ void PelcoDPtzAdapter::setPersistencePath(const std::string& path)
 std::vector<PresetTour> PelcoDPtzAdapter::handleGetPresetTours()
 {
     std::scoped_lock lock(m_mutex);
-    std::vector<PresetTour> result {};
+    std::vector<PresetTour> result { };
     result.reserve(m_tours.size());
     for (const auto& [tok, tour] : m_tours) {
         result.push_back(tour);
@@ -515,7 +515,7 @@ std::string PelcoDPtzAdapter::handleCreatePresetTour()
 {
     std::scoped_lock lock(m_mutex);
     std::string token = "Tour_" + std::to_string(m_nextTourId++);
-    PresetTour tour {};
+    PresetTour tour { };
     tour.token = token;
     tour.name = "Patrol Tour " + std::to_string(m_nextTourId - 1);
     tour.status = PresetTourState::Idle;
@@ -547,9 +547,9 @@ bool PelcoDPtzAdapter::handleOperatePresetTour(const std::string& tourToken, Pre
     if (op == PresetTourOperation::Start) {
         tour.status = PresetTourState::Touring;
         if (patrol) {
-            std::vector<PelcoD::PatrolStep> steps {};
+            std::vector<PelcoD::PatrolStep> steps { };
             for (const auto& spot : tour.spots) {
-                PelcoD::PatrolStep step {};
+                PelcoD::PatrolStep step { };
                 try {
                     step.presetId = static_cast<std::uint8_t>(std::stoul(spot.presetToken));
                 } catch (const std::invalid_argument&) {
@@ -726,7 +726,7 @@ bool PelcoDPtzAdapter::handleSetHomePosition()
 std::string PelcoDPtzAdapter::handleSendAuxiliaryCommand(const std::string& auxiliaryData)
 {
     if (!m_device || auxiliaryData.empty()) {
-        return {};
+        return { };
     }
 
     if (auxiliaryData.find("Wiper") != std::string::npos || auxiliaryData.find("wiper") != std::string::npos) {
@@ -848,7 +848,7 @@ void PelcoDPtzAdapter::loadTours()
         std::string token = content.substr(q1 + 1, q2 - q1 - 1);
         pos = q2 + 1;
 
-        PresetTour tour {};
+        PresetTour tour { };
         tour.token = token;
 
         auto nextTokPos = content.find("\"token\":", pos);
@@ -879,7 +879,7 @@ void PelcoDPtzAdapter::loadTours()
                 if (sq2 == std::string::npos) {
                     break;
                 }
-                PresetTourSpot spot {};
+                PresetTourSpot spot { };
                 spot.presetToken = content.substr(sq1 + 1, sq2 - sq1 - 1);
                 spotPos = sq2 + 1;
 
@@ -1098,7 +1098,7 @@ void PelcoDPtzAdapter::onDeviceStatusUpdated(const PelcoD::DeviceStatus& status)
             const bool oldBit = (m_lastAlarms & mask) != 0U;
             const bool newBit = (status.alarms & mask) != 0U;
             if (oldBit != newBit) {
-                OnvifEvent ev {};
+                OnvifEvent ev { };
                 ev.topic = "tns1:Device/Trigger/DigitalInput";
                 ev.sourceName = "InputToken";
                 ev.sourceValue = "Alarm_" + std::to_string(i + 1);
@@ -1115,13 +1115,13 @@ void PelcoDPtzAdapter::onDeviceStatusUpdated(const PelcoD::DeviceStatus& status)
 // IMetadataHandler Implementation
 // =========================================================================
 
-std::vector<MetadataConfiguration> PelcoDPtzAdapter::handleGetMetadataConfigurations()
+std::vector<MetadataConfiguration> PelcoDPtzAdapter::handleGetMetadataConfigs()
 {
     std::scoped_lock lock(m_mutex);
     return m_metadataConfigs;
 }
 
-std::optional<MetadataConfiguration> PelcoDPtzAdapter::handleGetMetadataConfiguration(const std::string& token)
+std::optional<MetadataConfiguration> PelcoDPtzAdapter::handleGetMetadataConfig(const std::string& token)
 {
     std::scoped_lock lock(m_mutex);
     for (const auto& cfg : m_metadataConfigs) {
@@ -1132,7 +1132,7 @@ std::optional<MetadataConfiguration> PelcoDPtzAdapter::handleGetMetadataConfigur
     return std::nullopt;
 }
 
-bool PelcoDPtzAdapter::handleSetMetadataConfiguration(const MetadataConfiguration& config)
+bool PelcoDPtzAdapter::handleSetMetadataConfig(const MetadataConfiguration& config)
 {
     std::scoped_lock lock(m_mutex);
     for (auto& cfg : m_metadataConfigs) {
@@ -1145,10 +1145,10 @@ bool PelcoDPtzAdapter::handleSetMetadataConfiguration(const MetadataConfiguratio
     return true;
 }
 
-MetadataConfigurationOptions PelcoDPtzAdapter::handleGetMetadataConfigurationOptions(
+MetadataConfigurationOptions PelcoDPtzAdapter::handleGetMetaConfigOptions(
     const std::string& /*configToken*/, const std::string& /*profileToken*/)
 {
-    MetadataConfigurationOptions opts {};
+    MetadataConfigurationOptions opts { };
     opts.ptzStatusSupported = true;
     opts.analyticsSupported = true;
     opts.eventsSupported = true;
@@ -1158,10 +1158,10 @@ MetadataConfigurationOptions PelcoDPtzAdapter::handleGetMetadataConfigurationOpt
 MetadataStreamPayload PelcoDPtzAdapter::handleGetCurrentMetadata(const std::string& /*profileToken*/)
 {
     std::scoped_lock lock(m_mutex);
-    MetadataStreamPayload payload {};
+    MetadataStreamPayload payload { };
     payload.ptzStatus = handleGetStatus();
 
-    AnalyticsFrame frame {};
+    AnalyticsFrame frame { };
     frame.objects = m_detectedObjects;
     payload.analyticsFrame = frame;
 
@@ -1207,10 +1207,10 @@ std::string PelcoDPtzAdapter::handleGetSystemLog(SystemLogType logType)
     return ss.str();
 }
 
-SystemSupportInfo PelcoDPtzAdapter::handleGetSystemSupportInformation()
+SystemSupportInfo PelcoDPtzAdapter::handleGetSystemSupportInfo()
 {
     std::scoped_lock lock(m_mutex);
-    SystemSupportInfo info {};
+    SystemSupportInfo info { };
     const auto uptime
         = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - m_startTime).count();
     info.uptimeSeconds = static_cast<std::uint64_t>(uptime);
@@ -1266,8 +1266,7 @@ std::vector<OnvifCertificate> PelcoDPtzAdapter::handleGetCertificates()
     return m_certificates;
 }
 
-std::optional<CertificateInformation> PelcoDPtzAdapter::handleGetCertificateInformation(
-    const std::string& certificateId)
+std::optional<CertificateInformation> PelcoDPtzAdapter::handleGetCertInformation(const std::string& certificateId)
 {
     std::scoped_lock lock(m_mutex);
     for (const auto& cert : m_certificates) {
@@ -1324,13 +1323,13 @@ bool PelcoDPtzAdapter::handleDeleteCertificate(const std::string& certificateId)
     return m_certificates.size() < origSize;
 }
 
-ClientCertificateMode PelcoDPtzAdapter::handleGetClientCertificateMode()
+ClientCertificateMode PelcoDPtzAdapter::handleGetClientCertMode()
 {
     std::scoped_lock lock(m_mutex);
     return m_clientCertMode;
 }
 
-bool PelcoDPtzAdapter::handleSetClientCertificateMode(ClientCertificateMode mode)
+bool PelcoDPtzAdapter::handleSetClientCertMode(ClientCertificateMode mode)
 {
     std::scoped_lock lock(m_mutex);
     m_clientCertMode = mode;
@@ -1354,7 +1353,7 @@ std::vector<RecordingConfig> PelcoDPtzAdapter::handleGetRecordings()
     return m_recordings;
 }
 
-std::optional<RecordingConfig> PelcoDPtzAdapter::handleGetRecordingConfiguration(const std::string& recordingToken)
+std::optional<RecordingConfig> PelcoDPtzAdapter::handleGetRecordingConfig(const std::string& recordingToken)
 {
     std::scoped_lock lock(m_mutex);
     for (const auto& r : m_recordings) {
@@ -1365,7 +1364,7 @@ std::optional<RecordingConfig> PelcoDPtzAdapter::handleGetRecordingConfiguration
     return std::nullopt;
 }
 
-bool PelcoDPtzAdapter::handleSetRecordingConfiguration(const std::string& recordingToken, const RecordingConfig& config)
+bool PelcoDPtzAdapter::handleSetRecordingConfig(const std::string& recordingToken, const RecordingConfig& config)
 {
     std::scoped_lock lock(m_mutex);
     for (auto& r : m_recordings) {
@@ -1431,7 +1430,7 @@ bool PelcoDPtzAdapter::handleDeleteRecordingJob(const std::string& jobToken)
 RecordingSummary PelcoDPtzAdapter::handleGetRecordingSummary()
 {
     std::scoped_lock lock(m_mutex);
-    RecordingSummary sum {};
+    RecordingSummary sum { };
     sum.numberRecordings = static_cast<int>(m_recordings.size());
     sum.dataFrom = "2026-01-01T00:00:00Z";
     sum.dataUntil = "2026-09-17T00:00:00Z";
@@ -1447,7 +1446,7 @@ std::vector<RecordingTrack> PelcoDPtzAdapter::handleGetTracks(const std::string&
             return r.tracks;
         }
     }
-    return {};
+    return { };
 }
 
 std::string PelcoDPtzAdapter::handleCreateTrack(const std::string& recordingToken, const RecordingTrack& track)
@@ -1463,7 +1462,7 @@ std::string PelcoDPtzAdapter::handleCreateTrack(const std::string& recordingToke
             return t.trackToken;
         }
     }
-    return {};
+    return { };
 }
 
 bool PelcoDPtzAdapter::handleDeleteTrack(const std::string& recordingToken, const std::string& trackToken)
@@ -1502,14 +1501,14 @@ std::string PelcoDPtzAdapter::handleFindRecordings(
     return token;
 }
 
-std::vector<RecordingSearchResult> PelcoDPtzAdapter::handleGetRecordingSearchResults(const std::string& searchToken)
+std::vector<RecordingSearchResult> PelcoDPtzAdapter::handleGetRecordingSearch(const std::string& searchToken)
 {
     std::scoped_lock lock(m_mutex);
     auto it = m_recordingSearches.find(searchToken);
     if (it != m_recordingSearches.end()) {
         return it->second;
     }
-    return {};
+    return { };
 }
 
 std::string PelcoDPtzAdapter::handleFindEvents(
@@ -1536,7 +1535,7 @@ std::vector<RecordedEventResult> PelcoDPtzAdapter::handleGetEventSearchResults(c
     if (it != m_eventSearches.end()) {
         return it->second;
     }
-    return {};
+    return { };
 }
 
 bool PelcoDPtzAdapter::handleEndSearch(const std::string& searchToken)
@@ -1619,8 +1618,7 @@ bool PelcoDPtzAdapter::handleDeleteRules(const std::string& /*configToken*/, con
     return true;
 }
 
-std::vector<AnalyticsModuleDescription> PelcoDPtzAdapter::handleGetSupportedAnalyticsModules(
-    const std::string& /*configToken*/)
+std::vector<AnalyticsModuleDescription> PelcoDPtzAdapter::handleGetSupportedModules(const std::string& /*configToken*/)
 {
     return {
         { "tt:ObjectClassificationModule", { "Classes", "MinConfidence" } },
@@ -1760,7 +1758,7 @@ void PelcoDPtzAdapter::evaluateRulesForObject(const AnalyticsObject& prevObj, co
             }
 
             if (crossed && m_eventPublisher) {
-                OnvifEvent ev {};
+                OnvifEvent ev { };
                 ev.topic = "tns1:RuleEngine/LineDetector/Crossed";
                 ev.sourceName = "Rule";
                 ev.sourceValue = rule.name;
@@ -1815,7 +1813,7 @@ void PelcoDPtzAdapter::evaluateRulesForFrame()
                     if (!track.triggeredRules[rule.name]) {
                         track.triggeredRules[rule.name] = true;
                         if (m_eventPublisher) {
-                            OnvifEvent ev {};
+                            OnvifEvent ev { };
                             ev.topic = "tns1:RuleEngine/FieldDetector/ObjectsInside";
                             ev.sourceName = "Rule";
                             ev.sourceValue = rule.name;
@@ -1836,7 +1834,7 @@ void PelcoDPtzAdapter::evaluateRulesForFrame()
                     if (dwellSec >= rule.dwellTimeSeconds && !track.triggeredRules[rule.name]) {
                         track.triggeredRules[rule.name] = true;
                         if (m_eventPublisher) {
-                            OnvifEvent ev {};
+                            OnvifEvent ev { };
                             ev.topic = "tns1:RuleEngine/LoiteringDetector/DwellTimeExceeded";
                             ev.sourceName = "Rule";
                             ev.sourceValue = rule.name;
@@ -1882,7 +1880,7 @@ bool PelcoDPtzAdapter::handleSetGeoLocation(const LocationEntity& location)
 bool PelcoDPtzAdapter::handleDeleteGeoLocation(const std::string& /*entityToken*/)
 {
     std::scoped_lock lock(m_mutex);
-    m_cameraLocation = LocationEntity {};
+    m_cameraLocation = LocationEntity { };
     return true;
 }
 
@@ -1902,7 +1900,7 @@ std::vector<PrivacyMask> PelcoDPtzAdapter::handleGetMasks(const std::string& con
     if (configToken.empty()) {
         return m_masks;
     }
-    std::vector<PrivacyMask> filtered {};
+    std::vector<PrivacyMask> filtered { };
     for (const auto& m : m_masks) {
         if (m.configurationToken == configToken) {
             filtered.push_back(m);
@@ -1986,13 +1984,13 @@ bool PelcoDPtzAdapter::handleSetVideoSourceMode(
     return found;
 }
 
-RadiometryConfig PelcoDPtzAdapter::handleGetRadiometryConfiguration(const std::string& /*videoSourceToken*/)
+RadiometryConfig PelcoDPtzAdapter::handleGetRadiometryConfig(const std::string& /*videoSourceToken*/)
 {
     std::scoped_lock lock(m_thermalMutex);
     return m_radiometryConfig;
 }
 
-bool PelcoDPtzAdapter::handleSetRadiometryConfiguration(
+bool PelcoDPtzAdapter::handleSetRadiometryConfig(
     const std::string& /*videoSourceToken*/, const RadiometryConfig& config)
 {
     std::scoped_lock lock(m_thermalMutex);
@@ -2027,7 +2025,7 @@ bool PelcoDPtzAdapter::handleSetRadiometryBoxes(
     m_radiometryBoxes = boxes;
 
     // Check high temperature alarms against configured thresholds
-    EventCallback publisher {};
+    EventCallback publisher { };
     {
         std::scoped_lock lockPub(m_mutex);
         publisher = m_eventPublisher;
@@ -2038,7 +2036,7 @@ bool PelcoDPtzAdapter::handleSetRadiometryBoxes(
             if (alarm.enabled && alarm.token == box.token) {
                 if (box.maxTemperature >= alarm.thresholdTemperature) {
                     if (publisher) {
-                        OnvifEvent ev {};
+                        OnvifEvent ev { };
                         ev.topic = "tns1:Thermal/Radiometry/HighTemperatureAlarm";
                         ev.sourceName = "BoxToken";
                         ev.sourceValue = box.token;

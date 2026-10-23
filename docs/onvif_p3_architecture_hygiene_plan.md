@@ -502,10 +502,10 @@ const auto validSeconds = static_cast<std::int64_t>(daysValid) * kSecondsPerDay;
 - Fix signed integer overflow in validity period calculations (INT32-C).
 - Add unit tests in `TestOnvifCryptoRaII.cpp` verifying zero leaks on error paths.
 
-### Phase 2: Identifier Renaming (< 30 Chars) & API Hygiene
-- Apply the 44 renaming mappings across `OnvifClient.h/.cpp`, `OnvifServerTypes.h`, `PelcoDPtzAdapter.h/.cpp`, and `OnvifServer.cpp`.
-- Update all unit and integration test call sites.
-- Verify through automated script that zero identifiers in `libs/Onvif` (excluding third-party headers and test macros) exceed 29 characters.
+### Phase 2: Identifier Renaming (< 30 Chars) & API Hygiene ([Detailed Plan](onvif_p3_phase2_identifier_renaming_plan.md)) - COMPLETED
+- [x] Apply the 44 renaming mappings across `OnvifClient.h/.cpp`, `OnvifServerTypes.h`, `PelcoDPtzAdapter.h/.cpp`, and `OnvifServer.cpp`.
+- [x] Update all unit and integration test call sites.
+- [x] Verify through automated script that zero identifiers in `libs/Onvif` (excluding third-party headers and test macros) exceed 29 characters.
 
 ### Phase 3: ScopeStore & Thread-Safe State Synchronization
 - Implement `libs/Onvif/ScopeStore.h` and `ScopeStore.cpp` using `std::shared_mutex`.

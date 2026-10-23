@@ -77,7 +77,7 @@ public:
 
     PtzStatus handleGetStatus() override
     {
-        PtzStatus st {};
+        PtzStatus st { };
         st.pan = 180.0;
         st.tilt = 45.0;
         st.zoom = 0.5;
@@ -99,9 +99,9 @@ public:
     bool lastStopZ { false };
     int stopCount { 0 };
 
-    std::string lastGotoPreset {};
-    std::string lastRemovePreset {};
-    std::vector<PtzPreset> presets {};
+    std::string lastGotoPreset { };
+    std::string lastRemovePreset { };
+    std::vector<PtzPreset> presets { };
 };
 
 class MockImagingHandler : public IImagingHandler {
@@ -129,7 +129,7 @@ public:
         stopFocusCount++;
     }
 
-    ImagingSettings settings {};
+    ImagingSettings settings { };
     int setSettingsCount { 0 };
     float lastFocusSpeed { 0.0f };
     int moveFocusCount { 0 };
@@ -475,7 +475,7 @@ TEST(OnvifServerTest, ProfileTImagingAndEvents)
         EXPECT_TRUE(subUrl.find("/onvif/events/subscription/") != std::string::npos);
 
         // Publish mock motion detection event
-        OnvifEvent motionEv {};
+        OnvifEvent motionEv { };
         motionEv.topic = "tns1:RuleEngine/CellMotionDetector/Motion";
         motionEv.sourceName = "VideoSourceToken";
         motionEv.sourceValue = "VideoSource_1";
@@ -571,7 +571,7 @@ TEST(OnvifServerTest, PelcoDPtzAdapter)
     adapter.handleStopFocus("VideoSource_1");
 
     // Imaging Settings
-    ImagingSettings imgSettings {};
+    ImagingSettings imgSettings { };
     imgSettings.brightness = 75.0f;
     imgSettings.backlightCompensation = true;
     EXPECT_TRUE(adapter.handleSetImagingSettings("VideoSource_1", imgSettings));
@@ -1784,7 +1784,7 @@ TEST(OnvifServerTest, MetadataStreamsAndMaintenanceExtensions)
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
 
     // Populate analytics objects
-    AnalyticsObject carObj {};
+    AnalyticsObject carObj { };
     carObj.objectId = 101;
     carObj.className = "Vehicle";
     carObj.confidence = 0.95f;
@@ -1845,7 +1845,7 @@ TEST(OnvifServerTest, MetadataStreamsAndMaintenanceExtensions)
         EXPECT_TRUE(res && res->status == 200);
         EXPECT_TRUE(res->body.find("SetMetadataConfigurationResponse") != std::string::npos);
 
-        const auto cfg = adapter->handleGetMetadataConfiguration("MetadataConfig_1");
+        const auto cfg = adapter->handleGetMetadataConfig("MetadataConfig_1");
         EXPECT_TRUE(cfg.has_value());
         EXPECT_TRUE(cfg->name == "UpdatedMetadata");
         EXPECT_TRUE(cfg->eventsEnabled == true);
@@ -3014,7 +3014,7 @@ TEST(OnvifServerTest, ProfileTPrivacyMasksAndVideoSourceModes)
         EXPECT_TRUE(masks.size() == 1U);
         EXPECT_TRUE(masks[0].token == "Mask_1");
 
-        PrivacyMask clientMask {};
+        PrivacyMask clientMask { };
         clientMask.token = "Mask_Client";
         clientMask.configurationToken = "VideoSource_1";
         clientMask.type = MaskType::Color;
@@ -3166,7 +3166,7 @@ TEST(OnvifServerTest, ThermalServiceAndRadiometry)
         EXPECT_TRUE(setRes && setRes->status == 200);
         EXPECT_TRUE(setRes->body.find("SetRadiometryConfigurationResponse") != std::string::npos);
 
-        const auto cfg = adapter->handleGetRadiometryConfiguration("VideoSource_1");
+        const auto cfg = adapter->handleGetRadiometryConfig("VideoSource_1");
         EXPECT_TRUE(std::fabs(cfg.emissivity - 0.96f) < 0.001f);
         EXPECT_TRUE(std::fabs(cfg.distance - 12.5f) < 0.001f);
     }
@@ -3221,7 +3221,7 @@ TEST(OnvifServerTest, ThermalServiceAndRadiometry)
 
     // 7. Radiometry Alarm Threshold Event verification via SetRadiometryBoxes
     {
-        RadiometryBox testBox {};
+        RadiometryBox testBox { };
         testBox.token = "Box_1";
         testBox.label = "Overheat Zone";
         testBox.minTemperature = 30.0f;
@@ -3260,7 +3260,7 @@ TEST(OnvifServerTest, ThermalServiceAndRadiometry)
         EXPECT_TRUE(onvifClient.setColorPalette("VideoSource_1", "Rainbow"));
 
         // Spots
-        RadiometrySpot spot1 {};
+        RadiometrySpot spot1 { };
         spot1.token = "Spot_Client1";
         spot1.label = "Bearing";
         spot1.position = { 0.4f, 0.6f };
@@ -3273,7 +3273,7 @@ TEST(OnvifServerTest, ThermalServiceAndRadiometry)
         EXPECT_TRUE(std::fabs(spots[0].temperature - 41.5f) < 0.001f);
 
         // Boxes
-        RadiometryBox box1 {};
+        RadiometryBox box1 { };
         box1.token = "Box_Client1";
         box1.label = "Transformer";
         box1.topLeft = { 0.2f, 0.2f };

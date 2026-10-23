@@ -131,11 +131,10 @@ public:
     // IMetadataHandler Implementation (Profile T & M)
     // =========================================================================
 
-    [[nodiscard]] std::vector<MetadataConfiguration> handleGetMetadataConfigurations() override;
-    [[nodiscard]] std::optional<MetadataConfiguration> handleGetMetadataConfiguration(
-        const std::string& token) override;
-    [[nodiscard]] bool handleSetMetadataConfiguration(const MetadataConfiguration& config) override;
-    [[nodiscard]] MetadataConfigurationOptions handleGetMetadataConfigurationOptions(
+    [[nodiscard]] std::vector<MetadataConfiguration> handleGetMetadataConfigs() override;
+    [[nodiscard]] std::optional<MetadataConfiguration> handleGetMetadataConfig(const std::string& token) override;
+    [[nodiscard]] bool handleSetMetadataConfig(const MetadataConfiguration& config) override;
+    [[nodiscard]] MetadataConfigurationOptions handleGetMetaConfigOptions(
         const std::string& configToken, const std::string& profileToken = "") override;
     [[nodiscard]] MetadataStreamPayload handleGetCurrentMetadata(const std::string& profileToken = "") override;
 
@@ -155,13 +154,13 @@ public:
     // =========================================================================
 
     [[nodiscard]] std::string handleGetSystemLog(SystemLogType logType) override;
-    [[nodiscard]] SystemSupportInfo handleGetSystemSupportInformation() override;
+    [[nodiscard]] SystemSupportInfo handleGetSystemSupportInfo() override;
     [[nodiscard]] std::string handleGetSystemBackup() override;
     [[nodiscard]] bool handleRestoreSystem(const std::string& backupData) override;
     [[nodiscard]] std::string handleGetEndpointReference() override;
 
     [[nodiscard]] std::vector<OnvifCertificate> handleGetCertificates() override;
-    [[nodiscard]] std::optional<CertificateInformation> handleGetCertificateInformation(
+    [[nodiscard]] std::optional<CertificateInformation> handleGetCertInformation(
         const std::string& certificateId) override;
     [[nodiscard]] OnvifCertificate handleCreateCertificate(
         const std::string& certificateId, const std::string& subject, int daysValid = 365) override;
@@ -169,8 +168,8 @@ public:
         const std::string& certificateId, const std::string& subject) override;
     [[nodiscard]] bool handleLoadCertificates(const std::vector<OnvifCertificate>& certificates) override;
     [[nodiscard]] bool handleDeleteCertificate(const std::string& certificateId) override;
-    [[nodiscard]] ClientCertificateMode handleGetClientCertificateMode() override;
-    [[nodiscard]] bool handleSetClientCertificateMode(ClientCertificateMode mode) override;
+    [[nodiscard]] ClientCertificateMode handleGetClientCertMode() override;
+    bool handleSetClientCertMode(ClientCertificateMode mode) override;
 
     [[nodiscard]] std::optional<LocationEntity> handleGetGeoLocation(const std::string& entityToken) override;
     [[nodiscard]] bool handleSetGeoLocation(const LocationEntity& location) override;
@@ -188,10 +187,8 @@ public:
 
     [[nodiscard]] std::string handleCreateRecording(const RecordingConfig& config) override;
     [[nodiscard]] std::vector<RecordingConfig> handleGetRecordings() override;
-    [[nodiscard]] std::optional<RecordingConfig> handleGetRecordingConfiguration(
-        const std::string& recordingToken) override;
-    [[nodiscard]] bool handleSetRecordingConfiguration(
-        const std::string& recordingToken, const RecordingConfig& config) override;
+    [[nodiscard]] std::optional<RecordingConfig> handleGetRecordingConfig(const std::string& recordingToken) override;
+    bool handleSetRecordingConfig(const std::string& recordingToken, const RecordingConfig& config) override;
     [[nodiscard]] bool handleDeleteRecording(const std::string& recordingToken) override;
     [[nodiscard]] std::vector<RecordingJob> handleGetRecordingJobs() override;
     [[nodiscard]] std::string handleCreateRecordingJob(const RecordingJob& job) override;
@@ -209,8 +206,7 @@ public:
 
     [[nodiscard]] std::string handleFindRecordings(
         const std::string& scope, int maxMatches, const std::string& keepAliveTime) override;
-    [[nodiscard]] std::vector<RecordingSearchResult> handleGetRecordingSearchResults(
-        const std::string& searchToken) override;
+    [[nodiscard]] std::vector<RecordingSearchResult> handleGetRecordingSearch(const std::string& searchToken) override;
     [[nodiscard]] std::string handleFindEvents(
         const std::string& startUtc, const std::string& endUtc, int maxMatches) override;
     [[nodiscard]] std::vector<RecordedEventResult> handleGetEventSearchResults(const std::string& searchToken) override;
@@ -236,7 +232,7 @@ public:
     bool handleModifyRules(const std::string& configToken, const std::vector<AnalyticsRule>& rules) override;
     bool handleDeleteRules(const std::string& configToken, const std::vector<std::string>& ruleNames) override;
 
-    [[nodiscard]] std::vector<AnalyticsModuleDescription> handleGetSupportedAnalyticsModules(
+    [[nodiscard]] std::vector<AnalyticsModuleDescription> handleGetSupportedModules(
         const std::string& configToken) override;
     [[nodiscard]] std::vector<AnalyticsModule> handleGetAnalyticsModules(const std::string& configToken) override;
     bool handleCreateAnalyticsModules(
@@ -269,8 +265,8 @@ public:
     // IThermalHandler Implementation (ver10/thermal/wsdl)
     // =========================================================================
 
-    [[nodiscard]] RadiometryConfig handleGetRadiometryConfiguration(const std::string& videoSourceToken) override;
-    bool handleSetRadiometryConfiguration(const std::string& videoSourceToken, const RadiometryConfig& config) override;
+    [[nodiscard]] RadiometryConfig handleGetRadiometryConfig(const std::string& videoSourceToken) override;
+    bool handleSetRadiometryConfig(const std::string& videoSourceToken, const RadiometryConfig& config) override;
     [[nodiscard]] std::vector<RadiometrySpot> handleGetRadiometrySpots(const std::string& videoSourceToken) override;
     bool handleSetRadiometrySpots(
         const std::string& videoSourceToken, const std::vector<RadiometrySpot>& spots) override;
@@ -291,33 +287,33 @@ private:
     void cancelAutoStop();
 
     std::atomic<bool> m_timerRunning { false };
-    std::condition_variable m_timerCv {};
-    std::mutex m_timerMutex {};
-    std::thread m_timerThread {};
+    std::condition_variable m_timerCv { };
+    std::mutex m_timerMutex { };
+    std::thread m_timerThread { };
     std::optional<std::chrono::steady_clock::time_point> m_autoStopDeadline { std::nullopt };
 
     std::shared_ptr<PelcoD::PelcoDDevice> m_device;
-    std::shared_ptr<PelcoD::PatrolController> m_sharedPatrol {};
+    std::shared_ptr<PelcoD::PatrolController> m_sharedPatrol { };
     PelcoD::PatrolController* m_patrol { nullptr };
 
-    mutable std::mutex m_mutex {};
-    std::map<std::string, PtzPreset> m_presets {};
+    mutable std::mutex m_mutex { };
+    std::map<std::string, PtzPreset> m_presets { };
     std::uint32_t m_nextPresetId { 1 };
-    std::map<std::string, PresetTour> m_tours {};
+    std::map<std::string, PresetTour> m_tours { };
     std::uint32_t m_nextTourId { 1 };
     std::string m_persistencePath { "onvif_tours.json" };
     std::atomic<bool> m_isMoving { false };
 
-    EventCallback m_eventPublisher {};
-    PelcoD::Connection m_statusConn {};
+    EventCallback m_eventPublisher { };
+    PelcoD::Connection m_statusConn { };
     std::uint8_t m_lastAlarms { 0x00U };
-    ImagingSettings m_imagingSettings {};
+    ImagingSettings m_imagingSettings { };
     std::string m_homePresetToken { "1" };
     float m_homePan { 0.0f };
     float m_homeTilt { 0.0f };
     float m_homeZoom { 0.0f };
     bool m_hasHomeCoordinates { false };
-    FocusStatus20 m_focusStatus {};
+    FocusStatus20 m_focusStatus { };
     std::vector<ImagingPreset> m_imagingPresets { { "Preset_Clear", "Clear", "Clear Daylight" },
         { "Preset_BW", "B/W", "Night Vision B/W" } };
     std::string m_currentImagingPresetToken { "Preset_Clear" };
@@ -328,46 +324,46 @@ private:
 
     std::vector<MetadataConfiguration> m_metadataConfigs { { "MetadataConfig_1", "DefaultMetadataConfig", 1, "PT60S",
         true, true, true, true } };
-    std::vector<AnalyticsObject> m_detectedObjects {};
+    std::vector<AnalyticsObject> m_detectedObjects { };
     std::chrono::steady_clock::time_point m_startTime { std::chrono::steady_clock::now() };
 
-    std::vector<OnvifCertificate> m_certificates {};
+    std::vector<OnvifCertificate> m_certificates { };
     ClientCertificateMode m_clientCertMode { ClientCertificateMode::Off };
-    std::vector<RecordingConfig> m_recordings {};
-    std::vector<RecordingJob> m_recordingJobs {};
-    ReplayConfiguration m_replayConfig {};
-    std::map<std::string, std::vector<RecordingSearchResult>> m_recordingSearches {};
-    std::map<std::string, std::vector<RecordedEventResult>> m_eventSearches {};
+    std::vector<RecordingConfig> m_recordings { };
+    std::vector<RecordingJob> m_recordingJobs { };
+    ReplayConfiguration m_replayConfig { };
+    std::map<std::string, std::vector<RecordingSearchResult>> m_recordingSearches { };
+    std::map<std::string, std::vector<RecordedEventResult>> m_eventSearches { };
     std::uint32_t m_nextSearchSessionId { 1 };
 
     void evaluateRulesForObject(const AnalyticsObject& prevObj, const AnalyticsObject& currentObj);
     void evaluateRulesForFrame();
 
     struct ObjectTrackState {
-        AnalyticsObject lastObject {};
-        std::chrono::steady_clock::time_point firstSeen {};
-        std::chrono::steady_clock::time_point lastSeen {};
-        std::map<std::string, bool> triggeredRules {}; // ruleName -> bool
+        AnalyticsObject lastObject { };
+        std::chrono::steady_clock::time_point firstSeen { };
+        std::chrono::steady_clock::time_point lastSeen { };
+        std::map<std::string, bool> triggeredRules { }; // ruleName -> bool
     };
 
-    std::vector<AnalyticsRule> m_rules {};
-    std::vector<AnalyticsModule> m_analyticsModules {};
-    std::map<int, ObjectTrackState> m_objectTracks {};
+    std::vector<AnalyticsRule> m_rules { };
+    std::vector<AnalyticsModule> m_analyticsModules { };
+    std::map<int, ObjectTrackState> m_objectTracks { };
 
     LocationEntity m_cameraLocation { "Device", "Location_1", true, { 37.7749, -122.4194, 10.0 }, { 0.0, 0.0, 0.0 } };
 
-    mutable std::mutex m_maskMutex {};
+    mutable std::mutex m_maskMutex { };
     std::vector<PrivacyMask> m_masks { { "Mask_1", "VideoSource_1",
         { { 0.1f, 0.1f }, { 0.3f, 0.1f }, { 0.3f, 0.3f }, { 0.1f, 0.3f } }, MaskType::Color, { 0, 0, 0, "RGB" },
         true } };
-    MaskOptions m_maskOptions {};
+    MaskOptions m_maskOptions { };
     std::uint32_t m_nextMaskId { 2 };
 
-    mutable std::mutex m_videoSourceModeMutex {};
-    std::vector<VideoSourceMode> m_videoSourceModes {};
+    mutable std::mutex m_videoSourceModeMutex { };
+    std::vector<VideoSourceMode> m_videoSourceModes { };
 
-    mutable std::mutex m_thermalMutex {};
-    RadiometryConfig m_radiometryConfig {};
+    mutable std::mutex m_thermalMutex { };
+    RadiometryConfig m_radiometryConfig { };
     std::vector<RadiometrySpot> m_radiometrySpots { { "Spot_1", { 0.5f, 0.5f }, "Center Spot", 24.5f } };
     std::vector<RadiometryBox> m_radiometryBoxes { { "Box_1", { 0.2f, 0.2f }, { 0.8f, 0.8f }, "Central Target Zone",
         21.0f, 36.8f, 28.4f } };

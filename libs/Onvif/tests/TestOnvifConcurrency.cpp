@@ -30,11 +30,11 @@ std::atomic<int> g_concurrencyPort { 19550 };
 /// @return Populated server configuration.
 [[nodiscard]] Onvif::OnvifServerConfig makeConcurrencyConfig(const int port)
 {
-    Onvif::OnvifServerConfig config {};
+    Onvif::OnvifServerConfig config { };
     config.bindAddress = "127.0.0.1";
     config.port = port;
 
-    Onvif::OnvifUser adminUser {};
+    Onvif::OnvifUser adminUser { };
     adminUser.username = "admin";
     adminUser.password = "Admin_Test_1234!";
     adminUser.level = Onvif::OnvifUserLevel::Administrator;
@@ -82,12 +82,12 @@ public:
 
     [[nodiscard]] std::vector<Onvif::PtzPreset> handleGetPresets() override
     {
-        return {};
+        return { };
     }
 
     [[nodiscard]] Onvif::PtzStatus handleGetStatus() override
     {
-        return {};
+        return { };
     }
 
     std::atomic<std::size_t> moveCount { 0U };
@@ -114,9 +114,9 @@ public:
         return "{\"mock_backup\":true}";
     }
 
-    [[nodiscard]] Onvif::SystemSupportInfo handleGetSystemSupportInformation() override
+    [[nodiscard]] Onvif::SystemSupportInfo handleGetSystemSupportInfo() override
     {
-        Onvif::SystemSupportInfo info {};
+        Onvif::SystemSupportInfo info { };
         info.rawDiagnostics = "Mock Diagnostics";
         return info;
     }
@@ -145,7 +145,7 @@ TEST(TestOnvifConcurrency, ConcurrentHandlerAccess)
 
     constexpr std::size_t kSetterThreads { 4U };
     constexpr std::size_t kGetterThreads { 4U };
-    std::vector<std::thread> threads {};
+    std::vector<std::thread> threads { };
     threads.reserve(kSetterThreads + kGetterThreads);
 
     // Threads continuously swapping handlers
@@ -210,7 +210,7 @@ TEST(TestOnvifConcurrency, ConcurrentScopeModifications)
     std::atomic<std::size_t> completedRequests { 0U };
 
     constexpr std::size_t kClientThreads { 4U };
-    std::vector<std::thread> threads {};
+    std::vector<std::thread> threads { };
     threads.reserve(kClientThreads);
 
     // Threads issuing AddScopes, RemoveScopes, and GetScopes concurrently
@@ -314,7 +314,7 @@ TEST(TestOnvifConcurrency, ConcurrentDiagnosticReads)
                                     "  </SOAP-ENV:Body>\r\n"
                                     "</SOAP-ENV:Envelope>";
 
-    std::vector<std::thread> workers {};
+    std::vector<std::thread> workers { };
     workers.reserve(3U);
 
     // Reader 1: GetSystemBackup

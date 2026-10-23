@@ -72,7 +72,7 @@ namespace {
     /// @return Serialized XML string for wsnt:NotificationMessage.
     [[nodiscard]] std::string buildNotificationMsg(const OnvifEvent& ev)
     {
-        std::ostringstream ss {};
+        std::ostringstream ss { };
         const std::string op { ev.propertyOperation.empty() ? "Changed" : ev.propertyOperation };
         ss << "      <wsnt:NotificationMessage>\r\n"
            << "        <wsnt:Topic Dialect=\"http://www.onvif.org/ver10/tev/topicExpression/ConcreteSet\" "
@@ -111,7 +111,7 @@ namespace {
         const std::string msgUuid { generateRandomUuid() };
         const std::string notifXml { buildNotificationMsg(ev) };
 
-        std::ostringstream ss {};
+        std::ostringstream ss { };
         ss << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
            << "<SOAP-ENV:Envelope xmlns:SOAP-ENV=\"http://www.w3.org/2003/05/soap-envelope\" "
            << "xmlns:wsa=\"http://www.w3.org/2005/08/addressing\" "
@@ -265,7 +265,7 @@ namespace {
     std::string formatIso8601Utc(const std::chrono::system_clock::time_point& tp)
     {
         const std::time_t t = std::chrono::system_clock::to_time_t(tp);
-        std::tm tmUtc {};
+        std::tm tmUtc { };
 #ifdef _WIN32
         gmtime_s(&tmUtc, &t);
 #else
@@ -314,7 +314,7 @@ namespace {
 
         int rawSec { 0 };
         const auto res { std::from_chars(isoDuration.data(), isoDuration.data() + isoDuration.size(), rawSec) };
-        if (res.ec == std::errc {} && rawSec >= 0) {
+        if (res.ec == std::errc { } && rawSec >= 0) {
             return std::clamp(rawSec, 0, 10);
         }
 
@@ -323,7 +323,7 @@ namespace {
 
     [[nodiscard]] OnvifUser parseOnvifUser(const pugi::xml_node& uNode)
     {
-        OnvifUser u {};
+        OnvifUser u { };
         const auto un = uNode.select_node(".//*[local-name()='Username']").node();
         if (un) {
             u.username = un.text().as_string();
@@ -341,7 +341,7 @@ namespace {
 
     [[nodiscard]] PrivacyMask parsePrivacyMask(const pugi::xml_node& maskNode)
     {
-        PrivacyMask mask {};
+        PrivacyMask mask { };
         if (!maskNode) {
             return mask;
         }
@@ -435,7 +435,7 @@ namespace {
     {
         std::vector<AnalyticsRule> rules;
         for (auto rNode : reqNode.select_nodes(".//*[local-name()='Rule']")) {
-            AnalyticsRule rule {};
+            AnalyticsRule rule { };
             rule.name = rNode.node().attribute("Name").as_string();
             rule.type = rNode.node().attribute("Type").as_string();
             for (auto si : rNode.node().select_nodes(".//*[local-name()='SimpleItem']")) {
@@ -1023,7 +1023,7 @@ void OnvifServer::publishEvent(const OnvifEvent& event)
         ev.propertyOperation = "Changed";
     }
 
-    std::vector<std::string> pushUrls {};
+    std::vector<std::string> pushUrls { };
     if (m_subManager) {
         m_subManager->publishEvent(ev, pushUrls);
     }
@@ -1150,8 +1150,8 @@ void OnvifServer::setupRoutes()
             return;
         }
 
-        std::vector<std::uint8_t> jpegData {};
-        SnapshotProvider provider {};
+        std::vector<std::uint8_t> jpegData { };
+        SnapshotProvider provider { };
         {
             std::lock_guard<std::mutex> lock(m_snapshotMutex);
             provider = m_snapshotProvider;
@@ -1179,7 +1179,7 @@ std::optional<OnvifServer::SoapRequest> OnvifServer::parseSoapRequest(
     }
 
     const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
-    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node {};
+    const pugi::xml_node reqNode = bodyNode ? bodyNode.first_child() : pugi::xml_node { };
     const std::string opName = reqNode ? reqNode.name() : "";
     if (m_logCallback) {
         m_logCallback(std::string(serviceName), opName, req.remote_addr);
@@ -1216,7 +1216,7 @@ bool OnvifServer::authorize(const httplib::Request& req, httplib::Response& res,
     }
 
     const std::string authorization { req.get_header_value("Authorization") };
-    AuthInput input {};
+    AuthInput input { };
     input.method = req.method;
     input.uri = req.target.empty() ? req.path : req.target;
     input.authorization = authorization;
@@ -1247,7 +1247,7 @@ bool OnvifServer::authorizeHttp(const httplib::Request& req, httplib::Response& 
         return false;
     }
     const std::string authorization { req.get_header_value("Authorization") };
-    AuthInput input {};
+    AuthInput input { };
     input.method = req.method;
     input.uri = req.target.empty() ? req.path : req.target;
     input.authorization = authorization;
@@ -1347,7 +1347,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
     if (isOp(opName, "GetSystemDateAndTime")) {
         const auto now = std::chrono::system_clock::now();
         const std::time_t nowTime = std::chrono::system_clock::to_time_t(now);
-        std::tm utcTm {};
+        std::tm utcTm { };
 #ifdef _WIN32
         gmtime_s(&utcTm, &nowTime);
 #else
@@ -1940,7 +1940,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
     } else if (isOp(opName, "GetNetworkDefaultGateway")) {
         std::string gw;
         if (deviceHandler) {
-            gw = deviceHandler->handleGetNetworkDefaultGateway();
+            gw = deviceHandler->handleGetDefaultGateway();
         } else {
             std::scoped_lock lock(m_deviceMutex);
             gw = m_internalGateway;
@@ -1954,7 +1954,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         const auto gwNode = doc.select_node(".//*[local-name()='IPv4Address']").node();
         std::string gw = gwNode ? gwNode.text().as_string() : "";
         if (deviceHandler) {
-            deviceHandler->handleSetNetworkDefaultGateway(gw);
+            deviceHandler->handleSetDefaultGateway(gw);
         }
         {
             std::scoped_lock lock(m_deviceMutex);
@@ -2130,7 +2130,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         SystemSupportInfo info;
         const auto dev = getDeviceManagementHandler();
         if (dev) {
-            info = dev->handleGetSystemSupportInformation();
+            info = dev->handleGetSystemSupportInfo();
         }
         if (info.rawDiagnostics.empty()) {
             const auto uptime
@@ -2237,10 +2237,10 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
     } else if (isOp(opName, "GetCertificateInformation")) {
         const pugi::xml_node idNode = reqNode.select_node(".//*[local-name()='CertificateID']").node();
         const std::string certId = idNode ? idNode.text().as_string() : "";
-        CertificateInformation info {};
+        CertificateInformation info { };
         bool found = false;
         if (deviceHandler) {
-            const auto opt = deviceHandler->handleGetCertificateInformation(certId);
+            const auto opt = deviceHandler->handleGetCertInformation(certId);
             if (opt.has_value()) {
                 info = *opt;
                 found = true;
@@ -2285,7 +2285,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
             : "Cert_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
         const std::string subj = subjNode ? subjNode.text().as_string() : "CN=" + m_config.deviceName;
 
-        OnvifCertificate newCert {};
+        OnvifCertificate newCert { };
         if (deviceHandler) {
             newCert = deviceHandler->handleCreateCertificate(certId, subj, 365);
         } else {
@@ -2317,7 +2317,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
         const std::string certId = idNode ? idNode.text().as_string() : "";
         const std::string subj = subjNode ? subjNode.text().as_string() : "CN=" + m_config.deviceName;
 
-        Pkcs10Request csr {};
+        Pkcs10Request csr { };
         if (deviceHandler) {
             csr = deviceHandler->handleGetPkcs10Request(certId, subj);
         } else {
@@ -2383,7 +2383,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
     } else if (isOp(opName, "GetClientCertificateMode")) {
         ClientCertificateMode mode = m_internalClientCertMode;
         if (deviceHandler) {
-            mode = deviceHandler->handleGetClientCertificateMode();
+            mode = deviceHandler->handleGetClientCertMode();
         }
         body << "    <tds:GetClientCertificateModeResponse>\r\n"
              << "      <tds:ClientCertificateMode>" << clientCertificateModeToString(mode)
@@ -2392,9 +2392,9 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
     } else if (isOp(opName, "SetClientCertificateMode")) {
         const pugi::xml_node modeNode = reqNode.select_node(".//*[local-name()='ClientCertificateMode']").node();
         const std::string modeStr = modeNode ? modeNode.text().as_string() : "Off";
-        const ClientCertificateMode mode = clientCertificateModeFromString(modeStr);
+        const ClientCertificateMode mode = clientCertModeFromString(modeStr);
         if (deviceHandler) {
-            deviceHandler->handleSetClientCertificateMode(mode);
+            deviceHandler->handleSetClientCertMode(mode);
         }
         {
             std::scoped_lock lock(m_certMutex);
@@ -2425,7 +2425,7 @@ void OnvifServer::handleDeviceService(const httplib::Request& req, httplib::Resp
              << "    </tds:GetGeoLocationResponse>\r\n";
     } else if (isOp(opName, "SetGeoLocation")) {
         const pugi::xml_node locNode = reqNode.select_node(".//*[local-name()='Location']").node();
-        LocationEntity loc {};
+        LocationEntity loc { };
         if (locNode) {
             loc.entity = locNode.attribute("Entity").as_string("Device");
             loc.token = locNode.attribute("Token").as_string("Location_1");
@@ -3368,7 +3368,7 @@ void OnvifServer::processMetadataRequest(
     if (isOp(opName, "GetMetadataConfigurations") || isOp(opName, "GetCompatibleMetadataConfigurations")) {
         std::vector<MetadataConfiguration> configs;
         if (metadataHandler) {
-            configs = metadataHandler->handleGetMetadataConfigurations();
+            configs = metadataHandler->handleGetMetadataConfigs();
         } else {
             std::scoped_lock lock(m_metadataMutex);
             configs = m_internalMetadataConfigs;
@@ -3386,7 +3386,7 @@ void OnvifServer::processMetadataRequest(
         MetadataConfiguration found;
         bool hasFound = false;
         if (metadataHandler) {
-            const auto list = metadataHandler->handleGetMetadataConfigurations();
+            const auto list = metadataHandler->handleGetMetadataConfigs();
             const auto it = std::find_if(list.begin(), list.end(), [&](const auto& c) { return c.token == token; });
             if (it != list.end()) {
                 found = *it;
@@ -3446,7 +3446,7 @@ void OnvifServer::processMetadataRequest(
 
         bool ok = false;
         if (metadataHandler) {
-            ok = metadataHandler->handleSetMetadataConfiguration(cfg);
+            ok = metadataHandler->handleSetMetadataConfig(cfg);
         }
         if (!ok) {
             std::scoped_lock lock(m_metadataMutex);
@@ -3465,7 +3465,7 @@ void OnvifServer::processMetadataRequest(
 
         MetadataConfigurationOptions opts;
         if (metadataHandler) {
-            opts = metadataHandler->handleGetMetadataConfigurationOptions(token, "");
+            opts = metadataHandler->handleGetMetaConfigOptions(token, "");
         } else {
             opts.ptzStatusSupported = true;
             opts.analyticsSupported = true;
@@ -4070,7 +4070,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         std::optional<float> pan = std::nullopt;
         std::optional<float> tilt = std::nullopt;
         std::optional<float> zoom = std::nullopt;
-        std::string spaceUri {};
+        std::string spaceUri { };
 
         const pugi::xml_node ptNode
             = doc.select_node("//*[local-name()='Position']/*[local-name()='PanTilt'] | //*[local-name()='PanTilt']")
@@ -4121,7 +4121,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
             return;
         }
 
-        GeoMoveTarget target {};
+        GeoMoveTarget target { };
         pugi::xml_node targetNode = doc.select_node("//*[local-name()='Target']").node();
         pugi::xml_node geoNode
             = doc.select_node(
@@ -4181,7 +4181,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
         std::optional<float> tilt = std::nullopt;
         std::optional<float> zoom = std::nullopt;
         float speed = 1.0f;
-        std::string spaceUri {};
+        std::string spaceUri { };
 
         const pugi::xml_node ptNode
             = doc.select_node("//*[local-name()='Translation']/*[local-name()='PanTilt'] | //*[local-name()='PanTilt']")
@@ -4649,7 +4649,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
             return;
         }
 
-        PtzStatus status {};
+        PtzStatus status { };
         if (ptzHandler) {
             status = ptzHandler->handleGetStatus();
         }
@@ -4756,7 +4756,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
             sendSoapResponse(res, SoapFault::noToken(), 400);
             return;
         }
-        PresetTour tour {};
+        PresetTour tour { };
         tour.token = tourNode.attribute("token").as_string();
         if (tour.token.empty()) {
             sendSoapResponse(res, SoapFault::noToken(), 400);
@@ -4772,7 +4772,7 @@ void OnvifServer::handlePtzService(const httplib::Request& req, httplib::Respons
 
         const auto spotNodes = tourNode.select_nodes("./*[local-name()='TourSpot']");
         for (const auto& itSpot : spotNodes) {
-            PresetTourSpot spot {};
+            PresetTourSpot spot { };
             const pugi::xml_node pTok = itSpot.node().select_node(".//*[local-name()='PresetToken']").node();
             if (pTok)
                 spot.presetToken = pTok.text().as_string();
@@ -5426,9 +5426,9 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
         const pugi::xml_node limitNode = doc.select_node("//*[local-name()='MessageLimit']").node();
         const int limit = limitNode ? std::clamp(limitNode.text().as_int(10), 1, 100) : 10;
 
-        std::vector<OnvifEvent> pulledEvents {};
-        std::string curTime {};
-        std::string termTime {};
+        std::vector<OnvifEvent> pulledEvents { };
+        std::string curTime { };
+        std::string termTime { };
         const bool ok
             = m_subManager->pullMessages(subId, limit, timeoutSecs, pulledEvents, curTime, termTime, m_running);
         if (!ok) {
@@ -5465,7 +5465,7 @@ void OnvifServer::handleSubscriptionService(const httplib::Request& req, httplib
         const pugi::xml_node termNode = doc.select_node("//*[local-name()='TerminationTime']").node();
         const std::string termStr = termNode ? termNode.text().as_string() : "";
 
-        std::string newTermTime {};
+        std::string newTermTime { };
         const bool renewed = m_subManager->renewSub(subId, termStr, newTermTime);
         if (!renewed) {
             sendSoapResponse(res, SoapFault::resourceUnknown("Subscription does not exist or has expired"), 400);
@@ -5673,7 +5673,7 @@ void OnvifServer::handleAnalyticsService(const httplib::Request& req, httplib::R
             = reqNode.select_node(".//*[local-name()='ConfigurationToken']").node().text().as_string();
         std::vector<AnalyticsModuleDescription> descs;
         if (analyticsHandler) {
-            descs = analyticsHandler->handleGetSupportedAnalyticsModules(configToken);
+            descs = analyticsHandler->handleGetSupportedModules(configToken);
         }
         if (descs.empty()) {
             descs = {
@@ -5880,7 +5880,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
         RecordingConfig rec;
         bool found = false;
         if (recordingHandler) {
-            const auto opt = recordingHandler->handleGetRecordingConfiguration(token);
+            const auto opt = recordingHandler->handleGetRecordingConfig(token);
             if (opt.has_value()) {
                 rec = *opt;
                 found = true;
@@ -5928,7 +5928,7 @@ void OnvifServer::handleRecordingService(const httplib::Request& req, httplib::R
                 rec.maximumRetentionTime = maxRetNode.text().as_string();
         }
         if (recordingHandler) {
-            recordingHandler->handleSetRecordingConfiguration(token, rec);
+            recordingHandler->handleSetRecordingConfig(token, rec);
         }
         {
             std::scoped_lock lock(m_recordingMutex);
@@ -6167,7 +6167,7 @@ void OnvifServer::handleSearchService(const httplib::Request& req, httplib::Resp
         std::vector<RecordingSearchResult> results;
         if (searchHandler) {
             searchToken = searchHandler->handleFindRecordings("", 10, "PT60S");
-            results = searchHandler->handleGetRecordingSearchResults(searchToken);
+            results = searchHandler->handleGetRecordingSearch(searchToken);
         }
         if (searchToken.empty()) {
             std::scoped_lock lock(m_searchMutex);
@@ -6195,7 +6195,7 @@ void OnvifServer::handleSearchService(const httplib::Request& req, httplib::Resp
         const std::string searchToken = tokenNode ? tokenNode.text().as_string() : "";
         std::vector<RecordingSearchResult> results;
         if (searchHandler) {
-            results = searchHandler->handleGetRecordingSearchResults(searchToken);
+            results = searchHandler->handleGetRecordingSearch(searchToken);
         }
         if (results.empty()) {
             std::scoped_lock lock(m_searchMutex);
@@ -6393,9 +6393,9 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
     } else if (isOp(opName, "GetRadiometryConfiguration")) {
         const auto tokNode = reqNode.select_node(".//*[local-name()='VideoSourceToken']").node();
         const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
-        RadiometryConfig cfg {};
+        RadiometryConfig cfg { };
         if (thermalHandler) {
-            cfg = thermalHandler->handleGetRadiometryConfiguration(tok);
+            cfg = thermalHandler->handleGetRadiometryConfig(tok);
         } else {
             std::scoped_lock lock(m_thermalMutex);
             cfg = m_internalRadiometryConfig;
@@ -6419,10 +6419,10 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
     } else if (isOp(opName, "SetRadiometryConfiguration")) {
         const auto cfgNode = reqNode.select_node(".//*[local-name()='Configuration']").node();
         const auto tokNode
-            = cfgNode ? cfgNode.select_node(".//*[local-name()='VideoSourceToken']").node() : pugi::xml_node {};
+            = cfgNode ? cfgNode.select_node(".//*[local-name()='VideoSourceToken']").node() : pugi::xml_node { };
         const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
 
-        RadiometryConfig cfg {};
+        RadiometryConfig cfg { };
         if (cfgNode) {
             const auto emNode = cfgNode.select_node(".//*[local-name()='Emissivity']").node();
             if (emNode)
@@ -6445,7 +6445,7 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
         }
 
         if (thermalHandler) {
-            thermalHandler->handleSetRadiometryConfiguration(tok, cfg);
+            thermalHandler->handleSetRadiometryConfig(tok, cfg);
         }
         {
             std::scoped_lock lock(m_thermalMutex);
@@ -6455,7 +6455,7 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
     } else if (isOp(opName, "GetRadiometrySpots")) {
         const auto tokNode = reqNode.select_node(".//*[local-name()='VideoSourceToken']").node();
         const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
-        std::vector<RadiometrySpot> spots {};
+        std::vector<RadiometrySpot> spots { };
         if (thermalHandler) {
             spots = thermalHandler->handleGetRadiometrySpots(tok);
         } else {
@@ -6476,9 +6476,9 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
     } else if (isOp(opName, "SetRadiometrySpots")) {
         const auto tokNode = reqNode.select_node(".//*[local-name()='VideoSourceToken']").node();
         const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
-        std::vector<RadiometrySpot> spots {};
+        std::vector<RadiometrySpot> spots { };
         for (const auto& spotNode : reqNode.select_nodes(".//*[local-name()='Spot']")) {
-            RadiometrySpot s {};
+            RadiometrySpot s { };
             s.token = spotNode.node().attribute("token").as_string();
             const auto pos = spotNode.node().select_node(".//*[local-name()='Position']").node();
             if (pos) {
@@ -6504,7 +6504,7 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
     } else if (isOp(opName, "GetRadiometryBoxes")) {
         const auto tokNode = reqNode.select_node(".//*[local-name()='VideoSourceToken']").node();
         const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
-        std::vector<RadiometryBox> boxes {};
+        std::vector<RadiometryBox> boxes { };
         if (thermalHandler) {
             boxes = thermalHandler->handleGetRadiometryBoxes(tok);
         } else {
@@ -6528,9 +6528,9 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
     } else if (isOp(opName, "SetRadiometryBoxes")) {
         const auto tokNode = reqNode.select_node(".//*[local-name()='VideoSourceToken']").node();
         const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
-        std::vector<RadiometryBox> boxes {};
+        std::vector<RadiometryBox> boxes { };
         for (const auto& boxNode : reqNode.select_nodes(".//*[local-name()='Box']")) {
-            RadiometryBox b {};
+            RadiometryBox b { };
             b.token = boxNode.node().attribute("token").as_string();
             const auto tl = boxNode.node().select_node(".//*[local-name()='TopLeft']").node();
             if (tl) {
@@ -6566,7 +6566,7 @@ void OnvifServer::handleThermalService(const httplib::Request& req, httplib::Res
     } else if (isOp(opName, "GetColorPalettes")) {
         const auto tokNode = reqNode.select_node(".//*[local-name()='VideoSourceToken']").node();
         const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
-        std::vector<ColorPalette> palettes {};
+        std::vector<ColorPalette> palettes { };
         if (thermalHandler) {
             palettes = thermalHandler->handleGetColorPalettes(tok);
         } else {

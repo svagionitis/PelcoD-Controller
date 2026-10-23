@@ -27,9 +27,9 @@ namespace {
 std::atomic<int> g_nextPort { 19850 };
 
 struct TestServerFixture {
-    OnvifServerConfig config {};
+    OnvifServerConfig config { };
     int port { g_nextPort.fetch_add(1) };
-    std::unique_ptr<OnvifServer> server {};
+    std::unique_ptr<OnvifServer> server { };
 
     TestServerFixture()
     {
@@ -172,7 +172,7 @@ TEST(TestOnvifClientProfileS, ParseVideoEncoderConfigs)
           "  </trt:Configurations>\r\n"
           "</trt:GetVideoEncoderConfigurationsResponse>";
 
-    const auto configs = OnvifClient::parseVideoEncoderConfigsResponse(configsXml);
+    const auto configs = OnvifClient::parseVideoEncoderConfigsResp(configsXml);
     ASSERT_EQ(configs.size(), 2U);
 
     EXPECT_EQ(configs[0].token, "VEC_1");
@@ -209,7 +209,7 @@ TEST(TestOnvifClientProfileS, ParseVideoEncoderConfigs)
           "  </trt:Configuration>\r\n"
           "</trt:GetVideoEncoderConfigurationResponse>";
 
-    const auto singleCfg = OnvifClient::parseVideoEncoderConfigResponse(singleXml);
+    const auto singleCfg = OnvifClient::parseVideoEncoderConfigResp(singleXml);
     ASSERT_TRUE(singleCfg.has_value());
     EXPECT_EQ(singleCfg->token, "VEC_Single");
     EXPECT_EQ(singleCfg->name, "SingleConfig");
@@ -255,7 +255,7 @@ TEST(TestOnvifClientProfileS, ParseVideoEncoderOptions)
           "  </trt:Options>\r\n"
           "</trt:GetVideoEncoderConfigurationOptionsResponse>";
 
-    const auto opts = OnvifClient::parseVideoEncoderOptionsResponse(optsXml);
+    const auto opts = OnvifClient::parseVideoEncoderOptionsResp(optsXml);
     ASSERT_TRUE(opts.has_value());
     EXPECT_EQ(opts->qualityRange.min, 1);
     EXPECT_EQ(opts->qualityRange.max, 10);
@@ -277,7 +277,7 @@ TEST(TestOnvifClientProfileS, ParseVideoEncoderOptions)
     EXPECT_EQ(opts->h264Profiles[1], "Main");
     EXPECT_EQ(opts->h264Profiles[2], "High");
 
-    EXPECT_FALSE(OnvifClient::parseVideoEncoderOptionsResponse("<bad/>").has_value());
+    EXPECT_FALSE(OnvifClient::parseVideoEncoderOptionsResp("<bad/>").has_value());
 }
 
 TEST(TestOnvifClientProfileS, ParseDiscoveryMode)
@@ -303,7 +303,7 @@ TEST(TestOnvifClientProfileS, ParseDiscoveryMode)
     EXPECT_FALSE(OnvifClient::parseDiscoveryModeResponse("<empty/>").has_value());
     EXPECT_FALSE(OnvifClient::parseDiscoveryModeResponse(
         "<tds:GetDiscoveryModeResponse><tds:DiscoveryMode>Unknown</tds:DiscoveryMode></tds:GetDiscoveryModeResponse>")
-                     .has_value());
+            .has_value());
 }
 
 TEST(TestOnvifClientProfileS, ParseNetworkProtocols)
@@ -406,7 +406,7 @@ TEST(TestOnvifClientProfileS, ClientServerVideoEncoderRoundtrip)
     EXPECT_EQ(vec->bitrateLimitKbps, 4096);
 
     // 3. GetVideoEncoderConfigurationOptions
-    const auto opts = client.getVideoEncoderConfigurationOptions("VideoEncoderConfig_1");
+    const auto opts = client.getVideoEncoderConfigOptions("VideoEncoderConfig_1");
     ASSERT_TRUE(opts.has_value());
     EXPECT_EQ(opts->qualityRange.min, 1);
     EXPECT_EQ(opts->qualityRange.max, 10);

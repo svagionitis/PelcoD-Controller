@@ -47,10 +47,10 @@ struct NotificationConfig {
     bool allowPrivateSubnets { true };
 
     /// @brief Whitelist of allowed destination hostnames or IP prefixes (empty allows all non-blocked).
-    std::vector<std::string> allowedHosts {};
+    std::vector<std::string> allowedHosts { };
 
     /// @brief Blacklist of explicit forbidden hostnames or IP patterns.
-    std::vector<std::string> blockedHosts {};
+    std::vector<std::string> blockedHosts { };
 
     /// @brief Connection timeout for push notification delivery in milliseconds.
     std::chrono::milliseconds connectTimeoutMs { 1000 };
@@ -201,31 +201,31 @@ struct OnvifServerConfig {
     std::string rtspStreamUri { "rtsp://127.0.0.1:8554/live" };
 
     /// @brief Unique UUID string identifying this device endpoint (auto-generated if empty).
-    std::string serviceUuid {};
+    std::string serviceUuid { };
 
     /// @brief Additional WS-Discovery scope URIs.
     std::vector<std::string> scopes { "onvif://www.onvif.org/Profile/Streaming", "onvif://www.onvif.org/Profile/S",
         "onvif://www.onvif.org/Profile/T", "onvif://www.onvif.org/Profile/G" };
 
     /// @brief Default optical and imaging configuration.
-    ImagingSettings defaultImagingSettings {};
+    ImagingSettings defaultImagingSettings { };
 
     /// @brief Default ONVIF user accounts.
     /// @details Defaults to empty to prevent universal default credentials (CWE-798, ETSI EN 303 645 §5.1).
     ///          When empty, the server operates in ProvisioningState::Unprovisioned mode.
-    std::vector<OnvifUser> defaultUsers {};
+    std::vector<OnvifUser> defaultUsers { };
 
     /// @brief Password complexity and hygiene policy (review finding C6).
-    PasswordPolicyConfig passwordPolicy {};
+    PasswordPolicyConfig passwordPolicy { };
 
     /// @brief Server-side authentication and authorization policy (review finding C1).
-    OnvifAuthConfig auth {};
+    OnvifAuthConfig auth { };
 
     /// @brief Server-side event subscription and delivery policy (review finding C5).
-    NotificationConfig notification {};
+    NotificationConfig notification { };
 
     /// @brief WS-Discovery multicast responder security configuration (review finding C7).
-    DiscoveryConfig discovery {};
+    DiscoveryConfig discovery { };
 
     /// @brief Default network interfaces.
     std::vector<NetworkInterfaceConfig> defaultNetworkInterfaces { { "eth0", true, "eth0", "00:11:22:33:44:55", 1500,
@@ -292,13 +292,13 @@ struct OnvifServerConfig {
         "VideoSource_1" } };
 
     /// @brief Default installed X.509 certificates.
-    std::vector<OnvifCertificate> defaultCertificates {};
+    std::vector<OnvifCertificate> defaultCertificates { };
 
     /// @brief Default privacy masks (Profile T / Media2).
-    std::vector<PrivacyMask> defaultMasks {};
+    std::vector<PrivacyMask> defaultMasks { };
 
     /// @brief Default privacy mask options.
-    MaskOptions defaultMaskOptions {};
+    MaskOptions defaultMaskOptions { };
 
     /// @brief Default video source capture modes (Profile T / Media2).
     std::vector<VideoSourceMode> defaultVideoSourceModes { { "Mode_1080p60", true, 60.0f, 1920, 1080,
@@ -307,7 +307,7 @@ struct OnvifServerConfig {
         { "Mode_720p120", false, 120.0f, 1280, 720, { "H264", "H265" }, true, "720p 120fps High Speed" } };
 
     /// @brief Default radiometric compensation parameters (ONVIF Thermal Service).
-    RadiometryConfig defaultRadiometryConfig {};
+    RadiometryConfig defaultRadiometryConfig { };
 
     /// @brief Default radiometric spot meters.
     std::vector<RadiometrySpot> defaultRadiometrySpots { { "Spot_1", { 0.5f, 0.5f }, "Center Spot", 24.5f } };
@@ -326,7 +326,7 @@ struct OnvifServerConfig {
         { "Sepia", "Sepia", false }, { "Fire", "Fire", false } };
 
     /// @brief Default thermal service capabilities.
-    ThermalCapabilities defaultThermalCapabilities {};
+    ThermalCapabilities defaultThermalCapabilities { };
 };
 
 /// @brief Callback signature for publishing asynchronous ONVIF event notifications.
@@ -367,7 +367,7 @@ public:
     /// @return Current FocusStatus20 structure.
     [[nodiscard]] virtual FocusStatus20 handleGetFocusStatus(const std::string& /*videoSourceToken*/)
     {
-        return FocusStatus20 {};
+        return FocusStatus20 { };
     }
 
     /// @brief Moves optical focus with directional or positional mode.
@@ -388,7 +388,7 @@ public:
     /// @return Vector of ImagingPreset.
     [[nodiscard]] virtual std::vector<ImagingPreset> handleGetImagingPresets(const std::string& /*videoSourceToken*/)
     {
-        return {};
+        return { };
     }
 
     /// @brief Recalls and applies an optical imaging preset.
@@ -436,7 +436,7 @@ public:
     /// @return Vector of DigitalInputConfig.
     [[nodiscard]] virtual std::vector<DigitalInputConfig> handleGetDigitalInputs()
     {
-        return {};
+        return { };
     }
 };
 
@@ -452,8 +452,7 @@ public:
     /// @param[in] zoomSpeed Normalized zoom velocity [-1.0 (wide) to 1.0 (tele)].
     /// @param[in] timeout Optional auto-stop timeout duration.
     virtual void handleContinuousMove(float panSpeed, float tiltSpeed, float zoomSpeed,
-        std::optional<std::chrono::milliseconds> timeout = std::nullopt)
-        = 0;
+        std::optional<std::chrono::milliseconds> timeout = std::nullopt) = 0;
 
     /// @brief Handles absolute positioning with optional axes and coordinate space.
     /// @param[in] pan Target pan position or nullopt if unchanged.
@@ -461,8 +460,7 @@ public:
     /// @param[in] zoom Target zoom position or nullopt if unchanged.
     /// @param[in] spaceUri Coordinate space URI.
     virtual void handleAbsoluteMove(std::optional<float> pan, std::optional<float> tilt, std::optional<float> zoom,
-        const std::string& spaceUri = "")
-        = 0;
+        const std::string& spaceUri = "") = 0;
 
     /// @brief Handles stop motion requests.
     /// @param[in] stopPanTilt True if pan and tilt motion should cease.
@@ -497,7 +495,7 @@ public:
     /// @return List of PresetTour objects.
     [[nodiscard]] virtual std::vector<PresetTour> handleGetPresetTours()
     {
-        return {};
+        return { };
     }
 
     /// @brief Retrieves a specific preset tour by token.
@@ -512,7 +510,7 @@ public:
     /// @return Assigned preset tour token.
     [[nodiscard]] virtual std::string handleCreatePresetTour()
     {
-        return {};
+        return { };
     }
 
     /// @brief Modifies an existing preset tour's configuration and spots.
@@ -578,7 +576,7 @@ public:
     /// @return Auxiliary response string or empty if unsupported.
     [[nodiscard]] virtual std::string handleSendAuxiliaryCommand(const std::string& /*auxiliaryData*/)
     {
-        return {};
+        return { };
     }
 
     /// @brief Directs camera PTZ toward a target WGS84 geographic coordinate (Profile T GeoMove).
@@ -610,7 +608,7 @@ public:
     /// @return List of OsdConfig structs.
     [[nodiscard]] virtual std::vector<OsdConfig> handleGetOSDs(const std::string& /*videoSourceToken*/)
     {
-        return {};
+        return { };
     }
 
     /// @brief Queries a specific OSD overlay by token.
@@ -626,7 +624,7 @@ public:
     /// @return Assigned token string or empty on failure.
     [[nodiscard]] virtual std::string handleCreateOSD(const OsdConfig& /*osd*/)
     {
-        return {};
+        return { };
     }
 
     /// @brief Modifies an existing OSD overlay.
@@ -656,7 +654,7 @@ public:
     /// @return Vector of OnvifUser records.
     [[nodiscard]] virtual std::vector<OnvifUser> handleGetUsers()
     {
-        return {};
+        return { };
     }
 
     /// @brief Adds new ONVIF user accounts.
@@ -687,7 +685,7 @@ public:
     /// @return Vector of NetworkInterfaceConfig records.
     [[nodiscard]] virtual std::vector<NetworkInterfaceConfig> handleGetNetworkInterfaces()
     {
-        return {};
+        return { };
     }
 
     /// @brief Modifies a network interface configuration.
@@ -698,17 +696,17 @@ public:
         return false;
     }
 
-    /// @brief Retrieves default network gateway address.
+    /// @brief Retrieves default network gateway address (< 30 chars).
     /// @return Gateway IP address.
-    [[nodiscard]] virtual std::string handleGetNetworkDefaultGateway()
+    [[nodiscard]] virtual std::string handleGetDefaultGateway()
     {
-        return {};
+        return { };
     }
 
-    /// @brief Sets default network gateway address.
+    /// @brief Sets default network gateway address (< 30 chars).
     /// @param[in] gateway Gateway IP address.
     /// @return True on success.
-    virtual bool handleSetNetworkDefaultGateway(const std::string& /*gateway*/)
+    virtual bool handleSetDefaultGateway(const std::string& /*gateway*/)
     {
         return false;
     }
@@ -717,7 +715,7 @@ public:
     /// @return DnsConfig structure.
     [[nodiscard]] virtual DnsConfig handleGetDNS()
     {
-        return {};
+        return { };
     }
 
     /// @brief Updates DNS server configuration.
@@ -732,7 +730,7 @@ public:
     /// @return NtpConfig structure.
     [[nodiscard]] virtual NtpConfig handleGetNTP()
     {
-        return {};
+        return { };
     }
 
     /// @brief Updates NTP server configuration.
@@ -747,7 +745,7 @@ public:
     /// @return Hostname string.
     [[nodiscard]] virtual std::string handleGetHostname()
     {
-        return {};
+        return { };
     }
 
     /// @brief Updates device hostname.
@@ -786,21 +784,21 @@ public:
     /// @return String containing log entries.
     [[nodiscard]] virtual std::string handleGetSystemLog(SystemLogType /*logType*/)
     {
-        return {};
+        return { };
     }
 
-    /// @brief Generates comprehensive system and diagnostic support telemetry.
+    /// @brief Generates comprehensive system and diagnostic support telemetry (< 30 chars).
     /// @return SystemSupportInfo structure.
-    [[nodiscard]] virtual SystemSupportInfo handleGetSystemSupportInformation()
+    [[nodiscard]] virtual SystemSupportInfo handleGetSystemSupportInfo()
     {
-        return SystemSupportInfo {};
+        return SystemSupportInfo { };
     }
 
     /// @brief Backs up system settings, returning an archive payload string.
     /// @return Serialized backup payload.
     [[nodiscard]] virtual std::string handleGetSystemBackup()
     {
-        return {};
+        return { };
     }
 
     /// @brief Restores system settings from an archive payload string.
@@ -815,14 +813,14 @@ public:
     /// @return URN endpoint string.
     [[nodiscard]] virtual std::string handleGetEndpointReference()
     {
-        return {};
+        return { };
     }
 
     /// @brief Retrieves supported network protocol settings.
     /// @return Vector of NetworkProtocolConfig.
     [[nodiscard]] virtual std::vector<NetworkProtocolConfig> handleGetNetworkProtocols()
     {
-        return {};
+        return { };
     }
 
     /// @brief Updates network protocol settings.
@@ -852,13 +850,13 @@ public:
     /// @return Vector of OnvifCertificate records.
     [[nodiscard]] virtual std::vector<OnvifCertificate> handleGetCertificates()
     {
-        return {};
+        return { };
     }
 
-    /// @brief Retrieves detailed information for a specific certificate ID.
+    /// @brief Retrieves detailed information for a specific certificate ID (< 30 chars).
     /// @param[in] certificateId Certificate identifier.
     /// @return CertificateInformation struct or nullopt if not found.
-    [[nodiscard]] virtual std::optional<CertificateInformation> handleGetCertificateInformation(
+    [[nodiscard]] virtual std::optional<CertificateInformation> handleGetCertInformation(
         const std::string& /*certificateId*/)
     {
         return std::nullopt;
@@ -872,7 +870,7 @@ public:
     [[nodiscard]] virtual OnvifCertificate handleCreateCertificate(
         const std::string& certificateId, const std::string& subject, int /*daysValid*/ = 365)
     {
-        OnvifCertificate cert {};
+        OnvifCertificate cert { };
         cert.certificateId = certificateId;
         cert.info.certificateId = certificateId;
         cert.info.subject = subject.empty() ? ("CN=" + certificateId) : subject;
@@ -889,7 +887,7 @@ public:
     [[nodiscard]] virtual Pkcs10Request handleGetPkcs10Request(
         const std::string& certificateId, const std::string& subject)
     {
-        Pkcs10Request req {};
+        Pkcs10Request req { };
         req.certificateId = certificateId;
         req.subject = subject.empty() ? ("CN=" + certificateId) : subject;
         req.csrBase64 = "MIIB..." + certificateId;
@@ -912,17 +910,17 @@ public:
         return false;
     }
 
-    /// @brief Queries client certificate authentication mode.
+    /// @brief Queries client certificate authentication mode (< 30 chars).
     /// @return ClientCertificateMode enum.
-    [[nodiscard]] virtual ClientCertificateMode handleGetClientCertificateMode()
+    [[nodiscard]] virtual ClientCertificateMode handleGetClientCertMode()
     {
         return ClientCertificateMode::Off;
     }
 
-    /// @brief Configures client certificate authentication mode.
+    /// @brief Configures client certificate authentication mode (< 30 chars).
     /// @param[in] mode Desired client certificate mode.
     /// @return True on success.
-    virtual bool handleSetClientCertificateMode(ClientCertificateMode /*mode*/)
+    virtual bool handleSetClientCertMode(ClientCertificateMode /*mode*/)
     {
         return true;
     }
@@ -958,35 +956,34 @@ class IMetadataHandler {
 public:
     virtual ~IMetadataHandler() = default;
 
-    /// @brief Retrieves all metadata configurations.
+    /// @brief Retrieves all metadata configurations (< 30 chars).
     /// @return Vector of MetadataConfiguration records.
-    [[nodiscard]] virtual std::vector<MetadataConfiguration> handleGetMetadataConfigurations() = 0;
+    [[nodiscard]] virtual std::vector<MetadataConfiguration> handleGetMetadataConfigs() = 0;
 
-    /// @brief Retrieves a specific metadata configuration by token.
+    /// @brief Retrieves a specific metadata configuration by token (< 30 chars).
     /// @param[in] token Configuration identifier.
     /// @return MetadataConfiguration or nullopt if not found.
-    [[nodiscard]] virtual std::optional<MetadataConfiguration> handleGetMetadataConfiguration(
-        const std::string& /*token*/)
+    [[nodiscard]] virtual std::optional<MetadataConfiguration> handleGetMetadataConfig(const std::string& /*token*/)
     {
         return std::nullopt;
     }
 
-    /// @brief Modifies a metadata configuration.
+    /// @brief Modifies a metadata configuration (< 30 chars).
     /// @param[in] config Updated configuration.
     /// @return True on success.
-    [[nodiscard]] virtual bool handleSetMetadataConfiguration(const MetadataConfiguration& /*config*/)
+    [[nodiscard]] virtual bool handleSetMetadataConfig(const MetadataConfiguration& /*config*/)
     {
         return false;
     }
 
-    /// @brief Retrieves options and capabilities for metadata configuration.
+    /// @brief Retrieves options and capabilities for metadata configuration (< 30 chars).
     /// @param[in] configToken Configuration token.
     /// @param[in] profileToken Profile token.
     /// @return MetadataConfigurationOptions structure.
-    [[nodiscard]] virtual MetadataConfigurationOptions handleGetMetadataConfigurationOptions(
+    [[nodiscard]] virtual MetadataConfigurationOptions handleGetMetaConfigOptions(
         const std::string& /*configToken*/, const std::string& /*profileToken*/ = "")
     {
-        return MetadataConfigurationOptions {};
+        return MetadataConfigurationOptions { };
     }
 
     /// @brief Produces a live snapshot of active metadata (PTZ telemetry, analytics objects, events).
@@ -994,7 +991,7 @@ public:
     /// @return MetadataStreamPayload structure.
     [[nodiscard]] virtual MetadataStreamPayload handleGetCurrentMetadata(const std::string& /*profileToken*/ = "")
     {
-        return MetadataStreamPayload {};
+        return MetadataStreamPayload { };
     }
 };
 
@@ -1018,18 +1015,17 @@ public:
     /// @return True on success.
     virtual bool handleDeleteRecording(const std::string& recordingToken) = 0;
 
-    /// @brief Retrieves configuration attributes for a specific recording container.
+    /// @brief Retrieves configuration attributes for a specific recording container (< 30 chars).
     /// @param[in] recordingToken Recording token.
     /// @return RecordingConfig or nullopt if not found.
-    [[nodiscard]] virtual std::optional<RecordingConfig> handleGetRecordingConfiguration(
-        const std::string& recordingToken)
+    [[nodiscard]] virtual std::optional<RecordingConfig> handleGetRecordingConfig(const std::string& recordingToken)
         = 0;
 
-    /// @brief Updates configuration attributes of an existing recording container.
+    /// @brief Updates configuration attributes of an existing recording container (< 30 chars).
     /// @param[in] recordingToken Recording token.
     /// @param[in] config Updated configuration.
     /// @return True on success.
-    virtual bool handleSetRecordingConfiguration(const std::string& recordingToken, const RecordingConfig& config) = 0;
+    virtual bool handleSetRecordingConfig(const std::string& recordingToken, const RecordingConfig& config) = 0;
 
     /// @brief Retrieves aggregated storage volume and time window metrics.
     /// @return RecordingSummary structure.
@@ -1060,7 +1056,7 @@ public:
     /// @return Vector of RecordingTrack structures.
     [[nodiscard]] virtual std::vector<RecordingTrack> handleGetTracks(const std::string& /*recordingToken*/)
     {
-        return {};
+        return { };
     }
 
     /// @brief Creates a track within a recording container.
@@ -1089,14 +1085,12 @@ public:
     /// @param[in] keepAliveTime Session keepalive string.
     /// @return Unique search session token string.
     [[nodiscard]] virtual std::string handleFindRecordings(
-        const std::string& scope, int maxMatches, const std::string& keepAliveTime)
-        = 0;
+        const std::string& scope, int maxMatches, const std::string& keepAliveTime) = 0;
 
-    /// @brief Polls results for an active recording search query.
+    /// @brief Polls results for an active recording search query (< 30 chars).
     /// @param[in] searchToken Search session token.
     /// @return Vector of RecordingSearchResult matches.
-    [[nodiscard]] virtual std::vector<RecordingSearchResult> handleGetRecordingSearchResults(
-        const std::string& searchToken)
+    [[nodiscard]] virtual std::vector<RecordingSearchResult> handleGetRecordingSearch(const std::string& searchToken)
         = 0;
 
     /// @brief Initiates historical recorded events search query.
@@ -1105,8 +1099,7 @@ public:
     /// @param[in] maxMatches Maximum match count.
     /// @return Unique search session token string.
     [[nodiscard]] virtual std::string handleFindEvents(
-        const std::string& startUtc, const std::string& endUtc, int maxMatches)
-        = 0;
+        const std::string& startUtc, const std::string& endUtc, int maxMatches) = 0;
 
     /// @brief Polls results for an active event search query.
     /// @param[in] searchToken Search session token.
@@ -1131,8 +1124,7 @@ public:
     /// @param[in] trackToken Target track token.
     /// @return RTSP stream replay URI.
     [[nodiscard]] virtual std::string handleGetReplayUri(
-        const std::string& recordingToken, const std::string& trackToken)
-        = 0;
+        const std::string& recordingToken, const std::string& trackToken) = 0;
 
     /// @brief Retrieves current replay session configuration.
     /// @return ReplayConfiguration structure.
@@ -1156,7 +1148,7 @@ public:
     [[nodiscard]] virtual std::vector<AnalyticsRuleDescription> handleGetSupportedRules(
         const std::string& /*configToken*/)
     {
-        return {};
+        return { };
     }
 
     /// @brief Retrieves active analytics rules for a configuration.
@@ -1164,7 +1156,7 @@ public:
     /// @return Vector of active AnalyticsRule definitions.
     [[nodiscard]] virtual std::vector<AnalyticsRule> handleGetRules(const std::string& /*configToken*/)
     {
-        return {};
+        return { };
     }
 
     /// @brief Creates new analytics rules.
@@ -1194,13 +1186,13 @@ public:
         return true;
     }
 
-    /// @brief Retrieves supported analytics modules.
+    /// @brief Retrieves supported analytics modules (< 30 chars).
     /// @param[in] configToken Configuration token.
     /// @return Vector of supported analytics module descriptions.
-    [[nodiscard]] virtual std::vector<AnalyticsModuleDescription> handleGetSupportedAnalyticsModules(
+    [[nodiscard]] virtual std::vector<AnalyticsModuleDescription> handleGetSupportedModules(
         const std::string& /*configToken*/)
     {
-        return {};
+        return { };
     }
 
     /// @brief Retrieves configured analytics modules.
@@ -1208,7 +1200,7 @@ public:
     /// @return Vector of active AnalyticsModule definitions.
     [[nodiscard]] virtual std::vector<AnalyticsModule> handleGetAnalyticsModules(const std::string& /*configToken*/)
     {
-        return {};
+        return { };
     }
 
     /// @brief Creates new analytics modules.
@@ -1253,7 +1245,7 @@ public:
     /// @return MaskOptions containing limits and supported types.
     [[nodiscard]] virtual MaskOptions handleGetMaskOptions(const std::string& /*configToken*/)
     {
-        return {};
+        return { };
     }
 
     /// @brief Retrieves all configured privacy masks.
@@ -1261,7 +1253,7 @@ public:
     /// @return Vector of active PrivacyMask definitions.
     [[nodiscard]] virtual std::vector<PrivacyMask> handleGetMasks(const std::string& /*configToken*/)
     {
-        return {};
+        return { };
     }
 
     /// @brief Retrieves a specific privacy mask by token.
@@ -1285,7 +1277,7 @@ public:
     /// @return Assigned mask token on success, empty on failure.
     virtual std::string handleCreateMask(const PrivacyMask& /*mask*/)
     {
-        return {};
+        return { };
     }
 
     /// @brief Deletes a privacy mask by token.
@@ -1309,7 +1301,7 @@ public:
     [[nodiscard]] virtual std::vector<VideoSourceMode> handleGetVideoSourceModes(
         const std::string& /*videoSourceToken*/)
     {
-        return {};
+        return { };
     }
 
     /// @brief Switches camera sensor capture mode.
@@ -1331,20 +1323,19 @@ class IThermalHandler {
 public:
     virtual ~IThermalHandler() = default;
 
-    /// @brief Retrieves radiometric parameters for a video source.
+    /// @brief Retrieves radiometric parameters for a video source (< 30 chars).
     /// @param[in] videoSourceToken Video source token.
     /// @return RadiometryConfig structure.
-    [[nodiscard]] virtual RadiometryConfig handleGetRadiometryConfiguration(const std::string& /*videoSourceToken*/)
+    [[nodiscard]] virtual RadiometryConfig handleGetRadiometryConfig(const std::string& /*videoSourceToken*/)
     {
-        return {};
+        return { };
     }
 
-    /// @brief Updates radiometric compensation parameters.
+    /// @brief Updates radiometric compensation parameters (< 30 chars).
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] config Updated radiometry configuration.
     /// @return True on success.
-    virtual bool handleSetRadiometryConfiguration(
-        const std::string& /*videoSourceToken*/, const RadiometryConfig& /*config*/)
+    virtual bool handleSetRadiometryConfig(const std::string& /*videoSourceToken*/, const RadiometryConfig& /*config*/)
     {
         return false;
     }
@@ -1354,7 +1345,7 @@ public:
     /// @return Vector of RadiometrySpot.
     [[nodiscard]] virtual std::vector<RadiometrySpot> handleGetRadiometrySpots(const std::string& /*videoSourceToken*/)
     {
-        return {};
+        return { };
     }
 
     /// @brief Updates or replaces radiometric spot meters.
@@ -1372,7 +1363,7 @@ public:
     /// @return Vector of RadiometryBox.
     [[nodiscard]] virtual std::vector<RadiometryBox> handleGetRadiometryBoxes(const std::string& /*videoSourceToken*/)
     {
-        return {};
+        return { };
     }
 
     /// @brief Updates or replaces radiometric measurement boxes.
@@ -1390,7 +1381,7 @@ public:
     /// @return Vector of ColorPalette.
     [[nodiscard]] virtual std::vector<ColorPalette> handleGetColorPalettes(const std::string& /*videoSourceToken*/)
     {
-        return {};
+        return { };
     }
 
     /// @brief Sets active thermal false-color palette.

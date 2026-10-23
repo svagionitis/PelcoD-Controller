@@ -53,7 +53,7 @@ namespace {
             posStr = "Custom";
         }
 
-        std::ostringstream ss {};
+        std::ostringstream ss { };
         ss << "  <trt:OSD";
         if (!osd.token.empty()) {
             ss << " token=\"" << Xml::escapeXmlAttr(osd.token) << "\"";
@@ -84,7 +84,7 @@ namespace {
 
     std::string buildMaskElementXml(const PrivacyMask& mask)
     {
-        std::ostringstream ss {};
+        std::ostringstream ss { };
         ss << "  <tr2:Mask";
         if (!mask.token.empty()) {
             ss << " token=\"" << Xml::escapeXmlAttr(mask.token) << "\"";
@@ -107,7 +107,7 @@ namespace {
 
     MediaProfile parseSingleMediaProfileNode(const pugi::xml_node& node)
     {
-        MediaProfile prof {};
+        MediaProfile prof { };
         prof.token = node.attribute("token").as_string();
         if (prof.token.empty()) {
             const auto tokenChild = findNodeWithSuffix(node, "token");
@@ -161,9 +161,9 @@ namespace {
         return prof;
     }
 
-    VideoEncoderConfig parseSingleVideoEncoderConfigNode(const pugi::xml_node& node)
+    VideoEncoderConfig parseVideoEncoderConfigNode(const pugi::xml_node& node)
     {
-        VideoEncoderConfig cfg {};
+        VideoEncoderConfig cfg { };
         cfg.token = node.attribute("token").as_string();
         if (cfg.token.empty()) {
             const auto tokChild = findNodeWithSuffix(node, "token");
@@ -280,7 +280,7 @@ std::string OnvifClient::wrapSoapEnvelope(const std::string& bodyContent) const
 {
     const std::string securityHeader = OnvifSecurity::buildSoapSecurityHeader(m_credentials);
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
        << "<s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\" "
@@ -354,7 +354,7 @@ std::string OnvifClient::getDeviceIoEndpoint()
 
 std::optional<OnvifCapabilities> OnvifClient::parseCapabilitiesResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -364,7 +364,7 @@ std::optional<OnvifCapabilities> OnvifClient::parseCapabilitiesResponse(const st
         return std::nullopt;
     }
 
-    OnvifCapabilities caps {};
+    OnvifCapabilities caps { };
 
     const auto deviceNode = findNodeWithSuffix(capNode, "Device");
     if (deviceNode) {
@@ -542,9 +542,9 @@ std::optional<OnvifCapabilities> OnvifClient::getCapabilities()
     return parsed;
 }
 
-std::optional<DeviceInformation> OnvifClient::parseDeviceInformationResponse(const std::string& xml)
+std::optional<DeviceInformation> OnvifClient::parseDeviceInformationResp(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -554,7 +554,7 @@ std::optional<DeviceInformation> OnvifClient::parseDeviceInformationResponse(con
         return std::nullopt;
     }
 
-    DeviceInformation info {};
+    DeviceInformation info { };
 
     const auto mfg = findNodeWithSuffix(respNode, "Manufacturer");
     if (mfg) {
@@ -591,7 +591,7 @@ std::optional<DeviceInformation> OnvifClient::getDeviceInformation()
         return std::nullopt;
     }
 
-    return parseDeviceInformationResponse(resp.body);
+    return parseDeviceInformationResp(resp.body);
 }
 
 bool OnvifClient::synchronizeSystemTime()
@@ -601,7 +601,7 @@ bool OnvifClient::synchronizeSystemTime()
         return false;
     }
 
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(resp.body.c_str())) {
         return false;
     }
@@ -625,7 +625,7 @@ bool OnvifClient::synchronizeSystemTime()
     const int month = findNodeWithSuffix(dateNode, "Month").text().as_int(1);
     const int day = findNodeWithSuffix(dateNode, "Day").text().as_int(1);
 
-    std::tm camTm {};
+    std::tm camTm { };
     camTm.tm_year = year - 1900;
     camTm.tm_mon = month - 1;
     camTm.tm_mday = day;
@@ -646,14 +646,14 @@ bool OnvifClient::synchronizeSystemTime()
 
 std::vector<MediaProfile> OnvifClient::parseProfilesResponse(const std::string& xml)
 {
-    std::vector<MediaProfile> profiles {};
+    std::vector<MediaProfile> profiles { };
 
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return profiles;
     }
 
-    std::vector<pugi::xml_node> profileNodes {};
+    std::vector<pugi::xml_node> profileNodes { };
     collectNodesWithSuffix(doc, "Profiles", profileNodes);
 
     for (const auto& node : profileNodes) {
@@ -668,7 +668,7 @@ std::vector<MediaProfile> OnvifClient::parseProfilesResponse(const std::string& 
 
 std::optional<MediaProfile> OnvifClient::parseProfileResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -687,7 +687,7 @@ std::optional<MediaProfile> OnvifClient::parseProfileResponse(const std::string&
 
 std::optional<MediaProfile> OnvifClient::parseCreateProfileResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -704,23 +704,23 @@ std::optional<MediaProfile> OnvifClient::parseCreateProfileResponse(const std::s
     return prof;
 }
 
-std::vector<VideoEncoderConfig> OnvifClient::parseVideoEncoderConfigsResponse(const std::string& xml)
+std::vector<VideoEncoderConfig> OnvifClient::parseVideoEncoderConfigsResp(const std::string& xml)
 {
-    std::vector<VideoEncoderConfig> configs {};
+    std::vector<VideoEncoderConfig> configs { };
 
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return configs;
     }
 
-    std::vector<pugi::xml_node> nodes {};
+    std::vector<pugi::xml_node> nodes { };
     collectNodesWithSuffix(doc, "Configurations", nodes);
     if (nodes.empty()) {
         collectNodesWithSuffix(doc, "Configuration", nodes);
     }
 
     for (const auto& node : nodes) {
-        VideoEncoderConfig cfg = parseSingleVideoEncoderConfigNode(node);
+        VideoEncoderConfig cfg = parseVideoEncoderConfigNode(node);
         if (!cfg.token.empty()) {
             configs.push_back(std::move(cfg));
         }
@@ -731,12 +731,12 @@ std::vector<VideoEncoderConfig> OnvifClient::parseVideoEncoderConfigsResponse(co
 
 std::vector<VideoEncoderConfig> OnvifClient::parseVideoEncConfigsResponse(const std::string& xml)
 {
-    return parseVideoEncoderConfigsResponse(xml);
+    return parseVideoEncoderConfigsResp(xml);
 }
 
-std::optional<VideoEncoderConfig> OnvifClient::parseVideoEncoderConfigResponse(const std::string& xml)
+std::optional<VideoEncoderConfig> OnvifClient::parseVideoEncoderConfigResp(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -746,7 +746,7 @@ std::optional<VideoEncoderConfig> OnvifClient::parseVideoEncoderConfigResponse(c
         return std::nullopt;
     }
 
-    VideoEncoderConfig cfg = parseSingleVideoEncoderConfigNode(node);
+    VideoEncoderConfig cfg = parseVideoEncoderConfigNode(node);
     if (cfg.token.empty()) {
         return std::nullopt;
     }
@@ -755,12 +755,12 @@ std::optional<VideoEncoderConfig> OnvifClient::parseVideoEncoderConfigResponse(c
 
 std::optional<VideoEncoderConfig> OnvifClient::parseVideoEncConfigResponse(const std::string& xml)
 {
-    return parseVideoEncoderConfigResponse(xml);
+    return parseVideoEncoderConfigResp(xml);
 }
 
-std::optional<VideoEncoderOptions> OnvifClient::parseVideoEncoderOptionsResponse(const std::string& xml)
+std::optional<VideoEncoderOptions> OnvifClient::parseVideoEncoderOptionsResp(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -770,7 +770,7 @@ std::optional<VideoEncoderOptions> OnvifClient::parseVideoEncoderOptionsResponse
         return std::nullopt;
     }
 
-    VideoEncoderOptions options {};
+    VideoEncoderOptions options { };
 
     const auto qualNode = findNodeWithSuffix(optionsNode, "QualityRange");
     if (qualNode) {
@@ -812,10 +812,10 @@ std::optional<VideoEncoderOptions> OnvifClient::parseVideoEncoderOptionsResponse
                 = maxNode ? maxNode.text().as_int(1) : encIntNode.attribute("Max").as_int(1);
         }
 
-        std::vector<pugi::xml_node> resNodes {};
+        std::vector<pugi::xml_node> resNodes { };
         collectNodesWithSuffix(h264Node, "ResolutionsAvailable", resNodes);
         for (const auto& res : resNodes) {
-            VideoResolution vr {};
+            VideoResolution vr { };
             vr.width = findNodeWithSuffix(res, "Width").text().as_int(0);
             vr.height = findNodeWithSuffix(res, "Height").text().as_int(0);
             if (vr.width > 0 && vr.height > 0) {
@@ -823,7 +823,7 @@ std::optional<VideoEncoderOptions> OnvifClient::parseVideoEncoderOptionsResponse
             }
         }
 
-        std::vector<pugi::xml_node> profNodes {};
+        std::vector<pugi::xml_node> profNodes { };
         collectNodesWithSuffix(h264Node, "H264ProfilesSupported", profNodes);
         for (const auto& prof : profNodes) {
             const std::string name = prof.text().as_string();
@@ -838,12 +838,12 @@ std::optional<VideoEncoderOptions> OnvifClient::parseVideoEncoderOptionsResponse
 
 std::optional<VideoEncoderOptions> OnvifClient::parseVideoEncOptionsResponse(const std::string& xml)
 {
-    return parseVideoEncoderOptionsResponse(xml);
+    return parseVideoEncoderOptionsResp(xml);
 }
 
 std::optional<DiscoveryMode> OnvifClient::parseDiscoveryModeResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -865,18 +865,18 @@ std::optional<DiscoveryMode> OnvifClient::parseDiscoveryModeResponse(const std::
 
 std::vector<NetworkProtocolConfig> OnvifClient::parseNetworkProtocolsResponse(const std::string& xml)
 {
-    std::vector<NetworkProtocolConfig> protocols {};
+    std::vector<NetworkProtocolConfig> protocols { };
 
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return protocols;
     }
 
-    std::vector<pugi::xml_node> nodes {};
+    std::vector<pugi::xml_node> nodes { };
     collectNodesWithSuffix(doc, "NetworkProtocols", nodes);
 
     for (const auto& node : nodes) {
-        NetworkProtocolConfig proto {};
+        NetworkProtocolConfig proto { };
         const auto nameNode = findNodeWithSuffix(node, "Name");
         if (nameNode) {
             proto.name = nameNode.text().as_string();
@@ -901,7 +901,7 @@ std::vector<MediaProfile> OnvifClient::getProfiles()
 {
     const HttpResponse resp = sendSoapRequest(getMediaEndpoint(), "<trt:GetProfiles/>");
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
 
     return parseProfilesResponse(resp.body);
@@ -909,7 +909,7 @@ std::vector<MediaProfile> OnvifClient::getProfiles()
 
 std::optional<MediaProfile> OnvifClient::getProfile(const std::string& token)
 {
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<trt:GetProfile>\n"
        << "  <trt:ProfileToken>" << Xml::escapeXmlText(token) << "</trt:ProfileToken>\n"
        << "</trt:GetProfile>";
@@ -924,7 +924,7 @@ std::optional<MediaProfile> OnvifClient::getProfile(const std::string& token)
 
 std::optional<MediaProfile> OnvifClient::createProfile(const std::string& name, const std::string& token)
 {
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<trt:CreateProfile>\n"
        << "  <trt:Name>" << Xml::escapeXmlText(name) << "</trt:Name>\n";
     if (!token.empty()) {
@@ -942,7 +942,7 @@ std::optional<MediaProfile> OnvifClient::createProfile(const std::string& name, 
 
 bool OnvifClient::deleteProfile(const std::string& token)
 {
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<trt:DeleteProfile>\n"
        << "  <trt:ProfileToken>" << Xml::escapeXmlText(token) << "</trt:ProfileToken>\n"
        << "</trt:DeleteProfile>";
@@ -954,15 +954,15 @@ std::vector<VideoEncoderConfig> OnvifClient::getVideoEncoderConfigurations()
 {
     const HttpResponse resp = sendSoapRequest(getMediaEndpoint(), "<trt:GetVideoEncoderConfigurations/>");
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
 
-    return parseVideoEncoderConfigsResponse(resp.body);
+    return parseVideoEncoderConfigsResp(resp.body);
 }
 
 std::optional<VideoEncoderConfig> OnvifClient::getVideoEncoderConfiguration(const std::string& token)
 {
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<trt:GetVideoEncoderConfiguration>\n"
        << "  <trt:ConfigurationToken>" << Xml::escapeXmlText(token) << "</trt:ConfigurationToken>\n"
        << "</trt:GetVideoEncoderConfiguration>";
@@ -972,12 +972,12 @@ std::optional<VideoEncoderConfig> OnvifClient::getVideoEncoderConfiguration(cons
         return std::nullopt;
     }
 
-    return parseVideoEncoderConfigResponse(resp.body);
+    return parseVideoEncoderConfigResp(resp.body);
 }
 
-std::optional<VideoEncoderOptions> OnvifClient::getVideoEncoderConfigurationOptions(const std::string& token)
+std::optional<VideoEncoderOptions> OnvifClient::getVideoEncoderConfigOptions(const std::string& token)
 {
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<trt:GetVideoEncoderConfigurationOptions>\n";
     if (!token.empty()) {
         ss << "  <trt:ConfigurationToken>" << Xml::escapeXmlText(token) << "</trt:ConfigurationToken>\n";
@@ -989,17 +989,12 @@ std::optional<VideoEncoderOptions> OnvifClient::getVideoEncoderConfigurationOpti
         return std::nullopt;
     }
 
-    return parseVideoEncoderOptionsResponse(resp.body);
-}
-
-std::optional<VideoEncoderOptions> OnvifClient::getVideoEncoderOptions(const std::string& token)
-{
-    return getVideoEncoderConfigurationOptions(token);
+    return parseVideoEncoderOptionsResp(resp.body);
 }
 
 bool OnvifClient::setVideoEncoderConfiguration(const VideoEncoderConfig& config)
 {
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<trt:SetVideoEncoderConfiguration>\n"
        << "  <trt:Configuration token=\"" << Xml::escapeXmlAttr(config.token) << "\">\n"
        << "    <tt:Name>" << Xml::escapeXmlText(config.name) << "</tt:Name>\n"
@@ -1043,7 +1038,7 @@ bool OnvifClient::setVideoEncoderConfiguration(const VideoEncoderConfig& config)
 
 bool OnvifClient::mediaSetSyncPoint(const std::string& profileToken)
 {
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<trt:SetSynchronizationPoint>\n"
        << "  <trt:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</trt:ProfileToken>\n"
        << "</trt:SetSynchronizationPoint>";
@@ -1064,7 +1059,7 @@ std::optional<DiscoveryMode> OnvifClient::getDiscoveryMode()
 bool OnvifClient::setDiscoveryMode(DiscoveryMode mode)
 {
     const char* modeStr = (mode == DiscoveryMode::NonDiscoverable) ? "NonDiscoverable" : "Discoverable";
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tds:SetDiscoveryMode>\n"
        << "  <tds:DiscoveryMode>" << modeStr << "</tds:DiscoveryMode>\n"
        << "</tds:SetDiscoveryMode>";
@@ -1076,7 +1071,7 @@ std::vector<NetworkProtocolConfig> OnvifClient::getNetworkProtocols()
 {
     const HttpResponse resp = sendSoapRequest(getDeviceEndpoint(), "<tds:GetNetworkProtocols/>");
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
 
     return parseNetworkProtocolsResponse(resp.body);
@@ -1084,7 +1079,7 @@ std::vector<NetworkProtocolConfig> OnvifClient::getNetworkProtocols()
 
 bool OnvifClient::setNetworkProtocols(const std::vector<NetworkProtocolConfig>& protocols)
 {
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tds:SetNetworkProtocols>\n";
     for (const auto& proto : protocols) {
         ss << "  <tds:NetworkProtocols>\n"
@@ -1100,7 +1095,7 @@ bool OnvifClient::setNetworkProtocols(const std::vector<NetworkProtocolConfig>& 
 
 std::optional<StreamUriInfo> OnvifClient::parseStreamUriResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -1110,7 +1105,7 @@ std::optional<StreamUriInfo> OnvifClient::parseStreamUriResponse(const std::stri
         return std::nullopt;
     }
 
-    StreamUriInfo info {};
+    StreamUriInfo info { };
     const auto uriNode = findNodeWithSuffix(mediaUriNode, "Uri");
     if (uriNode) {
         info.uri = uriNode.text().as_string();
@@ -1136,7 +1131,7 @@ std::optional<StreamUriInfo> OnvifClient::parseStreamUriResponse(const std::stri
 
 std::optional<StreamUriInfo> OnvifClient::getStreamUri(const std::string& profileToken, bool injectCredentials)
 {
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<trt:GetStreamUri>\n"
        << "  <trt:StreamSetup>\n"
        << "    <tt:Stream>RTP-Unicast</tt:Stream>\n"
@@ -1176,7 +1171,7 @@ bool OnvifClient::continuousMove(const std::string& profileToken, double panSpee
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:ContinuousMove>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:Velocity>\n"
@@ -1194,7 +1189,7 @@ bool OnvifClient::stop(const std::string& profileToken, bool stopPanTilt, bool s
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:Stop>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:PanTilt>" << (stopPanTilt ? "true" : "false") << "</tptz:PanTilt>\n"
@@ -1206,7 +1201,7 @@ bool OnvifClient::stop(const std::string& profileToken, bool stopPanTilt, bool s
 
 std::optional<PtzStatus> OnvifClient::parsePtzStatusResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -1216,7 +1211,7 @@ std::optional<PtzStatus> OnvifClient::parsePtzStatusResponse(const std::string& 
         return std::nullopt;
     }
 
-    PtzStatus status {};
+    PtzStatus status { };
 
     const auto posNode = findNodeWithSuffix(ptzStatusNode, "Position");
     if (posNode) {
@@ -1252,7 +1247,7 @@ std::optional<PtzStatus> OnvifClient::getStatus(const std::string& profileToken)
         return std::nullopt;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:GetStatus>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "</tptz:GetStatus>";
@@ -1271,7 +1266,7 @@ bool OnvifClient::absoluteMove(const std::string& profileToken, double pan, doub
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:AbsoluteMove>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:Position>\n"
@@ -1290,7 +1285,7 @@ bool OnvifClient::absoluteMoveSpherical(
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:AbsoluteMove>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:Position>\n"
@@ -1310,7 +1305,7 @@ bool OnvifClient::geoMove(const std::string& profileToken, const GeoLocation& ta
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:GeoMove>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:Target>\n"
@@ -1339,7 +1334,7 @@ bool OnvifClient::geoMove(const std::string& profileToken, const GeoLocation& ta
 
 std::optional<std::string> OnvifClient::parseSystemRebootResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -1363,7 +1358,7 @@ bool OnvifClient::systemReboot()
 
 std::optional<std::string> OnvifClient::parseSnapshotUriResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -1382,7 +1377,7 @@ std::optional<std::string> OnvifClient::parseSnapshotUriResponse(const std::stri
 
 std::optional<std::string> OnvifClient::getSnapshotUri(const std::string& profileToken, bool injectCredentials)
 {
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<trt:GetSnapshotUri>\n"
        << "  <trt:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</trt:ProfileToken>\n"
        << "</trt:GetSnapshotUri>";
@@ -1444,7 +1439,7 @@ bool OnvifClient::relativeMove(
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:RelativeMove>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:Translation>\n"
@@ -1463,7 +1458,7 @@ bool OnvifClient::gotoHomePosition(const std::string& profileToken)
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:GotoHomePosition>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "</tptz:GotoHomePosition>";
@@ -1477,7 +1472,7 @@ bool OnvifClient::setHomePosition(const std::string& profileToken)
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:SetHomePosition>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "</tptz:SetHomePosition>";
@@ -1492,7 +1487,7 @@ std::optional<std::string> OnvifClient::sendAuxiliaryCommand(
         return std::nullopt;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:SendAuxiliaryCommand>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:AuxiliaryData>" << Xml::escapeXmlText(auxiliaryData) << "</tptz:AuxiliaryData>\n"
@@ -1503,12 +1498,12 @@ std::optional<std::string> OnvifClient::sendAuxiliaryCommand(
         return std::nullopt;
     }
 
-    return parseSendAuxiliaryCommandResponse(resp.body);
+    return parseSendAuxCommandResp(resp.body);
 }
 
-std::optional<std::string> OnvifClient::parseSendAuxiliaryCommandResponse(const std::string& xml)
+std::optional<std::string> OnvifClient::parseSendAuxCommandResp(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -1528,17 +1523,17 @@ std::optional<std::string> OnvifClient::parseSendAuxiliaryCommandResponse(const 
 
 std::vector<PtzPreset> OnvifClient::parsePresetsResponse(const std::string& xml)
 {
-    std::vector<PtzPreset> presets {};
-    pugi::xml_document doc {};
+    std::vector<PtzPreset> presets { };
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return presets;
     }
 
-    std::vector<pugi::xml_node> presetNodes {};
+    std::vector<pugi::xml_node> presetNodes { };
     collectNodesWithSuffix(doc, "Preset", presetNodes);
 
     for (const auto& node : presetNodes) {
-        PtzPreset p {};
+        PtzPreset p { };
         p.token = node.attribute("token").as_string();
         if (p.token.empty()) {
             const auto tokChild = findNodeWithSuffix(node, "token");
@@ -1575,17 +1570,17 @@ std::vector<PtzPreset> OnvifClient::parsePresetsResponse(const std::string& xml)
 std::vector<PtzPreset> OnvifClient::getPresets(const std::string& profileToken)
 {
     if (!ensurePtzAddress()) {
-        return {};
+        return { };
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:GetPresets>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "</tptz:GetPresets>";
 
     const HttpResponse resp = sendSoapRequest(m_capabilities.ptzXAddr, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
 
     return parsePresetsResponse(resp.body);
@@ -1593,7 +1588,7 @@ std::vector<PtzPreset> OnvifClient::getPresets(const std::string& profileToken)
 
 std::optional<std::string> OnvifClient::parseSetPresetResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -1620,7 +1615,7 @@ std::optional<std::string> OnvifClient::setPreset(
         return std::nullopt;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:SetPreset>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n";
     if (!presetName.empty()) {
@@ -1645,7 +1640,7 @@ bool OnvifClient::gotoPreset(const std::string& profileToken, const std::string&
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:GotoPreset>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:PresetToken>" << Xml::escapeXmlText(presetToken) << "</tptz:PresetToken>\n"
@@ -1664,7 +1659,7 @@ bool OnvifClient::removePreset(const std::string& profileToken, const std::strin
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:RemovePreset>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:PresetToken>" << Xml::escapeXmlText(presetToken) << "</tptz:PresetToken>\n"
@@ -1695,7 +1690,7 @@ static std::uint32_t parseIsoDurationSeconds(std::string_view str)
 
 static PresetTour parsePresetTourNode(const pugi::xml_node& node)
 {
-    PresetTour tour {};
+    PresetTour tour { };
     tour.token = node.attribute("token").as_string();
     if (tour.token.empty()) {
         const auto tokChild = findNodeWithSuffix(node, "token");
@@ -1731,10 +1726,10 @@ static PresetTour parsePresetTourNode(const pugi::xml_node& node)
         }
     }
 
-    std::vector<pugi::xml_node> spotNodes {};
+    std::vector<pugi::xml_node> spotNodes { };
     collectNodesWithSuffix(node, "TourSpot", spotNodes);
     for (const auto& spotNode : spotNodes) {
-        PresetTourSpot spot {};
+        PresetTourSpot spot { };
         const auto detailNode = findRecursiveNodeWithSuffix(spotNode, "PresetDetail");
         if (detailNode) {
             const auto pTokNode = findNodeWithSuffix(detailNode, "PresetToken");
@@ -1774,13 +1769,13 @@ static PresetTour parsePresetTourNode(const pugi::xml_node& node)
 
 std::vector<PresetTour> OnvifClient::parsePresetToursResponse(const std::string& xml)
 {
-    std::vector<PresetTour> tours {};
-    pugi::xml_document doc {};
+    std::vector<PresetTour> tours { };
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return tours;
     }
 
-    std::vector<pugi::xml_node> tourNodes {};
+    std::vector<pugi::xml_node> tourNodes { };
     collectNodesWithSuffix(doc, "PresetTour", tourNodes);
     for (const auto& node : tourNodes) {
         PresetTour tour = parsePresetTourNode(node);
@@ -1793,7 +1788,7 @@ std::vector<PresetTour> OnvifClient::parsePresetToursResponse(const std::string&
 
 std::optional<PresetTour> OnvifClient::parsePresetTourResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -1808,7 +1803,7 @@ std::optional<PresetTour> OnvifClient::parsePresetTourResponse(const std::string
 
 std::optional<std::string> OnvifClient::parseCreatePresetTourResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -1827,17 +1822,17 @@ std::vector<PresetTour> OnvifClient::getPresetTours(const std::string& profileTo
     }
 
     if (!ensurePtzAddress()) {
-        return {};
+        return { };
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:GetPresetTours>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "</tptz:GetPresetTours>";
 
     const HttpResponse resp = sendSoapRequest(m_capabilities.ptzXAddr, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
 
     return parsePresetToursResponse(resp.body);
@@ -1849,7 +1844,7 @@ std::optional<PresetTour> OnvifClient::getPresetTour(const std::string& profileT
         return std::nullopt;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:GetPresetTour>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:PresetTourToken>" << Xml::escapeXmlText(tourToken) << "</tptz:PresetTourToken>\n"
@@ -1869,7 +1864,7 @@ std::optional<std::string> OnvifClient::createPresetTour(const std::string& prof
         return std::nullopt;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:CreatePresetTour>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "</tptz:CreatePresetTour>";
@@ -1888,7 +1883,7 @@ bool OnvifClient::modifyPresetTour(const std::string& profileToken, const Preset
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:ModifyPresetTour>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:PresetTour token=\"" << Xml::escapeXmlAttr(tour.token) << "\">\n";
@@ -1928,7 +1923,7 @@ bool OnvifClient::operatePresetTour(
         opStr = "Pause";
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:OperatePresetTour>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:PresetTourToken>" << Xml::escapeXmlText(tourToken) << "</tptz:PresetTourToken>\n"
@@ -1944,7 +1939,7 @@ bool OnvifClient::removePresetTour(const std::string& profileToken, const std::s
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tptz:RemovePresetTour>\n"
        << "  <tptz:ProfileToken>" << Xml::escapeXmlText(profileToken) << "</tptz:ProfileToken>\n"
        << "  <tptz:PresetTourToken>" << Xml::escapeXmlText(tourToken) << "</tptz:PresetTourToken>\n"
@@ -1955,7 +1950,7 @@ bool OnvifClient::removePresetTour(const std::string& profileToken, const std::s
 
 std::optional<ImagingSettings> OnvifClient::parseImagingSettingsResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -1965,7 +1960,7 @@ std::optional<ImagingSettings> OnvifClient::parseImagingSettingsResponse(const s
         return std::nullopt;
     }
 
-    ImagingSettings settings {};
+    ImagingSettings settings { };
     const auto brightNode = findNodeWithSuffix(imgSettingsNode, "Brightness");
     if (brightNode) {
         settings.brightness = brightNode.text().as_float(settings.brightness);
@@ -2040,7 +2035,7 @@ std::optional<ImagingSettings> OnvifClient::getImagingSettings(const std::string
         return std::nullopt;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<timg:GetImagingSettings xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\">\n"
        << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
        << "</timg:GetImagingSettings>";
@@ -2060,7 +2055,7 @@ bool OnvifClient::setImagingSettings(
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<timg:SetImagingSettings xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
        << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
@@ -2098,7 +2093,7 @@ bool OnvifClient::moveFocus(const std::string& videoSourceToken, float speed)
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<timg:Move xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
        << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
@@ -2118,7 +2113,7 @@ bool OnvifClient::stopFocus(const std::string& videoSourceToken)
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<timg:Stop xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\">\n"
        << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
        << "</timg:Stop>";
@@ -2132,7 +2127,7 @@ std::optional<FocusStatus20> OnvifClient::getFocusStatus(const std::string& vide
         return std::nullopt;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<timg:GetStatus xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\">\n"
        << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
        << "</timg:GetStatus>";
@@ -2155,7 +2150,7 @@ bool OnvifClient::moveFocusAbsolute(const std::string& videoSourceToken, float p
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<timg:Move xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
        << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
@@ -2176,7 +2171,7 @@ bool OnvifClient::moveFocusRelative(const std::string& videoSourceToken, float d
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<timg:Move xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
        << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
@@ -2194,17 +2189,17 @@ bool OnvifClient::moveFocusRelative(const std::string& videoSourceToken, float d
 std::vector<ImagingPreset> OnvifClient::getImagingPresets(const std::string& videoSourceToken)
 {
     if (!ensureImagingAddress()) {
-        return {};
+        return { };
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<timg:GetPresets xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\">\n"
        << "  <timg:VideoSourceToken>" << videoSourceToken << "</timg:VideoSourceToken>\n"
        << "</timg:GetPresets>";
 
     const HttpResponse resp = sendSoapRequest(m_capabilities.imagingXAddr, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseImagingPresetsResponse(resp.body);
 }
@@ -2215,7 +2210,7 @@ bool OnvifClient::setCurrentImagingPreset(const std::string& videoSourceToken, c
         return false;
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<timg:SetCurrentPreset xmlns:timg=\"http://www.onvif.org/ver20/imaging/wsdl\">\n"
        << "  <timg:VideoSourceToken>" << Xml::escapeXmlText(videoSourceToken) << "</timg:VideoSourceToken>\n"
        << "  <timg:PresetToken>" << Xml::escapeXmlText(presetToken) << "</timg:PresetToken>\n"
@@ -2230,7 +2225,7 @@ std::vector<RelayOutputConfig> OnvifClient::getRelayOutputs()
     const std::string body = "<tmd:GetRelayOutputs xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\"/>";
     const HttpResponse resp = sendSoapRequest(endpoint, body);
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseRelayOutputsResponse(resp.body);
 }
@@ -2301,14 +2296,14 @@ std::vector<DigitalInputConfig> OnvifClient::getDigitalInputs()
     const std::string body = "<tmd:GetDigitalInputs xmlns:tmd=\"http://www.onvif.org/ver10/deviceIO/wsdl\"/>";
     const HttpResponse resp = sendSoapRequest(endpoint, body);
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseDigitalInputsResponse(resp.body);
 }
 
-std::optional<std::string> OnvifClient::parseCreatePullPointSubscriptionResponse(const std::string& xml)
+std::optional<std::string> OnvifClient::parseCreatePullPointSubResp(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -2347,23 +2342,23 @@ std::optional<std::string> OnvifClient::createPullPointSubscription()
         return std::nullopt;
     }
 
-    return parseCreatePullPointSubscriptionResponse(resp.body);
+    return parseCreatePullPointSubResp(resp.body);
 }
 
 std::vector<OnvifEvent> OnvifClient::parsePullMessagesResponse(const std::string& xml)
 {
-    std::vector<OnvifEvent> events {};
+    std::vector<OnvifEvent> events { };
 
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return events;
     }
 
-    std::vector<pugi::xml_node> msgNodes {};
+    std::vector<pugi::xml_node> msgNodes { };
     collectNodesWithSuffix(doc, "NotificationMessage", msgNodes);
 
     for (const auto& msgNode : msgNodes) {
-        OnvifEvent ev {};
+        OnvifEvent ev { };
 
         const auto topicNode = findNodeWithSuffix(msgNode, "Topic");
         if (topicNode) {
@@ -2412,10 +2407,10 @@ std::vector<OnvifEvent> OnvifClient::pullMessages(
     const std::string& subscriptionUrl, int timeoutSeconds, int messageLimit)
 {
     if (subscriptionUrl.empty()) {
-        return {};
+        return { };
     }
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tev:PullMessages xmlns:tev=\"http://www.onvif.org/ver10/events/wsdl\">\n"
        << "  <tev:Timeout>PT" << timeoutSeconds << "S</tev:Timeout>\n"
        << "  <tev:MessageLimit>" << messageLimit << "</tev:MessageLimit>\n"
@@ -2423,7 +2418,7 @@ std::vector<OnvifEvent> OnvifClient::pullMessages(
 
     const HttpResponse resp = sendSoapRequest(subscriptionUrl, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
 
     return parsePullMessagesResponse(resp.body);
@@ -2445,9 +2440,9 @@ std::vector<MetadataConfiguration> OnvifClient::getMetadataConfigurations()
     const std::string body = "<trt:GetMetadataConfigurations xmlns:trt=\"http://www.onvif.org/ver10/media/wsdl\"/>";
     const HttpResponse resp = sendSoapRequest(endpoint, body);
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
-    return parseMetadataConfigurationsResponse(resp.body);
+    return parseMetaConfigsResp(resp.body);
 }
 
 std::optional<MetadataConfiguration> OnvifClient::getMetadataConfiguration(const std::string& configToken)
@@ -2461,7 +2456,7 @@ std::optional<MetadataConfiguration> OnvifClient::getMetadataConfiguration(const
     if (!resp.isSuccess()) {
         return std::nullopt;
     }
-    return parseMetadataConfigurationResponse(resp.body);
+    return parseMetaConfigResp(resp.body);
 }
 
 bool OnvifClient::setMetadataConfiguration(const MetadataConfiguration& config)
@@ -2487,7 +2482,7 @@ bool OnvifClient::setMetadataConfiguration(const MetadataConfiguration& config)
     return sendSoapAction(endpoint, ss.str());
 }
 
-std::optional<MetadataConfigurationOptions> OnvifClient::getMetadataConfigurationOptions(
+std::optional<MetadataConfigurationOptions> OnvifClient::getMetaConfigOptions(
     const std::string& configToken, const std::string& /*profileToken*/)
 {
     const std::string endpoint = getMediaEndpoint();
@@ -2499,7 +2494,7 @@ std::optional<MetadataConfigurationOptions> OnvifClient::getMetadataConfiguratio
     if (!resp.isSuccess()) {
         return std::nullopt;
     }
-    return parseMetadataConfigurationOptionsResponse(resp.body);
+    return parseMetaConfigOptionsResp(resp.body);
 }
 
 std::optional<MetadataStreamPayload> OnvifClient::getMetadataStream(const std::string& streamUri)
@@ -2540,7 +2535,7 @@ std::optional<SystemSupportInfo> OnvifClient::getSystemSupportInformation()
     if (!resp.isSuccess()) {
         return std::nullopt;
     }
-    return parseSystemSupportInformationResponse(resp.body);
+    return parseSystemSupportInfoResp(resp.body);
 }
 
 std::optional<std::string> OnvifClient::getSystemBackup()
@@ -2572,7 +2567,7 @@ std::optional<std::string> OnvifClient::getEndpointReference()
     if (!resp.isSuccess()) {
         return std::nullopt;
     }
-    return parseEndpointReferenceResponse(resp.body);
+    return parseEndpointReferenceResp(resp.body);
 }
 
 // =========================================================================
@@ -2584,7 +2579,7 @@ std::vector<OnvifCertificate> OnvifClient::getCertificates()
     const std::string body = "<tds:GetCertificates xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\"/>";
     const HttpResponse resp = sendSoapRequest(m_deviceEndpoint, body);
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseCertificatesResponse(resp.body);
 }
@@ -2599,7 +2594,7 @@ std::optional<CertificateInformation> OnvifClient::getCertificateInformation(con
     if (!resp.isSuccess()) {
         return std::nullopt;
     }
-    return parseCertificateInformationResponse(resp.body);
+    return parseCertInformationResp(resp.body);
 }
 
 std::optional<OnvifCertificate> OnvifClient::createCertificate(
@@ -2615,7 +2610,7 @@ std::optional<OnvifCertificate> OnvifClient::createCertificate(
     if (!resp.isSuccess()) {
         return std::nullopt;
     }
-    return parseCreateCertificateResponse(resp.body);
+    return parseCreateCertificateResp(resp.body);
 }
 
 std::optional<Pkcs10Request> OnvifClient::getPkcs10Request(const std::string& certificateId, const std::string& subject)
@@ -2666,7 +2661,7 @@ std::optional<ClientCertificateMode> OnvifClient::getClientCertificateMode()
     if (!resp.isSuccess()) {
         return std::nullopt;
     }
-    return parseClientCertificateModeResponse(resp.body);
+    return parseClientCertModeResp(resp.body);
 }
 
 bool OnvifClient::setClientCertificateMode(ClientCertificateMode mode)
@@ -2689,7 +2684,7 @@ std::vector<RecordingConfig> OnvifClient::getRecordings()
     const std::string body = "<trc:GetRecordings xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\"/>";
     const HttpResponse resp = sendSoapRequest(url, body);
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseRecordingsResponse(resp.body);
 }
@@ -2726,7 +2721,7 @@ std::optional<RecordingConfig> OnvifClient::getRecordingConfiguration(const std:
     if (!resp.isSuccess()) {
         return std::nullopt;
     }
-    return parseRecordingConfigurationResponse(resp.body);
+    return parseRecordingConfigResp(resp.body);
 }
 
 bool OnvifClient::setRecordingConfiguration(const RecordingConfig& config)
@@ -2797,7 +2792,7 @@ std::vector<RecordingJob> OnvifClient::getRecordingJobs()
     const std::string body = "<trc:GetRecordingJobs xmlns:trc=\"http://www.onvif.org/ver10/recording/wsdl\"/>";
     const HttpResponse resp = sendSoapRequest(url, body);
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseRecordingJobsResponse(resp.body);
 }
@@ -2820,7 +2815,7 @@ std::optional<std::string> OnvifClient::createRecordingJob(const RecordingJob& j
     if (!resp.isSuccess()) {
         return std::nullopt;
     }
-    return parseCreateRecordingJobResponse(resp.body);
+    return parseCreateRecordJobResp(resp.body);
 }
 
 bool OnvifClient::setRecordingJobMode(const std::string& jobToken, RecordingJobMode mode)
@@ -2888,9 +2883,9 @@ std::vector<RecordingSearchResult> OnvifClient::getRecordingSearchResults(const 
        << "</tse:GetRecordingSearchResults>";
     const HttpResponse resp = sendSoapRequest(url, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
-    return parseRecordingSearchResultsResponse(resp.body);
+    return parseRecordingSearchResp(resp.body);
 }
 
 std::optional<std::string> OnvifClient::findEvents(
@@ -2921,9 +2916,9 @@ std::vector<RecordedEventResult> OnvifClient::getEventSearchResults(const std::s
        << "</tse:GetEventSearchResults>";
     const HttpResponse resp = sendSoapRequest(url, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
-    return parseEventSearchResultsResponse(resp.body);
+    return parseEventSearchResultsResp(resp.body);
 }
 
 bool OnvifClient::endSearch(const std::string& searchToken)
@@ -2964,7 +2959,7 @@ std::optional<ReplayConfiguration> OnvifClient::getReplayConfiguration()
     if (!resp.isSuccess()) {
         return std::nullopt;
     }
-    return parseReplayConfigurationResponse(resp.body);
+    return parseReplayConfigResp(resp.body);
 }
 
 bool OnvifClient::setReplayConfiguration(const ReplayConfiguration& config)
@@ -2983,7 +2978,7 @@ namespace {
 
     OsdConfig parseOsdNode(const pugi::xml_node& osdNode)
     {
-        OsdConfig osd {};
+        OsdConfig osd { };
         osd.token = osdNode.attribute("token").as_string();
 
         const auto vsn = findRecursiveNodeWithSuffix(osdNode, "VideoSourceConfigurationToken");
@@ -3050,7 +3045,7 @@ std::vector<OsdConfig> OnvifClient::getOSDs(const std::string& videoSourceConfig
 {
     const std::string targetUrl = getMediaEndpoint();
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<trt:GetOSDs>\n";
     if (!videoSourceConfigurationToken.empty()) {
         ss << "  <trt:ConfigurationToken>" << escapeXmlText(videoSourceConfigurationToken)
@@ -3060,7 +3055,7 @@ std::vector<OsdConfig> OnvifClient::getOSDs(const std::string& videoSourceConfig
 
     const HttpResponse resp = sendSoapRequest(targetUrl, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
 
     return parseOsdListResponse(resp.body);
@@ -3070,7 +3065,7 @@ std::optional<OsdConfig> OnvifClient::getOSD(const std::string& osdToken)
 {
     const std::string targetUrl = getMediaEndpoint();
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<trt:GetOSD>\n"
        << "  <trt:OSDToken>" << escapeXmlText(osdToken) << "</trt:OSDToken>\n"
        << "</trt:GetOSD>";
@@ -3087,12 +3082,12 @@ std::string OnvifClient::createOSD(const OsdConfig& osd)
 {
     const std::string targetUrl = getMediaEndpoint();
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<trt:CreateOSD>\n" << buildOsdElementXml(osd) << "</trt:CreateOSD>";
 
     const HttpResponse resp = sendSoapRequest(targetUrl, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
 
     auto res = parseCreateOsdResponse(resp.body);
@@ -3103,7 +3098,7 @@ bool OnvifClient::setOSD(const OsdConfig& osd)
 {
     const std::string targetUrl = getMediaEndpoint();
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<trt:SetOSD>\n" << buildOsdElementXml(osd) << "</trt:SetOSD>";
 
     return sendSoapAction(targetUrl, ss.str());
@@ -3113,7 +3108,7 @@ bool OnvifClient::deleteOSD(const std::string& osdToken)
 {
     const std::string targetUrl = getMediaEndpoint();
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<trt:DeleteOSD>\n"
        << "  <trt:OSDToken>" << escapeXmlText(osdToken) << "</trt:OSDToken>\n"
        << "</trt:DeleteOSD>";
@@ -3123,15 +3118,15 @@ bool OnvifClient::deleteOSD(const std::string& osdToken)
 
 std::vector<OsdConfig> OnvifClient::parseOsdListResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
-        return {};
+        return { };
     }
 
-    std::vector<pugi::xml_node> osdNodes {};
+    std::vector<pugi::xml_node> osdNodes { };
     collectNodesWithSuffix(doc, "OSD", osdNodes);
 
-    std::vector<OsdConfig> result {};
+    std::vector<OsdConfig> result { };
     result.reserve(osdNodes.size());
     for (const auto& node : osdNodes) {
         result.push_back(parseOsdNode(node));
@@ -3141,7 +3136,7 @@ std::vector<OsdConfig> OnvifClient::parseOsdListResponse(const std::string& xml)
 
 std::optional<OsdConfig> OnvifClient::parseOsdResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -3156,7 +3151,7 @@ std::optional<OsdConfig> OnvifClient::parseOsdResponse(const std::string& xml)
 
 std::optional<std::string> OnvifClient::parseCreateOsdResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -3171,15 +3166,15 @@ std::optional<std::string> OnvifClient::parseCreateOsdResponse(const std::string
 
 std::vector<OnvifUser> OnvifClient::parseUsersResponse(const std::string& xml)
 {
-    std::vector<OnvifUser> users {};
-    pugi::xml_document doc {};
+    std::vector<OnvifUser> users { };
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return users;
     }
-    std::vector<pugi::xml_node> userNodes {};
+    std::vector<pugi::xml_node> userNodes { };
     collectNodesWithSuffix(doc, "User", userNodes);
     for (const auto& uNode : userNodes) {
-        OnvifUser u {};
+        OnvifUser u { };
         const auto un = findNodeWithSuffix(uNode, "Username");
         if (un) {
             u.username = un.text().as_string();
@@ -3205,7 +3200,7 @@ std::vector<OnvifUser> OnvifClient::getUsers()
     const std::string body = "<tds:GetUsers/>";
     const HttpResponse resp = sendSoapRequest(targetUrl, body);
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseUsersResponse(resp.body);
 }
@@ -3213,7 +3208,7 @@ std::vector<OnvifUser> OnvifClient::getUsers()
 bool OnvifClient::createUsers(const std::vector<OnvifUser>& users)
 {
     const std::string targetUrl = getDeviceEndpoint();
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tds:CreateUsers>";
     for (const auto& u : users) {
         ss << "<tds:User>"
@@ -3229,7 +3224,7 @@ bool OnvifClient::createUsers(const std::vector<OnvifUser>& users)
 bool OnvifClient::setUser(const OnvifUser& user)
 {
     const std::string targetUrl = getDeviceEndpoint();
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tds:SetUser>"
        << "<tds:User>"
        << "<tt:Username>" << escapeXmlText(user.username) << "</tt:Username>";
@@ -3245,7 +3240,7 @@ bool OnvifClient::setUser(const OnvifUser& user)
 bool OnvifClient::deleteUsers(const std::vector<std::string>& usernames)
 {
     const std::string targetUrl = getDeviceEndpoint();
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tds:DeleteUsers>";
     for (const auto& name : usernames) {
         ss << "<tds:Username>" << escapeXmlText(name) << "</tds:Username>";
@@ -3254,17 +3249,17 @@ bool OnvifClient::deleteUsers(const std::vector<std::string>& usernames)
     return sendSoapAction(targetUrl, ss.str());
 }
 
-std::vector<NetworkInterfaceConfig> OnvifClient::parseNetworkInterfacesResponse(const std::string& xml)
+std::vector<NetworkInterfaceConfig> OnvifClient::parseNetworkInterfacesResp(const std::string& xml)
 {
-    std::vector<NetworkInterfaceConfig> ifaces {};
-    pugi::xml_document doc {};
+    std::vector<NetworkInterfaceConfig> ifaces { };
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return ifaces;
     }
-    std::vector<pugi::xml_node> ifaceNodes {};
+    std::vector<pugi::xml_node> ifaceNodes { };
     collectNodesWithSuffix(doc, "NetworkInterfaces", ifaceNodes);
     for (const auto& node : ifaceNodes) {
-        NetworkInterfaceConfig cfg {};
+        NetworkInterfaceConfig cfg { };
         cfg.token = node.attribute("token").as_string();
         const auto en = findNodeWithSuffix(node, "Enabled");
         if (en) {
@@ -3326,15 +3321,15 @@ std::vector<NetworkInterfaceConfig> OnvifClient::getNetworkInterfaces()
     const std::string body = "<tds:GetNetworkInterfaces/>";
     const HttpResponse resp = sendSoapRequest(targetUrl, body);
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
-    return parseNetworkInterfacesResponse(resp.body);
+    return parseNetworkInterfacesResp(resp.body);
 }
 
 bool OnvifClient::setNetworkInterfaces(const NetworkInterfaceConfig& config)
 {
     const std::string targetUrl = getDeviceEndpoint();
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tds:SetNetworkInterfaces>"
        << "<tds:InterfaceToken>" << escapeXmlText(config.token) << "</tds:InterfaceToken>"
        << "<tds:NetworkInterface>"
@@ -3353,17 +3348,17 @@ bool OnvifClient::setNetworkInterfaces(const NetworkInterfaceConfig& config)
     return sendSoapAction(targetUrl, ss.str());
 }
 
-std::string OnvifClient::parseNetworkDefaultGatewayResponse(const std::string& xml)
+std::string OnvifClient::parseDefaultGatewayResp(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
-        return {};
+        return { };
     }
     const auto gwNode = findRecursiveNodeWithSuffix(doc, "IPv4Address");
     if (gwNode) {
         return gwNode.text().as_string();
     }
-    return {};
+    return { };
 }
 
 std::string OnvifClient::getNetworkDefaultGateway()
@@ -3372,15 +3367,15 @@ std::string OnvifClient::getNetworkDefaultGateway()
     const std::string body = "<tds:GetNetworkDefaultGateway/>";
     const HttpResponse resp = sendSoapRequest(targetUrl, body);
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
-    return parseNetworkDefaultGatewayResponse(resp.body);
+    return parseDefaultGatewayResp(resp.body);
 }
 
 bool OnvifClient::setNetworkDefaultGateway(const std::string& gateway)
 {
     const std::string targetUrl = getDeviceEndpoint();
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tds:SetNetworkDefaultGateway>"
        << "<tds:IPv4Address>" << escapeXmlText(gateway) << "</tds:IPv4Address>"
        << "</tds:SetNetworkDefaultGateway>";
@@ -3389,7 +3384,7 @@ bool OnvifClient::setNetworkDefaultGateway(const std::string& gateway)
 
 std::optional<DnsConfig> OnvifClient::parseDnsResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -3397,17 +3392,17 @@ std::optional<DnsConfig> OnvifClient::parseDnsResponse(const std::string& xml)
     if (!dnsNode) {
         return std::nullopt;
     }
-    DnsConfig cfg {};
+    DnsConfig cfg { };
     const auto dhcp = findNodeWithSuffix(dnsNode, "FromDHCP");
     if (dhcp) {
         cfg.fromDhcp = dhcp.text().as_bool(false);
     }
-    std::vector<pugi::xml_node> sdNodes {};
+    std::vector<pugi::xml_node> sdNodes { };
     collectNodesWithSuffix(dnsNode, "SearchDomain", sdNodes);
     for (const auto& sd : sdNodes) {
         cfg.searchDomains.push_back(sd.text().as_string());
     }
-    std::vector<pugi::xml_node> manualNodes {};
+    std::vector<pugi::xml_node> manualNodes { };
     collectNodesWithSuffix(dnsNode, "DNSManual", manualNodes);
     for (const auto& m : manualNodes) {
         const auto ip = findNodeWithSuffix(m, "IPv4Address");
@@ -3432,7 +3427,7 @@ std::optional<DnsConfig> OnvifClient::getDNS()
 bool OnvifClient::setDNS(const DnsConfig& dns)
 {
     const std::string targetUrl = getDeviceEndpoint();
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tds:SetDNS>"
        << "<tds:FromDHCP>" << (dns.fromDhcp ? "true" : "false") << "</tds:FromDHCP>";
     for (const auto& sd : dns.searchDomains) {
@@ -3450,7 +3445,7 @@ bool OnvifClient::setDNS(const DnsConfig& dns)
 
 std::optional<NtpConfig> OnvifClient::parseNtpResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -3458,12 +3453,12 @@ std::optional<NtpConfig> OnvifClient::parseNtpResponse(const std::string& xml)
     if (!ntpNode) {
         return std::nullopt;
     }
-    NtpConfig cfg {};
+    NtpConfig cfg { };
     const auto dhcp = findNodeWithSuffix(ntpNode, "FromDHCP");
     if (dhcp) {
         cfg.fromDhcp = dhcp.text().as_bool(false);
     }
-    std::vector<pugi::xml_node> manualNodes {};
+    std::vector<pugi::xml_node> manualNodes { };
     collectNodesWithSuffix(ntpNode, "NTPManual", manualNodes);
     for (const auto& m : manualNodes) {
         const auto dnsNm = findNodeWithSuffix(m, "DNSname");
@@ -3493,7 +3488,7 @@ std::optional<NtpConfig> OnvifClient::getNTP()
 bool OnvifClient::setNTP(const NtpConfig& ntp)
 {
     const std::string targetUrl = getDeviceEndpoint();
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tds:SetNTP>"
        << "<tds:FromDHCP>" << (ntp.fromDhcp ? "true" : "false") << "</tds:FromDHCP>";
     for (const auto& srv : ntp.manualServers) {
@@ -3508,15 +3503,15 @@ bool OnvifClient::setNTP(const NtpConfig& ntp)
 
 std::string OnvifClient::parseHostnameResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
-        return {};
+        return { };
     }
     const auto nameNode = findRecursiveNodeWithSuffix(doc, "Name");
     if (nameNode) {
         return nameNode.text().as_string();
     }
-    return {};
+    return { };
 }
 
 std::string OnvifClient::getHostname()
@@ -3525,7 +3520,7 @@ std::string OnvifClient::getHostname()
     const std::string body = "<tds:GetHostname/>";
     const HttpResponse resp = sendSoapRequest(targetUrl, body);
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseHostnameResponse(resp.body);
 }
@@ -3533,7 +3528,7 @@ std::string OnvifClient::getHostname()
 bool OnvifClient::setHostname(const std::string& hostname)
 {
     const std::string targetUrl = getDeviceEndpoint();
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tds:SetHostname>"
        << "<tds:Name>" << escapeXmlText(hostname) << "</tds:Name>"
        << "</tds:SetHostname>";
@@ -3543,7 +3538,7 @@ bool OnvifClient::setHostname(const std::string& hostname)
 bool OnvifClient::setSystemDateAndTime(const SystemDateTimeConfig& dt)
 {
     const std::string targetUrl = getDeviceEndpoint();
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tds:SetSystemDateAndTime>"
        << "<tds:DateTimeType>" << escapeXmlText(dt.dateTimeType) << "</tds:DateTimeType>"
        << "<tds:DaylightSavings>" << (dt.daylightSavings ? "true" : "false") << "</tds:DaylightSavings>"
@@ -3575,12 +3570,12 @@ bool OnvifClient::setSystemFactoryDefault(FactoryDefaultType type)
 
 std::vector<std::string> OnvifClient::parseScopesResponse(const std::string& xml)
 {
-    std::vector<std::string> scopes {};
-    pugi::xml_document doc {};
+    std::vector<std::string> scopes { };
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return scopes;
     }
-    std::vector<pugi::xml_node> scopeNodes {};
+    std::vector<pugi::xml_node> scopeNodes { };
     collectNodesWithSuffix(doc, "ScopeItem", scopeNodes);
     for (const auto& s : scopeNodes) {
         scopes.push_back(s.text().as_string());
@@ -3594,7 +3589,7 @@ std::vector<std::string> OnvifClient::getScopes()
     const std::string body = "<tds:GetScopes/>";
     const HttpResponse resp = sendSoapRequest(targetUrl, body);
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseScopesResponse(resp.body);
 }
@@ -3602,7 +3597,7 @@ std::vector<std::string> OnvifClient::getScopes()
 bool OnvifClient::addScopes(const std::vector<std::string>& scopes)
 {
     const std::string targetUrl = getDeviceEndpoint();
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tds:AddScopes>";
     for (const auto& s : scopes) {
         ss << "<tds:ScopeItem>" << escapeXmlText(s) << "</tds:ScopeItem>";
@@ -3614,7 +3609,7 @@ bool OnvifClient::addScopes(const std::vector<std::string>& scopes)
 bool OnvifClient::removeScopes(const std::vector<std::string>& scopes)
 {
     const std::string targetUrl = getDeviceEndpoint();
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tds:RemoveScopes>";
     for (const auto& s : scopes) {
         ss << "<tds:ScopeItem>" << escapeXmlText(s) << "</tds:ScopeItem>";
@@ -3626,7 +3621,7 @@ bool OnvifClient::removeScopes(const std::vector<std::string>& scopes)
 bool OnvifClient::setScopes(const std::vector<std::string>& scopes)
 {
     const std::string targetUrl = getDeviceEndpoint();
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tds:SetScopes>";
     for (const auto& s : scopes) {
         ss << "<tds:ScopeItem>" << escapeXmlText(s) << "</tds:ScopeItem>";
@@ -3637,7 +3632,7 @@ bool OnvifClient::setScopes(const std::vector<std::string>& scopes)
 
 std::optional<FocusStatus20> OnvifClient::parseFocusStatusResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -3666,7 +3661,7 @@ std::optional<FocusStatus20> OnvifClient::parseFocusStatusResponse(const std::st
 std::vector<ImagingPreset> OnvifClient::parseImagingPresetsResponse(const std::string& xml)
 {
     std::vector<ImagingPreset> presets;
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return presets;
     }
@@ -3694,7 +3689,7 @@ std::vector<ImagingPreset> OnvifClient::parseImagingPresetsResponse(const std::s
 std::vector<RelayOutputConfig> OnvifClient::parseRelayOutputsResponse(const std::string& xml)
 {
     std::vector<RelayOutputConfig> relays;
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return relays;
     }
@@ -3750,7 +3745,7 @@ std::vector<RelayOutputConfig> OnvifClient::parseRelayOutputsResponse(const std:
 std::vector<DigitalInputConfig> OnvifClient::parseDigitalInputsResponse(const std::string& xml)
 {
     std::vector<DigitalInputConfig> inputs;
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return inputs;
     }
@@ -3774,10 +3769,10 @@ std::vector<DigitalInputConfig> OnvifClient::parseDigitalInputsResponse(const st
     return inputs;
 }
 
-std::vector<MetadataConfiguration> OnvifClient::parseMetadataConfigurationsResponse(const std::string& xml)
+std::vector<MetadataConfiguration> OnvifClient::parseMetaConfigsResp(const std::string& xml)
 {
     std::vector<MetadataConfiguration> list;
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return list;
     }
@@ -3787,7 +3782,7 @@ std::vector<MetadataConfiguration> OnvifClient::parseMetadataConfigurationsRespo
     }
     for (auto child = respNode.first_child(); child; child = child.next_sibling()) {
         if (std::string(child.name()).find("Configurations") != std::string::npos) {
-            MetadataConfiguration cfg {};
+            MetadataConfiguration cfg { };
             cfg.token = child.attribute("token").as_string();
             const auto nameNode = findNodeWithSuffix(child, "Name");
             if (nameNode) {
@@ -3821,9 +3816,9 @@ std::vector<MetadataConfiguration> OnvifClient::parseMetadataConfigurationsRespo
     return list;
 }
 
-std::optional<MetadataConfiguration> OnvifClient::parseMetadataConfigurationResponse(const std::string& xml)
+std::optional<MetadataConfiguration> OnvifClient::parseMetaConfigResp(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -3831,7 +3826,7 @@ std::optional<MetadataConfiguration> OnvifClient::parseMetadataConfigurationResp
     if (!cfgNode) {
         return std::nullopt;
     }
-    MetadataConfiguration cfg {};
+    MetadataConfiguration cfg { };
     cfg.token = cfgNode.attribute("token").as_string();
     const auto nameNode = findNodeWithSuffix(cfgNode, "Name");
     if (nameNode) {
@@ -3862,10 +3857,9 @@ std::optional<MetadataConfiguration> OnvifClient::parseMetadataConfigurationResp
     return cfg;
 }
 
-std::optional<MetadataConfigurationOptions> OnvifClient::parseMetadataConfigurationOptionsResponse(
-    const std::string& xml)
+std::optional<MetadataConfigurationOptions> OnvifClient::parseMetaConfigOptionsResp(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -3873,7 +3867,7 @@ std::optional<MetadataConfigurationOptions> OnvifClient::parseMetadataConfigurat
     if (!optsNode) {
         return std::nullopt;
     }
-    MetadataConfigurationOptions opts {};
+    MetadataConfigurationOptions opts { };
     const auto ptzOpts = findNodeWithSuffix(optsNode, "PTZStatusFilterOptions");
     const auto ptzSupp = findNodeWithSuffix(optsNode, "PTZStatusSupported");
     if (ptzOpts) {
@@ -3894,16 +3888,16 @@ std::optional<MetadataConfigurationOptions> OnvifClient::parseMetadataConfigurat
 
 std::optional<MetadataStreamPayload> OnvifClient::parseMetadataStreamResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
-    MetadataStreamPayload payload {};
+    MetadataStreamPayload payload { };
 
     // 1. PTZStatus
     const auto ptzNode = findRecursiveNodeWithSuffix(doc, "PTZStatus");
     if (ptzNode) {
-        PtzStatus ptz {};
+        PtzStatus ptz { };
         const auto panTiltNode = findRecursiveNodeWithSuffix(ptzNode, "PanTilt");
         if (panTiltNode) {
             ptz.pan = panTiltNode.attribute("x").as_double(0.0);
@@ -3928,11 +3922,11 @@ std::optional<MetadataStreamPayload> OnvifClient::parseMetadataStreamResponse(co
     // 2. VideoAnalytics -> Frame -> Object
     const auto frameNode = findRecursiveNodeWithSuffix(doc, "Frame");
     if (frameNode) {
-        AnalyticsFrame frame {};
+        AnalyticsFrame frame { };
         frame.utcTime = frameNode.attribute("UtcTime").as_string();
         for (auto child = frameNode.first_child(); child; child = child.next_sibling()) {
             if (std::string(child.name()).find("Object") != std::string::npos) {
-                AnalyticsObject obj {};
+                AnalyticsObject obj { };
                 obj.objectId = child.attribute("ObjectId").as_int(0);
                 const auto bboxNode = findRecursiveNodeWithSuffix(child, "BoundingBox");
                 if (bboxNode) {
@@ -3975,7 +3969,7 @@ std::optional<MetadataStreamPayload> OnvifClient::parseMetadataStreamResponse(co
 
 std::optional<std::string> OnvifClient::parseSystemLogResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -3986,9 +3980,9 @@ std::optional<std::string> OnvifClient::parseSystemLogResponse(const std::string
     return std::nullopt;
 }
 
-std::optional<SystemSupportInfo> OnvifClient::parseSystemSupportInformationResponse(const std::string& xml)
+std::optional<SystemSupportInfo> OnvifClient::parseSystemSupportInfoResp(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -3996,7 +3990,7 @@ std::optional<SystemSupportInfo> OnvifClient::parseSystemSupportInformationRespo
     if (!strNode) {
         return std::nullopt;
     }
-    SystemSupportInfo info {};
+    SystemSupportInfo info { };
     info.rawDiagnostics = strNode.text().as_string();
     info.storageState = "OK";
     return info;
@@ -4004,7 +3998,7 @@ std::optional<SystemSupportInfo> OnvifClient::parseSystemSupportInformationRespo
 
 std::optional<std::string> OnvifClient::parseSystemBackupResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -4015,9 +4009,9 @@ std::optional<std::string> OnvifClient::parseSystemBackupResponse(const std::str
     return std::nullopt;
 }
 
-std::optional<std::string> OnvifClient::parseEndpointReferenceResponse(const std::string& xml)
+std::optional<std::string> OnvifClient::parseEndpointReferenceResp(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -4036,7 +4030,7 @@ std::vector<OnvifCertificate> OnvifClient::parseCertificatesResponse(const std::
 {
     pugi::xml_document doc;
     if (!doc.load_string(xml.c_str())) {
-        return {};
+        return { };
     }
     std::vector<OnvifCertificate> certs;
     std::vector<pugi::xml_node> certNodes;
@@ -4058,7 +4052,7 @@ std::vector<OnvifCertificate> OnvifClient::parseCertificatesResponse(const std::
     return certs;
 }
 
-std::optional<CertificateInformation> OnvifClient::parseCertificateInformationResponse(const std::string& xml)
+std::optional<CertificateInformation> OnvifClient::parseCertInformationResp(const std::string& xml)
 {
     pugi::xml_document doc;
     if (!doc.load_string(xml.c_str())) {
@@ -4068,7 +4062,7 @@ std::optional<CertificateInformation> OnvifClient::parseCertificateInformationRe
     if (!infoNode) {
         return std::nullopt;
     }
-    CertificateInformation info {};
+    CertificateInformation info { };
     const auto idNode = findRecursiveNodeWithSuffix(infoNode, "CertificateID");
     if (idNode)
         info.certificateId = idNode.text().as_string();
@@ -4100,7 +4094,7 @@ std::optional<CertificateInformation> OnvifClient::parseCertificateInformationRe
     return info;
 }
 
-std::optional<OnvifCertificate> OnvifClient::parseCreateCertificateResponse(const std::string& xml)
+std::optional<OnvifCertificate> OnvifClient::parseCreateCertificateResp(const std::string& xml)
 {
     pugi::xml_document doc;
     if (!doc.load_string(xml.c_str())) {
@@ -4135,12 +4129,12 @@ std::optional<Pkcs10Request> OnvifClient::parsePkcs10RequestResponse(const std::
     if (!reqNode) {
         return std::nullopt;
     }
-    Pkcs10Request req {};
+    Pkcs10Request req { };
     req.csrBase64 = reqNode.text().as_string();
     return req;
 }
 
-std::optional<ClientCertificateMode> OnvifClient::parseClientCertificateModeResponse(const std::string& xml)
+std::optional<ClientCertificateMode> OnvifClient::parseClientCertModeResp(const std::string& xml)
 {
     pugi::xml_document doc;
     if (!doc.load_string(xml.c_str())) {
@@ -4166,7 +4160,7 @@ std::vector<RecordingConfig> OnvifClient::parseRecordingsResponse(const std::str
 {
     pugi::xml_document doc;
     if (!doc.load_string(xml.c_str())) {
-        return {};
+        return { };
     }
     std::vector<RecordingConfig> recs;
     std::vector<pugi::xml_node> itemNodes;
@@ -4231,7 +4225,7 @@ std::optional<std::string> OnvifClient::parseCreateRecordingResponse(const std::
     return std::nullopt;
 }
 
-std::optional<RecordingConfig> OnvifClient::parseRecordingConfigurationResponse(const std::string& xml)
+std::optional<RecordingConfig> OnvifClient::parseRecordingConfigResp(const std::string& xml)
 {
     pugi::xml_document doc;
     if (!doc.load_string(xml.c_str())) {
@@ -4263,7 +4257,7 @@ std::vector<RecordingJob> OnvifClient::parseRecordingJobsResponse(const std::str
 {
     pugi::xml_document doc;
     if (!doc.load_string(xml.c_str())) {
-        return {};
+        return { };
     }
     std::vector<RecordingJob> jobs;
     std::vector<pugi::xml_node> itemNodes;
@@ -4297,7 +4291,7 @@ std::vector<RecordingJob> OnvifClient::parseRecordingJobsResponse(const std::str
     return jobs;
 }
 
-std::optional<std::string> OnvifClient::parseCreateRecordingJobResponse(const std::string& xml)
+std::optional<std::string> OnvifClient::parseCreateRecordJobResp(const std::string& xml)
 {
     pugi::xml_document doc;
     if (!doc.load_string(xml.c_str())) {
@@ -4362,11 +4356,11 @@ std::optional<std::string> OnvifClient::parseFindRecordingsResponse(const std::s
     return std::nullopt;
 }
 
-std::vector<RecordingSearchResult> OnvifClient::parseRecordingSearchResultsResponse(const std::string& xml)
+std::vector<RecordingSearchResult> OnvifClient::parseRecordingSearchResp(const std::string& xml)
 {
     pugi::xml_document doc;
     if (!doc.load_string(xml.c_str())) {
-        return {};
+        return { };
     }
     std::vector<RecordingSearchResult> results;
     std::vector<pugi::xml_node> infoNodes;
@@ -4411,11 +4405,11 @@ std::optional<std::string> OnvifClient::parseFindEventsResponse(const std::strin
     return std::nullopt;
 }
 
-std::vector<RecordedEventResult> OnvifClient::parseEventSearchResultsResponse(const std::string& xml)
+std::vector<RecordedEventResult> OnvifClient::parseEventSearchResultsResp(const std::string& xml)
 {
     pugi::xml_document doc;
     if (!doc.load_string(xml.c_str())) {
-        return {};
+        return { };
     }
     std::vector<RecordedEventResult> events;
     std::vector<pugi::xml_node> infoNodes;
@@ -4462,7 +4456,7 @@ std::optional<std::string> OnvifClient::parseReplayUriResponse(const std::string
     return std::nullopt;
 }
 
-std::optional<ReplayConfiguration> OnvifClient::parseReplayConfigurationResponse(const std::string& xml)
+std::optional<ReplayConfiguration> OnvifClient::parseReplayConfigResp(const std::string& xml)
 {
     pugi::xml_document doc;
     if (!doc.load_string(xml.c_str())) {
@@ -4553,7 +4547,7 @@ std::vector<AnalyticsRuleDescription> OnvifClient::getSupportedRules(const std::
        << "</tan:GetSupportedRules>";
     const HttpResponse resp = sendSoapRequest(url, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseSupportedRulesResponse(resp.body);
 }
@@ -4568,7 +4562,7 @@ std::vector<AnalyticsRule> OnvifClient::getRules(const std::string& configToken)
        << "</tan:GetRules>";
     const HttpResponse resp = sendSoapRequest(url, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseRulesResponse(resp.body);
 }
@@ -4627,9 +4621,9 @@ std::vector<AnalyticsModuleDescription> OnvifClient::getSupportedAnalyticsModule
        << "</tan:GetSupportedAnalyticsModules>";
     const HttpResponse resp = sendSoapRequest(url, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
-    return parseSupportedAnalyticsModulesResponse(resp.body);
+    return parseAnalyticsModulesResp(resp.body);
 }
 
 std::vector<AnalyticsModule> OnvifClient::getAnalyticsModules(const std::string& configToken)
@@ -4642,7 +4636,7 @@ std::vector<AnalyticsModule> OnvifClient::getAnalyticsModules(const std::string&
        << "</tan:GetAnalyticsModules>";
     const HttpResponse resp = sendSoapRequest(url, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseAnalyticsModulesResponse(resp.body);
 }
@@ -4695,7 +4689,7 @@ std::vector<AnalyticsRuleDescription> OnvifClient::parseSupportedRulesResponse(c
 {
     pugi::xml_document doc;
     if (!doc.load_string(xml.c_str())) {
-        return {};
+        return { };
     }
     std::vector<pugi::xml_node> ruleNodes;
     collectNodesWithSuffix(doc, "RuleDescription", ruleNodes);
@@ -4721,7 +4715,7 @@ std::vector<AnalyticsRule> OnvifClient::parseRulesResponse(const std::string& xm
 {
     pugi::xml_document doc;
     if (!doc.load_string(xml.c_str())) {
-        return {};
+        return { };
     }
     std::vector<pugi::xml_node> ruleNodes;
     collectNodesWithSuffix(doc, "Rule", ruleNodes);
@@ -4793,11 +4787,11 @@ std::vector<AnalyticsRule> OnvifClient::parseRulesResponse(const std::string& xm
     return rules;
 }
 
-std::vector<AnalyticsModuleDescription> OnvifClient::parseSupportedAnalyticsModulesResponse(const std::string& xml)
+std::vector<AnalyticsModuleDescription> OnvifClient::parseAnalyticsModulesResp(const std::string& xml)
 {
     pugi::xml_document doc;
     if (!doc.load_string(xml.c_str())) {
-        return {};
+        return { };
     }
     std::vector<pugi::xml_node> modNodes;
     collectNodesWithSuffix(doc, "AnalyticsModuleDescription", modNodes);
@@ -4822,7 +4816,7 @@ std::vector<AnalyticsModule> OnvifClient::parseAnalyticsModulesResponse(const st
 {
     pugi::xml_document doc;
     if (!doc.load_string(xml.c_str())) {
-        return {};
+        return { };
     }
     std::vector<pugi::xml_node> modNodes;
     collectNodesWithSuffix(doc, "AnalyticsModule", modNodes);
@@ -4851,7 +4845,7 @@ std::optional<LocationEntity> OnvifClient::getGeoLocation(const std::string& ent
 {
     const std::string targetUrl = getDeviceEndpoint();
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tds:GetGeoLocation>\n"
        << "  <tds:Entity>" << entityToken << "</tds:Entity>\n"
        << "</tds:GetGeoLocation>";
@@ -4868,7 +4862,7 @@ bool OnvifClient::setGeoLocation(const LocationEntity& location)
 {
     const std::string targetUrl = getDeviceEndpoint();
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tds:SetGeoLocation>\n"
        << "  <tds:Location Entity=\"" << location.entity << "\" Token=\"" << location.token << "\" Fixed=\""
        << (location.fixed ? "true" : "false") << "\">\n"
@@ -4887,7 +4881,7 @@ bool OnvifClient::deleteGeoLocation(const std::string& entityToken)
 {
     const std::string targetUrl = getDeviceEndpoint();
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tds:DeleteGeoLocation>\n"
        << "  <tds:Entity>" << entityToken << "</tds:Entity>\n"
        << "</tds:DeleteGeoLocation>";
@@ -4897,7 +4891,7 @@ bool OnvifClient::deleteGeoLocation(const std::string& entityToken)
 
 std::optional<LocationEntity> OnvifClient::parseGetGeoLocationResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -4907,7 +4901,7 @@ std::optional<LocationEntity> OnvifClient::parseGetGeoLocationResponse(const std
         return std::nullopt;
     }
 
-    LocationEntity entity {};
+    LocationEntity entity { };
     entity.entity = locNode.attribute("Entity").as_string("Device");
     entity.token = locNode.attribute("Token").as_string("");
     entity.fixed = locNode.attribute("Fixed").as_bool(true);
@@ -4961,7 +4955,7 @@ namespace {
 
     PrivacyMask parseMaskFromNode(const pugi::xml_node& maskNode)
     {
-        PrivacyMask mask {};
+        PrivacyMask mask { };
         if (maskNode.attribute("token")) {
             mask.token = maskNode.attribute("token").as_string();
         } else if (maskNode.attribute("Token")) {
@@ -5057,7 +5051,7 @@ std::optional<MaskOptions> OnvifClient::getMaskOptions(const std::string& config
 {
     const std::string targetUrl
         = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tr2:GetMaskOptions xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
        << "  <tr2:ConfigurationToken>" << escapeXmlText(configToken) << "</tr2:ConfigurationToken>\n"
        << "</tr2:GetMaskOptions>";
@@ -5073,7 +5067,7 @@ std::vector<PrivacyMask> OnvifClient::getMasks(const std::string& configToken)
 {
     const std::string targetUrl
         = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tr2:GetMasks xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n";
     if (!configToken.empty()) {
         ss << "  <tr2:ConfigurationToken>" << escapeXmlText(configToken) << "</tr2:ConfigurationToken>\n";
@@ -5082,7 +5076,7 @@ std::vector<PrivacyMask> OnvifClient::getMasks(const std::string& configToken)
 
     const HttpResponse resp = sendSoapRequest(targetUrl, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseMasksResponse(resp.body);
 }
@@ -5091,7 +5085,7 @@ std::optional<PrivacyMask> OnvifClient::getMask(const std::string& maskToken)
 {
     const std::string targetUrl
         = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tr2:GetMask xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
        << "  <tr2:Token>" << escapeXmlText(maskToken) << "</tr2:Token>\n"
        << "</tr2:GetMask>";
@@ -5107,14 +5101,14 @@ std::string OnvifClient::createMask(const PrivacyMask& mask)
 {
     const std::string targetUrl
         = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tr2:CreateMask xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
        << buildMaskElementXml(mask) << "</tr2:CreateMask>";
 
     const HttpResponse resp = sendSoapRequest(targetUrl, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseCreateMaskResponse(resp.body).value_or("");
 }
@@ -5123,7 +5117,7 @@ bool OnvifClient::setMask(const PrivacyMask& mask)
 {
     const std::string targetUrl
         = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tr2:SetMask xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
        << buildMaskElementXml(mask) << "</tr2:SetMask>";
@@ -5135,7 +5129,7 @@ bool OnvifClient::deleteMask(const std::string& maskToken)
 {
     const std::string targetUrl
         = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tr2:DeleteMask xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
        << "  <tr2:Token>" << escapeXmlText(maskToken) << "</tr2:Token>\n"
        << "</tr2:DeleteMask>";
@@ -5147,14 +5141,14 @@ std::vector<VideoSourceMode> OnvifClient::getVideoSourceModes(const std::string&
 {
     const std::string targetUrl
         = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tr2:GetVideoSourceModes xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
        << "  <tr2:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tr2:VideoSourceToken>\n"
        << "</tr2:GetVideoSourceModes>";
 
     const HttpResponse resp = sendSoapRequest(targetUrl, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseVideoSourceModesResponse(resp.body);
 }
@@ -5163,7 +5157,7 @@ bool OnvifClient::setVideoSourceMode(const std::string& videoSourceToken, const 
 {
     const std::string targetUrl
         = resolveServiceUrl(m_capabilities.media2XAddr, m_deviceEndpoint, "/onvif/media2_service");
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tr2:SetVideoSourceMode xmlns:tr2=\"http://www.onvif.org/ver20/media/wsdl\">\n"
        << "  <tr2:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tr2:VideoSourceToken>\n"
        << "  <tr2:VideoSourceModeToken>" << escapeXmlText(modeToken) << "</tr2:VideoSourceModeToken>\n"
@@ -5174,7 +5168,7 @@ bool OnvifClient::setVideoSourceMode(const std::string& videoSourceToken, const 
 
 std::optional<MaskOptions> OnvifClient::parseMaskOptionsResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -5184,7 +5178,7 @@ std::optional<MaskOptions> OnvifClient::parseMaskOptionsResponse(const std::stri
         return std::nullopt;
     }
 
-    MaskOptions opts {};
+    MaskOptions opts { };
     if (optsNode.attribute("MaxMasks")) {
         opts.maxMasks = optsNode.attribute("MaxMasks").as_int(8);
     } else {
@@ -5235,8 +5229,8 @@ std::optional<MaskOptions> OnvifClient::parseMaskOptionsResponse(const std::stri
         }
     }
 
-    std::vector<MaskType> types {};
-    std::vector<std::string> colorSpaces {};
+    std::vector<MaskType> types { };
+    std::vector<std::string> colorSpaces { };
 
     for (const auto& child : optsNode.children()) {
         const std::string name = child.name();
@@ -5263,13 +5257,13 @@ std::optional<MaskOptions> OnvifClient::parseMaskOptionsResponse(const std::stri
 
 std::vector<PrivacyMask> OnvifClient::parseMasksResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
-        return {};
+        return { };
     }
 
-    std::vector<PrivacyMask> masks {};
-    std::vector<pugi::xml_node> maskNodes {};
+    std::vector<PrivacyMask> masks { };
+    std::vector<pugi::xml_node> maskNodes { };
     collectNodesWithSuffix(doc, "Mask", maskNodes);
     if (maskNodes.empty()) {
         collectNodesWithSuffix(doc, "Masks", maskNodes);
@@ -5295,7 +5289,7 @@ std::vector<PrivacyMask> OnvifClient::parseMasksResponse(const std::string& xml)
 
 std::optional<PrivacyMask> OnvifClient::parseMaskResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -5310,7 +5304,7 @@ std::optional<PrivacyMask> OnvifClient::parseMaskResponse(const std::string& xml
 
 std::optional<std::string> OnvifClient::parseCreateMaskResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -5336,20 +5330,20 @@ std::optional<std::string> OnvifClient::parseCreateMaskResponse(const std::strin
 
 std::vector<VideoSourceMode> OnvifClient::parseVideoSourceModesResponse(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
-        return {};
+        return { };
     }
 
-    std::vector<pugi::xml_node> modeNodes {};
+    std::vector<pugi::xml_node> modeNodes { };
     collectNodesWithSuffix(doc, "VideoSourceModes", modeNodes);
     if (modeNodes.empty()) {
         collectNodesWithSuffix(doc, "VideoSourceMode", modeNodes);
     }
 
-    std::vector<VideoSourceMode> modes {};
+    std::vector<VideoSourceMode> modes { };
     for (const auto& node : modeNodes) {
-        VideoSourceMode mode {};
+        VideoSourceMode mode { };
         if (node.attribute("token")) {
             mode.token = node.attribute("token").as_string();
         } else if (node.attribute("Token")) {
@@ -5412,8 +5406,8 @@ std::vector<VideoSourceMode> OnvifClient::parseVideoSourceModesResponse(const st
         if (encNode) {
             std::string encText = encNode.text().as_string();
             std::istringstream iss(encText);
-            std::string item {};
-            std::vector<std::string> encs {};
+            std::string item { };
+            std::vector<std::string> encs { };
             while (iss >> item) {
                 encs.push_back(item);
             }
@@ -5440,9 +5434,9 @@ std::vector<VideoSourceMode> OnvifClient::parseVideoSourceModesResponse(const st
     return modes;
 }
 
-std::optional<bool> OnvifClient::parseSetVideoSourceModeResponse(const std::string& xml)
+std::optional<bool> OnvifClient::parseSetVideoSourceModeResp(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -5464,7 +5458,7 @@ std::optional<RadiometryConfig> OnvifClient::getRadiometryConfiguration(const st
 {
     const std::string targetUrl
         = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tth:GetRadiometryConfiguration xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
        << "  <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n"
        << "</tth:GetRadiometryConfiguration>";
@@ -5473,14 +5467,14 @@ std::optional<RadiometryConfig> OnvifClient::getRadiometryConfiguration(const st
     if (!resp.isSuccess()) {
         return std::nullopt;
     }
-    return parseRadiometryConfigurationResponse(resp.body);
+    return parseRadiometryConfigResp(resp.body);
 }
 
 bool OnvifClient::setRadiometryConfiguration(const std::string& videoSourceToken, const RadiometryConfig& config)
 {
     const std::string targetUrl
         = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tth:SetRadiometryConfiguration xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
        << "  <tth:Configuration>\n"
        << "    <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n"
@@ -5504,14 +5498,14 @@ std::vector<RadiometrySpot> OnvifClient::getRadiometrySpots(const std::string& v
 {
     const std::string targetUrl
         = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tth:GetRadiometrySpots xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
        << "  <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n"
        << "</tth:GetRadiometrySpots>";
 
     const HttpResponse resp = sendSoapRequest(targetUrl, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseRadiometrySpotsResponse(resp.body);
 }
@@ -5520,7 +5514,7 @@ bool OnvifClient::setRadiometrySpots(const std::string& videoSourceToken, const 
 {
     const std::string targetUrl
         = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tth:SetRadiometrySpots xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
        << "  <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n";
@@ -5541,14 +5535,14 @@ std::vector<RadiometryBox> OnvifClient::getRadiometryBoxes(const std::string& vi
 {
     const std::string targetUrl
         = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tth:GetRadiometryBoxes xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
        << "  <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n"
        << "</tth:GetRadiometryBoxes>";
 
     const HttpResponse resp = sendSoapRequest(targetUrl, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseRadiometryBoxesResponse(resp.body);
 }
@@ -5557,7 +5551,7 @@ bool OnvifClient::setRadiometryBoxes(const std::string& videoSourceToken, const 
 {
     const std::string targetUrl
         = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tth:SetRadiometryBoxes xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\" "
        << "xmlns:tt=\"http://www.onvif.org/ver10/schema\">\n"
        << "  <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n";
@@ -5582,14 +5576,14 @@ std::vector<ColorPalette> OnvifClient::getColorPalettes(const std::string& video
 {
     const std::string targetUrl
         = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tth:GetColorPalettes xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
        << "  <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n"
        << "</tth:GetColorPalettes>";
 
     const HttpResponse resp = sendSoapRequest(targetUrl, ss.str());
     if (!resp.isSuccess()) {
-        return {};
+        return { };
     }
     return parseColorPalettesResponse(resp.body);
 }
@@ -5598,7 +5592,7 @@ bool OnvifClient::setColorPalette(const std::string& videoSourceToken, const std
 {
     const std::string targetUrl
         = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tth:SetColorPalette xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
        << "  <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n"
        << "  <tth:PaletteToken>" << escapeXmlText(paletteToken) << "</tth:PaletteToken>\n"
@@ -5611,7 +5605,7 @@ bool OnvifClient::triggerNuc(const std::string& videoSourceToken)
 {
     const std::string targetUrl
         = resolveServiceUrl(m_capabilities.thermalXAddr, m_deviceEndpoint, "/onvif/thermal_service");
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<tth:TriggerNUC xmlns:tth=\"http://www.onvif.org/ver10/thermal/wsdl\">\n"
        << "  <tth:VideoSourceToken>" << escapeXmlText(videoSourceToken) << "</tth:VideoSourceToken>\n"
        << "</tth:TriggerNUC>";
@@ -5619,9 +5613,9 @@ bool OnvifClient::triggerNuc(const std::string& videoSourceToken)
     return sendSoapAction(targetUrl, ss.str());
 }
 
-std::optional<RadiometryConfig> OnvifClient::parseRadiometryConfigurationResponse(const std::string& xml)
+std::optional<RadiometryConfig> OnvifClient::parseRadiometryConfigResp(const std::string& xml)
 {
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return std::nullopt;
     }
@@ -5631,7 +5625,7 @@ std::optional<RadiometryConfig> OnvifClient::parseRadiometryConfigurationRespons
         return std::nullopt;
     }
 
-    RadiometryConfig cfg {};
+    RadiometryConfig cfg { };
     const auto em = findNodeWithSuffix(cfgNode, "Emissivity");
     if (em) {
         cfg.emissivity = em.text().as_float(0.95f);
@@ -5662,16 +5656,16 @@ std::optional<RadiometryConfig> OnvifClient::parseRadiometryConfigurationRespons
 
 std::vector<RadiometrySpot> OnvifClient::parseRadiometrySpotsResponse(const std::string& xml)
 {
-    std::vector<RadiometrySpot> spots {};
-    pugi::xml_document doc {};
+    std::vector<RadiometrySpot> spots { };
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return spots;
     }
 
-    std::vector<pugi::xml_node> spotNodes {};
+    std::vector<pugi::xml_node> spotNodes { };
     collectNodesWithSuffix(doc, "Spot", spotNodes);
     for (const auto& node : spotNodes) {
-        RadiometrySpot s {};
+        RadiometrySpot s { };
         s.token = node.attribute("token").as_string();
         if (s.token.empty()) {
             const auto tokNode = findNodeWithSuffix(node, "token");
@@ -5704,16 +5698,16 @@ std::vector<RadiometrySpot> OnvifClient::parseRadiometrySpotsResponse(const std:
 
 std::vector<RadiometryBox> OnvifClient::parseRadiometryBoxesResponse(const std::string& xml)
 {
-    std::vector<RadiometryBox> boxes {};
-    pugi::xml_document doc {};
+    std::vector<RadiometryBox> boxes { };
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return boxes;
     }
 
-    std::vector<pugi::xml_node> boxNodes {};
+    std::vector<pugi::xml_node> boxNodes { };
     collectNodesWithSuffix(doc, "Box", boxNodes);
     for (const auto& node : boxNodes) {
-        RadiometryBox b {};
+        RadiometryBox b { };
         b.token = node.attribute("token").as_string();
         if (b.token.empty()) {
             const auto tokNode = findNodeWithSuffix(node, "token");
@@ -5759,20 +5753,20 @@ std::vector<RadiometryBox> OnvifClient::parseRadiometryBoxesResponse(const std::
 
 std::vector<ColorPalette> OnvifClient::parseColorPalettesResponse(const std::string& xml)
 {
-    std::vector<ColorPalette> palettes {};
-    pugi::xml_document doc {};
+    std::vector<ColorPalette> palettes { };
+    pugi::xml_document doc { };
     if (!doc.load_string(xml.c_str())) {
         return palettes;
     }
 
-    std::vector<pugi::xml_node> palNodes {};
+    std::vector<pugi::xml_node> palNodes { };
     collectNodesWithSuffix(doc, "Palette", palNodes);
     if (palNodes.empty()) {
         collectNodesWithSuffix(doc, "ColorPalette", palNodes);
     }
 
     for (const auto& node : palNodes) {
-        ColorPalette p {};
+        ColorPalette p { };
         p.token = node.attribute("token").as_string();
         if (p.token.empty()) {
             const auto tokNode = findNodeWithSuffix(node, "token");
