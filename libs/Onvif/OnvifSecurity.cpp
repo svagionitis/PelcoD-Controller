@@ -1,35 +1,98 @@
 #include "OnvifSecurity.h"
-#include "XmlUtils.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <ctime>
+
+#include <algorithm>
+#include <array>
+#include <chrono>
+#include <iomanip>
+#include <optional>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include <openssl/asn1.h>
 #include <openssl/bio.h>
+#include <openssl/bn.h>
 #include <openssl/buffer.h>
+#include <openssl/crypto.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/rand.h>
-#include <openssl/rsa.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 
-#include <array>
-#include <ctime>
-#include <iomanip>
-#include <sstream>
+#include "OpenSslRaII.h"
+#include "XmlUtils.h"
 
 namespace Onvif {
 
 namespace {
 
-    constexpr char kBase64Table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                    "abcdefghijklmnopqrstuvwxyz"
-                                    "0123456789+/";
+    constexpr std::string_view kBase64Alphabet { "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                                 "abcdefghijklmnopqrstuvwxyz"
+                                                 "0123456789+/" };
+
+    constexpr std::int64_t kSecondsPerDay { 86400LL };
+    constexpr std::int64_t kMaxSafeDays { 36500LL }; // 100 years max
+
+    [[nodiscard]] std::int64_t safeValiditySeconds(int daysValid) noexcept
+    {
+        const auto days = std::clamp(static_cast<std::int64_t>(daysValid), 1LL, kMaxSafeDays);
+        return days * kSecondsPerDay;
+    }
+
+    [[nodiscard]] bool setRandomSerialNumber(X509* cert) noexcept
+    {
+        if (cert == nullptr) {
+            return false;
+        }
+        const Crypto::BignumPtr bn { BN_new() };
+        if (!bn) {
+            return false;
+        }
+        if (BN_rand(bn.get(), 64, BN_RAND_TOP_ANY, BN_RAND_BOTTOM_ANY) != 1) {
+            return false;
+        }
+        ASN1_INTEGER* serial = X509_get_serialNumber(cert);
+        if (serial == nullptr) {
+            return false;
+        }
+        return (BN_to_ASN1_INTEGER(bn.get(), serial) != nullptr);
+    }
+
+    [[nodiscard]] std::string asn1TimeToIso(const ASN1_TIME* tm)
+    {
+        if (tm == nullptr) {
+            return { };
+        }
+        struct tm timeInfo { };
+        if (ASN1_TIME_to_tm(tm, &timeInfo) != 1) {
+            return { };
+        }
+        std::array<char, 32> buf { };
+        const int written
+            = std::snprintf(buf.data(), buf.size(), "%04d-%02d-%02dT%02d:%02d:%02dZ", timeInfo.tm_year + 1900,
+                timeInfo.tm_mon + 1, timeInfo.tm_mday, timeInfo.tm_hour, timeInfo.tm_min, timeInfo.tm_sec);
+        if (written <= 0 || static_cast<std::size_t>(written) >= buf.size()) {
+            return { };
+        }
+        return std::string(buf.data(), static_cast<std::size_t>(written));
+    }
 
 } // namespace
 
 std::vector<std::uint8_t> OnvifSecurity::generateNonce()
 {
-    constexpr size_t kNonceLength { 16 };
-    std::vector<std::uint8_t> nonce(kNonceLength, 0);
-    RAND_bytes(nonce.data(), static_cast<int>(kNonceLength));
+    constexpr std::size_t kNonceLength { 16U };
+    std::vector<std::uint8_t> nonce(kNonceLength, std::uint8_t { 0U });
+    if (RAND_bytes(nonce.data(), static_cast<int>(kNonceLength)) != 1) {
+        return { };
+    }
     return nonce;
 }
 
@@ -38,21 +101,21 @@ std::string OnvifSecurity::generateIsoTimestamp(std::chrono::seconds offset)
     const auto now = std::chrono::system_clock::now() + offset;
     const std::time_t timeT = std::chrono::system_clock::to_time_t(now);
 
-    std::tm utcTm {};
+    std::tm utcTm { };
 #if defined(_WIN32)
     gmtime_s(&utcTm, &timeT);
 #else
     gmtime_r(&timeT, &utcTm);
 #endif
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << std::put_time(&utcTm, "%Y-%m-%dT%H:%M:%SZ");
     return ss.str();
 }
 
 std::string OnvifSecurity::base64Encode(const std::vector<std::uint8_t>& data)
 {
-    std::string result {};
+    std::string result { };
     result.reserve(((data.size() + 2) / 3) * 4);
 
     size_t i { 0 };
@@ -63,18 +126,18 @@ std::string OnvifSecurity::base64Encode(const std::vector<std::uint8_t>& data)
 
         const std::uint32_t triple = (octetA << 16) + (octetB << 8) + octetC;
 
-        result.push_back(kBase64Table[(triple >> 18) & 0x3F]);
-        result.push_back(kBase64Table[(triple >> 12) & 0x3F]);
-        result.push_back(kBase64Table[(triple >> 6) & 0x3F]);
-        result.push_back(kBase64Table[triple & 0x3F]);
+        result.push_back(kBase64Alphabet.at(static_cast<std::size_t>((triple >> 18U) & 0x3FU)));
+        result.push_back(kBase64Alphabet.at(static_cast<std::size_t>((triple >> 12U) & 0x3FU)));
+        result.push_back(kBase64Alphabet.at(static_cast<std::size_t>((triple >> 6U) & 0x3FU)));
+        result.push_back(kBase64Alphabet.at(static_cast<std::size_t>(triple & 0x3FU)));
     }
 
-    const size_t mod = data.size() % 3;
-    if (mod == 1) {
-        result[result.size() - 1] = '=';
-        result[result.size() - 2] = '=';
-    } else if (mod == 2) {
-        result[result.size() - 1] = '=';
+    const std::size_t mod = data.size() % 3U;
+    if (mod == 1U) {
+        result[result.size() - 1U] = '=';
+        result[result.size() - 2U] = '=';
+    } else if (mod == 2U) {
+        result[result.size() - 1U] = '=';
     }
 
     return result;
@@ -82,7 +145,7 @@ std::string OnvifSecurity::base64Encode(const std::vector<std::uint8_t>& data)
 
 std::string OnvifSecurity::base64Encode(const std::string& text)
 {
-    std::vector<std::uint8_t> data {};
+    std::vector<std::uint8_t> data { };
     data.reserve(text.size());
     for (const char ch : text) {
         data.push_back(static_cast<std::uint8_t>(static_cast<unsigned char>(ch)));
@@ -93,30 +156,30 @@ std::string OnvifSecurity::base64Encode(const std::string& text)
 std::string OnvifSecurity::computePasswordDigest(
     const std::vector<std::uint8_t>& rawNonce, const std::string& createdUtc, const std::string& password)
 {
-    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    const Crypto::EvpMdCtxPtr ctx { EVP_MD_CTX_new() };
     if (!ctx) {
-        return {};
+        return { };
     }
 
-    if (EVP_DigestInit_ex(ctx, EVP_sha1(), nullptr) != 1) {
-        EVP_MD_CTX_free(ctx);
-        return {};
+    if (EVP_DigestInit_ex(ctx.get(), EVP_sha1(), nullptr) != 1) {
+        return { };
     }
 
-    if (!rawNonce.empty()) {
-        EVP_DigestUpdate(ctx, rawNonce.data(), rawNonce.size());
+    if (!rawNonce.empty() && (EVP_DigestUpdate(ctx.get(), rawNonce.data(), rawNonce.size()) != 1)) {
+        return { };
     }
-    if (!createdUtc.empty()) {
-        EVP_DigestUpdate(ctx, createdUtc.data(), createdUtc.size());
+    if (!createdUtc.empty() && (EVP_DigestUpdate(ctx.get(), createdUtc.data(), createdUtc.size()) != 1)) {
+        return { };
     }
-    if (!password.empty()) {
-        EVP_DigestUpdate(ctx, password.data(), password.size());
+    if (!password.empty() && (EVP_DigestUpdate(ctx.get(), password.data(), password.size()) != 1)) {
+        return { };
     }
 
-    std::array<unsigned char, EVP_MAX_MD_SIZE> md {};
-    unsigned int mdLen { 0 };
-    EVP_DigestFinal_ex(ctx, md.data(), &mdLen);
-    EVP_MD_CTX_free(ctx);
+    std::array<unsigned char, EVP_MAX_MD_SIZE> md { };
+    unsigned int mdLen { 0U };
+    if (EVP_DigestFinal_ex(ctx.get(), md.data(), &mdLen) != 1) {
+        return { };
+    }
 
     const std::vector<std::uint8_t> digestBytes(md.begin(), md.begin() + mdLen);
     return base64Encode(digestBytes);
@@ -124,7 +187,7 @@ std::string OnvifSecurity::computePasswordDigest(
 
 UsernameTokenData OnvifSecurity::createTokenData(const SecurityCredentials& credentials)
 {
-    UsernameTokenData data {};
+    UsernameTokenData data { };
     data.username = credentials.username;
     if (data.username.empty()) {
         return data;
@@ -140,12 +203,12 @@ UsernameTokenData OnvifSecurity::createTokenData(const SecurityCredentials& cred
 std::string OnvifSecurity::buildSoapSecurityHeader(const SecurityCredentials& credentials)
 {
     if (credentials.username.empty()) {
-        return {};
+        return { };
     }
 
     const UsernameTokenData token = createTokenData(credentials);
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<wsse:Security "
           "xmlns:wsse=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\" "
        << "xmlns:wsu=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\">\n"
@@ -171,7 +234,7 @@ std::vector<std::uint8_t> OnvifSecurity::base64Decode(const std::string& base64T
     result.reserve((base64Text.size() * 3) / 4);
     std::vector<int> table(256, -1);
     for (int i = 0; i < 64; ++i) {
-        table[static_cast<unsigned char>(kBase64Table[i])] = i;
+        table[static_cast<unsigned char>(kBase64Alphabet[static_cast<std::size_t>(i)])] = i;
     }
     int val = 0;
     int valb = -8;
@@ -273,7 +336,7 @@ std::optional<std::vector<std::uint8_t>> OnvifSecurity::base64DecodeStrict(std::
         pad = ((text.size() >= 2U) && (text[text.size() - 2U] == '=')) ? 2U : 1U;
     }
 
-    std::vector<std::uint8_t> out {};
+    std::vector<std::uint8_t> out { };
     out.reserve((text.size() / 4U) * 3U);
     for (std::size_t i { 0U }; i < text.size(); i += 4U) {
         const bool lastQuad { (i + 4U) == text.size() };
@@ -368,115 +431,140 @@ std::optional<std::chrono::system_clock::time_point> OnvifSecurity::parseIsoUtc(
 OnvifCertificate OnvifSecurity::generateSelfSignedCertificate(
     const std::string& certificateId, const std::string& subject, int daysValid)
 {
-    OnvifCertificate cert {};
+    OnvifCertificate cert { };
     cert.certificateId = certificateId;
     cert.info.certificateId = certificateId;
     cert.info.subject = subject.empty() ? ("CN=PelcoD-" + certificateId) : subject;
     cert.info.issuer = cert.info.subject;
     cert.info.keyAlgorithm = "RSA";
     cert.info.isDefault = true;
-    cert.info.validNotBefore = generateIsoTimestamp(std::chrono::seconds(0));
-    cert.info.validNotAfter = generateIsoTimestamp(std::chrono::seconds(daysValid * 86400));
 
-    EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr);
+    const std::int64_t validSecs = safeValiditySeconds(daysValid);
+    cert.info.validNotBefore = generateIsoTimestamp(std::chrono::seconds(0));
+    cert.info.validNotAfter = generateIsoTimestamp(std::chrono::seconds(validSecs));
+
+    const Crypto::EvpPkeyCtxPtr pctx { EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr) };
     if (!pctx) {
         return cert;
     }
-    if (EVP_PKEY_keygen_init(pctx) <= 0 || EVP_PKEY_CTX_set_rsa_keygen_bits(pctx, 2048) <= 0) {
-        EVP_PKEY_CTX_free(pctx);
+    if ((EVP_PKEY_keygen_init(pctx.get()) <= 0) || (EVP_PKEY_CTX_set_rsa_keygen_bits(pctx.get(), 2048) <= 0)) {
         return cert;
     }
-    EVP_PKEY* pkey = nullptr;
-    if (EVP_PKEY_keygen(pctx, &pkey) <= 0 || !pkey) {
-        EVP_PKEY_CTX_free(pctx);
+    EVP_PKEY* rawPkey = nullptr;
+    if ((EVP_PKEY_keygen(pctx.get(), &rawPkey) <= 0) || (rawPkey == nullptr)) {
         return cert;
     }
-    EVP_PKEY_CTX_free(pctx);
+    const Crypto::EvpPkeyPtr pkey { rawPkey };
 
-    X509* x509 = X509_new();
+    const Crypto::X509Ptr x509 { X509_new() };
     if (!x509) {
-        EVP_PKEY_free(pkey);
         return cert;
     }
-    ASN1_INTEGER_set(X509_get_serialNumber(x509), 1);
-    X509_gmtime_adj(X509_get_notBefore(x509), 0);
-    X509_gmtime_adj(X509_get_notAfter(x509), static_cast<long>(daysValid * 86400));
-    X509_set_pubkey(x509, pkey);
-
-    X509_NAME* name = X509_get_subject_name(x509);
-    X509_NAME_add_entry_by_txt(
-        name, "CN", MBSTRING_ASC, reinterpret_cast<const unsigned char*>(cert.info.subject.c_str()), -1, -1, 0);
-    X509_set_issuer_name(x509, name);
-
-    if (X509_sign(x509, pkey, EVP_sha256()) > 0) {
-        unsigned char* der = nullptr;
-        const int derLen = i2d_X509(x509, &der);
-        if (derLen > 0 && der != nullptr) {
-            std::vector<std::uint8_t> derBytes(der, der + derLen);
-            cert.x509DerBase64 = base64Encode(derBytes);
-            OPENSSL_free(der);
-        }
+    if (X509_set_version(x509.get(), 2L) != 1) {
+        return cert;
+    }
+    if (!setRandomSerialNumber(x509.get())) {
+        (void)ASN1_INTEGER_set(X509_get_serialNumber(x509.get()), 1L);
+    }
+    if (X509_gmtime_adj(X509_get_notBefore(x509.get()), 0L) == nullptr) {
+        return cert;
+    }
+    if (X509_gmtime_adj(X509_get_notAfter(x509.get()), static_cast<long>(validSecs)) == nullptr) {
+        return cert;
+    }
+    if (X509_set_pubkey(x509.get(), pkey.get()) != 1) {
+        return cert;
     }
 
-    X509_free(x509);
-    EVP_PKEY_free(pkey);
+    X509_NAME* name = X509_get_subject_name(x509.get());
+    if (name == nullptr) {
+        return cert;
+    }
+    if (X509_NAME_add_entry_by_txt(
+            name, "CN", MBSTRING_ASC, reinterpret_cast<const unsigned char*>(cert.info.subject.c_str()), -1, -1, 0)
+        != 1) {
+        return cert;
+    }
+    if (X509_set_issuer_name(x509.get(), name) != 1) {
+        return cert;
+    }
+
+    if (X509_sign(x509.get(), pkey.get(), EVP_sha256()) <= 0) {
+        return cert;
+    }
+
+    unsigned char* der = nullptr;
+    const int derLen = i2d_X509(x509.get(), &der);
+    if (derLen > 0 && der != nullptr) {
+        const Crypto::OpenSslMemPtr derGuard { der };
+        std::vector<std::uint8_t> derBytes(der, der + derLen);
+        cert.x509DerBase64 = base64Encode(derBytes);
+    }
+
     return cert;
 }
 
 Pkcs10Request OnvifSecurity::generatePkcs10Csr(const std::string& certificateId, const std::string& subject)
 {
-    Pkcs10Request req {};
+    Pkcs10Request req { };
     req.certificateId = certificateId;
     req.subject = subject.empty() ? ("CN=PelcoD-" + certificateId) : subject;
 
-    EVP_PKEY_CTX* pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr);
+    const Crypto::EvpPkeyCtxPtr pctx { EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr) };
     if (!pctx) {
         return req;
     }
-    if (EVP_PKEY_keygen_init(pctx) <= 0 || EVP_PKEY_CTX_set_rsa_keygen_bits(pctx, 2048) <= 0) {
-        EVP_PKEY_CTX_free(pctx);
+    if ((EVP_PKEY_keygen_init(pctx.get()) <= 0) || (EVP_PKEY_CTX_set_rsa_keygen_bits(pctx.get(), 2048) <= 0)) {
         return req;
     }
-    EVP_PKEY* pkey = nullptr;
-    if (EVP_PKEY_keygen(pctx, &pkey) <= 0 || !pkey) {
-        EVP_PKEY_CTX_free(pctx);
+    EVP_PKEY* rawPkey = nullptr;
+    if ((EVP_PKEY_keygen(pctx.get(), &rawPkey) <= 0) || (rawPkey == nullptr)) {
         return req;
     }
-    EVP_PKEY_CTX_free(pctx);
+    const Crypto::EvpPkeyPtr pkey { rawPkey };
 
-    X509_REQ* x509Req = X509_REQ_new();
+    const Crypto::X509ReqPtr x509Req { X509_REQ_new() };
     if (!x509Req) {
-        EVP_PKEY_free(pkey);
         return req;
     }
-    X509_REQ_set_version(x509Req, 0);
-    X509_NAME* name = X509_REQ_get_subject_name(x509Req);
-    X509_NAME_add_entry_by_txt(
-        name, "CN", MBSTRING_ASC, reinterpret_cast<const unsigned char*>(req.subject.c_str()), -1, -1, 0);
-    X509_REQ_set_pubkey(x509Req, pkey);
+    if (X509_REQ_set_version(x509Req.get(), 0L) != 1) {
+        return req;
+    }
+    X509_NAME* name = X509_REQ_get_subject_name(x509Req.get());
+    if (name == nullptr) {
+        return req;
+    }
+    if (X509_NAME_add_entry_by_txt(
+            name, "CN", MBSTRING_ASC, reinterpret_cast<const unsigned char*>(req.subject.c_str()), -1, -1, 0)
+        != 1) {
+        return req;
+    }
+    if (X509_REQ_set_pubkey(x509Req.get(), pkey.get()) != 1) {
+        return req;
+    }
 
-    if (X509_REQ_sign(x509Req, pkey, EVP_sha256()) > 0) {
-        BIO* bio = BIO_new(BIO_s_mem());
-        if (bio) {
-            PEM_write_bio_X509_REQ(bio, x509Req);
+    if (X509_REQ_sign(x509Req.get(), pkey.get(), EVP_sha256()) <= 0) {
+        return req;
+    }
+
+    const Crypto::BioPtr bio { BIO_new(BIO_s_mem()) };
+    if (bio) {
+        if (PEM_write_bio_X509_REQ(bio.get(), x509Req.get()) == 1) {
             BUF_MEM* bptr = nullptr;
-            BIO_get_mem_ptr(bio, &bptr);
-            if (bptr && bptr->data && bptr->length > 0) {
+            BIO_get_mem_ptr(bio.get(), &bptr);
+            if ((bptr != nullptr) && (bptr->data != nullptr) && (bptr->length > 0U)) {
                 req.csrBase64 = std::string(bptr->data, bptr->length);
             }
-            BIO_free(bio);
         }
     }
 
-    X509_REQ_free(x509Req);
-    EVP_PKEY_free(pkey);
     return req;
 }
 
 CertificateInformation OnvifSecurity::parseCertificateInfo(
     const std::string& certificateId, const std::string& x509DerBase64)
 {
-    CertificateInformation info {};
+    CertificateInformation info { };
     info.certificateId = certificateId;
     info.keyAlgorithm = "RSA";
     info.validNotBefore = generateIsoTimestamp(std::chrono::seconds(0));
@@ -487,15 +575,27 @@ CertificateInformation OnvifSecurity::parseCertificateInfo(
     const auto derBytes = base64Decode(x509DerBase64);
     if (!derBytes.empty()) {
         const unsigned char* p = derBytes.data();
-        X509* x509 = d2i_X509(nullptr, &p, static_cast<long>(derBytes.size()));
+        const Crypto::X509Ptr x509 { d2i_X509(nullptr, &p, static_cast<long>(derBytes.size())) };
         if (x509) {
-            char subjBuf[256] {};
-            X509_NAME_oneline(X509_get_subject_name(x509), subjBuf, sizeof(subjBuf));
-            info.subject = subjBuf;
-            char issuerBuf[256] {};
-            X509_NAME_oneline(X509_get_issuer_name(x509), issuerBuf, sizeof(issuerBuf));
-            info.issuer = issuerBuf;
-            X509_free(x509);
+            std::array<char, 256> subjBuf { };
+            if (X509_NAME_oneline(X509_get_subject_name(x509.get()), subjBuf.data(), static_cast<int>(subjBuf.size()))
+                != nullptr) {
+                info.subject = subjBuf.data();
+            }
+            std::array<char, 256> issuerBuf { };
+            if (X509_NAME_oneline(
+                    X509_get_issuer_name(x509.get()), issuerBuf.data(), static_cast<int>(issuerBuf.size()))
+                != nullptr) {
+                info.issuer = issuerBuf.data();
+            }
+            const std::string notBeforeStr = asn1TimeToIso(X509_get0_notBefore(x509.get()));
+            if (!notBeforeStr.empty()) {
+                info.validNotBefore = notBeforeStr;
+            }
+            const std::string notAfterStr = asn1TimeToIso(X509_get0_notAfter(x509.get()));
+            if (!notAfterStr.empty()) {
+                info.validNotAfter = notAfterStr;
+            }
         }
     }
     return info;

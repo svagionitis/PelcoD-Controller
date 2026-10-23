@@ -3,36 +3,36 @@
 
 #include "OnvifCrypto.h"
 
-#include <openssl/crypto.h>
-#include <openssl/hmac.h>
-#include <openssl/rand.h>
+#include <cstddef>
+#include <cstdint>
 
 #include <array>
 #include <limits>
 #include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include <openssl/crypto.h>
+#include <openssl/evp.h>
+#include <openssl/hmac.h>
+#include <openssl/rand.h>
+
+#include "OpenSslRaII.h"
 
 namespace Onvif::Crypto {
 
 namespace {
 
-    /// @brief Deleter releasing an EVP_MD_CTX.
-    struct MdCtxDeleter {
-        void operator()(EVP_MD_CTX* ctx) const noexcept
-        {
-            EVP_MD_CTX_free(ctx);
-        }
-    };
-
-    using MdCtxPtr = std::unique_ptr<EVP_MD_CTX, MdCtxDeleter>;
-
-    constexpr std::array<char, 16U> kHex { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd',
-        'e', 'f' };
+    constexpr std::array<char, 16U> kHex { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e',
+        'f' };
 
 } // namespace
 
 std::optional<std::string> hexDigest(const EVP_MD* md, std::string_view input)
 {
-    const MdCtxPtr ctx { EVP_MD_CTX_new() };
+    const EvpMdCtxPtr ctx { EVP_MD_CTX_new() };
     if ((ctx == nullptr) || (md == nullptr)) {
         return std::nullopt;
     }
@@ -42,12 +42,12 @@ std::optional<std::string> hexDigest(const EVP_MD* md, std::string_view input)
     if (!input.empty() && (EVP_DigestUpdate(ctx.get(), input.data(), input.size()) != 1)) {
         return std::nullopt;
     }
-    std::array<unsigned char, EVP_MAX_MD_SIZE> out {};
+    std::array<unsigned char, EVP_MAX_MD_SIZE> out { };
     unsigned int outLen { 0U };
     if (EVP_DigestFinal_ex(ctx.get(), out.data(), &outLen) != 1) {
         return std::nullopt;
     }
-    std::string hex {};
+    std::string hex { };
     hex.reserve(static_cast<std::size_t>(outLen) * 2U);
     for (std::size_t i { 0U }; i < static_cast<std::size_t>(outLen); ++i) {
         const unsigned int byte { static_cast<unsigned int>(out.at(i)) };
@@ -60,14 +60,14 @@ std::optional<std::string> hexDigest(const EVP_MD* md, std::string_view input)
 std::vector<std::uint8_t> hmacSha256(const std::vector<std::uint8_t>& key, const std::vector<std::uint8_t>& data)
 {
     if (key.size() > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
-        return {};
+        return { };
     }
-    std::array<unsigned char, EVP_MAX_MD_SIZE> out {};
+    std::array<unsigned char, EVP_MAX_MD_SIZE> out { };
     unsigned int outLen { 0U };
-    const unsigned char* result { HMAC(EVP_sha256(), key.data(), static_cast<int>(key.size()), data.data(),
-        data.size(), out.data(), &outLen) };
+    const unsigned char* result { HMAC(
+        EVP_sha256(), key.data(), static_cast<int>(key.size()), data.data(), data.size(), out.data(), &outLen) };
     if (result == nullptr) {
-        return {};
+        return { };
     }
     return std::vector<std::uint8_t>(out.begin(), out.begin() + static_cast<std::ptrdiff_t>(outLen));
 }
@@ -97,11 +97,11 @@ bool constTimeEqual(const std::vector<std::uint8_t>& a, const std::vector<std::u
 std::vector<std::uint8_t> randomBytes(std::size_t count)
 {
     if (count > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
-        return {};
+        return { };
     }
     std::vector<std::uint8_t> buf(count, std::uint8_t { 0U });
     if ((count > 0U) && (RAND_bytes(buf.data(), static_cast<int>(count)) != 1)) {
-        return {};
+        return { };
     }
     return buf;
 }

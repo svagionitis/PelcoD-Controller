@@ -263,8 +263,8 @@ flowchart LR
 |---|---|---|
 | **P0 – Security blockers** | C1 auth (UsernameToken validation + nonce cache + Digest), C2 escaping helper, C5 Subscribe URL allow-list + bounded sender pool, C6 forced first-boot password + hashed storage, C7 exact Action match, H5 TLS verify opt-out only | 1–2 wk |
 | **P1 – Protocol correctness** | C3/C4 SOAP Faults + fix `GetServices`, H3/H4 events (TTL sweep, Renew, ResourceUnknown, `PropertyOperation`, WSA 2005/08, real `Notify`), H2 `start()` result, H1 races, H9/H10 PTZ NaN guard + generic-space mapping + `Timeout` | 2 wk |
-| **P2 – Profile S completeness** | Missing Device/Media ops (§4.2), VEC in profiles, Profile scopes, DiscoveryMode, AppSequence/delay, SetSynchronizationPoint, real snapshot or drop the URI | 2–3 wk |
-| **P3 – Architecture & hygiene** | Dispatch table, service split, adapter segregation, pimpl, RAII OpenSSL, rename 54 long identifiers, Doxygen, MISRA deviation records | 2–3 wk |
+| **P2 – Profile S completeness** | [Profile S Plan](onvif_p2_profile_s_plan.md): Missing Device/Media ops (§4.2), VEC in profiles, Profile scopes, DiscoveryMode, AppSequence/delay, SetSynchronizationPoint, real snapshot or drop the URI | 2–3 wk |
+| **P3 – Architecture & hygiene** | [Architecture & Hygiene Plan](onvif_p3_architecture_hygiene_plan.md): Dispatch table, service split, adapter segregation, pimpl, RAII OpenSSL, rename 54 long identifiers, Doxygen, MISRA deviation records | 2–3 wk |
 | **P4 – Verification** | Split mega-tests, negative/security tests, libFuzzer harnesses, ONVIF Device Test Tool run, CI with `-Werror`/`/WX` + ASan/TSan/UBSan | ongoing |
 
 > [!IMPORTANT]

@@ -56,6 +56,7 @@ add_library(Onvif STATIC
     ServiceRegistry.h
     ServiceRegistry.cpp
     OnvifAuthTypes.h
+    OpenSslRaII.h
     OnvifCrypto.h
     OnvifCrypto.cpp
     NonceCache.h

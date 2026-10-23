@@ -3,18 +3,26 @@
 
 #include "CredentialVault.h"
 
-#include "OnvifSecurity.h"
-#include "XmlUtils.h"
+#include <cstddef>
+#include <cstdint>
+
+#include <array>
+#include <fstream>
+#include <memory>
+#include <optional>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <pugixml.hpp>
 
-#include <array>
-#include <fstream>
-#include <memory>
-#include <sstream>
+#include "OnvifSecurity.h"
+#include "OpenSslRaII.h"
+#include "XmlUtils.h"
 
 namespace Onvif {
 
@@ -25,20 +33,11 @@ namespace {
     constexpr std::size_t kTagBytes { 16U };
     constexpr int kPbkdf2Rounds { 100000 };
 
-    struct CipherCtxDeleter {
-        void operator()(EVP_CIPHER_CTX* ctx) const noexcept
-        {
-            if (ctx != nullptr) {
-                EVP_CIPHER_CTX_free(ctx);
-            }
-        }
-    };
-
-    using CipherCtxPtr = std::unique_ptr<EVP_CIPHER_CTX, CipherCtxDeleter>;
+    using CipherCtxPtr = Crypto::EvpCipherCtxPtr;
 
     [[nodiscard]] std::string serializeUsers(const std::vector<OnvifUser>& users)
     {
-        std::ostringstream ss {};
+        std::ostringstream ss { };
         ss << "<users>";
         for (const auto& u : users) {
             ss << "<user name=\"" << Xml::escapeXmlAttr(u.username) << "\" level=\"" << userLevelToString(u.level)
@@ -50,8 +49,8 @@ namespace {
 
     [[nodiscard]] std::vector<OnvifUser> deserializeUsers(std::string_view xml)
     {
-        std::vector<OnvifUser> out {};
-        pugi::xml_document doc {};
+        std::vector<OnvifUser> out { };
+        pugi::xml_document doc { };
         if (!doc.load_buffer(xml.data(), xml.size())) {
             return out;
         }
@@ -72,15 +71,15 @@ namespace {
 std::string CredentialVault::deriveKey(std::string_view secret, std::string_view salt)
 {
     if (secret.empty() || salt.empty()) {
-        return {};
+        return { };
     }
-    std::string key {};
+    std::string key { };
     key.resize(kKeyBytes);
     const int rc { PKCS5_PBKDF2_HMAC(secret.data(), static_cast<int>(secret.size()),
         reinterpret_cast<const unsigned char*>(salt.data()), static_cast<int>(salt.size()), kPbkdf2Rounds, EVP_sha256(),
         static_cast<int>(kKeyBytes), reinterpret_cast<unsigned char*>(key.data())) };
     if (rc != 1) {
-        return {};
+        return { };
     }
     return key;
 }
@@ -88,67 +87,67 @@ std::string CredentialVault::deriveKey(std::string_view secret, std::string_view
 std::string CredentialVault::encrypt(const std::vector<OnvifUser>& users, std::string_view key)
 {
     if (key.size() != kKeyBytes) {
-        return {};
+        return { };
     }
 
     std::string plain { serializeUsers(users) };
     if (plain.empty()) {
-        return {};
+        return { };
     }
 
-    std::array<unsigned char, kIvBytes> iv {};
+    std::array<unsigned char, kIvBytes> iv { };
     if (RAND_bytes(iv.data(), static_cast<int>(iv.size())) != 1) {
         OPENSSL_cleanse(plain.data(), plain.size());
-        return {};
+        return { };
     }
 
     CipherCtxPtr ctx { EVP_CIPHER_CTX_new() };
     if (!ctx) {
         OPENSSL_cleanse(plain.data(), plain.size());
-        return {};
+        return { };
     }
 
     if (EVP_EncryptInit_ex(ctx.get(), EVP_aes_256_gcm(), nullptr, nullptr, nullptr) != 1) {
         OPENSSL_cleanse(plain.data(), plain.size());
-        return {};
+        return { };
     }
 
     if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_IVLEN, static_cast<int>(kIvBytes), nullptr) != 1) {
         OPENSSL_cleanse(plain.data(), plain.size());
-        return {};
+        return { };
     }
 
     if (EVP_EncryptInit_ex(ctx.get(), nullptr, nullptr, reinterpret_cast<const unsigned char*>(key.data()), iv.data())
         != 1) {
         OPENSSL_cleanse(plain.data(), plain.size());
-        return {};
+        return { };
     }
 
-    std::vector<unsigned char> cipher {};
+    std::vector<unsigned char> cipher { };
     cipher.resize(plain.size());
     int outLen { 0 };
     if (EVP_EncryptUpdate(ctx.get(), cipher.data(), &outLen, reinterpret_cast<const unsigned char*>(plain.data()),
             static_cast<int>(plain.size()))
         != 1) {
         OPENSSL_cleanse(plain.data(), plain.size());
-        return {};
+        return { };
     }
 
     int finalLen { 0 };
     if (EVP_EncryptFinal_ex(ctx.get(), cipher.data() + outLen, &finalLen) != 1) {
         OPENSSL_cleanse(plain.data(), plain.size());
-        return {};
+        return { };
     }
     cipher.resize(static_cast<std::size_t>(outLen + finalLen));
     OPENSSL_cleanse(plain.data(), plain.size());
 
-    std::array<unsigned char, kTagBytes> tag {};
+    std::array<unsigned char, kTagBytes> tag { };
     if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_GET_TAG, static_cast<int>(kTagBytes), tag.data()) != 1) {
-        return {};
+        return { };
     }
 
     // Envelope = IV(12) + Tag(16) + Ciphertext
-    std::vector<std::uint8_t> envelope {};
+    std::vector<std::uint8_t> envelope { };
     envelope.reserve(kIvBytes + kTagBytes + cipher.size());
     envelope.insert(envelope.end(), iv.begin(), iv.end());
     envelope.insert(envelope.end(), tag.begin(), tag.end());
@@ -194,7 +193,7 @@ std::optional<std::vector<OnvifUser>> CredentialVault::decrypt(std::string_view 
         return std::nullopt;
     }
 
-    std::string plain {};
+    std::string plain { };
     plain.resize(cipherLen);
     int outLen { 0 };
     if (EVP_DecryptUpdate(
