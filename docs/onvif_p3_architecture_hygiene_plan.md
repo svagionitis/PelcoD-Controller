@@ -540,11 +540,13 @@ const auto validSeconds = static_cast<std::int64_t>(daysValid) * kSecondsPerDay;
 - [x] Reduce `OnvifServer.cpp` from 6,720 LOC to 489 LOC (all files strictly < 500 LOC).
 - [x] 100% test pass rate across all ONVIF test suites (334 / 334 tests passing).
 
-### Phase 6: Pimpl Encapsulation of `OnvifServer`
-- Define `struct OnvifServer::Impl` inside `OnvifServer.cpp`.
-- Move `httplib::Server`, service references, and internal mutexes into `Impl`.
-- Clean `OnvifServer.h`: remove `#include "HttplibInclude.h"` and `#include <pugixml.hpp>`. Replace with standard forward declarations and `std::unique_ptr<Impl> m_impl;`.
-- Verify external compilation times and ABI boundary cleanliness.
+### Phase 6: Pimpl Encapsulation of `OnvifServer` ([Detailed Plan](onvif_p3_phase6_pimpl_encapsulation_plan.md)) - **COMPLETED**
+- [x] Define `struct OnvifServer::Impl` inside internal header `OnvifServerImpl.h`.
+- [x] Move `httplib::Server`, 16 domain mutexes, and internal state into `Impl`.
+- [x] Clean `OnvifServer.h`: remove `#include "HttplibInclude.h"` and `#include <pugixml.hpp>`. Replace with standard forward declarations and `std::unique_ptr<Impl> m_impl;`.
+- [x] Update `OnvifServer.cpp`, `OnvifServerRoutes.cpp`, and `OnvifServerAuth.cpp` to operate against `OnvifServer::Impl`.
+- [x] Ensure all files remain strictly < 500 LOC (`OnvifServer.h` 170 LOC, `OnvifServerImpl.h` 199 LOC, `OnvifServer.cpp` 441 LOC, `OnvifServerRoutes.cpp` 341 LOC, `OnvifServerAuth.cpp` 220 LOC).
+- [x] Verify zero regression across all 119+ ONVIF server and profile test cases (100% pass rate).
 
 ### Phase 7: Interface Segregation of `PelcoDPtzAdapter`
 - Split `PelcoDPtzAdapter` into focused components:

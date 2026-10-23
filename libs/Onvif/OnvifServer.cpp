@@ -1,7 +1,8 @@
 /// @file OnvifServer.cpp
-/// @brief Core lifecycle and state management implementation for OnvifServer.
+/// @brief Core lifecycle and state management implementation for OnvifServer and OnvifServer::Impl.
 
 #include "OnvifServer.h"
+#include "OnvifServerImpl.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -114,78 +115,263 @@ namespace {
 
 } // namespace
 
+// =============================================================================
+// OnvifServer (Public Interface Forwarding to Impl)
+// =============================================================================
+
 OnvifServer::OnvifServer(OnvifServerConfig config, std::shared_ptr<IPtzHandler> ptzHandler,
     std::shared_ptr<IImagingHandler> imagingHandler, std::shared_ptr<IOsdHandler> osdHandler,
     std::shared_ptr<IDeviceManagementHandler> deviceHandler, std::shared_ptr<IDeviceIoHandler> deviceIoHandler,
     std::shared_ptr<IMetadataHandler> metadataHandler, std::shared_ptr<IAnalyticsHandler> analyticsHandler)
-    : m_config(std::move(config))
-    , m_ptzHandler(std::move(ptzHandler))
-    , m_imagingHandler(std::move(imagingHandler))
-    , m_osdHandler(std::move(osdHandler))
-    , m_deviceHandler(std::move(deviceHandler))
-    , m_deviceIoHandler(std::move(deviceIoHandler))
-    , m_metadataHandler(std::move(metadataHandler))
-    , m_analyticsHandler(std::move(analyticsHandler))
-    , m_discoveryMode(m_config.discoveryMode)
+    : m_impl(std::make_unique<Impl>(std::move(config), std::move(ptzHandler), std::move(imagingHandler),
+          std::move(osdHandler), std::move(deviceHandler), std::move(deviceIoHandler), std::move(metadataHandler),
+          std::move(analyticsHandler)))
 {
-    m_credStore = std::make_shared<CredentialStore>(m_config.defaultUsers);
-    m_authenticator = std::make_unique<Authenticator>(m_credStore, m_config.auth);
-    if ((m_credStore->adminCount() > 0U) && !m_credStore->hasDefaultPassword()) {
-        m_provisioningState = ProvisioningState::Provisioned;
+}
+
+OnvifServer::~OnvifServer() = default;
+
+bool OnvifServer::start()
+{
+    return m_impl->start();
+}
+void OnvifServer::stop()
+{
+    m_impl->stop();
+}
+bool OnvifServer::isRunning() const noexcept
+{
+    return m_impl->isRunning();
+}
+ProvisioningState OnvifServer::provisioningState() const noexcept
+{
+    return m_impl->provisioningState();
+}
+DiscoveryMode OnvifServer::getDiscoveryMode() const noexcept
+{
+    return m_impl->getDiscoveryMode();
+}
+void OnvifServer::setDiscoveryMode(DiscoveryMode mode)
+{
+    m_impl->setDiscoveryMode(mode);
+}
+std::vector<NetworkProtocolConfig> OnvifServer::getNetworkProtocols() const
+{
+    return m_impl->getNetworkProtocols();
+}
+bool OnvifServer::setNetworkProtocols(const std::vector<NetworkProtocolConfig>& protocols)
+{
+    return m_impl->setNetworkProtocols(protocols);
+}
+OnvifServerConfig OnvifServer::getConfig() const
+{
+    return m_impl->getConfig();
+}
+std::shared_ptr<ScopeStore> OnvifServer::getScopeStore() const noexcept
+{
+    return m_impl->getScopeStore();
+}
+const SoapRouter& OnvifServer::getSoapRouter() const noexcept
+{
+    return m_impl->getSoapRouter();
+}
+
+void OnvifServer::setPtzHandler(std::shared_ptr<IPtzHandler> h)
+{
+    m_impl->setPtzHandler(std::move(h));
+}
+std::shared_ptr<IPtzHandler> OnvifServer::getPtzHandler() const
+{
+    return m_impl->getPtzHandler();
+}
+void OnvifServer::setImagingHandler(std::shared_ptr<IImagingHandler> h)
+{
+    m_impl->setImagingHandler(std::move(h));
+}
+std::shared_ptr<IImagingHandler> OnvifServer::getImagingHandler() const
+{
+    return m_impl->getImagingHandler();
+}
+void OnvifServer::setOsdHandler(std::shared_ptr<IOsdHandler> h)
+{
+    m_impl->setOsdHandler(std::move(h));
+}
+std::shared_ptr<IOsdHandler> OnvifServer::getOsdHandler() const
+{
+    return m_impl->getOsdHandler();
+}
+void OnvifServer::setDeviceManagementHandler(std::shared_ptr<IDeviceManagementHandler> h)
+{
+    m_impl->setDeviceManagementHandler(std::move(h));
+}
+std::shared_ptr<IDeviceManagementHandler> OnvifServer::getDeviceManagementHandler() const
+{
+    return m_impl->getDeviceManagementHandler();
+}
+void OnvifServer::setDeviceIoHandler(std::shared_ptr<IDeviceIoHandler> h)
+{
+    m_impl->setDeviceIoHandler(std::move(h));
+}
+std::shared_ptr<IDeviceIoHandler> OnvifServer::getDeviceIoHandler() const
+{
+    return m_impl->getDeviceIoHandler();
+}
+void OnvifServer::setMetadataHandler(std::shared_ptr<IMetadataHandler> h)
+{
+    m_impl->setMetadataHandler(std::move(h));
+}
+std::shared_ptr<IMetadataHandler> OnvifServer::getMetadataHandler() const
+{
+    return m_impl->getMetadataHandler();
+}
+void OnvifServer::setRecordingHandler(std::shared_ptr<IRecordingHandler> h)
+{
+    m_impl->setRecordingHandler(std::move(h));
+}
+std::shared_ptr<IRecordingHandler> OnvifServer::getRecordingHandler() const
+{
+    return m_impl->getRecordingHandler();
+}
+void OnvifServer::setSearchHandler(std::shared_ptr<ISearchHandler> h)
+{
+    m_impl->setSearchHandler(std::move(h));
+}
+std::shared_ptr<ISearchHandler> OnvifServer::getSearchHandler() const
+{
+    return m_impl->getSearchHandler();
+}
+void OnvifServer::setReplayHandler(std::shared_ptr<IReplayHandler> h)
+{
+    m_impl->setReplayHandler(std::move(h));
+}
+std::shared_ptr<IReplayHandler> OnvifServer::getReplayHandler() const
+{
+    return m_impl->getReplayHandler();
+}
+void OnvifServer::setAnalyticsHandler(std::shared_ptr<IAnalyticsHandler> h)
+{
+    m_impl->setAnalyticsHandler(std::move(h));
+}
+std::shared_ptr<IAnalyticsHandler> OnvifServer::getAnalyticsHandler() const
+{
+    return m_impl->getAnalyticsHandler();
+}
+void OnvifServer::setMaskHandler(std::shared_ptr<IMaskHandler> h)
+{
+    m_impl->setMaskHandler(std::move(h));
+}
+std::shared_ptr<IMaskHandler> OnvifServer::getMaskHandler() const
+{
+    return m_impl->getMaskHandler();
+}
+void OnvifServer::setVideoSourceModeHandler(std::shared_ptr<IVideoSourceModeHandler> h)
+{
+    m_impl->setVideoSourceModeHandler(std::move(h));
+}
+std::shared_ptr<IVideoSourceModeHandler> OnvifServer::getVideoSourceModeHandler() const
+{
+    return m_impl->getVideoSourceModeHandler();
+}
+void OnvifServer::setThermalHandler(std::shared_ptr<IThermalHandler> h)
+{
+    m_impl->setThermalHandler(std::move(h));
+}
+std::shared_ptr<IThermalHandler> OnvifServer::getThermalHandler() const
+{
+    return m_impl->getThermalHandler();
+}
+
+void OnvifServer::logSystemMessage(const std::string& level, const std::string& msg)
+{
+    m_impl->logSystemMessage(level, msg);
+}
+void OnvifServer::publishEvent(const OnvifEvent& event)
+{
+    m_impl->publishEvent(event);
+}
+void OnvifServer::setRequestLogCallback(RequestLogCallback callback)
+{
+    m_impl->setRequestLogCallback(std::move(callback));
+}
+void OnvifServer::setSnapshotProvider(SnapshotProvider provider)
+{
+    m_impl->setSnapshotProvider(std::move(provider));
+}
+
+// =============================================================================
+// OnvifServer::Impl Implementation
+// =============================================================================
+
+OnvifServer::Impl::Impl(OnvifServerConfig configIn, std::shared_ptr<IPtzHandler> ptzIn,
+    std::shared_ptr<IImagingHandler> imagingIn, std::shared_ptr<IOsdHandler> osdIn,
+    std::shared_ptr<IDeviceManagementHandler> deviceIn, std::shared_ptr<IDeviceIoHandler> deviceIoIn,
+    std::shared_ptr<IMetadataHandler> metadataIn, std::shared_ptr<IAnalyticsHandler> analyticsIn)
+    : config(std::move(configIn))
+    , ptzHandler(std::move(ptzIn))
+    , imagingHandler(std::move(imagingIn))
+    , osdHandler(std::move(osdIn))
+    , deviceHandler(std::move(deviceIn))
+    , deviceIoHandler(std::move(deviceIoIn))
+    , metadataHandler(std::move(metadataIn))
+    , analyticsHandler(std::move(analyticsIn))
+    , discoveryMode(config.discoveryMode)
+{
+    credStore = std::make_shared<CredentialStore>(config.defaultUsers);
+    authenticator = std::make_unique<Authenticator>(credStore, config.auth);
+    if ((credStore->adminCount() > 0U) && !credStore->hasDefaultPassword()) {
+        provState = ProvisioningState::Provisioned;
     } else {
-        m_provisioningState = ProvisioningState::Unprovisioned;
+        provState = ProvisioningState::Unprovisioned;
     }
-    m_internalNetworkInterfaces = m_config.defaultNetworkInterfaces;
-    m_internalNetworkProtocols = m_config.defaultNetworkProtocols;
-    if (m_internalNetworkProtocols.empty()) {
-        m_internalNetworkProtocols
-            = { { "HTTP", true, m_config.port }, { "HTTPS", false, 8443 }, { "RTSP", true, 8554 } };
+    internalNetworkInterfaces = config.defaultNetworkInterfaces;
+    internalNetworkProtocols = config.defaultNetworkProtocols;
+    if (internalNetworkProtocols.empty()) {
+        internalNetworkProtocols = { { "HTTP", true, config.port }, { "HTTPS", false, 8443 }, { "RTSP", true, 8554 } };
     } else {
-        for (auto& proto : m_internalNetworkProtocols) {
-            if (proto.name == "HTTP" && m_config.port != 8080 && proto.port == 8080) {
-                proto.port = m_config.port;
+        for (auto& proto : internalNetworkProtocols) {
+            if (proto.name == "HTTP" && config.port != 8080 && proto.port == 8080) {
+                proto.port = config.port;
             }
         }
     }
-    m_internalGateway = m_config.defaultGateway;
-    m_internalDns = m_config.defaultDns;
-    m_internalNtp = m_config.defaultNtp;
-    m_internalHostname = m_config.hostname;
-    m_internalRelayOutputs = m_config.defaultRelayOutputs;
-    m_internalDigitalInputs = m_config.defaultDigitalInputs;
+    internalGateway = config.defaultGateway;
+    internalDns = config.defaultDns;
+    internalNtp = config.defaultNtp;
+    internalHostname = config.hostname;
+    internalRelayOutputs = config.defaultRelayOutputs;
+    internalDigitalInputs = config.defaultDigitalInputs;
 
-    m_subManager = std::make_shared<SubscriptionManager>(m_config.notification);
-    m_dispatcher = std::make_shared<NotificationDispatcher>(m_config.notification);
-    m_scopeStore = std::make_shared<ScopeStore>(m_config.scopes);
-    m_discoveryServer = std::make_unique<WsDiscoveryServer>(m_config, m_scopeStore);
+    subManager = std::make_shared<SubscriptionManager>(config.notification);
+    dispatcher = std::make_shared<NotificationDispatcher>(config.notification);
+    scopeStore = std::make_shared<ScopeStore>(config.scopes);
+    discoveryServer = std::make_unique<WsDiscoveryServer>(config, scopeStore);
 
     setupRoutes();
 }
 
-OnvifServer::~OnvifServer()
+OnvifServer::Impl::~Impl()
 {
     stop();
 }
 
-bool OnvifServer::start()
+bool OnvifServer::Impl::start()
 {
-    if (m_running) {
+    if (running) {
         return true;
     }
 
-    const std::string host { m_config.bindAddress.empty() ? std::string { "0.0.0.0" } : m_config.bindAddress };
+    const std::string host { config.bindAddress.empty() ? std::string { "0.0.0.0" } : config.bindAddress };
     const bool loopback { isLoopbackHost(host) };
-    if (!m_config.auth.enabled && !loopback) {
+    if (!config.auth.enabled && !loopback) {
         logSystemMessage("ERROR", "Refusing to start: authentication disabled on non-loopback address " + host);
         return false;
     }
-    if (m_config.auth.enabled && !loopback && !m_config.auth.allowDefaultPassword
-        && m_credStore->hasDefaultPassword()) {
+    if (config.auth.enabled && !loopback && !config.auth.allowDefaultPassword && credStore->hasDefaultPassword()) {
         logSystemMessage("ERROR", "Refusing to start: factory-default ONVIF password configured on " + host);
         return false;
     }
 
-    m_httpServer.set_socket_options([](socket_t sock) {
+    httpServer.set_socket_options([](socket_t sock) {
         const int opt { 1 };
 #ifdef _WIN32
         static_cast<void>(::setsockopt(
@@ -195,14 +381,14 @@ bool OnvifServer::start()
             sock, SOL_SOCKET, SO_REUSEADDR, static_cast<const void*>(&opt), static_cast<socklen_t>(sizeof(opt))));
 #endif
     });
-    if (!m_httpServer.bind_to_port(host.c_str(), m_config.port)) {
-        logSystemMessage("ERROR", "Failed to bind ONVIF HTTP server to " + host + ":" + std::to_string(m_config.port));
+    if (!httpServer.bind_to_port(host.c_str(), config.port)) {
+        logSystemMessage("ERROR", "Failed to bind ONVIF HTTP server to " + host + ":" + std::to_string(config.port));
         return false;
     }
 
     const auto listenExited { std::make_shared<std::atomic<bool>>(false) };
-    m_httpThread = std::thread([this, listenExited]() {
-        const bool res { m_httpServer.listen_after_bind() };
+    httpThread = std::thread([this, listenExited]() {
+        const bool res { httpServer.listen_after_bind() };
         if (!res) {
             logSystemMessage("ERROR", "ONVIF HTTP server listen_after_bind failed");
         }
@@ -213,7 +399,7 @@ bool OnvifServer::start()
     const auto startWait { std::chrono::steady_clock::now() };
     bool listening { false };
     while (!listenExited->load(std::memory_order_acquire)) {
-        if (m_httpServer.is_running()) {
+        if (httpServer.is_running()) {
             listening = true;
             break;
         }
@@ -224,286 +410,286 @@ bool OnvifServer::start()
     }
 
     if (!listening) {
-        logSystemMessage("ERROR", "Failed to start listening on " + host + ":" + std::to_string(m_config.port));
-        m_httpServer.stop();
-        if (m_httpThread.joinable()) {
-            m_httpThread.join();
+        logSystemMessage("ERROR", "Failed to start listening on " + host + ":" + std::to_string(config.port));
+        httpServer.stop();
+        if (httpThread.joinable()) {
+            httpThread.join();
         }
-        m_running = false;
+        running = false;
         return false;
     }
 
-    m_running = true;
+    running = true;
 
-    if (m_dispatcher) {
-        m_dispatcher->start();
+    if (dispatcher) {
+        dispatcher->start();
     }
 
-    if (m_discoveryServer) {
-        if (!m_discoveryServer->start()) {
+    if (discoveryServer) {
+        if (!discoveryServer->start()) {
             logSystemMessage("WARNING", "WS-Discovery server failed to start on UDP port 3702");
         }
     }
 
-    logSystemMessage("INFO", "ONVIF HTTP server started successfully on " + host + ":" + std::to_string(m_config.port));
+    logSystemMessage("INFO", "ONVIF HTTP server started successfully on " + host + ":" + std::to_string(config.port));
     return true;
 }
 
-void OnvifServer::stop()
+void OnvifServer::Impl::stop()
 {
-    if (!m_running) {
-        if (m_httpThread.joinable()) {
-            m_httpServer.stop();
-            m_httpThread.join();
+    if (!running) {
+        if (httpThread.joinable()) {
+            httpServer.stop();
+            httpThread.join();
         }
         return;
     }
 
-    if (m_discoveryServer) {
-        m_discoveryServer->stop();
+    if (discoveryServer) {
+        discoveryServer->stop();
     }
 
-    m_httpServer.stop();
-    m_running = false;
+    httpServer.stop();
+    running = false;
 
-    if (m_dispatcher) {
-        m_dispatcher->stop();
+    if (dispatcher) {
+        dispatcher->stop();
     }
 
-    if (m_subManager) {
-        m_subManager->stop();
+    if (subManager) {
+        subManager->stop();
     }
 
-    if (m_httpThread.joinable()) {
-        m_httpThread.join();
+    if (httpThread.joinable()) {
+        httpThread.join();
     }
 }
 
-bool OnvifServer::isRunning() const noexcept
+bool OnvifServer::Impl::isRunning() const noexcept
 {
-    return m_running;
+    return running;
 }
 
-OnvifServerConfig OnvifServer::getConfig() const
+OnvifServerConfig OnvifServer::Impl::getConfig() const
 {
-    std::scoped_lock lock(m_deviceMutex);
-    auto cfg = m_config;
-    if (m_scopeStore) {
-        cfg.scopes = m_scopeStore->getScopes();
+    std::scoped_lock lock(deviceMutex);
+    auto cfg = config;
+    if (scopeStore) {
+        cfg.scopes = scopeStore->getScopes();
     }
     return cfg;
 }
 
-std::shared_ptr<ScopeStore> OnvifServer::getScopeStore() const noexcept
+std::shared_ptr<ScopeStore> OnvifServer::Impl::getScopeStore() const noexcept
 {
-    return m_scopeStore;
+    return scopeStore;
 }
 
-const SoapRouter& OnvifServer::getSoapRouter() const noexcept
+const SoapRouter& OnvifServer::Impl::getSoapRouter() const noexcept
 {
-    return m_soapRouter;
+    return soapRouter;
 }
 
-ProvisioningState OnvifServer::provisioningState() const noexcept
+ProvisioningState OnvifServer::Impl::provisioningState() const noexcept
 {
-    return m_provisioningState.load();
+    return provState.load();
 }
 
-DiscoveryMode OnvifServer::getDiscoveryMode() const noexcept
+DiscoveryMode OnvifServer::Impl::getDiscoveryMode() const noexcept
 {
-    return m_discoveryMode.load();
+    return discoveryMode.load();
 }
 
-void OnvifServer::setDiscoveryMode(DiscoveryMode mode)
+void OnvifServer::Impl::setDiscoveryMode(DiscoveryMode mode)
 {
-    m_discoveryMode.store(mode);
-    if (m_discoveryServer) {
-        m_discoveryServer->setDiscoveryMode(mode);
+    discoveryMode.store(mode);
+    if (discoveryServer) {
+        discoveryServer->setDiscoveryMode(mode);
     }
 }
 
-std::vector<NetworkProtocolConfig> OnvifServer::getNetworkProtocols() const
+std::vector<NetworkProtocolConfig> OnvifServer::Impl::getNetworkProtocols() const
 {
-    const auto deviceHandler = getDeviceManagementHandler();
-    if (deviceHandler) {
-        auto protocols = deviceHandler->handleGetNetworkProtocols();
+    const auto devHandler = getDeviceManagementHandler();
+    if (devHandler) {
+        auto protocols = devHandler->handleGetNetworkProtocols();
         if (!protocols.empty()) {
             return protocols;
         }
     }
-    std::scoped_lock lock(m_deviceMutex);
-    return m_internalNetworkProtocols;
+    std::scoped_lock lock(deviceMutex);
+    return internalNetworkProtocols;
 }
 
-bool OnvifServer::setNetworkProtocols(const std::vector<NetworkProtocolConfig>& protocols)
+bool OnvifServer::Impl::setNetworkProtocols(const std::vector<NetworkProtocolConfig>& protocols)
 {
     for (const auto& proto : protocols) {
         if (proto.port < 1 || proto.port > 65535) {
             return false;
         }
     }
-    const auto deviceHandler = getDeviceManagementHandler();
-    if (deviceHandler) {
-        deviceHandler->handleSetNetworkProtocols(protocols);
+    const auto devHandler = getDeviceManagementHandler();
+    if (devHandler) {
+        devHandler->handleSetNetworkProtocols(protocols);
     }
-    std::scoped_lock lock(m_deviceMutex);
+    std::scoped_lock lock(deviceMutex);
     for (const auto& u : protocols) {
-        auto it = std::find_if(m_internalNetworkProtocols.begin(), m_internalNetworkProtocols.end(),
+        auto it = std::find_if(internalNetworkProtocols.begin(), internalNetworkProtocols.end(),
             [&u](const NetworkProtocolConfig& existing) { return existing.name == u.name; });
-        if (it != m_internalNetworkProtocols.end()) {
+        if (it != internalNetworkProtocols.end()) {
             it->enabled = u.enabled;
             it->port = u.port;
         } else {
-            m_internalNetworkProtocols.push_back(u);
+            internalNetworkProtocols.push_back(u);
         }
     }
     return true;
 }
 
-void OnvifServer::setPtzHandler(std::shared_ptr<IPtzHandler> h)
+void OnvifServer::Impl::setPtzHandler(std::shared_ptr<IPtzHandler> h)
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_ptzHandler = std::move(h);
+    std::scoped_lock lock(handlerMutex);
+    ptzHandler = std::move(h);
 }
-std::shared_ptr<IPtzHandler> OnvifServer::getPtzHandler() const
+std::shared_ptr<IPtzHandler> OnvifServer::Impl::getPtzHandler() const
 {
-    std::scoped_lock lock(m_handlerMutex);
-    return m_ptzHandler;
+    std::scoped_lock lock(handlerMutex);
+    return ptzHandler;
 }
-void OnvifServer::setImagingHandler(std::shared_ptr<IImagingHandler> h)
+void OnvifServer::Impl::setImagingHandler(std::shared_ptr<IImagingHandler> h)
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_imagingHandler = std::move(h);
+    std::scoped_lock lock(handlerMutex);
+    imagingHandler = std::move(h);
 }
-std::shared_ptr<IImagingHandler> OnvifServer::getImagingHandler() const
+std::shared_ptr<IImagingHandler> OnvifServer::Impl::getImagingHandler() const
 {
-    std::scoped_lock lock(m_handlerMutex);
-    return m_imagingHandler;
+    std::scoped_lock lock(handlerMutex);
+    return imagingHandler;
 }
-void OnvifServer::setOsdHandler(std::shared_ptr<IOsdHandler> h)
+void OnvifServer::Impl::setOsdHandler(std::shared_ptr<IOsdHandler> h)
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_osdHandler = std::move(h);
+    std::scoped_lock lock(handlerMutex);
+    osdHandler = std::move(h);
 }
-std::shared_ptr<IOsdHandler> OnvifServer::getOsdHandler() const
+std::shared_ptr<IOsdHandler> OnvifServer::Impl::getOsdHandler() const
 {
-    std::scoped_lock lock(m_handlerMutex);
-    return m_osdHandler;
+    std::scoped_lock lock(handlerMutex);
+    return osdHandler;
 }
-void OnvifServer::setDeviceManagementHandler(std::shared_ptr<IDeviceManagementHandler> h)
+void OnvifServer::Impl::setDeviceManagementHandler(std::shared_ptr<IDeviceManagementHandler> h)
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_deviceHandler = std::move(h);
+    std::scoped_lock lock(handlerMutex);
+    deviceHandler = std::move(h);
 }
-std::shared_ptr<IDeviceManagementHandler> OnvifServer::getDeviceManagementHandler() const
+std::shared_ptr<IDeviceManagementHandler> OnvifServer::Impl::getDeviceManagementHandler() const
 {
-    std::scoped_lock lock(m_handlerMutex);
-    return m_deviceHandler;
+    std::scoped_lock lock(handlerMutex);
+    return deviceHandler;
 }
-void OnvifServer::setDeviceIoHandler(std::shared_ptr<IDeviceIoHandler> h)
+void OnvifServer::Impl::setDeviceIoHandler(std::shared_ptr<IDeviceIoHandler> h)
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_deviceIoHandler = std::move(h);
+    std::scoped_lock lock(handlerMutex);
+    deviceIoHandler = std::move(h);
 }
-std::shared_ptr<IDeviceIoHandler> OnvifServer::getDeviceIoHandler() const
+std::shared_ptr<IDeviceIoHandler> OnvifServer::Impl::getDeviceIoHandler() const
 {
-    std::scoped_lock lock(m_handlerMutex);
-    return m_deviceIoHandler;
+    std::scoped_lock lock(handlerMutex);
+    return deviceIoHandler;
 }
-void OnvifServer::setMetadataHandler(std::shared_ptr<IMetadataHandler> h)
+void OnvifServer::Impl::setMetadataHandler(std::shared_ptr<IMetadataHandler> h)
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_metadataHandler = std::move(h);
+    std::scoped_lock lock(handlerMutex);
+    metadataHandler = std::move(h);
 }
-std::shared_ptr<IMetadataHandler> OnvifServer::getMetadataHandler() const
+std::shared_ptr<IMetadataHandler> OnvifServer::Impl::getMetadataHandler() const
 {
-    std::scoped_lock lock(m_handlerMutex);
-    return m_metadataHandler;
+    std::scoped_lock lock(handlerMutex);
+    return metadataHandler;
 }
-void OnvifServer::setRecordingHandler(std::shared_ptr<IRecordingHandler> h)
+void OnvifServer::Impl::setRecordingHandler(std::shared_ptr<IRecordingHandler> h)
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_recordingHandler = std::move(h);
+    std::scoped_lock lock(handlerMutex);
+    recordingHandler = std::move(h);
 }
-std::shared_ptr<IRecordingHandler> OnvifServer::getRecordingHandler() const
+std::shared_ptr<IRecordingHandler> OnvifServer::Impl::getRecordingHandler() const
 {
-    std::scoped_lock lock(m_handlerMutex);
-    return m_recordingHandler;
+    std::scoped_lock lock(handlerMutex);
+    return recordingHandler;
 }
-void OnvifServer::setSearchHandler(std::shared_ptr<ISearchHandler> h)
+void OnvifServer::Impl::setSearchHandler(std::shared_ptr<ISearchHandler> h)
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_searchHandler = std::move(h);
+    std::scoped_lock lock(handlerMutex);
+    searchHandler = std::move(h);
 }
-std::shared_ptr<ISearchHandler> OnvifServer::getSearchHandler() const
+std::shared_ptr<ISearchHandler> OnvifServer::Impl::getSearchHandler() const
 {
-    std::scoped_lock lock(m_handlerMutex);
-    return m_searchHandler;
+    std::scoped_lock lock(handlerMutex);
+    return searchHandler;
 }
-void OnvifServer::setReplayHandler(std::shared_ptr<IReplayHandler> h)
+void OnvifServer::Impl::setReplayHandler(std::shared_ptr<IReplayHandler> h)
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_replayHandler = std::move(h);
+    std::scoped_lock lock(handlerMutex);
+    replayHandler = std::move(h);
 }
-std::shared_ptr<IReplayHandler> OnvifServer::getReplayHandler() const
+std::shared_ptr<IReplayHandler> OnvifServer::Impl::getReplayHandler() const
 {
-    std::scoped_lock lock(m_handlerMutex);
-    return m_replayHandler;
+    std::scoped_lock lock(handlerMutex);
+    return replayHandler;
 }
-void OnvifServer::setAnalyticsHandler(std::shared_ptr<IAnalyticsHandler> h)
+void OnvifServer::Impl::setAnalyticsHandler(std::shared_ptr<IAnalyticsHandler> h)
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_analyticsHandler = std::move(h);
+    std::scoped_lock lock(handlerMutex);
+    analyticsHandler = std::move(h);
 }
-std::shared_ptr<IAnalyticsHandler> OnvifServer::getAnalyticsHandler() const
+std::shared_ptr<IAnalyticsHandler> OnvifServer::Impl::getAnalyticsHandler() const
 {
-    std::scoped_lock lock(m_handlerMutex);
-    return m_analyticsHandler;
+    std::scoped_lock lock(handlerMutex);
+    return analyticsHandler;
 }
-void OnvifServer::setMaskHandler(std::shared_ptr<IMaskHandler> h)
+void OnvifServer::Impl::setMaskHandler(std::shared_ptr<IMaskHandler> h)
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_maskHandler = std::move(h);
+    std::scoped_lock lock(handlerMutex);
+    maskHandler = std::move(h);
 }
-std::shared_ptr<IMaskHandler> OnvifServer::getMaskHandler() const
+std::shared_ptr<IMaskHandler> OnvifServer::Impl::getMaskHandler() const
 {
-    std::scoped_lock lock(m_handlerMutex);
-    return m_maskHandler;
+    std::scoped_lock lock(handlerMutex);
+    return maskHandler;
 }
-void OnvifServer::setVideoSourceModeHandler(std::shared_ptr<IVideoSourceModeHandler> h)
+void OnvifServer::Impl::setVideoSourceModeHandler(std::shared_ptr<IVideoSourceModeHandler> h)
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_videoSourceModeHandler = std::move(h);
+    std::scoped_lock lock(handlerMutex);
+    videoSourceModeHandler = std::move(h);
 }
-std::shared_ptr<IVideoSourceModeHandler> OnvifServer::getVideoSourceModeHandler() const
+std::shared_ptr<IVideoSourceModeHandler> OnvifServer::Impl::getVideoSourceModeHandler() const
 {
-    std::scoped_lock lock(m_handlerMutex);
-    return m_videoSourceModeHandler;
+    std::scoped_lock lock(handlerMutex);
+    return videoSourceModeHandler;
 }
-void OnvifServer::setThermalHandler(std::shared_ptr<IThermalHandler> h)
+void OnvifServer::Impl::setThermalHandler(std::shared_ptr<IThermalHandler> h)
 {
-    std::scoped_lock lock(m_handlerMutex);
-    m_thermalHandler = std::move(h);
+    std::scoped_lock lock(handlerMutex);
+    thermalHandler = std::move(h);
 }
-std::shared_ptr<IThermalHandler> OnvifServer::getThermalHandler() const
+std::shared_ptr<IThermalHandler> OnvifServer::Impl::getThermalHandler() const
 {
-    std::scoped_lock lock(m_handlerMutex);
-    return m_thermalHandler;
+    std::scoped_lock lock(handlerMutex);
+    return thermalHandler;
 }
 
-void OnvifServer::logSystemMessage(const std::string& level, const std::string& msg)
+void OnvifServer::Impl::logSystemMessage(const std::string& level, const std::string& msg)
 {
-    std::scoped_lock lock(m_logMutex);
+    std::scoped_lock lock(logMutex);
     const std::string timestamp = formatIso8601Utc(std::chrono::system_clock::now());
     std::ostringstream ss;
     ss << "[" << timestamp << "] [" << level << "] " << msg;
-    m_systemLogs.push_back(ss.str());
-    if (m_systemLogs.size() > 500) {
-        m_systemLogs.pop_front();
+    systemLogs.push_back(ss.str());
+    if (systemLogs.size() > 500) {
+        systemLogs.pop_front();
     }
 }
 
-void OnvifServer::publishEvent(const OnvifEvent& event)
+void OnvifServer::Impl::publishEvent(const OnvifEvent& event)
 {
     OnvifEvent ev = event;
     if (ev.utcTime.empty()) {
@@ -514,27 +700,27 @@ void OnvifServer::publishEvent(const OnvifEvent& event)
     }
 
     std::vector<std::string> pushUrls { };
-    if (m_subManager) {
-        m_subManager->publishEvent(ev, pushUrls);
+    if (subManager) {
+        subManager->publishEvent(ev, pushUrls);
     }
 
-    if (m_dispatcher && !pushUrls.empty()) {
+    if (dispatcher && !pushUrls.empty()) {
         for (auto& url : pushUrls) {
             std::string payload { buildNotifyEnvelope(ev, url) };
-            m_dispatcher->enqueue(std::move(url), std::move(payload));
+            dispatcher->enqueue(std::move(url), std::move(payload));
         }
     }
 }
 
-void OnvifServer::setRequestLogCallback(RequestLogCallback callback)
+void OnvifServer::Impl::setRequestLogCallback(RequestLogCallback callback)
 {
-    m_logCallback = std::move(callback);
+    logCallback = std::move(callback);
 }
 
-void OnvifServer::setSnapshotProvider(SnapshotProvider provider)
+void OnvifServer::Impl::setSnapshotProvider(OnvifServer::SnapshotProvider provider)
 {
-    std::lock_guard<std::mutex> lock(m_snapshotMutex);
-    m_snapshotProvider = std::move(provider);
+    std::lock_guard<std::mutex> lock(snapshotMutex);
+    snapshotProvider = std::move(provider);
 }
 
 } // namespace Onvif

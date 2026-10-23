@@ -17,6 +17,7 @@
 #include <Onvif/HttplibInclude.h>
 #include <Onvif/OnvifClient.h>
 #include <Onvif/OnvifServer.h>
+#include <Onvif/WsDiscoveryServer.h>
 #include <Onvif/adapters/PelcoDPtzAdapter.h>
 #include <PelcoDSim/MockPelcoDDevice.h>
 

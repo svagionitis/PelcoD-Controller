@@ -5,46 +5,32 @@
 
 #include <cstdint>
 
-#include <atomic>
-#include <chrono>
-#include <condition_variable>
-#include <deque>
 #include <functional>
-#include <map>
 #include <memory>
-#include <mutex>
-#include <optional>
-#include <sstream>
 #include <string>
-#include <string_view>
-#include <thread>
 #include <vector>
 
-#include <pugixml.hpp>
-
-#include "Authenticator.h"
-#include "CredentialStore.h"
-#include "HttplibInclude.h"
 #include "OnvifServerTypes.h"
-#include "ScopeStore.h"
-#include "SoapRouter.h"
-#include "WsDiscoveryServer.h"
-#include "services/IService.h"
 
 namespace Onvif {
 
-class SubscriptionManager;
-class NotificationDispatcher;
+class ScopeStore;
+class SoapRouter;
 
 /// @class OnvifServer
 /// @brief Standalone Qt-free ONVIF Profile S and Profile T HTTP server coordinating Device, Media, PTZ, Imaging, and
-/// Event services.
+/// Event services. Encapsulated via Pimpl idiom for ABI stability and minimal compilation overhead.
 class OnvifServer {
 public:
     /// @brief Constructs server with configuration and optional PTZ handler.
     /// @param[in] config Server networking and metadata parameters.
     /// @param[in] ptzHandler Optional handler receiving PTZ motion and preset events.
     /// @param[in] imagingHandler Optional handler receiving Profile T imaging requests.
+    /// @param[in] osdHandler Optional handler receiving Profile T OSD requests.
+    /// @param[in] deviceHandler Optional handler receiving Device Management operations.
+    /// @param[in] deviceIoHandler Optional handler receiving Device I/O operations.
+    /// @param[in] metadataHandler Optional handler receiving Metadata stream requests.
+    /// @param[in] analyticsHandler Optional handler receiving Analytics rules and module requests.
     explicit OnvifServer(OnvifServerConfig config = { }, std::shared_ptr<IPtzHandler> ptzHandler = nullptr,
         std::shared_ptr<IImagingHandler> imagingHandler = nullptr, std::shared_ptr<IOsdHandler> osdHandler = nullptr,
         std::shared_ptr<IDeviceManagementHandler> deviceHandler = nullptr,
@@ -55,19 +41,13 @@ public:
     /// @brief Destructor stops HTTP service and WS-Discovery daemon.
     ~OnvifServer();
 
-    // Non-copyable, non-movable
+    // Non-copyable, non-movable per MISRA C++:2023
     OnvifServer(const OnvifServer&) = delete;
     OnvifServer& operator=(const OnvifServer&) = delete;
     OnvifServer(OnvifServer&&) = delete;
     OnvifServer& operator=(OnvifServer&&) = delete;
 
     /// @brief Starts WS-Discovery responder and HTTP SOAP service threads.
-    /// @details Refuses to start (returns false) when:
-    ///          - authentication is disabled and the bind address is not loopback;
-    ///          - a factory-default password is configured, the bind address is not loopback and
-    ///            OnvifAuthConfig::allowDefaultPassword is false;
-    ///          - the HTTP port cannot be bound (e.g. already in use);
-    ///          - the HTTP listener fails to start or times out (finding H2).
     /// @return True if the server is actively listening.
     [[nodiscard]] bool start();
 
@@ -236,145 +216,8 @@ public:
     void setSnapshotProvider(SnapshotProvider provider);
 
 private:
-    void setupRoutes();
-
-    void handleSoapEndpoint(const httplib::Request& req, httplib::Response& res, std::string_view serviceName,
-        std::string_view fallbackNs = { });
-    void handleMetadataStream(const httplib::Request& req, httplib::Response& res);
-
-    [[nodiscard]] std::string generateMetadataStreamXml(const MetadataStreamPayload& payload) const;
-    [[nodiscard]] std::string resolveHost(const httplib::Request& req) const;
-
-    struct SoapRequest {
-        pugi::xml_node bodyNode { };
-        pugi::xml_node reqNode { };
-        std::string opName { };
-    };
-
-    [[nodiscard]] std::optional<SoapRequest> parseSoapRequest(
-        const httplib::Request& req, httplib::Response& res, std::string_view serviceName, pugi::xml_document& doc);
-
-    void appendAccessLog(std::string_view serviceName, const std::string& opName, const std::string& remoteAddr);
-
-    void sendSoapResponse(httplib::Response& res, const std::string& bodyXml, int status = 200);
-
-    [[nodiscard]] bool authorize(const httplib::Request& req, httplib::Response& res, std::string_view serviceName,
-        const std::string& opName, const pugi::xml_document& doc);
-    [[nodiscard]] bool authorizeHttp(const httplib::Request& req, httplib::Response& res, std::string_view what);
-    void rejectAuth(const httplib::Request& req, httplib::Response& res, AuthOutcome outcome, std::string_view what);
-    void rejectForbidden(
-        const httplib::Request& req, httplib::Response& res, const Principal& who, std::string_view what);
-    void appendAuthFailLog(const std::string& remoteAddr, std::string_view what, std::string_view reason);
-
-    OnvifServerConfig m_config;
-    RequestLogCallback m_logCallback { };
-    mutable std::mutex m_handlerMutex { };
-    std::shared_ptr<IPtzHandler> m_ptzHandler { };
-    std::shared_ptr<IImagingHandler> m_imagingHandler { };
-    std::shared_ptr<IOsdHandler> m_osdHandler { };
-    std::shared_ptr<IDeviceManagementHandler> m_deviceHandler { };
-    std::shared_ptr<IDeviceIoHandler> m_deviceIoHandler { };
-    std::shared_ptr<IMetadataHandler> m_metadataHandler { };
-    std::shared_ptr<IRecordingHandler> m_recordingHandler { };
-    std::shared_ptr<ISearchHandler> m_searchHandler { };
-    std::shared_ptr<IReplayHandler> m_replayHandler { };
-    std::shared_ptr<IAnalyticsHandler> m_analyticsHandler { };
-    std::shared_ptr<IMaskHandler> m_maskHandler { };
-    std::shared_ptr<IVideoSourceModeHandler> m_videoSourceModeHandler { };
-    std::shared_ptr<IThermalHandler> m_thermalHandler { };
-    std::shared_ptr<ScopeStore> m_scopeStore { };
-    std::unique_ptr<WsDiscoveryServer> m_discoveryServer { };
-    httplib::Server m_httpServer;
-
-    mutable std::mutex m_deviceMutex { };
-    std::shared_ptr<CredentialStore> m_credStore { };
-    std::unique_ptr<Authenticator> m_authenticator { };
-    std::vector<NetworkInterfaceConfig> m_internalNetworkInterfaces { };
-    std::vector<NetworkProtocolConfig> m_internalNetworkProtocols { };
-    std::string m_internalGateway { "192.168.1.1" };
-    DnsConfig m_internalDns { };
-    NtpConfig m_internalNtp { };
-    std::string m_internalHostname { "PelcoD-Bridge" };
-    SystemDateTimeConfig m_internalDateTime { };
-
-    mutable std::mutex m_certMutex { };
-    std::vector<OnvifCertificate> m_internalCertificates { };
-    ClientCertificateMode m_internalClientCertMode { ClientCertificateMode::Off };
-
-    mutable std::mutex m_imagingMutex { };
-    FocusStatus20 m_internalFocusStatus { };
-    std::vector<ImagingPreset> m_internalImagingPresets { };
-    std::string m_currentImagingPresetToken { };
-
-    mutable std::mutex m_deviceIoMutex { };
-    std::vector<RelayOutputConfig> m_internalRelayOutputs { };
-    std::vector<DigitalInputConfig> m_internalDigitalInputs { };
-
-    mutable std::mutex m_metadataMutex { };
-    std::vector<MetadataConfiguration> m_internalMetadataConfigs { };
-
-    mutable std::mutex m_recordingMutex { };
-    std::vector<RecordingConfig> m_internalRecordings { };
-    std::vector<RecordingJob> m_internalRecordingJobs { };
-    ReplayConfiguration m_internalReplayConfig { };
-
-    mutable std::mutex m_searchMutex { };
-    std::map<std::string, std::vector<RecordingSearchResult>> m_recordingSearches { };
-    std::map<std::string, std::vector<RecordedEventResult>> m_eventSearches { };
-    std::uint32_t m_nextSearchId { 1 };
-
-    mutable std::mutex m_analyticsMutex { };
-    std::vector<AnalyticsRule> m_internalRules { };
-    std::vector<AnalyticsModule> m_internalModules { };
-
-    mutable std::mutex m_logMutex { };
-    std::deque<std::string> m_systemLogs { };
-    std::deque<std::string> m_accessLogs { };
-
-    std::chrono::steady_clock::time_point m_startTime { std::chrono::steady_clock::now() };
-
-    mutable std::mutex m_osdMutex { };
-    std::map<std::string, OsdConfig> m_internalOsds { };
-    std::uint32_t m_nextOsdId { 1 };
-
-    mutable std::mutex m_maskMutex { };
-    std::vector<PrivacyMask> m_internalMasks { };
-    MaskOptions m_internalMaskOptions { };
-    std::uint32_t m_nextMaskId { 1 };
-
-    mutable std::mutex m_videoSourceModeMutex { };
-    std::vector<VideoSourceMode> m_internalVideoSourceModes { };
-
-    mutable std::mutex m_thermalMutex { };
-    RadiometryConfig m_internalRadiometryConfig { };
-    std::vector<RadiometrySpot> m_internalRadiometrySpots { };
-    std::vector<RadiometryBox> m_internalRadiometryBoxes { };
-    std::vector<ColorPalette> m_internalColorPalettes { };
-    std::string m_internalActiveColorPalette { "WhiteHot" };
-    ThermalCapabilities m_internalThermalCaps { };
-
-    std::shared_ptr<SubscriptionManager> m_subManager { };
-    std::shared_ptr<NotificationDispatcher> m_dispatcher { };
-
-    mutable std::mutex m_mediaMutex { };
-    std::vector<ServerMediaProfile> m_internalProfiles { };
-    std::vector<VideoSourceConfig> m_internalVideoSources { };
-    std::vector<VideoEncoderConfig> m_internalVideoEncoders { };
-    std::uint32_t m_nextProfileId { 2 };
-
-    mutable std::mutex m_ptzConfigMutex { };
-    std::vector<PTZConfiguration> m_internalPtzConfigs { };
-
-    std::atomic<ProvisioningState> m_provisioningState { ProvisioningState::Unprovisioned };
-    std::atomic<DiscoveryMode> m_discoveryMode { DiscoveryMode::Discoverable };
-    mutable std::mutex m_snapshotMutex { };
-    SnapshotProvider m_snapshotProvider { };
-
-    std::atomic<bool> m_running { false };
-    std::thread m_httpThread { };
-    SoapRouter m_soapRouter { };
-    std::vector<std::unique_ptr<IService>> m_services { };
-    Principal m_lastAuthPrincipal { };
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
 };
 
 } // namespace Onvif

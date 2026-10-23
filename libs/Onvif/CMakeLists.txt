@@ -54,6 +54,7 @@ add_library(Onvif STATIC
     ScopeStore.h
     ScopeStore.cpp
     OnvifServer.h
+    OnvifServerImpl.h
     OnvifServer.cpp
     OnvifServerRoutes.cpp
     OnvifServerAuth.cpp

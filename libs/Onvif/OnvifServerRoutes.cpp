@@ -1,7 +1,8 @@
 /// @file OnvifServerRoutes.cpp
-/// @brief HTTP and SOAP endpoint routing and authorization pipeline for OnvifServer.
+/// @brief HTTP and SOAP endpoint routing and authorization pipeline for OnvifServer::Impl.
 
 #include "OnvifServer.h"
+#include "OnvifServerImpl.h"
 #include "services/IService.h"
 
 #include <cstddef>
@@ -64,25 +65,25 @@ namespace {
 
 } // namespace
 
-void OnvifServer::setupRoutes()
+void OnvifServer::Impl::setupRoutes()
 {
     // 1. DeviceService
     DeviceServiceContext devCtx { };
-    devCtx.config = m_config;
-    devCtx.scopeStore = m_scopeStore;
-    devCtx.credStore = m_credStore;
+    devCtx.config = config;
+    devCtx.scopeStore = scopeStore;
+    devCtx.credStore = credStore;
     devCtx.getDeviceHandler = [this]() { return getDeviceManagementHandler(); };
     devCtx.getDiscoveryMode = [this]() { return getDiscoveryMode(); };
     devCtx.setDiscoveryMode = [this](DiscoveryMode m) { setDiscoveryMode(m); };
-    devCtx.setProvisioningState = [this](ProvisioningState s) { m_provisioningState.store(s); };
-    devCtx.resolveHost = [this](const SoapContext& ctx) { return ctx.host.empty() ? m_config.bindAddress : ctx.host; };
+    devCtx.setProvisioningState = [this](ProvisioningState s) { provState.store(s); };
+    devCtx.resolveHost = [this](const SoapContext& ctx) { return ctx.host.empty() ? config.bindAddress : ctx.host; };
     devCtx.logMessage = [this](const std::string& lvl, const std::string& msg) { logSystemMessage(lvl, msg); };
     devCtx.getNetProtocols = [this]() { return getNetworkProtocols(); };
     devCtx.setNetProtocols = [this](const std::vector<NetworkProtocolConfig>& p) { return setNetworkProtocols(p); };
     devCtx.getSystemLog = [this](SystemLogType type) {
-        std::scoped_lock lock(m_logMutex);
+        std::scoped_lock lock(logMutex);
         std::ostringstream ss;
-        const auto& logs = (type == SystemLogType::Access) ? m_accessLogs : m_systemLogs;
+        const auto& logs = (type == SystemLogType::Access) ? accessLogs : systemLogs;
         for (const auto& line : logs) {
             ss << line << "\n";
         }
@@ -93,74 +94,73 @@ void OnvifServer::setupRoutes()
         if (devIo) {
             return devIo->handleGetRelayOutputs().size();
         }
-        std::scoped_lock lock(m_deviceIoMutex);
-        return m_internalRelayOutputs.size();
+        std::scoped_lock lock(deviceIoMutex);
+        return internalRelayOutputs.size();
     };
     devCtx.getVideoSourceModeHandler = [this]() { return getVideoSourceModeHandler(); };
 
-    m_services.push_back(std::make_unique<DeviceService>(std::move(devCtx)));
+    services.push_back(std::make_unique<DeviceService>(std::move(devCtx)));
 
     // 2. MediaService
     MediaServiceContext mediaCtx { };
-    mediaCtx.config = m_config;
+    mediaCtx.config = config;
     mediaCtx.getOsdHandler = [this]() { return getOsdHandler(); };
     mediaCtx.getMaskHandler = [this]() { return getMaskHandler(); };
     mediaCtx.getVideoSourceModeHandler = [this]() { return getVideoSourceModeHandler(); };
     mediaCtx.getMetadataHandler = [this]() { return getMetadataHandler(); };
-    mediaCtx.resolveHost
-        = [this](const SoapContext& ctx) { return ctx.host.empty() ? m_config.bindAddress : ctx.host; };
-    m_services.push_back(std::make_unique<MediaService>(std::move(mediaCtx)));
+    mediaCtx.resolveHost = [this](const SoapContext& ctx) { return ctx.host.empty() ? config.bindAddress : ctx.host; };
+    services.push_back(std::make_unique<MediaService>(std::move(mediaCtx)));
 
     // 3. PtzService
     PtzServiceContext ptzCtx { };
     ptzCtx.getPtzHandler = [this]() { return getPtzHandler(); };
-    m_services.push_back(std::make_unique<PtzService>(std::move(ptzCtx)));
+    services.push_back(std::make_unique<PtzService>(std::move(ptzCtx)));
 
     // 4. ImagingService
     ImagingServiceContext imgCtx { };
     imgCtx.getImagingHandler = [this]() { return getImagingHandler(); };
-    m_services.push_back(std::make_unique<ImagingService>(std::move(imgCtx)));
+    services.push_back(std::make_unique<ImagingService>(std::move(imgCtx)));
 
     // 5. EventService
     EventServiceContext evCtx { };
-    evCtx.config = m_config;
-    evCtx.subManager = m_subManager;
-    evCtx.dispatcher = m_dispatcher;
-    evCtx.runningFlag = &m_running;
-    evCtx.resolveHost = [this](const SoapContext& ctx) { return ctx.host.empty() ? m_config.bindAddress : ctx.host; };
-    m_services.push_back(std::make_unique<EventService>(std::move(evCtx)));
+    evCtx.config = config;
+    evCtx.subManager = subManager;
+    evCtx.dispatcher = dispatcher;
+    evCtx.runningFlag = &running;
+    evCtx.resolveHost = [this](const SoapContext& ctx) { return ctx.host.empty() ? config.bindAddress : ctx.host; };
+    services.push_back(std::make_unique<EventService>(std::move(evCtx)));
 
     // 6. AnalyticsService
     AnalyticsServiceContext anCtx { };
     anCtx.getAnalyticsHandler = [this]() { return getAnalyticsHandler(); };
-    m_services.push_back(std::make_unique<AnalyticsService>(std::move(anCtx)));
+    services.push_back(std::make_unique<AnalyticsService>(std::move(anCtx)));
 
     // 7. DeviceIoService
     DeviceIoServiceContext ioCtx { };
     ioCtx.getDeviceIoHandler = [this]() { return getDeviceIoHandler(); };
-    ioCtx.defaultRelays = m_internalRelayOutputs;
-    ioCtx.defaultInputs = m_internalDigitalInputs;
-    m_services.push_back(std::make_unique<DeviceIoService>(std::move(ioCtx)));
+    ioCtx.defaultRelays = internalRelayOutputs;
+    ioCtx.defaultInputs = internalDigitalInputs;
+    services.push_back(std::make_unique<DeviceIoService>(std::move(ioCtx)));
 
     // 8. ThermalService
     ThermalServiceContext thCtx { };
     thCtx.getThermalHandler = [this]() { return getThermalHandler(); };
-    m_services.push_back(std::make_unique<ThermalService>(std::move(thCtx)));
+    services.push_back(std::make_unique<ThermalService>(std::move(thCtx)));
 
     // 9. RecordingService
     RecordingServiceContext recCtx { };
     recCtx.getRecordingHandler = [this]() { return getRecordingHandler(); };
     recCtx.getSearchHandler = [this]() { return getSearchHandler(); };
     recCtx.getReplayHandler = [this]() { return getReplayHandler(); };
-    recCtx.resolveHost = [this](const SoapContext& ctx) { return ctx.host.empty() ? m_config.bindAddress : ctx.host; };
-    m_services.push_back(std::make_unique<RecordingService>(std::move(recCtx)));
+    recCtx.resolveHost = [this](const SoapContext& ctx) { return ctx.host.empty() ? config.bindAddress : ctx.host; };
+    services.push_back(std::make_unique<RecordingService>(std::move(recCtx)));
 
-    for (const auto& svc : m_services) {
-        svc->registerRoutes(m_soapRouter);
+    for (const auto& svc : services) {
+        svc->registerRoutes(soapRouter);
     }
 
     auto bindPost = [this](const char* pattern, std::string_view svc, std::string_view ns) {
-        m_httpServer.Post(pattern,
+        httpServer.Post(pattern,
             [this, svc, ns](const httplib::Request& q, httplib::Response& s) { handleSoapEndpoint(q, s, svc, ns); });
     };
     bindPost("/onvif/device_service", "Device", "http://www.onvif.org/ver10/device/wsdl");
@@ -178,19 +178,19 @@ void OnvifServer::setupRoutes()
     bindPost("/onvif/replay_service", "Replay", "http://www.onvif.org/ver10/replay/wsdl");
     bindPost("/onvif/thermal_service", "Thermal", "http://www.onvif.org/ver10/thermal/wsdl");
 
-    m_httpServer.Get("/onvif/metadata_stream",
+    httpServer.Get("/onvif/metadata_stream",
         [this](const httplib::Request& req, httplib::Response& res) { handleMetadataStream(req, res); });
 
-    m_httpServer.Get("/onvif/snapshot", [this](const httplib::Request& req, httplib::Response& res) {
+    httpServer.Get("/onvif/snapshot", [this](const httplib::Request& req, httplib::Response& res) {
         if (!authorizeHttp(req, res, "Snapshot")) {
             return;
         }
 
         std::vector<std::uint8_t> jpegData { };
-        SnapshotProvider provider { };
+        OnvifServer::SnapshotProvider provider { };
         {
-            std::lock_guard<std::mutex> lock(m_snapshotMutex);
-            provider = m_snapshotProvider;
+            std::lock_guard<std::mutex> lock(snapshotMutex);
+            provider = snapshotProvider;
         }
 
         if (provider) {
@@ -206,7 +206,7 @@ void OnvifServer::setupRoutes()
     });
 }
 
-void OnvifServer::handleSoapEndpoint(
+void OnvifServer::Impl::handleSoapEndpoint(
     const httplib::Request& req, httplib::Response& res, std::string_view serviceName, std::string_view fallbackNs)
 {
     pugi::xml_document doc;
@@ -219,39 +219,39 @@ void OnvifServer::handleSoapEndpoint(
 
     SoapContext ctx { };
     ctx.reqNode = reqNode;
-    ctx.principal = m_lastAuthPrincipal;
+    ctx.principal = lastAuthPrincipal;
     ctx.peerAddress = req.remote_addr;
     ctx.requestUrl = req.path;
     ctx.serviceName = std::string(serviceName);
     ctx.host = resolveHost(req);
-    ctx.isUnprovisioned = (m_provisioningState.load() == ProvisioningState::Unprovisioned);
+    ctx.isUnprovisioned = (provState.load() == ProvisioningState::Unprovisioned);
 
-    const auto result = m_soapRouter.dispatch(reqNode, ctx, fallbackNs);
+    const auto result = soapRouter.dispatch(reqNode, ctx, fallbackNs);
     sendSoapResponse(res, result.responseXml, result.httpStatusCode);
 }
 
-void OnvifServer::handleMetadataStream(const httplib::Request& req, httplib::Response& res)
+void OnvifServer::Impl::handleMetadataStream(const httplib::Request& req, httplib::Response& res)
 {
-    if (m_logCallback) {
-        m_logCallback("MetadataStream", "GetStream", req.remote_addr);
+    if (logCallback) {
+        logCallback("MetadataStream", "GetStream", req.remote_addr);
     }
     if (!authorizeHttp(req, res, "MetadataStream")) {
         return;
     }
     MetadataStreamPayload payload;
-    const auto metadataHandler = getMetadataHandler();
-    const auto ptzHandler = getPtzHandler();
-    if (metadataHandler) {
-        payload = metadataHandler->handleGetCurrentMetadata("");
-    } else if (ptzHandler) {
-        payload.ptzStatus = ptzHandler->handleGetStatus();
+    const auto metadataHdlr = getMetadataHandler();
+    const auto ptzHdlr = getPtzHandler();
+    if (metadataHdlr) {
+        payload = metadataHdlr->handleGetCurrentMetadata("");
+    } else if (ptzHdlr) {
+        payload.ptzStatus = ptzHdlr->handleGetStatus();
     }
     const std::string xml = generateMetadataStreamXml(payload);
     res.status = 200;
     res.set_content(xml, "application/xml; charset=utf-8");
 }
 
-std::string OnvifServer::generateMetadataStreamXml(const MetadataStreamPayload& payload) const
+std::string OnvifServer::Impl::generateMetadataStreamXml(const MetadataStreamPayload& payload) const
 {
     std::ostringstream ss;
     ss << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n<tt:MetadataStream "
@@ -319,7 +319,7 @@ std::string OnvifServer::generateMetadataStreamXml(const MetadataStreamPayload& 
     return ss.str();
 }
 
-std::optional<OnvifServer::SoapRequest> OnvifServer::parseSoapRequest(
+std::optional<OnvifServer::Impl::SoapRequest> OnvifServer::Impl::parseSoapRequest(
     const httplib::Request& req, httplib::Response& res, std::string_view serviceName, pugi::xml_document& doc)
 {
     if (!doc.load_string(req.body.c_str())) {
@@ -338,8 +338,8 @@ std::optional<OnvifServer::SoapRequest> OnvifServer::parseSoapRequest(
         }
     }
     const std::string opName = reqNode ? reqNode.name() : "";
-    if (m_logCallback) {
-        m_logCallback(std::string(serviceName), opName, req.remote_addr);
+    if (logCallback) {
+        logCallback(std::string(serviceName), opName, req.remote_addr);
     }
 
     if (!authorize(req, res, serviceName, opName, doc)) {
@@ -349,10 +349,10 @@ std::optional<OnvifServer::SoapRequest> OnvifServer::parseSoapRequest(
     return SoapRequest { bodyNode, reqNode, opName };
 }
 
-std::string OnvifServer::resolveHost(const httplib::Request& req) const
+std::string OnvifServer::Impl::resolveHost(const httplib::Request& req) const
 {
-    if (m_config.bindAddress != "0.0.0.0" && m_config.bindAddress != "::" && !m_config.bindAddress.empty()) {
-        return m_config.bindAddress;
+    if (config.bindAddress != "0.0.0.0" && config.bindAddress != "::" && !config.bindAddress.empty()) {
+        return config.bindAddress;
     }
 
     if (req.has_header("Host")) {

@@ -1,7 +1,8 @@
 /// @file OnvifServerAuth.cpp
-/// @brief Authentication, authorization, and SOAP response dispatching for OnvifServer.
+/// @brief Authentication, authorization, and SOAP response dispatching for OnvifServer::Impl.
 
 #include "OnvifServer.h"
+#include "OnvifServerImpl.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -105,22 +106,22 @@ namespace {
 
 } // namespace
 
-bool OnvifServer::authorize(const httplib::Request& req, httplib::Response& res, std::string_view serviceName,
+bool OnvifServer::Impl::authorize(const httplib::Request& req, httplib::Response& res, std::string_view serviceName,
     const std::string& opName, const pugi::xml_document& doc)
 {
-    if (!m_config.auth.enabled) {
-        m_lastAuthPrincipal = Principal { "admin", OnvifUserLevel::Administrator };
+    if (!config.auth.enabled) {
+        lastAuthPrincipal = Principal { "admin", OnvifUserLevel::Administrator };
         return true;
     }
     const AccessClass required { AccessPolicy::classify(serviceName, opName) };
 
-    if (m_provisioningState.load() == ProvisioningState::Unprovisioned) {
+    if (provState.load() == ProvisioningState::Unprovisioned) {
         if ((required == AccessClass::PreAuth) || isOp(opName, "GetDeviceInformation")) {
-            m_lastAuthPrincipal = Principal { "", OnvifUserLevel::Anonymous };
+            lastAuthPrincipal = Principal { "", OnvifUserLevel::Anonymous };
             return true;
         }
         if (isOp(opName, "CreateUsers")) {
-            m_lastAuthPrincipal = Principal { "", OnvifUserLevel::Anonymous };
+            lastAuthPrincipal = Principal { "", OnvifUserLevel::Anonymous };
             return true;
         }
         sendSoapResponse(res, SoapFault::deviceUnprovisioned(), 400);
@@ -128,7 +129,7 @@ bool OnvifServer::authorize(const httplib::Request& req, httplib::Response& res,
     }
 
     if (required == AccessClass::PreAuth) {
-        m_lastAuthPrincipal = Principal { "", OnvifUserLevel::Anonymous };
+        lastAuthPrincipal = Principal { "", OnvifUserLevel::Anonymous };
         return true;
     }
 
@@ -141,7 +142,7 @@ bool OnvifServer::authorize(const httplib::Request& req, httplib::Response& res,
     input.remoteAddr = req.remote_addr;
 
     const std::string what { std::string { serviceName } + "/" + clipForLog(opName) };
-    const AuthResult result { m_authenticator->authenticate(input) };
+    const AuthResult result { authenticator->authenticate(input) };
     if (result.outcome != AuthOutcome::Success) {
         rejectAuth(req, res, result.outcome, what);
         return false;
@@ -150,16 +151,16 @@ bool OnvifServer::authorize(const httplib::Request& req, httplib::Response& res,
         rejectForbidden(req, res, result.principal, what);
         return false;
     }
-    m_lastAuthPrincipal = result.principal;
+    lastAuthPrincipal = result.principal;
     return true;
 }
 
-bool OnvifServer::authorizeHttp(const httplib::Request& req, httplib::Response& res, std::string_view what)
+bool OnvifServer::Impl::authorizeHttp(const httplib::Request& req, httplib::Response& res, std::string_view what)
 {
-    if (!m_config.auth.enabled) {
+    if (!config.auth.enabled) {
         return true;
     }
-    if (m_provisioningState.load() == ProvisioningState::Unprovisioned) {
+    if (provState.load() == ProvisioningState::Unprovisioned) {
         res.status = 400;
         res.set_content(SoapFault::deviceUnprovisioned(), "application/soap+xml; charset=utf-8");
         return false;
@@ -171,7 +172,7 @@ bool OnvifServer::authorizeHttp(const httplib::Request& req, httplib::Response& 
     input.authorization = authorization;
     input.remoteAddr = req.remote_addr;
 
-    const AuthResult result { m_authenticator->authenticate(input) };
+    const AuthResult result { authenticator->authenticate(input) };
     if (result.outcome != AuthOutcome::Success) {
         rejectAuth(req, res, result.outcome, what);
         return false;
@@ -183,15 +184,15 @@ bool OnvifServer::authorizeHttp(const httplib::Request& req, httplib::Response& 
     return true;
 }
 
-void OnvifServer::rejectAuth(
+void OnvifServer::Impl::rejectAuth(
     const httplib::Request& req, httplib::Response& res, AuthOutcome outcome, std::string_view what)
 {
     appendAuthFailLog(req.remote_addr, what, outcomeLabel(outcome));
 
     if (outcome != AuthOutcome::NoCredentials) {
         const auto now { std::chrono::steady_clock::now() };
-        m_authenticator->recordFailure(req.remote_addr, now);
-        const std::chrono::milliseconds delay { m_authenticator->penalty(req.remote_addr, now) };
+        authenticator->recordFailure(req.remote_addr, now);
+        const std::chrono::milliseconds delay { authenticator->penalty(req.remote_addr, now) };
         if (delay.count() > 0) {
             std::this_thread::sleep_for(delay);
         }
@@ -199,46 +200,46 @@ void OnvifServer::rejectAuth(
 
     const bool challenge { (outcome == AuthOutcome::NoCredentials) || (outcome == AuthOutcome::Stale) };
     if (challenge) {
-        for (const auto& value : m_authenticator->challenges(outcome == AuthOutcome::Stale)) {
+        for (const auto& value : authenticator->challenges(outcome == AuthOutcome::Stale)) {
             static_cast<void>(res.headers.emplace("WWW-Authenticate", value));
         }
     }
     sendSoapResponse(res, SoapFault::notAuthorized(), challenge ? 401 : 400);
 }
 
-void OnvifServer::rejectForbidden(
+void OnvifServer::Impl::rejectForbidden(
     const httplib::Request& req, httplib::Response& res, const Principal& who, std::string_view what)
 {
     appendAuthFailLog(req.remote_addr, what, "insufficient-privilege user=" + clipForLog(who.username));
     sendSoapResponse(res, SoapFault::notAuthorized(), 400);
 }
 
-void OnvifServer::appendAuthFailLog(const std::string& remoteAddr, std::string_view what, std::string_view reason)
+void OnvifServer::Impl::appendAuthFailLog(const std::string& remoteAddr, std::string_view what, std::string_view reason)
 {
-    std::scoped_lock lock(m_logMutex);
+    std::scoped_lock lock(logMutex);
     const std::string timestamp = formatUtc(std::chrono::system_clock::now());
     std::ostringstream entry;
     entry << "[" << timestamp << "] [" << remoteAddr << "] AUTH_FAIL " << what << " (" << reason << ")";
-    m_accessLogs.push_back(entry.str());
-    if (m_accessLogs.size() > 500) {
-        m_accessLogs.pop_front();
+    accessLogs.push_back(entry.str());
+    if (accessLogs.size() > 500) {
+        accessLogs.pop_front();
     }
 }
 
-void OnvifServer::appendAccessLog(
+void OnvifServer::Impl::appendAccessLog(
     std::string_view serviceName, const std::string& opName, const std::string& remoteAddr)
 {
-    std::scoped_lock lock(m_logMutex);
+    std::scoped_lock lock(logMutex);
     const std::string timestamp = formatUtc(std::chrono::system_clock::now());
     std::ostringstream entry;
     entry << "[" << timestamp << "] [" << remoteAddr << "] " << serviceName << "Service: " << opName;
-    m_accessLogs.push_back(entry.str());
-    if (m_accessLogs.size() > 500) {
-        m_accessLogs.pop_front();
+    accessLogs.push_back(entry.str());
+    if (accessLogs.size() > 500) {
+        accessLogs.pop_front();
     }
 }
 
-void OnvifServer::sendSoapResponse(httplib::Response& res, const std::string& bodyXml, int status)
+void OnvifServer::Impl::sendSoapResponse(httplib::Response& res, const std::string& bodyXml, int status)
 {
     res.status = status;
     res.set_content(wrapSoapResponse(bodyXml), "application/soap+xml; charset=utf-8");
