@@ -23,11 +23,20 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CompilerFlags)
 
 # ==============================================================================
+# Application & GUI Options
+# ==============================================================================
+option(PELCOD_ENABLE_QT "Enable Qt 6 integration and GUI components" ON)
+option(PELCOD_BUILD_APPS "Build end-user application binaries (GUI and TUI)" ON)
+
+# ==============================================================================
 # Dependencies
 # ==============================================================================
 find_package(Threads REQUIRED)
 set(GFLAGS_USE_TARGET_NAMESPACE ON)
-find_package(gflags CONFIG REQUIRED)
+find_package(gflags CONFIG QUIET)
+if(NOT gflags_FOUND)
+    find_package(gflags QUIET)
+endif()
 if(NOT TARGET gflags)
     if(TARGET gflags::gflags_static)
         add_library(gflags INTERFACE IMPORTED)
@@ -61,19 +70,23 @@ if(TARGET glog::glog)
     endif()
 endif()
 
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-set(CMAKE_AUTOUIC ON)
+if(PELCOD_ENABLE_QT)
+    set(CMAKE_AUTOMOC ON)
+    set(CMAKE_AUTORCC ON)
+    set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Test)
+    find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Test)
 
-if(WIN32)
-    find_program(WINDEPLOYQT_EXECUTABLE windeployqt
-        HINTS
-            "${Qt6_DIR}/../../../bin"
-            "${CMAKE_PREFIX_PATH}/bin"
-            "$ENV{QTDIR}/bin"
-    )
+    if(WIN32)
+        find_program(WINDEPLOYQT_EXECUTABLE windeployqt
+            HINTS
+                "${Qt6_DIR}/../../../bin"
+                "${CMAKE_PREFIX_PATH}/bin"
+                "$ENV{QTDIR}/bin"
+        )
+    endif()
+else()
+    message(STATUS "PelcoD: Qt 6 integration disabled (PELCOD_ENABLE_QT=OFF)")
 endif()
 
 # ==============================================================================
@@ -102,8 +115,8 @@ option(PELCOD_ENABLE_GSTREAMER "Enable GStreamer decoder backend in PelcoDVideo"
 option(PELCOD_ENABLE_LIVE555 "Enable Live555 + OpenH264 decoder backend in PelcoDVideo" ON)
 option(PELCOD_ENABLE_FILTERS "Enable OpenCV video enhancement filters in PelcoDVideo" ON)
 
-if(PELCOD_ENABLE_VIDEO)
-    find_package(Qt6 COMPONENTS Qml Quick QuickControls2)
+if(PELCOD_ENABLE_VIDEO AND PELCOD_ENABLE_QT)
+    find_package(Qt6 COMPONENTS Qml Quick QuickControls2 QUIET)
 endif()
 
 if(PELCOD_ENABLE_VIDEO)
@@ -302,36 +315,44 @@ endif()
 # Subdirectories
 # ==============================================================================
 add_subdirectory(libs)
-add_subdirectory(app-pelcod-qt)
-add_subdirectory(app-fujinon-qt)
-add_subdirectory(app-visca-qt)
-add_subdirectory(app-pelcod-tui)
-if(PELCOD_ENABLE_ONVIF)
-    add_subdirectory(app-onvif-qt)
-    message(STATUS "Onvif: OnvifAppQt (app-onvif-qt) enabled")
-    add_subdirectory(tools/onvif_conformance)
-endif()
-if(PELCOD_ENABLE_VIDEO)
-    if(TARGET Qt6::Quick AND TARGET Qt6::Qml AND TARGET Qt6::QuickControls2)
-        add_subdirectory(app-video-qt)
-        message(STATUS "PelcoD: VideoAppQt (app-video-qt) enabled")
-        if(PELCOD_ENABLE_LIVE555 AND LIVE555_FOUND)
-            add_subdirectory(app-rtsp-server-qt)
-            message(STATUS "PelcoD: RtspServerAppQt (app-rtsp-server-qt) enabled")
+
+if(PELCOD_BUILD_APPS)
+    if(PELCOD_ENABLE_QT AND TARGET Qt6::Widgets)
+        add_subdirectory(app-pelcod-qt)
+        add_subdirectory(app-fujinon-qt)
+        add_subdirectory(app-visca-qt)
+    endif()
+    add_subdirectory(app-pelcod-tui)
+    if(PELCOD_ENABLE_ONVIF AND PELCOD_ENABLE_QT AND TARGET Qt6::Widgets)
+        add_subdirectory(app-onvif-qt)
+        message(STATUS "Onvif: OnvifAppQt (app-onvif-qt) enabled")
+    endif()
+    if(PELCOD_ENABLE_VIDEO AND PELCOD_ENABLE_QT)
+        if(TARGET Qt6::Quick AND TARGET Qt6::Qml AND TARGET Qt6::QuickControls2)
+            add_subdirectory(app-video-qt)
+            message(STATUS "PelcoD: VideoAppQt (app-video-qt) enabled")
+            if(PELCOD_ENABLE_LIVE555 AND LIVE555_FOUND)
+                add_subdirectory(app-rtsp-server-qt)
+                message(STATUS "PelcoD: RtspServerAppQt (app-rtsp-server-qt) enabled")
+            else()
+                message(STATUS "PelcoD: RtspServerAppQt (app-rtsp-server-qt) disabled (requires Live555 backend)")
+            endif()
         else()
-            message(STATUS "PelcoD: RtspServerAppQt (app-rtsp-server-qt) disabled (requires Live555 backend)")
+            message(STATUS "PelcoD: VideoAppQt (app-video-qt) disabled (requires Qt6 Quick, Qml, and QuickControls2)")
+            message(STATUS "PelcoD: RtspServerAppQt (app-rtsp-server-qt) disabled (requires Qt6 Quick, Qml, and QuickControls2)")
         endif()
+    endif()
+
+    if(PELCOD_ENABLE_QT AND TARGET Qt6::Quick AND TARGET Qt6::Qml)
+        add_subdirectory(app-sightline-qt)
+        message(STATUS "Sightline: SightlineAppQt (app-sightline-qt) enabled")
     else()
-        message(STATUS "PelcoD: VideoAppQt (app-video-qt) disabled (requires Qt6 Quick, Qml, and QuickControls2)")
-        message(STATUS "PelcoD: RtspServerAppQt (app-rtsp-server-qt) disabled (requires Qt6 Quick, Qml, and QuickControls2)")
+        message(STATUS "Sightline: SightlineAppQt (app-sightline-qt) disabled (requires Qt6 Quick and Qml)")
     endif()
 endif()
 
-if(TARGET Qt6::Quick AND TARGET Qt6::Qml)
-    add_subdirectory(app-sightline-qt)
-    message(STATUS "Sightline: SightlineAppQt (app-sightline-qt) enabled")
-else()
-    message(STATUS "Sightline: SightlineAppQt (app-sightline-qt) disabled (requires Qt6 Quick and Qml)")
+if(PELCOD_ENABLE_ONVIF)
+    add_subdirectory(tools/onvif_conformance)
 endif()
 
 add_subdirectory(tests)
@@ -345,33 +366,51 @@ include(GitHooks)
 # Target Installation
 # ==============================================================================
 
-set(PELCOD_INSTALL_TARGETS PelcoDAppQt FujinonAppQt ViscaAppQt PelcoDAppTui PelcoDCore PelcoDQt Math Transport ViscaCore ViscaSony Tracking Klv Mapping PayloadHal PelcoDFujinon PelcoDSim Nmea SightlineCore SightlineQt)
-if(TARGET MappingQt)
-    list(APPEND PELCOD_INSTALL_TARGETS MappingQt)
-endif()
-if(TARGET DjiTelemetry)
-    list(APPEND PELCOD_INSTALL_TARGETS DjiTelemetry)
-endif()
-if(PELCOD_ENABLE_ONVIF)
-    list(APPEND PELCOD_INSTALL_TARGETS Onvif OnvifAppQt)
-endif()
-if(PELCOD_ENABLE_VIDEO)
-    list(APPEND PELCOD_INSTALL_TARGETS Video)
-    if(PELCOD_ENABLE_FILTERS AND OpenCV_FOUND)
-        list(APPEND PELCOD_INSTALL_TARGETS VideoFilters)
-    endif()
-    if(TARGET VideoAppQt)
-        list(APPEND PELCOD_INSTALL_TARGETS VideoAppQt)
-    endif()
-endif()
-
-install(TARGETS ${PELCOD_INSTALL_TARGETS}
-    EXPORT PelcoDTargets
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+set(PELCOD_CANDIDATE_TARGETS
+    PelcoDAppQt
+    FujinonAppQt
+    ViscaAppQt
+    PelcoDAppTui
+    PelcoDCore
+    PelcoDQt
+    Math
+    Transport
+    ViscaCore
+    ViscaSony
+    Tracking
+    Klv
+    Mapping
+    MappingQt
+    PayloadHal
+    PelcoDFujinon
+    PelcoDSim
+    Nmea
+    SightlineCore
+    SightlineQt
+    PelcoDVideo
+    VideoFilters
+    DjiTelemetry
+    Onvif
+    OnvifAppQt
+    OnvifServerApp
 )
+
+set(PELCOD_INSTALL_TARGETS)
+foreach(_tgt IN LISTS PELCOD_CANDIDATE_TARGETS)
+    if(TARGET ${_tgt})
+        list(APPEND PELCOD_INSTALL_TARGETS ${_tgt})
+    endif()
+endforeach()
+
+if(PELCOD_INSTALL_TARGETS)
+    install(TARGETS ${PELCOD_INSTALL_TARGETS}
+        EXPORT PelcoDTargets
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
+endif()
 
 install(FILES
     libs/Math/Dct.h
@@ -506,10 +545,12 @@ install(FILES
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDCore
 )
 
-install(FILES
-    libs/PelcoDQt/QPelcoDDevice.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDQt
-)
+if(TARGET PelcoDQt)
+    install(FILES
+        libs/PelcoDQt/QPelcoDDevice.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PelcoDQt
+    )
+endif()
 
 if(PELCOD_ENABLE_VIDEO)
     install(FILES
@@ -545,7 +586,7 @@ install(EXPORT PelcoDTargets
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PelcoD
 )
 
-if(WIN32 AND WINDEPLOYQT_EXECUTABLE)
+if(WIN32 AND WINDEPLOYQT_EXECUTABLE AND TARGET PelcoDAppQt)
     install(CODE "
         execute_process(
             COMMAND \"${WINDEPLOYQT_EXECUTABLE}\"

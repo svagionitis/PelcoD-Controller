@@ -39,55 +39,59 @@ target_include_directories(TestTrafficView PRIVATE
 target_link_libraries(TestTrafficView PRIVATE PelcoDCore Transport PelcoDSim Threads::Threads)
 pelcod_register_gtest(TestTrafficView)
 
-add_executable(TestAutoReconnect
-    TestAutoReconnect.cpp
-    ${CMAKE_SOURCE_DIR}/app-pelcod-qt/widgets/ConnectionWidget.cpp
-    ${CMAKE_SOURCE_DIR}/app-pelcod-qt/dialogs/BusScanDialog.cpp
-    ${CMAKE_SOURCE_DIR}/app-pelcod-qt/dialogs/MockDynamicsDialog.cpp
-)
-target_include_directories(TestAutoReconnect PRIVATE
-    ${CMAKE_SOURCE_DIR}/app-pelcod-qt
-    ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
-    ${CMAKE_SOURCE_DIR}/libs/PelcoDQt
-    ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
-)
-target_link_libraries(TestAutoReconnect PRIVATE
-    PelcoDQt
-    PelcoDCore
-    PelcoDSim
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Widgets
-    Qt6::Test
-)
-pelcod_register_gtest(TestAutoReconnect NO_MAIN)
+if(PELCOD_ENABLE_QT AND TARGET PelcoDQt AND TARGET Qt6::Test)
+    add_executable(TestAutoReconnect
+        TestAutoReconnect.cpp
+        ${CMAKE_SOURCE_DIR}/app-pelcod-qt/widgets/ConnectionWidget.cpp
+        ${CMAKE_SOURCE_DIR}/app-pelcod-qt/dialogs/BusScanDialog.cpp
+        ${CMAKE_SOURCE_DIR}/app-pelcod-qt/dialogs/MockDynamicsDialog.cpp
+    )
+    target_include_directories(TestAutoReconnect PRIVATE
+        ${CMAKE_SOURCE_DIR}/app-pelcod-qt
+        ${CMAKE_SOURCE_DIR}/libs/PelcoDCore
+        ${CMAKE_SOURCE_DIR}/libs/PelcoDQt
+        ${CMAKE_SOURCE_DIR}/libs/PelcoDSim
+    )
+    target_link_libraries(TestAutoReconnect PRIVATE
+        PelcoDQt
+        PelcoDCore
+        PelcoDSim
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Test
+    )
+    pelcod_register_gtest(TestAutoReconnect NO_MAIN)
+endif()
 
-add_executable(TestViscaAppQt
-    TestViscaAppQt.cpp
-    ${CMAKE_SOURCE_DIR}/app-visca-qt/QViscaSonyDevice.cpp
-    ${CMAKE_SOURCE_DIR}/app-visca-qt/QViscaBusScanner.cpp
-    ${CMAKE_SOURCE_DIR}/app-visca-qt/widgets/ViscaConnectionWidget.cpp
-    ${CMAKE_SOURCE_DIR}/app-visca-qt/widgets/ViscaTrafficInspectorWidget.cpp
-    ${CMAKE_SOURCE_DIR}/app-visca-qt/dialogs/ViscaBusScanDialog.cpp
-)
-target_include_directories(TestViscaAppQt PRIVATE
-    ${CMAKE_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/app-visca-qt
-    ${CMAKE_SOURCE_DIR}/libs/ViscaCore
-    ${CMAKE_SOURCE_DIR}/libs/ViscaSony
-    ${CMAKE_SOURCE_DIR}/libs/Transport
-)
-target_link_libraries(TestViscaAppQt PRIVATE
-    ViscaSony
-    ViscaCore
-    Transport
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Widgets
-    Qt6::Test
-    glog::glog
-)
-pelcod_register_gtest(TestViscaAppQt NO_MAIN)
+if(PELCOD_ENABLE_QT AND TARGET ViscaSony AND TARGET Qt6::Test)
+    add_executable(TestViscaAppQt
+        TestViscaAppQt.cpp
+        ${CMAKE_SOURCE_DIR}/app-visca-qt/QViscaSonyDevice.cpp
+        ${CMAKE_SOURCE_DIR}/app-visca-qt/QViscaBusScanner.cpp
+        ${CMAKE_SOURCE_DIR}/app-visca-qt/widgets/ViscaConnectionWidget.cpp
+        ${CMAKE_SOURCE_DIR}/app-visca-qt/widgets/ViscaTrafficInspectorWidget.cpp
+        ${CMAKE_SOURCE_DIR}/app-visca-qt/dialogs/ViscaBusScanDialog.cpp
+    )
+    target_include_directories(TestViscaAppQt PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/app-visca-qt
+        ${CMAKE_SOURCE_DIR}/libs/ViscaCore
+        ${CMAKE_SOURCE_DIR}/libs/ViscaSony
+        ${CMAKE_SOURCE_DIR}/libs/Transport
+    )
+    target_link_libraries(TestViscaAppQt PRIVATE
+        ViscaSony
+        ViscaCore
+        Transport
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Test
+        glog::glog
+    )
+    pelcod_register_gtest(TestViscaAppQt NO_MAIN)
+endif()
 
 if(PELCOD_ENABLE_VIDEO AND TARGET Qt6::Quick AND TARGET Qt6::Qml AND TARGET Qt6::QuickControls2)
     add_executable(TestVideoPlayerController
@@ -132,51 +136,53 @@ endif()
 # ==============================================================================
 # CLI Argument Validation Tests (PelcoDAppTui)
 # ==============================================================================
-add_test(NAME TestTuiHelp COMMAND PelcoDAppTui --help)
-add_test(NAME TestTuiInvalidAddress COMMAND PelcoDAppTui --address notanumber)
-set_tests_properties(TestTuiInvalidAddress PROPERTIES WILL_FAIL TRUE)
-add_test(NAME TestTuiAddressOutOfRange COMMAND PelcoDAppTui --address 300)
-set_tests_properties(TestTuiAddressOutOfRange PROPERTIES WILL_FAIL TRUE)
-add_test(NAME TestTuiInvalidTcpPort COMMAND PelcoDAppTui --tcp 127.0.0.1:99999)
-set_tests_properties(TestTuiInvalidTcpPort PROPERTIES WILL_FAIL TRUE)
-add_test(NAME TestTuiUnknownOption COMMAND PelcoDAppTui --unknown-flag)
-set_tests_properties(TestTuiUnknownOption PROPERTIES WILL_FAIL TRUE)
-add_test(NAME TestTuiMissingArg COMMAND PelcoDAppTui --tcp)
-set_tests_properties(TestTuiMissingArg PROPERTIES WILL_FAIL TRUE)
-add_test(NAME TestTuiInvalidUdpPort COMMAND PelcoDAppTui --udp 127.0.0.1:99999)
-set_tests_properties(TestTuiInvalidUdpPort PROPERTIES WILL_FAIL TRUE)
-add_test(NAME TestTuiMissingUdpArg COMMAND PelcoDAppTui --udp)
-set_tests_properties(TestTuiMissingUdpArg PROPERTIES WILL_FAIL TRUE)
-add_test(NAME TestTuiInvalidScanRange COMMAND PelcoDAppTui --scan 50-10)
-set_tests_properties(TestTuiInvalidScanRange PROPERTIES WILL_FAIL TRUE)
-add_test(NAME TestTuiScanMock COMMAND PelcoDAppTui --mock --scan 1-2)
+if(TARGET PelcoDAppTui)
+    add_test(NAME TestTuiHelp COMMAND PelcoDAppTui --help)
+    add_test(NAME TestTuiInvalidAddress COMMAND PelcoDAppTui --address notanumber)
+    set_tests_properties(TestTuiInvalidAddress PROPERTIES WILL_FAIL TRUE)
+    add_test(NAME TestTuiAddressOutOfRange COMMAND PelcoDAppTui --address 300)
+    set_tests_properties(TestTuiAddressOutOfRange PROPERTIES WILL_FAIL TRUE)
+    add_test(NAME TestTuiInvalidTcpPort COMMAND PelcoDAppTui --tcp 127.0.0.1:99999)
+    set_tests_properties(TestTuiInvalidTcpPort PROPERTIES WILL_FAIL TRUE)
+    add_test(NAME TestTuiUnknownOption COMMAND PelcoDAppTui --unknown-flag)
+    set_tests_properties(TestTuiUnknownOption PROPERTIES WILL_FAIL TRUE)
+    add_test(NAME TestTuiMissingArg COMMAND PelcoDAppTui --tcp)
+    set_tests_properties(TestTuiMissingArg PROPERTIES WILL_FAIL TRUE)
+    add_test(NAME TestTuiInvalidUdpPort COMMAND PelcoDAppTui --udp 127.0.0.1:99999)
+    set_tests_properties(TestTuiInvalidUdpPort PROPERTIES WILL_FAIL TRUE)
+    add_test(NAME TestTuiMissingUdpArg COMMAND PelcoDAppTui --udp)
+    set_tests_properties(TestTuiMissingUdpArg PROPERTIES WILL_FAIL TRUE)
+    add_test(NAME TestTuiInvalidScanRange COMMAND PelcoDAppTui --scan 50-10)
+    set_tests_properties(TestTuiInvalidScanRange PROPERTIES WILL_FAIL TRUE)
+    add_test(NAME TestTuiScanMock COMMAND PelcoDAppTui --mock --scan 1-2)
 
-if(WIN32)
-    set(TUI_CLI_TESTS
-        TestTuiHelp
-        TestTuiInvalidAddress
-        TestTuiAddressOutOfRange
-        TestTuiInvalidTcpPort
-        TestTuiUnknownOption
-        TestTuiMissingArg
-        TestTuiInvalidUdpPort
-        TestTuiMissingUdpArg
-        TestTuiInvalidScanRange
-        TestTuiScanMock
-    )
-    set(_TUI_ENV_MOD
-        "PATH=path_list_prepend:${_PELCOD_QT_BIN_DIR}"
-    )
-    foreach(_vcpkg_dir IN LISTS _PELCOD_VCPKG_BIN_DIRS)
-        list(APPEND _TUI_ENV_MOD "PATH=path_list_prepend:${_vcpkg_dir}")
-    endforeach()
-    list(APPEND _TUI_ENV_MOD
-        "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/lib/$<CONFIG>"
-        "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/lib"
-        "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/app-pelcod-tui/$<CONFIG>"
-        "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/app-pelcod-tui"
-    )
-    foreach(tui_t IN LISTS TUI_CLI_TESTS)
-        set_property(TEST ${tui_t} PROPERTY ENVIRONMENT_MODIFICATION ${_TUI_ENV_MOD})
-    endforeach()
+    if(WIN32)
+        set(TUI_CLI_TESTS
+            TestTuiHelp
+            TestTuiInvalidAddress
+            TestTuiAddressOutOfRange
+            TestTuiInvalidTcpPort
+            TestTuiUnknownOption
+            TestTuiMissingArg
+            TestTuiInvalidUdpPort
+            TestTuiMissingUdpArg
+            TestTuiInvalidScanRange
+            TestTuiScanMock
+        )
+        set(_TUI_ENV_MOD
+            "PATH=path_list_prepend:${_PELCOD_QT_BIN_DIR}"
+        )
+        foreach(_vcpkg_dir IN LISTS _PELCOD_VCPKG_BIN_DIRS)
+            list(APPEND _TUI_ENV_MOD "PATH=path_list_prepend:${_vcpkg_dir}")
+        endforeach()
+        list(APPEND _TUI_ENV_MOD
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/lib/$<CONFIG>"
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/lib"
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/app-pelcod-tui/$<CONFIG>"
+            "PATH=path_list_prepend:${CMAKE_BINARY_DIR}/app-pelcod-tui"
+        )
+        foreach(tui_t IN LISTS TUI_CLI_TESTS)
+            set_property(TEST ${tui_t} PROPERTY ENVIRONMENT_MODIFICATION ${_TUI_ENV_MOD})
+        endforeach()
+    endif()
 endif()

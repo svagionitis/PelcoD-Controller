@@ -66,7 +66,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-13 g++-13 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build
+          sudo apt-get install -y gcc-13 g++-13 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build libgflags-dev libgoogle-glog-dev
 
       - name: Configure CMake
         run: |
@@ -77,6 +77,8 @@ jobs:
             -DWARNINGS_AS_ERRORS=ON \
             -DENABLE_HARDENING=ON \
             -DPELCOD_ENABLE_ONVIF=ON \
+            -DPELCOD_ENABLE_QT=OFF \
+            -DPELCOD_BUILD_APPS=OFF \
             -DBUILD_TESTING=ON
 
       - name: Build All Targets
@@ -96,7 +98,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-17 llvm-17 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build
+          sudo apt-get install -y clang-17 llvm-17 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build libgflags-dev libgoogle-glog-dev
 
       - name: Configure CMake
         run: |
@@ -107,6 +109,8 @@ jobs:
             -DWARNINGS_AS_ERRORS=ON \
             -DENABLE_HARDENING=ON \
             -DPELCOD_ENABLE_ONVIF=ON \
+            -DPELCOD_ENABLE_QT=OFF \
+            -DPELCOD_BUILD_APPS=OFF \
             -DBUILD_TESTING=ON
 
       - name: Build All Targets
@@ -147,6 +151,8 @@ jobs:
             -DWARNINGS_AS_ERRORS=ON `
             -DENABLE_HARDENING=ON `
             -DPELCOD_ENABLE_ONVIF=ON `
+            -DPELCOD_ENABLE_QT=OFF `
+            -DPELCOD_BUILD_APPS=OFF `
             -DBUILD_TESTING=ON
 
       - name: Build Targets
@@ -169,7 +175,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-17 llvm-17 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build
+          sudo apt-get install -y clang-17 llvm-17 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build libgflags-dev libgoogle-glog-dev
 
       - name: Configure CMake with ASan
         run: |
@@ -179,6 +185,8 @@ jobs:
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DENABLE_ASAN=ON \
             -DPELCOD_ENABLE_ONVIF=ON \
+            -DPELCOD_ENABLE_QT=OFF \
+            -DPELCOD_BUILD_APPS=OFF \
             -DBUILD_TESTING=ON
 
       - name: Build Targets
@@ -201,7 +209,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-17 llvm-17 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build
+          sudo apt-get install -y clang-17 llvm-17 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build libgflags-dev libgoogle-glog-dev
 
       - name: Configure CMake with TSan
         run: |
@@ -211,6 +219,8 @@ jobs:
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DENABLE_TSAN=ON \
             -DPELCOD_ENABLE_ONVIF=ON \
+            -DPELCOD_ENABLE_QT=OFF \
+            -DPELCOD_BUILD_APPS=OFF \
             -DBUILD_TESTING=ON
 
       - name: Build Targets
@@ -232,7 +242,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-17 llvm-17 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build
+          sudo apt-get install -y clang-17 llvm-17 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build libgflags-dev libgoogle-glog-dev
 
       - name: Configure CMake with UBSan
         run: |
@@ -242,6 +252,8 @@ jobs:
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DENABLE_UBSAN=ON \
             -DPELCOD_ENABLE_ONVIF=ON \
+            -DPELCOD_ENABLE_QT=OFF \
+            -DPELCOD_BUILD_APPS=OFF \
             -DBUILD_TESTING=ON
 
       - name: Build Targets
@@ -266,7 +278,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-17 llvm-17 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build
+          sudo apt-get install -y clang-17 llvm-17 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build libgflags-dev libgoogle-glog-dev
 
       - name: Configure CMake for Fuzzing
         run: |
@@ -276,6 +288,8 @@ jobs:
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DPELCOD_ENABLE_ONVIF=ON \
             -DPELCOD_ENABLE_FUZZING=ON \
+            -DPELCOD_ENABLE_QT=OFF \
+            -DPELCOD_BUILD_APPS=OFF \
             -DBUILD_TESTING=ON
 
       - name: Build Fuzz Targets
@@ -312,7 +326,7 @@ jobs:
       - name: Install Native Server Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-13 g++-13 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build
+          sudo apt-get install -y gcc-13 g++-13 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build libgflags-dev libgoogle-glog-dev
 
       - name: Build OnvifServer Binary
         run: |
@@ -320,7 +334,9 @@ jobs:
             -DCMAKE_C_COMPILER=gcc-13 \
             -DCMAKE_CXX_COMPILER=g++-13 \
             -DCMAKE_BUILD_TYPE=Release \
-            -DPELCOD_ENABLE_ONVIF=ON
+            -DPELCOD_ENABLE_ONVIF=ON \
+            -DPELCOD_ENABLE_QT=OFF \
+            -DPELCOD_BUILD_APPS=OFF
           cmake --build build --target Onvif --parallel $(nproc)
 
       - name: Execute Profile S Conformance Runner

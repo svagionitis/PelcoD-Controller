@@ -32,7 +32,7 @@ jobs:
       - name: Install Clang & Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang llvm libpugixml-dev libcurl4-openssl-dev libssl-dev libgtest-dev ninja-build
+          sudo apt-get install -y clang llvm libpugixml-dev libcurl4-openssl-dev libssl-dev libgtest-dev ninja-build libgflags-dev libgoogle-glog-dev
 
       - name: Configure CMake with Fuzzing
         run: |
@@ -41,6 +41,8 @@ jobs:
             -DCMAKE_C_COMPILER=clang \
             -DPELCOD_ENABLE_ONVIF=ON \
             -DPELCOD_ENABLE_FUZZING=ON \
+            -DPELCOD_ENABLE_QT=OFF \
+            -DPELCOD_BUILD_APPS=OFF \
             -DBUILD_TESTING=ON \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
@@ -78,3 +80,4 @@ jobs:
         with:
           name: fuzz-crash-artifacts
           path: artifacts/
+          if-no-files-found: ignore
