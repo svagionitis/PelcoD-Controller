@@ -2,12 +2,31 @@
 # PelcoDOnvif Unit Tests  (requires PELCOD_ENABLE_ONVIF)
 # ==============================================================================
 
+add_library(OnvifTestCommon STATIC
+    common/OnvifTestFixtures.cpp
+    common/OnvifTestFixtures.h
+)
+target_include_directories(OnvifTestCommon PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/common
+    ${CMAKE_SOURCE_DIR}/libs
+)
+target_link_libraries(OnvifTestCommon PUBLIC
+    Onvif
+    PelcoDCore
+    PelcoDSim
+    GTest::gtest
+)
+
 function(add_onvif_test test_name test_source)
     add_executable(${test_name} ${test_source})
     target_include_directories(${test_name} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/common
         ${CMAKE_SOURCE_DIR}/libs
     )
     target_link_libraries(${test_name} PRIVATE
+        OnvifTestCommon
         Onvif
         PelcoDCore
         PelcoDSim
@@ -15,11 +34,27 @@ function(add_onvif_test test_name test_source)
     pelcod_register_gtest(${test_name})
 endfunction()
 
-add_onvif_test(TestPelcoDOnvif  TestPelcoDOnvif.cpp)
-add_onvif_test(TestOnvifServer  TestOnvifServer.cpp)
-add_onvif_test(TestOnvifAuthServer  TestOnvifAuthServer.cpp)
-add_onvif_test(TestOnvifAuth  TestOnvifAuth.cpp)
-add_onvif_test(TestXmlUtils  TestXmlUtils.cpp)
+# Server Modular Tests
+add_onvif_test(TestOnvifServerHttp server/TestOnvifServerHttp.cpp)
+add_onvif_test(TestOnvifDeviceService server/TestOnvifDeviceService.cpp)
+add_onvif_test(TestOnvifMediaService server/TestOnvifMediaService.cpp)
+add_onvif_test(TestOnvifPtzService server/TestOnvifPtzService.cpp)
+add_onvif_test(TestOnvifEventService server/TestOnvifEventService.cpp)
+add_onvif_test(TestOnvifImagingService server/TestOnvifImagingService.cpp)
+add_onvif_test(TestOnvifExtensions server/TestOnvifExtensions.cpp)
+
+# Client Modular Tests
+add_onvif_test(TestClientDeviceParsing client/TestClientDeviceParsing.cpp)
+add_onvif_test(TestClientMediaParsing client/TestClientMediaParsing.cpp)
+add_onvif_test(TestClientPtzParsing client/TestClientPtzParsing.cpp)
+add_onvif_test(TestClientEventParsing client/TestClientEventParsing.cpp)
+add_onvif_test(TestClientImagingParsing client/TestClientImagingParsing.cpp)
+add_onvif_test(TestClientExtParsing client/TestClientExtParsing.cpp)
+
+# Existing Isolated Unit Tests
+add_onvif_test(TestOnvifAuthServer TestOnvifAuthServer.cpp)
+add_onvif_test(TestOnvifAuth TestOnvifAuth.cpp)
+add_onvif_test(TestXmlUtils TestXmlUtils.cpp)
 add_onvif_test(TestOnvifXmlSecurity TestOnvifXmlSecurity.cpp)
 add_onvif_test(TestOnvifEventSecurity TestOnvifEventSecurity.cpp)
 add_onvif_test(TestOnvifCredentialsSecurity TestOnvifCredentialsSecurity.cpp)

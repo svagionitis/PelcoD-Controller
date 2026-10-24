@@ -265,7 +265,7 @@ flowchart LR
 | **P1 – Protocol correctness** | C3/C4 SOAP Faults + fix `GetServices`, H3/H4 events (TTL sweep, Renew, ResourceUnknown, `PropertyOperation`, WSA 2005/08, real `Notify`), H2 `start()` result, H1 races, H9/H10 PTZ NaN guard + generic-space mapping + `Timeout` | 2 wk |
 | **P2 – Profile S completeness** | [Profile S Plan](onvif_p2_profile_s_plan.md): Missing Device/Media ops (§4.2), VEC in profiles, Profile scopes, DiscoveryMode, AppSequence/delay, SetSynchronizationPoint, real snapshot or drop the URI | 2–3 wk |
 | **P3 – Architecture & hygiene** | [Architecture & Hygiene Plan](onvif_p3_architecture_hygiene_plan.md): Dispatch table, service split, adapter segregation, pimpl, RAII OpenSSL, rename 54 long identifiers, Doxygen, MISRA deviation records | 2–3 wk |
-| **P4 – Verification** | Split mega-tests, negative/security tests, libFuzzer harnesses, ONVIF Device Test Tool run, CI with `-Werror`/`/WX` + ASan/TSan/UBSan | ongoing |
+| **P4 – Verification** | [Verification Plan](onvif_p4_verification_plan.md): Split mega-tests, negative/security tests, libFuzzer harnesses, ONVIF Device Test Tool run, CI with `-Werror`/`/WX` + ASan/TSan/UBSan | ongoing |
 
 > [!IMPORTANT]
 > Until P0 is done, the server should be **disabled by default**, or bound to `127.0.0.1`, and the README should state that it is not for production use. Profile G/T/Thermal claims should be removed from `GetCapabilities`/`GetServices`/scopes until they are backed by real implementations.
