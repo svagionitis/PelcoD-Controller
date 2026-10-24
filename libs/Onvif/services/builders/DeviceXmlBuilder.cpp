@@ -62,7 +62,7 @@ std::string DeviceXmlBuilder::buildSysDateXml(const SystemDateTimeConfig& dt)
 }
 
 std::string DeviceXmlBuilder::buildCapsXml(const OnvifServerConfig& config, const std::string& host, int port,
-    std::size_t numRelays, const std::vector<std::string>& categories)
+    std::size_t numRelays, const std::vector<std::string>& categories, bool thermalSupported, bool profileGSupported)
 {
     static_cast<void>(config);
     const bool hasFilter = !categories.empty();
@@ -166,26 +166,31 @@ std::string DeviceXmlBuilder::buildCapsXml(const OnvifServerConfig& config, cons
            << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/deviceio_service</tt:XAddr>\r\n"
            << "            <tt:VideoSources>1</tt:VideoSources>\r\n"
            << "            <tt:RelayOutputs>" << numRelays << "</tt:RelayOutputs>\r\n"
-           << "          </tt:DeviceIO>\r\n"
-           << "          <tt:Recording>\r\n"
-           << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/recording_service</tt:XAddr>\r\n"
-           << "            <tt:Receiver>false</tt:Receiver>\r\n"
-           << "            <tt:MediaProfileSummary>false</tt:MediaProfileSummary>\r\n"
-           << "          </tt:Recording>\r\n"
-           << "          <tt:Search>\r\n"
-           << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/search_service</tt:XAddr>\r\n"
-           << "            <tt:MetadataSearch>true</tt:MetadataSearch>\r\n"
-           << "          </tt:Search>\r\n"
-           << "          <tt:Replay>\r\n"
-           << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/replay_service</tt:XAddr>\r\n"
-           << "          </tt:Replay>\r\n"
-           << "          <tt:Media2>\r\n"
+           << "          </tt:DeviceIO>\r\n";
+        if (profileGSupported) {
+            ss << "          <tt:Recording>\r\n"
+               << "            <tt:XAddr>http://" << safeHost << ":" << port
+               << "/onvif/recording_service</tt:XAddr>\r\n"
+               << "            <tt:Receiver>false</tt:Receiver>\r\n"
+               << "            <tt:MediaProfileSummary>false</tt:MediaProfileSummary>\r\n"
+               << "          </tt:Recording>\r\n"
+               << "          <tt:Search>\r\n"
+               << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/search_service</tt:XAddr>\r\n"
+               << "            <tt:MetadataSearch>true</tt:MetadataSearch>\r\n"
+               << "          </tt:Search>\r\n"
+               << "          <tt:Replay>\r\n"
+               << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/replay_service</tt:XAddr>\r\n"
+               << "          </tt:Replay>\r\n";
+        }
+        ss << "          <tt:Media2>\r\n"
            << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/media2_service</tt:XAddr>\r\n"
-           << "          </tt:Media2>\r\n"
-           << "          <tt:Thermal>\r\n"
-           << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/thermal_service</tt:XAddr>\r\n"
-           << "          </tt:Thermal>\r\n"
-           << "        </tt:Extension>\r\n";
+           << "          </tt:Media2>\r\n";
+        if (thermalSupported) {
+            ss << "          <tt:Thermal>\r\n"
+               << "            <tt:XAddr>http://" << safeHost << ":" << port << "/onvif/thermal_service</tt:XAddr>\r\n"
+               << "          </tt:Thermal>\r\n";
+        }
+        ss << "        </tt:Extension>\r\n";
     }
 
     ss << "      </tds:Capabilities>\r\n"

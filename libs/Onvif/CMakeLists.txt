@@ -95,8 +95,20 @@ add_library(Onvif STATIC
     JpegGenerator.cpp
     AsciiUtils.h
     GeodesyUtils.h
+    adapters/DeviceSystemAdapter.h
+    adapters/DeviceSystemAdapter.cpp
     adapters/PelcoDPtzAdapter.h
     adapters/PelcoDPtzAdapter.cpp
+    adapters/PelcoDPtzAdapterImaging.cpp
+    adapters/PelcoDPtzAdapterTours.cpp
+    adapters/StubAnalyticsAdapter.h
+    adapters/StubAnalyticsAdapter.cpp
+    adapters/StubMediaExtensionAdapter.h
+    adapters/StubMediaExtensionAdapter.cpp
+    adapters/StubRecordingAdapter.h
+    adapters/StubRecordingAdapter.cpp
+    adapters/StubThermalAdapter.h
+    adapters/StubThermalAdapter.cpp
     services/IService.h
     services/builders/DeviceXmlBuilder.h
     services/builders/DeviceXmlBuilder.cpp
@@ -107,6 +119,7 @@ add_library(Onvif STATIC
     services/DeviceService.h
     services/DeviceService.cpp
     services/DeviceServiceNet.cpp
+    services/DeviceServicePki.cpp
     services/MediaService.h
     services/MediaService.cpp
     services/MediaServiceExt.cpp

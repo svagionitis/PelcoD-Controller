@@ -548,12 +548,17 @@ const auto validSeconds = static_cast<std::int64_t>(daysValid) * kSecondsPerDay;
 - [x] Ensure all files remain strictly < 500 LOC (`OnvifServer.h` 170 LOC, `OnvifServerImpl.h` 199 LOC, `OnvifServer.cpp` 441 LOC, `OnvifServerRoutes.cpp` 341 LOC, `OnvifServerAuth.cpp` 220 LOC).
 - [x] Verify zero regression across all 119+ ONVIF server and profile test cases (100% pass rate).
 
-### Phase 7: Interface Segregation of `PelcoDPtzAdapter`
-- Split `PelcoDPtzAdapter` into focused components:
-  - `PelcoDPtzAdapter`: Implements only `IPtzHandler` and `IImagingHandler`.
-  - `DeviceSystemAdapter`: Implements `IDeviceHandler` and `ISecurityHandler`.
-  - `StubRecordingAdapter`: Implements `IRecordingHandler`, `ISearchHandler`, `IReplayHandler` (disabled by default).
-- Update `ServiceRegistry` so unbacked profiles (G, T, Thermal) are not advertised unless explicitly enabled.
+### Phase 7: Interface Segregation of `PelcoDPtzAdapter` ([Detailed Plan](onvif_p3_phase7_interface_segregation_plan.md))
+- [x] Split monolithic `PelcoDPtzAdapter` (2,087 LOC) into single-responsibility domain adapters (< 500 LOC each):
+  - `PelcoDPtzAdapter`: Strictly scoped to `IPtzHandler` and `IImagingHandler`, translating ONVIF moves, presets, and focus to `PelcoDDevice` and `PatrolController` (`PelcoDPtzAdapter.cpp` 413 LOC, `PelcoDPtzAdapterTours.cpp` 371 LOC, `PelcoDPtzAdapterImaging.cpp` 176 LOC).
+  - `DeviceSystemAdapter`: Implements `IDeviceManagementHandler` and `IDeviceIoHandler` (network, NTP, DNS, reboot, certificates, relays, digital inputs, geolocation) (244 LOC).
+  - `StubRecordingAdapter`: Implements `IRecordingHandler`, `ISearchHandler`, `IReplayHandler` (in-memory Profile G test stubs) (288 LOC).
+  - `StubThermalAdapter`: Implements `IThermalHandler` (radiometry spots, boxes, alarms, false-color palettes, NUC trigger) (128 LOC).
+  - `StubAnalyticsAdapter`: Implements `IAnalyticsHandler` and `IMetadataHandler` (rules engine, line crossing, polygon intrusion, loitering) (409 LOC).
+  - `StubMediaExtensionAdapter`: Implements `IMaskHandler` and `IVideoSourceModeHandler` (privacy masks, sensor capture modes) (113 LOC).
+- [x] Update `ServiceRegistry`, `DeviceService`, and `DeviceXmlBuilder` so unbacked profiles (G, Thermal) are dynamically checked and omitted from `GetServices` and `GetCapabilities` unless handlers are registered.
+- [x] Ensure all files remain strictly < 500 LOC and zero Qt dependencies in `libs/Onvif`.
+- [x] Update test suites (`TestOnvifServer.cpp`) and verify 100% test pass rate across all profiles.
 
 ### Phase 8: Doxygen Documentation, `{}` Uniform Initialization & `[[nodiscard]]` Audit
 - Document all public classes, constructors, methods, and structures using full Doxygen templates (`/// @brief`, `@details`, `@param`, `@return`).

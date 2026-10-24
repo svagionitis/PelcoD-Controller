@@ -30,7 +30,8 @@ public:
 
     /// @brief Serializes GetCapabilitiesResponse XML.
     [[nodiscard]] static std::string buildCapsXml(const OnvifServerConfig& config, const std::string& host, int port,
-        std::size_t numRelays, const std::vector<std::string>& categories);
+        std::size_t numRelays, const std::vector<std::string>& categories, bool thermalSupported = false,
+        bool profileGSupported = false);
 
     /// @brief Serializes GetScopesResponse XML.
     [[nodiscard]] static std::string buildScopesXml(

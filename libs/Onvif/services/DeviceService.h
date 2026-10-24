@@ -42,6 +42,8 @@ struct DeviceServiceContext {
     std::function<bool(const std::vector<NetworkProtocolConfig>&)> setNetProtocols { };
     std::function<std::string(SystemLogType)> getSystemLog { };
     std::function<std::size_t()> getRelayOutputCount { };
+    std::function<bool()> isProfileGSupported { };
+    std::function<bool()> isThermalSupported { };
 };
 
 /// @class DeviceService

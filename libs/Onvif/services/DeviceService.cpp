@@ -191,14 +191,18 @@ SoapHandlerResult DeviceService::handleGetCaps(const SoapContext& ctx)
     }
     const std::string host = m_ctx.resolveHost ? m_ctx.resolveHost(ctx) : "127.0.0.1";
     const std::size_t numRelays = m_ctx.getRelayOutputCount ? m_ctx.getRelayOutputCount() : 0U;
+    const bool profileG = m_ctx.isProfileGSupported ? m_ctx.isProfileGSupported() : false;
+    const bool thermal = m_ctx.isThermalSupported ? m_ctx.isThermalSupported() : false;
     return SoapHandlerResult::ok(
-        DeviceXmlBuilder::buildCapsXml(m_ctx.config, host, m_ctx.config.port, numRelays, cats));
+        DeviceXmlBuilder::buildCapsXml(m_ctx.config, host, m_ctx.config.port, numRelays, cats, thermal, profileG));
 }
 
 SoapHandlerResult DeviceService::handleGetServices(const SoapContext& ctx)
 {
     const bool includeCap = ServiceRegistry::parseIncludeCap(ctx.reqNode);
-    const auto registry = ServiceRegistry::createDefault(true, true);
+    const bool profileG = m_ctx.isProfileGSupported ? m_ctx.isProfileGSupported() : false;
+    const bool thermal = m_ctx.isThermalSupported ? m_ctx.isThermalSupported() : false;
+    const auto registry = ServiceRegistry::createDefault(thermal, profileG);
     const std::string host = m_ctx.resolveHost ? m_ctx.resolveHost(ctx) : "127.0.0.1";
     return SoapHandlerResult::ok(registry.buildServicesXml(host, m_ctx.config.port, includeCap));
 }
@@ -454,59 +458,6 @@ SoapHandlerResult DeviceService::handleRemoveScopes(const SoapContext& ctx)
         m_ctx.scopeStore->removeScopes(removed);
     }
     return SoapHandlerResult::ok("    <tds:RemoveScopesResponse/>\r\n");
-}
-SoapHandlerResult DeviceService::handleGetGeoLoc(const SoapContext& ctx)
-{
-    const auto entNode = ctx.reqNode.select_node(".//*[local-name()='Entity']").node();
-    const std::string ent = entNode ? entNode.text().as_string() : "Device";
-    const auto dev = m_ctx.getDeviceHandler ? m_ctx.getDeviceHandler() : nullptr;
-    LocationEntity loc = m_ctx.config.defaultLocation;
-    if (dev) {
-        const auto opt = dev->handleGetGeoLocation(ent);
-        if (opt.has_value()) {
-            loc = *opt;
-        }
-    }
-    return SoapHandlerResult::ok(DeviceXmlBuilder::buildGeoLocationXml(loc));
-}
-
-SoapHandlerResult DeviceService::handleSetGeoLoc(const SoapContext& ctx)
-{
-    const auto locNode = ctx.reqNode.select_node(".//*[local-name()='Location']").node();
-    LocationEntity loc;
-    if (locNode) {
-        loc.entity = locNode.attribute("Entity").as_string("Device");
-        loc.token = locNode.attribute("Token").as_string("Location_1");
-        loc.fixed = locNode.attribute("Fixed").as_bool(true);
-        const auto geoNode = locNode.select_node(".//*[local-name()='GeoLocation']").node();
-        if (geoNode && geoNode.attribute("lat")) {
-            loc.location.latitude = geoNode.attribute("lat").as_double(0.0);
-            loc.location.longitude = geoNode.attribute("lon").as_double(0.0);
-            loc.location.elevation = geoNode.attribute("elevation").as_double(0.0);
-        }
-        const auto oriNode = locNode.select_node(".//*[local-name()='GeoOrientation']").node();
-        if (oriNode) {
-            loc.orientation.yaw = oriNode.attribute("yaw").as_double(0.0);
-            loc.orientation.pitch = oriNode.attribute("pitch").as_double(0.0);
-            loc.orientation.roll = oriNode.attribute("roll").as_double(0.0);
-        }
-    }
-    const auto dev = m_ctx.getDeviceHandler ? m_ctx.getDeviceHandler() : nullptr;
-    if (dev) {
-        dev->handleSetGeoLocation(loc);
-    }
-    return SoapHandlerResult::ok("    <tds:SetGeoLocationResponse/>\r\n");
-}
-
-SoapHandlerResult DeviceService::handleDeleteGeoLoc(const SoapContext& ctx)
-{
-    const auto entNode = ctx.reqNode.select_node(".//*[local-name()='Entity']").node();
-    const std::string ent = entNode ? entNode.text().as_string() : "Device";
-    const auto dev = m_ctx.getDeviceHandler ? m_ctx.getDeviceHandler() : nullptr;
-    if (dev) {
-        dev->handleDeleteGeoLocation(ent);
-    }
-    return SoapHandlerResult::ok("    <tds:DeleteGeoLocationResponse/>\r\n");
 }
 
 } // namespace Onvif

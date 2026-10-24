@@ -17,8 +17,12 @@
 #include <Onvif/HttplibInclude.h>
 #include <Onvif/OnvifClient.h>
 #include <Onvif/OnvifServer.h>
-#include <Onvif/WsDiscoveryServer.h>
+#include <Onvif/adapters/DeviceSystemAdapter.h>
 #include <Onvif/adapters/PelcoDPtzAdapter.h>
+#include <Onvif/adapters/StubAnalyticsAdapter.h>
+#include <Onvif/adapters/StubMediaExtensionAdapter.h>
+#include <Onvif/adapters/StubRecordingAdapter.h>
+#include <Onvif/adapters/StubThermalAdapter.h>
 #include <PelcoDSim/MockPelcoDDevice.h>
 
 using namespace Onvif;
@@ -1542,6 +1546,7 @@ TEST(OnvifServerTest, ImagingExtensionsAndDeviceIo)
     EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
+    auto devIoAdapter = std::make_shared<DeviceSystemAdapter>();
 
     OnvifServerConfig config;
     config.port = 18595;
@@ -1550,7 +1555,7 @@ TEST(OnvifServerTest, ImagingExtensionsAndDeviceIo)
     config.defaultUsers = OnvifTest::defaultTestUsers();
 
     OnvifServer server(config, adapter, adapter);
-    server.setDeviceIoHandler(adapter);
+    server.setDeviceIoHandler(devIoAdapter);
     EXPECT_TRUE(server.start());
     EXPECT_TRUE(server.isRunning());
 
@@ -1708,7 +1713,7 @@ TEST(OnvifServerTest, ImagingExtensionsAndDeviceIo)
         auto resActive = client.Post("/onvif/deviceio_service", reqActive, "application/soap+xml; charset=utf-8");
         EXPECT_TRUE(resActive && resActive->status == 200);
 
-        const auto relaysAfterActive = adapter->handleGetRelayOutputs();
+        const auto relaysAfterActive = devIoAdapter->handleGetRelayOutputs();
         EXPECT_TRUE(!relaysAfterActive.empty() && relaysAfterActive[0].logicalState == RelayLogicalState::Active);
 
         const std::string reqInactive = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
@@ -1724,7 +1729,7 @@ TEST(OnvifServerTest, ImagingExtensionsAndDeviceIo)
         auto resInactive = client.Post("/onvif/deviceio_service", reqInactive, "application/soap+xml; charset=utf-8");
         EXPECT_TRUE(resInactive && resInactive->status == 200);
 
-        const auto relaysAfterInactive = adapter->handleGetRelayOutputs();
+        const auto relaysAfterInactive = devIoAdapter->handleGetRelayOutputs();
         EXPECT_TRUE(!relaysAfterInactive.empty() && relaysAfterInactive[0].logicalState == RelayLogicalState::Inactive);
     }
 
@@ -1748,7 +1753,7 @@ TEST(OnvifServerTest, ImagingExtensionsAndDeviceIo)
         auto res = client.Post("/onvif/deviceio_service", req, "application/soap+xml; charset=utf-8");
         EXPECT_TRUE(res && res->status == 200);
 
-        const auto relays = adapter->handleGetRelayOutputs();
+        const auto relays = devIoAdapter->handleGetRelayOutputs();
         EXPECT_TRUE(!relays.empty());
         EXPECT_TRUE(relays[0].mode == RelayMode::Monostable);
         EXPECT_TRUE(std::abs(relays[0].delayTimeSeconds - 2.0f) < 0.1f);
@@ -1783,6 +1788,8 @@ TEST(OnvifServerTest, MetadataStreamsAndMaintenanceExtensions)
     EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
+    auto analyticsAdapter = std::make_shared<StubAnalyticsAdapter>();
+    auto devSysAdapter = std::make_shared<DeviceSystemAdapter>();
 
     // Populate analytics objects
     AnalyticsObject carObj { };
@@ -1791,7 +1798,7 @@ TEST(OnvifServerTest, MetadataStreamsAndMaintenanceExtensions)
     carObj.confidence = 0.95f;
     carObj.boundingBox = { 0.1f, 0.2f, 0.5f, 0.7f };
     carObj.geoLocation = { 37.7749, -122.4194, 10.0 };
-    adapter->addDetectedObject(carObj);
+    analyticsAdapter->addDetectedObject(carObj);
 
     OnvifServerConfig config;
     config.port = 18596;
@@ -1800,8 +1807,8 @@ TEST(OnvifServerTest, MetadataStreamsAndMaintenanceExtensions)
     config.defaultUsers = OnvifTest::defaultTestUsers();
 
     OnvifServer server(config, adapter, adapter);
-    server.setMetadataHandler(adapter);
-    server.setDeviceManagementHandler(adapter);
+    server.setMetadataHandler(analyticsAdapter);
+    server.setDeviceManagementHandler(devSysAdapter);
     EXPECT_TRUE(server.start());
     EXPECT_TRUE(server.isRunning());
 
@@ -1846,7 +1853,7 @@ TEST(OnvifServerTest, MetadataStreamsAndMaintenanceExtensions)
         EXPECT_TRUE(res && res->status == 200);
         EXPECT_TRUE(res->body.find("SetMetadataConfigurationResponse") != std::string::npos);
 
-        const auto cfg = adapter->handleGetMetadataConfig("MetadataConfig_1");
+        const auto cfg = analyticsAdapter->handleGetMetadataConfig("MetadataConfig_1");
         EXPECT_TRUE(cfg.has_value());
         EXPECT_TRUE(cfg->name == "UpdatedMetadata");
         EXPECT_TRUE(cfg->eventsEnabled == true);
@@ -1968,6 +1975,8 @@ TEST(OnvifServerTest, ProfileGAndPkiCertificates)
     EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
+    auto devSysAdapter = std::make_shared<DeviceSystemAdapter>();
+    auto recordingAdapter = std::make_shared<StubRecordingAdapter>();
 
     OnvifServerConfig config;
     config.port = 18597;
@@ -1976,10 +1985,10 @@ TEST(OnvifServerTest, ProfileGAndPkiCertificates)
     config.defaultUsers = OnvifTest::defaultTestUsers();
 
     OnvifServer server(config, adapter, adapter);
-    server.setDeviceManagementHandler(adapter);
-    server.setRecordingHandler(adapter);
-    server.setSearchHandler(adapter);
-    server.setReplayHandler(adapter);
+    server.setDeviceManagementHandler(devSysAdapter);
+    server.setRecordingHandler(recordingAdapter);
+    server.setSearchHandler(recordingAdapter);
+    server.setReplayHandler(recordingAdapter);
     EXPECT_TRUE(server.start());
     EXPECT_TRUE(server.isRunning());
 
@@ -2426,6 +2435,7 @@ TEST(OnvifServerTest, VideoAnalyticsRuleEngineAndEvaluation)
     auto device = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, std::uint8_t { 1U });
     EXPECT_TRUE(device->start());
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
+    auto analyticsAdapter = std::make_shared<StubAnalyticsAdapter>();
 
     OnvifServerConfig config;
     config.bindAddress = "127.0.0.1";
@@ -2433,7 +2443,7 @@ TEST(OnvifServerTest, VideoAnalyticsRuleEngineAndEvaluation)
     config.defaultUsers = OnvifTest::defaultTestUsers();
 
     OnvifServer server(config, adapter, adapter);
-    server.setAnalyticsHandler(adapter);
+    server.setAnalyticsHandler(analyticsAdapter);
     EXPECT_TRUE(server.start());
     EXPECT_TRUE(server.isRunning());
 
@@ -2522,7 +2532,7 @@ TEST(OnvifServerTest, VideoAnalyticsRuleEngineAndEvaluation)
 
     // 5. Test Geometric Rule Evaluation via Adapter & Event Publishing
     std::vector<OnvifEvent> emittedEvents;
-    adapter->setEventPublisher([&emittedEvents](const OnvifEvent& ev) { emittedEvents.push_back(ev); });
+    analyticsAdapter->setEventPublisher([&emittedEvents](const OnvifEvent& ev) { emittedEvents.push_back(ev); });
 
     // Frame 1: Object 1 (Human) at x=0.30 (left of vertical line x=0.50, inside zone [0.2, 0.8])
     AnalyticsObject obj1;
@@ -2531,7 +2541,7 @@ TEST(OnvifServerTest, VideoAnalyticsRuleEngineAndEvaluation)
     obj1.confidence = 0.85f;
     obj1.boundingBox = { 0.28f, 0.45f, 0.32f, 0.55f }; // center (0.30, 0.50)
 
-    adapter->setDetectedObjects({ obj1 });
+    analyticsAdapter->setDetectedObjects({ obj1 });
 
     // Should trigger ZoneIntrusion event because center is inside polygon [0.2, 0.8]
     EXPECT_TRUE(!emittedEvents.empty());
@@ -2548,7 +2558,7 @@ TEST(OnvifServerTest, VideoAnalyticsRuleEngineAndEvaluation)
     AnalyticsObject obj1Moved = obj1;
     obj1Moved.boundingBox = { 0.68f, 0.45f, 0.72f, 0.55f }; // center (0.70, 0.50)
 
-    adapter->setDetectedObjects({ obj1Moved });
+    analyticsAdapter->setDetectedObjects({ obj1Moved });
 
     // Should trigger PerimeterTripwire Crossed event
     bool tripwireTriggered = false;
@@ -2574,7 +2584,7 @@ TEST(OnvifServerTest, VideoAnalyticsRuleEngineAndEvaluation)
         EXPECT_TRUE(res && res->status == 200);
         EXPECT_TRUE(res->body.find("DeleteRulesResponse") != std::string::npos);
 
-        auto rulesRemaining = adapter->handleGetRules("");
+        auto rulesRemaining = analyticsAdapter->handleGetRules("");
         EXPECT_TRUE(rulesRemaining.size() == 1U);
         EXPECT_TRUE(rulesRemaining[0].name == "ZoneIntrusion");
     }
@@ -2595,6 +2605,8 @@ TEST(OnvifServerTest, PtzGeoMoveAndSphericalSpaces)
     EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
+    auto devSysAdapter = std::make_shared<DeviceSystemAdapter>();
+    devSysAdapter->setLocationCallback([adapter](const LocationEntity& loc) { adapter->setCameraLocation(loc); });
 
     OnvifServerConfig config;
     config.port = 18605;
@@ -2608,8 +2620,9 @@ TEST(OnvifServerTest, PtzGeoMoveAndSphericalSpaces)
 
     OnvifServer server(config);
     adapter->setCameraLocation(config.defaultLocation);
+    devSysAdapter->setCameraLocation(config.defaultLocation);
     server.setPtzHandler(adapter);
-    server.setDeviceManagementHandler(adapter);
+    server.setDeviceManagementHandler(devSysAdapter);
     EXPECT_TRUE(server.start());
     EXPECT_TRUE(server.isRunning());
 
@@ -2687,7 +2700,7 @@ TEST(OnvifServerTest, PtzGeoMoveAndSphericalSpaces)
         EXPECT_TRUE(res && res->status == 200);
         EXPECT_TRUE(res->body.find("SetGeoLocationResponse") != std::string::npos);
 
-        const auto camLoc = adapter->cameraLocation();
+        const auto camLoc = devSysAdapter->cameraLocation();
         EXPECT_TRUE(std::fabs(camLoc.location.latitude - 38.0000) < 0.0001);
         EXPECT_TRUE(std::fabs(camLoc.location.longitude - 23.8000) < 0.0001);
         EXPECT_TRUE(std::fabs(camLoc.orientation.yaw - 90.0) < 0.01);
@@ -2785,10 +2798,11 @@ TEST(OnvifServerTest, ProfileTPrivacyMasksAndVideoSourceModes)
     EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
+    auto mediaExtAdapter = std::make_shared<StubMediaExtensionAdapter>();
 
     OnvifServer server(config, adapter, adapter);
-    server.setMaskHandler(adapter);
-    server.setVideoSourceModeHandler(adapter);
+    server.setMaskHandler(mediaExtAdapter);
+    server.setVideoSourceModeHandler(mediaExtAdapter);
     EXPECT_TRUE(server.start());
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -2914,7 +2928,7 @@ TEST(OnvifServerTest, ProfileTPrivacyMasksAndVideoSourceModes)
         EXPECT_TRUE(res->body.find("SetMaskResponse") != std::string::npos);
 
         // Verify changes took effect
-        const auto maskOpt = adapter->handleGetMask("Mask_New");
+        const auto maskOpt = mediaExtAdapter->handleGetMask("Mask_New");
         EXPECT_TRUE(maskOpt.has_value());
         EXPECT_TRUE(maskOpt->type == MaskType::Pixelated);
         EXPECT_TRUE(maskOpt->enabled == false);
@@ -2935,7 +2949,7 @@ TEST(OnvifServerTest, ProfileTPrivacyMasksAndVideoSourceModes)
         EXPECT_TRUE(res && res->status == 200);
         EXPECT_TRUE(res->body.find("DeleteMaskResponse") != std::string::npos);
 
-        EXPECT_TRUE(!adapter->handleGetMask("Mask_New").has_value());
+        EXPECT_TRUE(!mediaExtAdapter->handleGetMask("Mask_New").has_value());
     }
 
     // 8. VideoSourceModes - GetVideoSourceModes on /onvif/media2_service
@@ -2991,7 +3005,7 @@ TEST(OnvifServerTest, ProfileTPrivacyMasksAndVideoSourceModes)
         EXPECT_TRUE(res->body.find("Reboot>true</") != std::string::npos);
 
         // Verify active mode in adapter
-        const auto modes = adapter->handleGetVideoSourceModes("VideoSource_1");
+        const auto modes = mediaExtAdapter->handleGetVideoSourceModes("VideoSource_1");
         for (const auto& m : modes) {
             if (m.token == "Mode_4k30") {
                 EXPECT_TRUE(m.enabled == true);
@@ -3067,12 +3081,13 @@ TEST(OnvifServerTest, ThermalServiceAndRadiometry)
     EXPECT_TRUE(device->start());
 
     auto adapter = std::make_shared<PelcoDPtzAdapter>(device);
+    auto thermalAdapter = std::make_shared<StubThermalAdapter>(device);
 
     std::vector<OnvifEvent> publishedEvents;
-    adapter->setEventPublisher([&](const OnvifEvent& ev) { publishedEvents.push_back(ev); });
+    thermalAdapter->setEventPublisher([&](const OnvifEvent& ev) { publishedEvents.push_back(ev); });
 
     OnvifServer server(config, adapter, adapter);
-    server.setThermalHandler(adapter);
+    server.setThermalHandler(thermalAdapter);
 
     EXPECT_TRUE(server.start());
     EXPECT_TRUE(server.isRunning());
@@ -3167,7 +3182,7 @@ TEST(OnvifServerTest, ThermalServiceAndRadiometry)
         EXPECT_TRUE(setRes && setRes->status == 200);
         EXPECT_TRUE(setRes->body.find("SetRadiometryConfigurationResponse") != std::string::npos);
 
-        const auto cfg = adapter->handleGetRadiometryConfig("VideoSource_1");
+        const auto cfg = thermalAdapter->handleGetRadiometryConfig("VideoSource_1");
         EXPECT_TRUE(std::fabs(cfg.emissivity - 0.96f) < 0.001f);
         EXPECT_TRUE(std::fabs(cfg.distance - 12.5f) < 0.001f);
     }
@@ -3232,7 +3247,7 @@ TEST(OnvifServerTest, ThermalServiceAndRadiometry)
         testBox.bottomRight = { 0.5f, 0.5f };
 
         publishedEvents.clear();
-        EXPECT_TRUE(adapter->handleSetRadiometryBoxes("VideoSource_1", { testBox }));
+        EXPECT_TRUE(thermalAdapter->handleSetRadiometryBoxes("VideoSource_1", { testBox }));
         // Expect an alarm event was emitted because 85.0 >= 70.0
         EXPECT_TRUE(!publishedEvents.empty());
         EXPECT_TRUE(publishedEvents.back().topic.find("Thermal/Radiometry/HighTemperatureAlarm") != std::string::npos);

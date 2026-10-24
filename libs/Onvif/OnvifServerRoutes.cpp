@@ -98,6 +98,10 @@ void OnvifServer::Impl::setupRoutes()
         return internalRelayOutputs.size();
     };
     devCtx.getVideoSourceModeHandler = [this]() { return getVideoSourceModeHandler(); };
+    devCtx.isProfileGSupported = [this]() {
+        return getRecordingHandler() != nullptr || getSearchHandler() != nullptr || getReplayHandler() != nullptr;
+    };
+    devCtx.isThermalSupported = [this]() { return getThermalHandler() != nullptr; };
 
     services.push_back(std::make_unique<DeviceService>(std::move(devCtx)));
 
