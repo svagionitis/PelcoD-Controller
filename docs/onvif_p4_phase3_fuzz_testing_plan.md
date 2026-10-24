@@ -863,24 +863,26 @@ on:
 jobs:
   fuzzing:
     name: libFuzzer ASan/UBSan
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Clang & Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-15 llvm-15 libpugixml-dev libcurl4-openssl-dev libssl-dev libgtest-dev
+          sudo apt-get install -y clang-17 llvm-17 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build libgflags-dev libgoogle-glog-dev
 
       - name: Configure CMake with Fuzzing
         run: |
-          cmake -B build -S . \
-            -DCMAKE_CXX_COMPILER=clang++-15 \
-            -DCMAKE_C_COMPILER=clang-15 \
+          cmake -B build -G Ninja \
+            -DCMAKE_C_COMPILER=clang-17 \
+            -DCMAKE_CXX_COMPILER=clang++-17 \
             -DPELCOD_ENABLE_ONVIF=ON \
             -DPELCOD_ENABLE_FUZZING=ON \
+            -DPELCOD_ENABLE_QT=OFF \
+            -DPELCOD_BUILD_APPS=OFF \
             -DBUILD_TESTING=ON \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
