@@ -486,12 +486,11 @@ Establish a formal, mandatory Continuous Integration gate running MSVC with `/W4
 |         │                                                                                         |
 |         ├──► 1. actions/checkout@v4                                                               |
 |         ├──► 2. ilammy/msvc-dev-cmd@v1 (Environment init for MSVC 2022)                           |
-|         ├──► 3. ashutoshvarma/setup-ninja@v1                                                      |
-|         ├──► 4. jurplel/install-qt-action@v3 (Qt 6.6.1 win64_msvc2019_64 with caching)           |
-|         ├──► 5. actions/cache@v4 (Restore vcpkg installed libs & binary archives)                 |
-|         ├──► 6. CMake Configure (-G "Visual Studio 17 2022" -A x64 /W4 /WX /w14365 /we4365)       |
-|         ├──► 7. Build All Targets (cmake --build build --config <Config> --parallel)              |
-|         └──► 8. Run CTest Suite (ctest --test-dir build -C <Config> --output-on-failure)         |
+|         ├──► 3. jurplel/install-qt-action@v3 (Qt 6.6.1 win64_msvc2019_64 with caching)           |
+|         ├──► 4. actions/cache@v4 (Restore vcpkg installed libs & binary archives)                 |
+|         ├──► 5. CMake Configure (-G "Visual Studio 17 2022" -A x64 /W4 /WX /w14365 /we4365)       |
+|         ├──► 6. Build All Targets (cmake --build build --config <Config> --parallel)              |
+|         └──► 7. Run CTest Suite (ctest --test-dir build -C <Config> --output-on-failure)         |
 +---------------------------------------------------------------------------------------------------+
 ```
 
@@ -514,14 +513,13 @@ flowchart TD
     subgraph Pipeline["Step Execution Sequence"]
         S1["actions/checkout@v4"]
         S2["ilammy/msvc-dev-cmd@v1<br/>(Visual Studio 2022 Dev Cmd)"]
-        S3["ashutoshvarma/setup-ninja@v1"]
         S4["jurplel/install-qt-action@v3<br/>(Qt 6.6.1 msvc2019_64)"]
         S5["actions/cache@v4<br/>(vcpkg binaries & archives)"]
         S6["CMake Configure<br/>(/W4 /WX /w14365 /we4365)"]
         S7["CMake Build<br/>(cmake --build build --parallel)"]
         S8["CTest Execution<br/>(ctest --test-dir build --parallel)"]
 
-        S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8
+        S1 --> S2 --> S4 --> S5 --> S6 --> S7 --> S8
     end
 
     Matrix --> S1
@@ -561,9 +559,6 @@ jobs:
 
       - name: Setup Visual Studio Developer Command Prompt
         uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Setup Ninja
-        uses: ashutoshvarma/setup-ninja@v1
 
       - name: Install Qt 6
         uses: jurplel/install-qt-action@v3

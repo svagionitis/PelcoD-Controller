@@ -30,8 +30,6 @@ jobs:
       - name: Setup Visual Studio Developer Command Prompt
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Setup Ninja
-        uses: ashutoshvarma/setup-ninja@v1
 
       - name: Install Qt 6
         uses: jurplel/install-qt-action@v3

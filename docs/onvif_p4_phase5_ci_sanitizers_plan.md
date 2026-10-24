@@ -643,8 +643,6 @@ jobs:
       - name: Setup MSVC Developer Prompt
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Setup Ninja
-        uses: ashutoshvarma/setup-ninja@v1
 
       - name: Restore vcpkg Cache
         uses: actions/cache@v4
