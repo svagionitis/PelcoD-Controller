@@ -3,15 +3,22 @@
 
 #include "UsernameToken.h"
 
-#include "OnvifCrypto.h"
-#include "OnvifSecurity.h"
+#include <cstddef>
+#include <cstdint>
 
-#include <openssl/crypto.h>
-
+#include <chrono>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
+
+#include <openssl/crypto.h>
+#include <pugixml.hpp>
+
+#include "OnvifCrypto.h"
+#include "OnvifSecurity.h"
 
 namespace Onvif {
 

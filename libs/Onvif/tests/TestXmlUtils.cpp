@@ -1,8 +1,11 @@
 #include <Onvif/XmlUtils.h>
-#include <gtest/gtest.h>
-#include <pugixml.hpp>
+
 #include <sstream>
 #include <string>
+#include <vector>
+
+#include <gtest/gtest.h>
+#include <pugixml.hpp>
 
 using namespace Onvif::Xml;
 

@@ -3,9 +3,17 @@
 
 #include "Authenticator.h"
 
-#include <algorithm>
+#include <cstddef>
 #include <cstdint>
+
+#include <algorithm>
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 namespace Onvif {
 

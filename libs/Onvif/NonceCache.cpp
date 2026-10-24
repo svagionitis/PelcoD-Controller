@@ -3,7 +3,12 @@
 
 #include "NonceCache.h"
 
+#include <cstddef>
+
 #include <algorithm>
+#include <chrono>
+#include <mutex>
+#include <string>
 
 namespace Onvif {
 

@@ -2,12 +2,20 @@
 /// @brief Implementation of the authoritative ONVIF user store.
 
 #include "CredentialStore.h"
-#include "PasswordPolicy.h"
 
-#include <openssl/crypto.h>
+#include <cstddef>
 
 #include <algorithm>
 #include <mutex>
+#include <optional>
+#include <shared_mutex>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include <openssl/crypto.h>
+
+#include "PasswordPolicy.h"
 
 namespace Onvif {
 

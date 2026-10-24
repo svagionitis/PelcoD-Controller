@@ -1,13 +1,21 @@
 #include "OnvifDiscovery.h"
-#include "WsDiscoveryCommon.h"
-#include "XmlUtils.h"
 
-#include <Transport/SocketUtils.h>
-#include <pugixml.hpp>
+#include <cstddef>
+#include <cstring>
 
 #include <array>
-#include <cstring>
+#include <chrono>
 #include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include <pugixml.hpp>
+
+#include <Transport/SocketUtils.h>
+
+#include "WsDiscoveryCommon.h"
+#include "XmlUtils.h"
 
 namespace Onvif {
 
@@ -19,7 +27,7 @@ namespace {
     {
         std::string out {};
         out.reserve(in.size());
-        for (size_t i = 0; i < in.size(); ++i) {
+        for (std::size_t i = 0; i < in.size(); ++i) {
             if (in[i] == '%' && i + 2 < in.size()) {
                 const int hexVal = std::stoi(in.substr(i + 1, 2), nullptr, 16);
                 out.push_back(static_cast<char>(hexVal));
@@ -40,7 +48,7 @@ namespace {
         if (schemePos == std::string::npos) {
             return {};
         }
-        const size_t hostStart = schemePos + 3;
+        const std::size_t hostStart = schemePos + 3;
         const auto hostEnd = url.find_first_of(":/", hostStart);
         if (hostEnd == std::string::npos) {
             return url.substr(hostStart);
@@ -212,11 +220,11 @@ std::vector<DiscoveredDevice> OnvifDiscovery::discoverDevices(std::chrono::milli
                 reinterpret_cast<struct sockaddr*>(&senderAddr), &senderLen);
 
             if (recvd > 0) {
-                buffer[static_cast<size_t>(recvd)] = '\0';
+                buffer[static_cast<std::size_t>(recvd)] = '\0';
                 char senderIpStr[INET_ADDRSTRLEN] { 0 };
                 inet_ntop(AF_INET, &senderAddr.sin_addr, senderIpStr, sizeof(senderIpStr));
 
-                const std::string responseStr(buffer.data(), static_cast<size_t>(recvd));
+                const std::string responseStr(buffer.data(), static_cast<std::size_t>(recvd));
                 const auto matches = parseProbeMatches(responseStr, senderIpStr);
 
                 for (const auto& dev : matches) {
