@@ -31,7 +31,7 @@ While Phases P0 (Security Hardening), P1 (Protocol Correctness), P2 (Profile S C
 | Fault Coverage       | Missing SOAP 1.2 fault subcodes;   | XML, fault subcodes, replay attacks, SSRF |               |
 |                      | Unchecked numeric conversions      | injection, NaN/Inf bounds (CERT FLP34-C)  |               |
 +----------------------+------------------------------------+-------------------------------------------+---------------+
-| Ingress Fuzzing      | Zero fuzz testing on untrusted     | LLVM libFuzzer harnesses for SOAP parsing,| Phase 3       |
+| Ingress Fuzzing      | Zero fuzz testing on untrusted     | LLVM libFuzzer harnesses for SOAP parsing,| [Phase 3](onvif_p4_phase3_fuzz_testing_plan.md) |
 |                      | network inputs (pugixml, UDP 3702) | WS-Discovery, client responses, & auth    |               |
 +----------------------+------------------------------------+-------------------------------------------+---------------+
 | Standards            | No ODTT or schema conformance runs;| Formal ODTT test procedure + automated    | Phase 4       |
@@ -294,7 +294,7 @@ Implement tests targeting security attack vectors to verify that protections bui
 
 ---
 
-## 5. Phase 3: Continuous Fuzz Testing via LLVM libFuzzer
+## 5. Phase 3: Continuous Fuzz Testing via LLVM libFuzzer ([Phase 3 Detailed Plan](onvif_p4_phase3_fuzz_testing_plan.md))
 
 ### 5.1 Fuzz Targets & Attack Surfaces
 

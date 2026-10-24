@@ -171,3 +171,7 @@ apply_compiler_flags(Onvif)
 if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()
+
+if(BUILD_TESTING OR PELCOD_ENABLE_FUZZING)
+    add_subdirectory(fuzzing)
+endif()

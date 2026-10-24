@@ -1,0 +1,1 @@
+Digest username="operator", realm="PelcoD-ONVIF", nonce="dGVzdG5vbmNlMTIzNDU2", uri="/onvif/media_service", algorithm=MD5, response="c685b5126f4f20e4b854a8b79d854580", qop=auth, nc=00000001, cnonce="0a4f113b"

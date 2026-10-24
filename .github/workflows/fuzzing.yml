@@ -1,0 +1,80 @@
+name: Continuous Fuzz Testing (libFuzzer)
+
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+      - 'libs/Onvif/**'
+      - '.github/workflows/fuzzing.yml'
+  pull_request:
+    branches: [ master, main ]
+    paths:
+      - 'libs/Onvif/**'
+      - '.github/workflows/fuzzing.yml'
+  schedule:
+    # Run nightly at 02:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzzing:
+    name: libFuzzer ASan/UBSan (Ubuntu Clang)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Clang & Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libpugixml-dev libcurl4-openssl-dev libssl-dev libgtest-dev ninja-build
+
+      - name: Configure CMake with Fuzzing
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER=clang \
+            -DPELCOD_ENABLE_ONVIF=ON \
+            -DPELCOD_ENABLE_FUZZING=ON \
+            -DBUILD_TESTING=ON \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+      - name: Build Fuzz Targets
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Run Deterministic Seed Regression
+        run: ctest --test-dir build -R TestFuzzRegression --output-on-failure
+
+      - name: Execute Continuous Fuzzing
+        run: |
+          DURATION=${{ github.event_name == 'schedule' && '1800' || '60' }}
+          echo "Running fuzzing for ${DURATION}s per harness..."
+
+          mkdir -p artifacts
+          for target in fuzz_soap_router fuzz_ws_discovery fuzz_client_xml fuzz_auth_headers fuzz_url_validator; do
+            subname="${target#fuzz_}"
+            corpus="libs/Onvif/fuzzing/corpus/${subname}"
+            dict="libs/Onvif/fuzzing/dict/${subname}.dict"
+            dict_opt=""
+            if [ -f "$dict" ]; then dict_opt="-dict=$dict"; fi
+
+            echo "Starting $target..."
+            ./build/libs/Onvif/fuzzing/$target \
+              $dict_opt \
+              -max_total_time=$DURATION \
+              -artifact_prefix="artifacts/" \
+              -print_final_stats=1 \
+              "$corpus" || exit 1
+          done
+
+      - name: Archive Crash Artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crash-artifacts
+          path: artifacts/

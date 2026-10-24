@@ -1,0 +1,1 @@
+Digest username="admin", realm="PelcoD-ONVIF", nonce="dGVzdG5vbmNlMTIzNDU2", uri="/onvif/device_service", algorithm=SHA-256, response="2c3b88b0a9960787e91d8e12f00a58a9", qop=auth, nc=00000001, cnonce="0a4f113b"
