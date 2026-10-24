@@ -104,7 +104,7 @@ if(WIN32)
 endif()
 
 function(pelcod_register_gtest target_name)
-    cmake_parse_arguments(ARG "NO_MAIN" "" "" ${ARGN})
+    cmake_parse_arguments(ARG "NO_MAIN" "" "PROPERTIES" ${ARGN})
     if(ARG_NO_MAIN)
         target_link_libraries(${target_name} PRIVATE GTest::gmock)
     else()
@@ -259,6 +259,7 @@ endif()
         DISCOVERY_MODE PRE_TEST
         PROPERTIES
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            ${ARG_PROPERTIES}
     )
 endfunction()
 

@@ -37,7 +37,7 @@ While Phases P0 (Security Hardening), P1 (Protocol Correctness), P2 (Profile S C
 | Standards            | No ODTT or schema conformance runs;| Formal ODTT test procedure + automated    | [Phase 4](onvif_p4_phase4_conformance_runner_plan.md) |
 | Conformance          | Unverified WSDL XML compliance     | Python WSDL/XSD schema conformance runner |               |
 +----------------------+------------------------------------+-------------------------------------------+---------------+
-| CI & Sanitizers      | Windows-only CI; No Linux build;   | Multi-platform CI matrix: GCC/Clang, MSVC,| Phase 5       |
+| CI & Sanitizers      | Windows-only CI; No Linux build;   | Multi-platform CI matrix: GCC/Clang, MSVC,| [Phase 5](onvif_p4_phase5_ci_sanitizers_plan.md) |
 |                      | Sanitizers (ASan/TSan/UBSan) unused| ASan/LSan, TSan, UBSan, and -Werror /WX   |               |
 +----------------------+------------------------------------+-------------------------------------------+---------------+
 ```
@@ -435,7 +435,7 @@ tools/onvif_conformance/
 
 ---
 
-## 7. Phase 5: Multi-Platform CI Matrix & Hardened Sanitizers
+## 7. Phase 5: Multi-Platform CI Matrix & Hardened Sanitizers ([Phase 5 Detailed Plan](onvif_p4_phase5_ci_sanitizers_plan.md))
 
 ### 7.1 Multi-Platform GitHub Actions Architecture
 

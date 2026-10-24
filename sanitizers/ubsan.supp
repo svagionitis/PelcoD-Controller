@@ -1,0 +1,14 @@
+# ==============================================================================
+# Pelco-D Controller - UndefinedBehaviorSanitizer (UBSan) Suppressions
+#
+# Guidelines:
+# 1. Suppressions are STRICTLY PROHIBITED for any symbols within libs/Onvif/
+#    or libs/PelcoDCore/.
+# 2. Every suppression must target third-party runtime or OS-level allocations
+#    and include a rationale.
+# ==============================================================================
+
+# Third-party pugixml memory layout alignment on packed nodes
+alignment:pugi::xml_document
+alignment:pugi::xml_node
+alignment:pugi::impl::*

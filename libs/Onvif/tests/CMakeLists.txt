@@ -31,7 +31,7 @@ function(add_onvif_test test_name test_source)
         PelcoDCore
         PelcoDSim
     )
-    pelcod_register_gtest(${test_name})
+    pelcod_register_gtest(${test_name} PROPERTIES LABELS onvif)
 endfunction()
 
 # Server Modular Tests

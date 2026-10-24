@@ -1,0 +1,337 @@
+name: ONVIF Multi-Platform Verification & Hardened Sanitizers
+
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+      - 'libs/Onvif/**'
+      - 'tools/onvif_conformance/**'
+      - 'scripts/**'
+      - 'sanitizers/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/onvif-verification.yml'
+  pull_request:
+    branches: [ master, main ]
+    paths:
+      - 'libs/Onvif/**'
+      - 'tools/onvif_conformance/**'
+      - 'scripts/**'
+      - 'sanitizers/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/onvif-verification.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================================
+  # Tier 1: Static Quality Gates & Rule Enforcement (Fast-Fail < 45s)
+  # ============================================================================
+  static-audit:
+    name: Static Quality Gates (IWYU, <30 Char, MISRA 7.0.6)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Audit IWYU & Fixed-Width Integers (<cstdint>)
+        run: python3 scripts/verify_iwyu_cstdint.py --strict libs/Onvif
+
+      - name: Audit Function & Identifier Lengths (< 30 chars)
+        run: python3 scripts/verify_function_lengths.py libs/Onvif
+
+      - name: Audit Signed/Unsigned Conversions (MISRA 7.0.6 & INT31-C)
+        run: python3 scripts/verify_type_conversions.py libs/Onvif
+
+  # ============================================================================
+  # Tier 2A: Multi-Platform Native Compilers
+  # ============================================================================
+  linux-gcc-strict:
+    name: Linux GCC 13 Strict (-Werror -Wconversion)
+    needs: static-audit
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-13 g++-13 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_C_COMPILER=gcc-13 \
+            -DCMAKE_CXX_COMPILER=g++-13 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWARNINGS_AS_ERRORS=ON \
+            -DENABLE_HARDENING=ON \
+            -DPELCOD_ENABLE_ONVIF=ON \
+            -DBUILD_TESTING=ON
+
+      - name: Build All Targets
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Run CTest Suite
+        run: ctest --test-dir build --output-on-failure -j$(nproc) -L onvif
+
+  linux-clang-strict:
+    name: Linux Clang 17 Strict (-Werror -Wpedantic)
+    needs: static-audit
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-17 llvm-17 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_C_COMPILER=clang-17 \
+            -DCMAKE_CXX_COMPILER=clang++-17 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWARNINGS_AS_ERRORS=ON \
+            -DENABLE_HARDENING=ON \
+            -DPELCOD_ENABLE_ONVIF=ON \
+            -DBUILD_TESTING=ON
+
+      - name: Build All Targets
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Run CTest Suite
+        run: ctest --test-dir build --output-on-failure -j$(nproc) -L onvif
+
+  windows-msvc-strict:
+    name: Windows MSVC 2022 (/W4 /WX /we4365 /guard:cf) - ${{ matrix.config }}
+    needs: static-audit
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [ Debug, Release ]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC Developer Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Setup Ninja
+        uses: ashutoshvarma/setup-ninja@v1
+
+      - name: Restore vcpkg Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/vcpkg_installed
+            C:/Users/runneradmin/AppData/Local/vcpkg/archives
+          key: vcpkg-msvc-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-msvc-${{ runner.os }}-
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DWARNINGS_AS_ERRORS=ON `
+            -DENABLE_HARDENING=ON `
+            -DPELCOD_ENABLE_ONVIF=ON `
+            -DBUILD_TESTING=ON
+
+      - name: Build Targets
+        run: cmake --build build --config ${{ matrix.config }} --parallel
+
+      - name: Run CTest Suite
+        run: ctest --test-dir build -C ${{ matrix.config }} --output-on-failure --parallel -L onvif
+
+  # ============================================================================
+  # Tier 2B: Hardened Dynamic Sanitizers
+  # ============================================================================
+  sanitizers-asan-lsan:
+    name: Clang ASan + LSan (Memory Corruption & Leaks)
+    needs: static-audit
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-17 llvm-17 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build
+
+      - name: Configure CMake with ASan
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_C_COMPILER=clang-17 \
+            -DCMAKE_CXX_COMPILER=clang++-17 \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DENABLE_ASAN=ON \
+            -DPELCOD_ENABLE_ONVIF=ON \
+            -DBUILD_TESTING=ON
+
+      - name: Build Targets
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Run CTest under ASan & LSan
+        env:
+          ASAN_OPTIONS: "detect_leaks=1:check_initialization_order=1:strict_init_order=1:detect_stack_use_after_return=1:halt_on_error=1"
+          LSAN_OPTIONS: "suppressions=${{ github.workspace }}/sanitizers/lsan.supp"
+        run: ctest --test-dir build --output-on-failure -j4 -L onvif
+
+  sanitizers-tsan:
+    name: Clang TSan (Data Races & Concurrency)
+    needs: static-audit
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-17 llvm-17 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build
+
+      - name: Configure CMake with TSan
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_C_COMPILER=clang-17 \
+            -DCMAKE_CXX_COMPILER=clang++-17 \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DENABLE_TSAN=ON \
+            -DPELCOD_ENABLE_ONVIF=ON \
+            -DBUILD_TESTING=ON
+
+      - name: Build Targets
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Run CTest under TSan
+        env:
+          TSAN_OPTIONS: "halt_on_error=1:second_deadlock_stack=1:suppressions=${{ github.workspace }}/sanitizers/tsan.supp"
+        run: ctest --test-dir build --output-on-failure -j4 -L onvif
+
+  sanitizers-ubsan:
+    name: Clang UBSan (Undefined Behavior & Bounds)
+    needs: static-audit
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-17 llvm-17 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build
+
+      - name: Configure CMake with UBSan
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_C_COMPILER=clang-17 \
+            -DCMAKE_CXX_COMPILER=clang++-17 \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DENABLE_UBSAN=ON \
+            -DPELCOD_ENABLE_ONVIF=ON \
+            -DBUILD_TESTING=ON
+
+      - name: Build Targets
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Run CTest under UBSan
+        env:
+          UBSAN_OPTIONS: "print_stacktrace=1:halt_on_error=1:suppressions=${{ github.workspace }}/sanitizers/ubsan.supp"
+        run: ctest --test-dir build --output-on-failure -j4 -L onvif
+
+  # ============================================================================
+  # Tier 2C: Integrated System Verification (Fuzz Smoke & Conformance)
+  # ============================================================================
+  fuzzing-smoke:
+    name: libFuzzer Smoke Regression
+    needs: static-audit
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-17 llvm-17 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build
+
+      - name: Configure CMake for Fuzzing
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_C_COMPILER=clang-17 \
+            -DCMAKE_CXX_COMPILER=clang++-17 \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DPELCOD_ENABLE_ONVIF=ON \
+            -DPELCOD_ENABLE_FUZZING=ON \
+            -DBUILD_TESTING=ON
+
+      - name: Build Fuzz Targets
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Replay Seed Corpora
+        run: ctest --test-dir build -R TestFuzzRegression --output-on-failure
+
+      - name: Run Short Smoke Mutations (1,000 runs)
+        run: |
+          for target in fuzz_soap_router fuzz_ws_discovery fuzz_client_xml fuzz_auth_headers fuzz_url_validator; do
+            echo "Smoke testing $target..."
+            ./build/libs/Onvif/fuzzing/$target -runs=1000 -max_total_time=15
+          done
+
+  onvif-conformance:
+    name: Python Profile S Conformance Runner
+    needs: [ linux-gcc-strict ]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python Conformance Dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r tools/onvif_conformance/requirements.txt
+
+      - name: Install Native Server Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-13 g++-13 libcurl4-openssl-dev libssl-dev libpugixml-dev ninja-build
+
+      - name: Build OnvifServer Binary
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_C_COMPILER=gcc-13 \
+            -DCMAKE_CXX_COMPILER=g++-13 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DPELCOD_ENABLE_ONVIF=ON
+          cmake --build build --target Onvif --parallel $(nproc)
+
+      - name: Execute Profile S Conformance Runner
+        run: |
+          python3 tools/onvif_conformance/run_conformance.py --junit-xml conformance_report.xml
+
+      - name: Archive Conformance Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: onvif-conformance-report
+          path: conformance_report.xml
