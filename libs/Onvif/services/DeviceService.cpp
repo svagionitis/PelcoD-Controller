@@ -216,9 +216,10 @@ SoapHandlerResult DeviceService::handleSetSysDate(const SoapContext& ctx)
 {
     SystemDateTimeConfig dt;
     const auto dtTypeNode = ctx.reqNode.select_node(".//*[local-name()='DateTimeType']").node();
-    if (dtTypeNode) {
-        dt.dateTimeType = dtTypeNode.text().as_string();
+    if (!dtTypeNode || std::string_view(dtTypeNode.text().as_string()).empty()) {
+        return SoapHandlerResult::fault("ter:InvalidArgVal", "Missing DateTimeType element", 400);
     }
+    dt.dateTimeType = dtTypeNode.text().as_string();
     const auto dsNode = ctx.reqNode.select_node(".//*[local-name()='DaylightSavings']").node();
     if (dsNode) {
         dt.daylightSavings = dsNode.text().as_bool(false);

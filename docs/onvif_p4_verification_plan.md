@@ -27,7 +27,7 @@ While Phases P0 (Security Hardening), P1 (Protocol Correctness), P2 (Profile S C
 | Test Granularity     | 52 coarse tests in 2 monolithic    | Decompose into 13 modular GoogleTest      | [Phase 1](onvif_p4_phase1_test_decomposition_plan.md) (Completed) |
 |                      | files (> 300 KB total size)        | fixtures aligned with P3 service domains  |               |
 +----------------------+------------------------------------+-------------------------------------------+---------------+
-| Negative & Security  | Sparse negative edge-case tests;   | Systematic negative test matrix: malformed| Phase 2       |
+| Negative & Security  | Sparse negative edge-case tests;   | Systematic negative test matrix: malformed| [Phase 2](onvif_p4_phase2_negative_security_plan.md) (Completed) |
 | Fault Coverage       | Missing SOAP 1.2 fault subcodes;   | XML, fault subcodes, replay attacks, SSRF |               |
 |                      | Unchecked numeric conversions      | injection, NaN/Inf bounds (CERT FLP34-C)  |               |
 +----------------------+------------------------------------+-------------------------------------------+---------------+
@@ -218,7 +218,7 @@ Both monolithic files will be decomposed into 13 modular, domain-specific Google
 
 ---
 
-## 4. Phase 2: Negative, Boundary & Security Vulnerability Suites
+## 4. Phase 2: Negative, Boundary & Security Vulnerability Suites ([Phase 2 Detailed Plan](onvif_p4_phase2_negative_security_plan.md))
 
 ### 4.1 Protocol Negative Fault Suite (`TestOnvifProtocolFaults.cpp`)
 

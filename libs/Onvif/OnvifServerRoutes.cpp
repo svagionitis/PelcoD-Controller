@@ -63,6 +63,50 @@ namespace {
         return std::string(buf);
     }
 
+    [[nodiscard]] bool isNsAllowed(std::string_view svc, std::string_view ns) noexcept
+    {
+        if (svc == "Device") {
+            return ns == "http://www.onvif.org/ver10/device/wsdl";
+        }
+        if (svc == "Media") {
+            return ns == "http://www.onvif.org/ver10/media/wsdl";
+        }
+        if (svc == "Media2") {
+            return ns == "http://www.onvif.org/ver20/media/wsdl";
+        }
+        if (svc == "PTZ") {
+            return ns == "http://www.onvif.org/ver20/ptz/wsdl" || ns == "http://www.onvif.org/ver10/ptz/wsdl";
+        }
+        if (svc == "Imaging") {
+            return ns == "http://www.onvif.org/ver20/imaging/wsdl";
+        }
+        if (svc == "Event") {
+            return ns == "http://www.onvif.org/ver10/events/wsdl" || ns == "http://docs.oasis-open.org/wsn/b-2";
+        }
+        if (svc == "Subscription") {
+            return ns == "http://docs.oasis-open.org/wsn/b-2" || ns == "http://www.onvif.org/ver10/events/wsdl";
+        }
+        if (svc == "Analytics") {
+            return ns == "http://www.onvif.org/ver20/analytics/wsdl";
+        }
+        if (svc == "DeviceIO") {
+            return ns == "http://www.onvif.org/ver10/deviceIO/wsdl";
+        }
+        if (svc == "Recording") {
+            return ns == "http://www.onvif.org/ver10/recording/wsdl";
+        }
+        if (svc == "Search") {
+            return ns == "http://www.onvif.org/ver10/search/wsdl";
+        }
+        if (svc == "Replay") {
+            return ns == "http://www.onvif.org/ver10/replay/wsdl";
+        }
+        if (svc == "Thermal") {
+            return ns == "http://www.onvif.org/ver10/thermal/wsdl";
+        }
+        return true;
+    }
+
 } // namespace
 
 void OnvifServer::Impl::setupRoutes()
@@ -221,6 +265,12 @@ void OnvifServer::Impl::handleSoapEndpoint(
     const auto& [bodyNode, reqNode, opName] = *soap;
     appendAccessLog(serviceName, opName, req.remote_addr);
 
+    const auto key = soapRouter.extractOpKey(reqNode, fallbackNs);
+    if (!isNsAllowed(serviceName, key.namespaceUri)) {
+        sendSoapResponse(res, SoapFault::actionNotSupported("Action Not Supported: " + key.localName), 500);
+        return;
+    }
+
     SoapContext ctx { };
     ctx.reqNode = reqNode;
     ctx.principal = lastAuthPrincipal;
@@ -333,16 +383,24 @@ std::optional<OnvifServer::Impl::SoapRequest> OnvifServer::Impl::parseSoapReques
     }
 
     const pugi::xml_node bodyNode = doc.select_node("//*[local-name()='Body']").node();
+    if (!bodyNode) {
+        sendSoapResponse(res, SoapFault::sender("ter:InvalidArgVal", "", "Missing SOAP Body element"), 400);
+        return std::nullopt;
+    }
+
     pugi::xml_node reqNode;
-    if (bodyNode) {
-        for (pugi::xml_node child = bodyNode.first_child(); child; child = child.next_sibling()) {
-            if (child.type() == pugi::node_element) {
-                reqNode = child;
-                break;
-            }
+    for (pugi::xml_node child = bodyNode.first_child(); child; child = child.next_sibling()) {
+        if (child.type() == pugi::node_element) {
+            reqNode = child;
+            break;
         }
     }
-    const std::string opName = reqNode ? reqNode.name() : "";
+    if (!reqNode) {
+        sendSoapResponse(res, SoapFault::sender("ter:InvalidArgVal", "", "Empty SOAP Body element"), 400);
+        return std::nullopt;
+    }
+
+    const std::string opName = reqNode.name();
     if (logCallback) {
         logCallback(std::string(serviceName), opName, req.remote_addr);
     }

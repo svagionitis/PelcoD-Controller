@@ -73,6 +73,10 @@ public:
     bool handleGotoPreset(const std::string& token) override
     {
         lastGotoPreset = token;
+        if (token.find("NoSuch") != std::string::npos || token.find("Invalid") != std::string::npos
+            || token.find("Bad") != std::string::npos || token.find("NonExistent") != std::string::npos) {
+            return false;
+        }
         return true;
     }
 

@@ -42,6 +42,8 @@ add_onvif_test(TestOnvifPtzService server/TestOnvifPtzService.cpp)
 add_onvif_test(TestOnvifEventService server/TestOnvifEventService.cpp)
 add_onvif_test(TestOnvifImagingService server/TestOnvifImagingService.cpp)
 add_onvif_test(TestOnvifExtensions server/TestOnvifExtensions.cpp)
+add_onvif_test(TestOnvifProtocolFaults server/TestOnvifProtocolFaults.cpp)
+add_onvif_test(TestOnvifSecurityHardening server/TestOnvifSecurityHardening.cpp)
 
 # Client Modular Tests
 add_onvif_test(TestClientDeviceParsing client/TestClientDeviceParsing.cpp)

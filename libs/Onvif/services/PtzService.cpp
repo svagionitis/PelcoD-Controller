@@ -5,6 +5,7 @@
 #include <cstdint>
 
 #include <algorithm>
+#include <chrono>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -303,8 +304,21 @@ SoapHandlerResult PtzService::handleContMove(const SoapContext& ctx)
             zoom = *p;
         }
     }
+    if (std::abs(pan) > 1.0f || std::abs(tilt) > 1.0f || std::abs(zoom) > 1.0f) {
+        return SoapHandlerResult::fault(
+            "ter:InvalidArgVal", "Velocity value is out of range [-1.0, 1.0]", 400, "ter:OutofRange");
+    }
     const auto toNode = ctx.reqNode.select_node(".//*[local-name()='Timeout']").node();
-    const auto timeout = toNode ? Xml::parseIsoDurationMs(toNode.text().as_string()) : std::nullopt;
+    std::optional<std::chrono::milliseconds> timeout = std::nullopt;
+    if (toNode) {
+        const std::string_view toStr = toNode.text().as_string();
+        if (!toStr.empty()) {
+            timeout = Xml::parseIsoDurationMs(toStr);
+            if (!timeout.has_value()) {
+                return SoapHandlerResult::fault("ter:InvalidArgVal", "Invalid ISO duration timeout", 400);
+            }
+        }
+    }
 
     const auto ptz = m_ctx.getPtzHandler ? m_ctx.getPtzHandler() : nullptr;
     if (ptz) {
