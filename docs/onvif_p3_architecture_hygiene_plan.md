@@ -560,32 +560,32 @@ const auto validSeconds = static_cast<std::int64_t>(daysValid) * kSecondsPerDay;
 - [x] Ensure all files remain strictly < 500 LOC and zero Qt dependencies in `libs/Onvif`.
 - [x] Update test suites (`TestOnvifServer.cpp`) and verify 100% test pass rate across all profiles.
 
-### Phase 8: Doxygen Documentation, `{}` Uniform Initialization & `[[nodiscard]]` Audit
-- Document all public classes, constructors, methods, and structures using full Doxygen templates (`/// @brief`, `@details`, `@param`, `@return`).
-- Ensure all structs in `OnvifTypes.h` and `OnvifServerTypes.h` use `{}` member initialization.
-- Apply `[[nodiscard]]` to all status-returning adapter callbacks and service entry points.
-- Run `verify_iwyu_cstdint.py` to ensure zero transitive include violations.
+### Phase 8: Doxygen Documentation, `{}` Uniform Initialization & `[[nodiscard]]` Audit ([Detailed Plan](onvif_p3_phase8_doxygen_nodiscard_audit_plan.md)) - **COMPLETED**
+- [x] Document all public classes, constructors, methods, and structures using full Doxygen templates (`/// @brief`, `@details`, `@param`, `@return`).
+- [x] Ensure all structs in `OnvifTypes.h` and `OnvifServerTypes.h` use `{}` member initialization.
+- [x] Apply `[[nodiscard]]` to all status-returning adapter callbacks and service entry points.
+- [x] Run `verify_iwyu_cstdint.py` to ensure zero transitive include violations (100% compliance across all 49 modified files).
 
 ---
 
 ## 6. Verification Checklist
 
 Before completing Phase P3, verify all requirements against this checklist:
-- [ ] No raw `new` or `delete`; all OpenSSL pointers wrapped in RAII smart pointers (`EvpPkeyPtr`, `X509Ptr`, `BioPtr`).
-- [ ] All headers use `#pragma once` as the first non-comment line.
-- [ ] Every header (`.h`) and implementation (`.cpp`) pair is co-located in the same directory.
-- [ ] Zero Qt dependencies in `libs/Onvif` (`#include <Q...>` strictly prohibited).
-- [ ] All project function names are strictly less than 30 characters (verified by automated script).
-- [ ] All transport and socket code supports both Linux (POSIX) and Windows (Win32 / Winsock2).
-- [ ] All member variables and structures are explicitly initialized using `{}`.
-- [ ] `[[nodiscard]]` is applied to all functions returning status, error codes, or safety-critical data.
-- [ ] All public APIs are documented with complete Doxygen templates (`/// @brief`, `@details`, `@param`, `@return`).
-- [ ] MISRA C++:2023 deviations are formally documented (Rule 8.2.5 for socket casts).
-- [ ] No C-style arrays remain (all replaced by `std::array`).
-- [ ] Code compiles cleanly under `/W4` on MSVC and `-Wall -Wextra -pedantic -Werror` on Clang/GCC.
-- [ ] All documentation file paths are relative.
-- [ ] Both ASCII and Mermaid diagrams are provided for architectural components.
-- [ ] Direct `#include <cstdint>` and `std::` qualification on all fixed-width integers (`std::uint8_t`, `std::int32_t`).
-- [ ] Strict IWYU adherence with zero reliance on transitive includes.
-- [ ] No heap allocations on high-frequency `noexcept` network paths (CERT ERR55-CPP).
-- [ ] All existing and new unit test suites pass with 100% success rate.
+- [x] No raw `new` or `delete`; all OpenSSL pointers wrapped in RAII smart pointers (`EvpPkeyPtr`, `X509Ptr`, `BioPtr`).
+- [x] All headers use `#pragma once` as the first non-comment line.
+- [x] Every header (`.h`) and implementation (`.cpp`) pair is co-located in the same directory.
+- [x] Zero Qt dependencies in `libs/Onvif` (`#include <Q...>` strictly prohibited).
+- [x] All project function names are strictly less than 30 characters (verified by automated script).
+- [x] All transport and socket code supports both Linux (POSIX) and Windows (Win32 / Winsock2).
+- [x] All member variables and structures are explicitly initialized using `{}`.
+- [x] `[[nodiscard]]` is applied to all functions returning status, error codes, or safety-critical data.
+- [x] All public APIs are documented with complete Doxygen templates (`/// @brief`, `@details`, `@param`, `@return`).
+- [x] MISRA C++:2023 deviations are formally documented (Rule 8.2.5 for socket casts).
+- [x] No C-style arrays remain (all replaced by `std::array`).
+- [x] Code compiles cleanly under `/W4` on MSVC and `-Wall -Wextra -pedantic -Werror` on Clang/GCC.
+- [x] All documentation file paths are relative.
+- [x] Both ASCII and Mermaid diagrams are provided for architectural components.
+- [x] Direct `#include <cstdint>` and `std::` qualification on all fixed-width integers (`std::uint8_t`, `std::int32_t`).
+- [x] Strict IWYU adherence with zero reliance on transitive includes.
+- [x] No heap allocations on high-frequency `noexcept` network paths (CERT ERR55-CPP).
+- [x] All existing and new unit test suites pass with 100% success rate.

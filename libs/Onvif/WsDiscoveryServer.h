@@ -3,12 +3,6 @@
 /// @file WsDiscoveryServer.h
 /// @brief WS-Discovery multicast responder daemon for ONVIF device discovery.
 
-#include "OnvifServerTypes.h"
-#include "ScopeStore.h"
-#include "WsDiscoveryCommon.h"
-#include "WsDiscoveryValidator.h"
-#include <Transport/SocketUtils.h>
-
 #include <atomic>
 #include <cstdint>
 #include <memory>
@@ -16,6 +10,13 @@
 #include <string>
 #include <thread>
 #include <vector>
+
+#include <Transport/SocketUtils.h>
+
+#include "OnvifServerTypes.h"
+#include "ScopeStore.h"
+#include "WsDiscoveryCommon.h"
+#include "WsDiscoveryValidator.h"
 
 namespace Onvif {
 
@@ -97,7 +98,7 @@ private:
     void runListener();
 
     mutable std::mutex m_scopeMutex { };
-    OnvifServerConfig m_config;
+    OnvifServerConfig m_config { };
     std::shared_ptr<ScopeStore> m_scopeStore { nullptr };
     std::atomic<bool> m_running { false };
     std::atomic<DiscoveryMode> m_discoveryMode { DiscoveryMode::Discoverable };
@@ -106,7 +107,7 @@ private:
     std::thread m_thread { };
 
     Net::SocketHandle m_sockFd { Net::InvalidSocket };
-    DiscoveryRateLimiter m_rateLimiter;
+    DiscoveryRateLimiter m_rateLimiter { };
 };
 
 } // namespace Onvif

@@ -3,11 +3,10 @@
 /// @file PelcoDPtzAdapter.h
 /// @brief Adapter translating ONVIF PTZ and Imaging commands to PelcoDDevice hardware control.
 
-#include <cstdint>
-
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -16,9 +15,10 @@
 #include <thread>
 #include <vector>
 
-#include "OnvifServerTypes.h"
 #include <PelcoDCore/PatrolController.h>
 #include <PelcoDCore/PelcoDDevice.h>
+
+#include "OnvifServerTypes.h"
 
 namespace Onvif {
 
@@ -34,7 +34,7 @@ public:
 
     ~PelcoDPtzAdapter() override;
 
-    // Non-copyable, non-movable
+    // Non-copyable, non-movable per MISRA C++:2023
     PelcoDPtzAdapter(const PelcoDPtzAdapter&) = delete;
     PelcoDPtzAdapter& operator=(const PelcoDPtzAdapter&) = delete;
     PelcoDPtzAdapter(PelcoDPtzAdapter&&) = delete;
@@ -88,7 +88,12 @@ public:
     [[nodiscard]] bool handleGeoMove(const std::string& profileToken, const GeoMoveTarget& target) override;
     void handleAbsoluteMoveSpherical(float azimuthDeg, float elevationDeg, float zoom) override;
 
+    /// @brief Gets active camera mounting and geographic orientation.
+    /// @return Active LocationEntity.
     [[nodiscard]] LocationEntity cameraLocation() const;
+
+    /// @brief Configures camera mounting and geographic orientation.
+    /// @param[in] location New LocationEntity.
     void setCameraLocation(const LocationEntity& location);
 
     // =========================================================================

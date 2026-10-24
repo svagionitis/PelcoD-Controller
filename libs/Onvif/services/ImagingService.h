@@ -28,6 +28,8 @@ struct ImagingServiceContext {
 /// @brief Modular service implementation for ONVIF Imaging (timg WSDL).
 class ImagingService : public IService {
 public:
+    /// @brief Constructs ImagingService with injected environment.
+    /// @param[in] ctx Imaging service dependencies.
     explicit ImagingService(ImagingServiceContext ctx);
     ~ImagingService() override = default;
 
@@ -36,7 +38,12 @@ public:
     ImagingService(ImagingService&&) = default;
     ImagingService& operator=(ImagingService&&) = default;
 
+    /// @brief Registers all timg operations with the SoapRouter.
+    /// @param[in,out] router Target SoapRouter instance.
     void registerRoutes(SoapRouter& router) override;
+
+    /// @brief Canonical service name ("Imaging").
+    /// @return String view of service name.
     [[nodiscard]] std::string_view serviceName() const noexcept override;
 
 private:
@@ -50,7 +57,7 @@ private:
     SoapHandlerResult handleGetCurPreset(const SoapContext& ctx);
     SoapHandlerResult handleSetCurPreset(const SoapContext& ctx);
 
-    ImagingServiceContext m_ctx;
+    ImagingServiceContext m_ctx { };
     ImagingSettings m_settings { };
     FocusStatus20 m_focusStatus { };
     std::vector<ImagingPreset> m_presets { };

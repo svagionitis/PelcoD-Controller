@@ -4,6 +4,7 @@
 /// @brief Adapter managing ONVIF Video Analytics (Profile M & T) and Metadata configuration.
 
 #include <chrono>
+#include <cstdint>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -50,19 +51,22 @@ public:
     /// @param[in] configToken VideoAnalyticsConfiguration token.
     /// @param[in] rules Rules to create.
     /// @return True on success.
-    bool handleCreateRules(const std::string& configToken, const std::vector<AnalyticsRule>& rules) override;
+    [[nodiscard]] bool handleCreateRules(
+        const std::string& configToken, const std::vector<AnalyticsRule>& rules) override;
 
     /// @brief Modifies existing analytics rules.
     /// @param[in] configToken VideoAnalyticsConfiguration token.
     /// @param[in] rules Updated rules.
     /// @return True on success.
-    bool handleModifyRules(const std::string& configToken, const std::vector<AnalyticsRule>& rules) override;
+    [[nodiscard]] bool handleModifyRules(
+        const std::string& configToken, const std::vector<AnalyticsRule>& rules) override;
 
     /// @brief Deletes analytics rules by name.
     /// @param[in] configToken VideoAnalyticsConfiguration token.
     /// @param[in] ruleNames Names of rules to delete.
     /// @return True on success.
-    bool handleDeleteRules(const std::string& configToken, const std::vector<std::string>& ruleNames) override;
+    [[nodiscard]] bool handleDeleteRules(
+        const std::string& configToken, const std::vector<std::string>& ruleNames) override;
 
     /// @brief Retrieves supported analytics modules.
     /// @param[in] configToken Configuration token.
@@ -79,21 +83,21 @@ public:
     /// @param[in] configToken Configuration token.
     /// @param[in] modules Modules to create.
     /// @return True on success.
-    bool handleCreateAnalyticsModules(
+    [[nodiscard]] bool handleCreateAnalyticsModules(
         const std::string& configToken, const std::vector<AnalyticsModule>& modules) override;
 
     /// @brief Modifies existing analytics modules.
     /// @param[in] configToken Configuration token.
     /// @param[in] modules Updated modules.
     /// @return True on success.
-    bool handleModifyAnalyticsModules(
+    [[nodiscard]] bool handleModifyAnalyticsModules(
         const std::string& configToken, const std::vector<AnalyticsModule>& modules) override;
 
     /// @brief Deletes analytics modules by name.
     /// @param[in] configToken Configuration token.
     /// @param[in] moduleNames Names of modules to delete.
     /// @return True on success.
-    bool handleDeleteAnalyticsModules(
+    [[nodiscard]] bool handleDeleteAnalyticsModules(
         const std::string& configToken, const std::vector<std::string>& moduleNames) override;
 
     // =========================================================================
@@ -157,7 +161,7 @@ private:
     std::chrono::steady_clock::time_point m_startTime { std::chrono::steady_clock::now() };
     std::vector<AnalyticsRule> m_rules { };
     std::vector<AnalyticsModule> m_analyticsModules { };
-    std::map<int, ObjectTrackState> m_objectTracks { };
+    std::map<std::int32_t, ObjectTrackState> m_objectTracks { };
 };
 
 } // namespace Onvif

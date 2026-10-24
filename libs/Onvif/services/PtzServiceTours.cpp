@@ -236,7 +236,7 @@ SoapHandlerResult PtzService::handleGeoMove(const SoapContext& ctx)
         target.targetGeo.latitude = lat;
         target.targetGeo.longitude = lon;
         target.targetGeo.elevation = el;
-        ptz->handleGeoMove("", target);
+        static_cast<void>(ptz->handleGeoMove("", target));
     }
     return SoapHandlerResult::ok("    <tptz:GeoMoveResponse/>\r\n");
 }
@@ -286,7 +286,7 @@ SoapHandlerResult PtzService::handleGotoPreset(const SoapContext& ctx)
                 "ter:InvalidArgVal", "The requested preset token does not exist.", 400, "ter:NoToken");
         }
     } else if (ptz) {
-        ptz->handleGotoPreset(tok);
+        static_cast<void>(ptz->handleGotoPreset(tok));
     }
     return SoapHandlerResult::ok("    <tptz:GotoPresetResponse/>\r\n");
 }
@@ -310,7 +310,7 @@ SoapHandlerResult PtzService::handleRemovePreset(const SoapContext& ctx)
     } else {
         m_presets.erase(it);
         if (ptz) {
-            ptz->handleRemovePreset(tok);
+            static_cast<void>(ptz->handleRemovePreset(tok));
         }
     }
     return SoapHandlerResult::ok("    <tptz:RemovePresetResponse/>\r\n");
@@ -320,7 +320,7 @@ SoapHandlerResult PtzService::handleGotoHome(const SoapContext&)
 {
     const auto ptz = m_ctx.getPtzHandler ? m_ctx.getPtzHandler() : nullptr;
     if (ptz) {
-        ptz->handleGotoHomePosition();
+        static_cast<void>(ptz->handleGotoHomePosition());
     }
     return SoapHandlerResult::ok("    <tptz:GotoHomePositionResponse/>\r\n");
 }
@@ -329,7 +329,7 @@ SoapHandlerResult PtzService::handleSetHome(const SoapContext&)
 {
     const auto ptz = m_ctx.getPtzHandler ? m_ctx.getPtzHandler() : nullptr;
     if (ptz) {
-        ptz->handleSetHomePosition();
+        static_cast<void>(ptz->handleSetHomePosition());
     }
     return SoapHandlerResult::ok("    <tptz:SetHomePositionResponse/>\r\n");
 }

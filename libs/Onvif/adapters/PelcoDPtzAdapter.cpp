@@ -212,29 +212,6 @@ void PelcoDPtzAdapter::handleAbsoluteMove(
     }
 }
 
-void PelcoDPtzAdapter::handleAbsoluteMoveSpherical(float azimuthDeg, float elevationDeg, float zoom)
-{
-    handleAbsoluteMove(
-        azimuthDeg, elevationDeg, zoom, "http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionSphericalSpace");
-}
-
-bool PelcoDPtzAdapter::handleGeoMove(const std::string& /*profileToken*/, const GeoMoveTarget& target)
-{
-    if (!m_device) {
-        return false;
-    }
-
-    const double camLat = 37.7749;
-    const double camLon = -122.4194;
-    const double camAlt = 10.0;
-
-    const auto azEl = GeodesyUtils::calculateAzimuthElevation(
-        camLat, camLon, camAlt, target.targetLat, target.targetLon, target.targetElevation);
-
-    handleAbsoluteMoveSpherical(static_cast<float>(azEl.azimuthDeg), static_cast<float>(azEl.elevationDeg), 1.0f);
-    return true;
-}
-
 void PelcoDPtzAdapter::handleStop(bool stopPanTilt, bool stopZoom)
 {
     if (!m_device) {

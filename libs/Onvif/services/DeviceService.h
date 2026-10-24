@@ -116,7 +116,7 @@ private:
     SoapHandlerResult handleSetVideoMode(const SoapContext& ctx);
     SoapHandlerResult handleFactoryDefault(const SoapContext& ctx);
 
-    DeviceServiceContext m_ctx;
+    DeviceServiceContext m_ctx { };
     SystemDateTimeConfig m_dateTime { };
     std::string m_hostname { "PelcoD-Bridge" };
     std::string m_gateway { "192.168.1.1" };

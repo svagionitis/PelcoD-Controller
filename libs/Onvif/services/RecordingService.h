@@ -37,6 +37,8 @@ struct RecordingServiceContext {
 /// @brief Modular service implementation for ONVIF Profile G services.
 class RecordingService : public IService {
 public:
+    /// @brief Constructs RecordingService with injected environment.
+    /// @param[in] ctx Profile G recording/search/replay dependencies.
     explicit RecordingService(RecordingServiceContext ctx);
     ~RecordingService() override = default;
 
@@ -45,7 +47,12 @@ public:
     RecordingService(RecordingService&&) = default;
     RecordingService& operator=(RecordingService&&) = default;
 
+    /// @brief Registers all Profile G operations with the SoapRouter.
+    /// @param[in,out] router Target SoapRouter instance.
     void registerRoutes(SoapRouter& router) override;
+
+    /// @brief Canonical service name ("Recording").
+    /// @return String view of service name.
     [[nodiscard]] std::string_view serviceName() const noexcept override;
 
 private:
@@ -74,7 +81,7 @@ private:
     SoapHandlerResult handleGetReplayConfig(const SoapContext& ctx);
     SoapHandlerResult handleSetReplayConfig(const SoapContext& ctx);
 
-    RecordingServiceContext m_ctx;
+    RecordingServiceContext m_ctx { };
     std::vector<RecordingConfig> m_recordings { };
     std::vector<RecordingJob> m_jobs { };
     std::map<std::string, std::vector<RecordingSearchResult>> m_recSearches { };

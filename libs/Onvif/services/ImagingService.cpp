@@ -111,6 +111,42 @@ SoapHandlerResult ImagingService::handleSetSettings(const SoapContext& ctx)
     if (sNode) {
         m_settings.sharpness = sNode.text().as_float(50.0F);
     }
+    const auto irNode = ctx.reqNode.select_node(".//*[local-name()='IrCutFilter']").node();
+    if (irNode) {
+        m_settings.irCutFilter = irNode.text().as_string();
+    }
+    const auto blcModeNode
+        = ctx.reqNode.select_node(".//*[local-name()='BacklightCompensation']/*[local-name()='Mode']").node();
+    if (blcModeNode) {
+        m_settings.backlightCompensation = (std::string_view(blcModeNode.text().as_string()) == "ON");
+    }
+    const auto blcLevelNode
+        = ctx.reqNode.select_node(".//*[local-name()='BacklightCompensation']/*[local-name()='Level']").node();
+    if (blcLevelNode) {
+        m_settings.backlightLevel = blcLevelNode.text().as_float(0.0F);
+    }
+    const auto wdrModeNode
+        = ctx.reqNode.select_node(".//*[local-name()='WideDynamicRange']/*[local-name()='Mode']").node();
+    if (wdrModeNode) {
+        m_settings.wideDynamicRange = (std::string_view(wdrModeNode.text().as_string()) == "ON");
+    }
+    const auto wdrLevelNode
+        = ctx.reqNode.select_node(".//*[local-name()='WideDynamicRange']/*[local-name()='Level']").node();
+    if (wdrLevelNode) {
+        m_settings.wdrLevel = wdrLevelNode.text().as_float(0.0F);
+    }
+    const auto afNode = ctx.reqNode.select_node(".//*[local-name()='Focus']/*[local-name()='AutoFocusMode']").node();
+    if (afNode) {
+        m_settings.autoFocusMode = afNode.text().as_string();
+    }
+    const auto expModeNode = ctx.reqNode.select_node(".//*[local-name()='Exposure']/*[local-name()='Mode']").node();
+    if (expModeNode) {
+        m_settings.exposure.mode = expModeNode.text().as_string();
+    }
+    const auto irisNode = ctx.reqNode.select_node(".//*[local-name()='Exposure']/*[local-name()='Iris']").node();
+    if (irisNode) {
+        m_settings.exposure.iris = irisNode.text().as_float(50.0F);
+    }
 
     const auto imaging = m_ctx.getImagingHandler ? m_ctx.getImagingHandler() : nullptr;
     if (imaging) {

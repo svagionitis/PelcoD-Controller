@@ -33,6 +33,8 @@ struct EventServiceContext {
 /// @brief Modular service implementation for ONVIF Events (tev and WS-BaseNotification).
 class EventService : public IService {
 public:
+    /// @brief Constructs EventService with injected environment.
+    /// @param[in] ctx Event service dependencies.
     explicit EventService(EventServiceContext ctx);
     ~EventService() override = default;
 
@@ -41,7 +43,12 @@ public:
     EventService(EventService&&) = default;
     EventService& operator=(EventService&&) = default;
 
+    /// @brief Registers all tev and WS-BaseNotification operations with the SoapRouter.
+    /// @param[in,out] router Target SoapRouter instance.
     void registerRoutes(SoapRouter& router) override;
+
+    /// @brief Canonical service name ("Events").
+    /// @return String view of service name.
     [[nodiscard]] std::string_view serviceName() const noexcept override;
 
 private:
@@ -53,7 +60,7 @@ private:
     SoapHandlerResult handleSubscribe(const SoapContext& ctx);
     SoapHandlerResult handleSeek(const SoapContext& ctx);
 
-    EventServiceContext m_ctx;
+    EventServiceContext m_ctx { };
 };
 
 } // namespace Onvif

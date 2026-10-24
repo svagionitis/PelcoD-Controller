@@ -29,9 +29,9 @@ public:
     [[nodiscard]] static std::string buildSysDateXml(const SystemDateTimeConfig& dt);
 
     /// @brief Serializes GetCapabilitiesResponse XML.
-    [[nodiscard]] static std::string buildCapsXml(const OnvifServerConfig& config, const std::string& host, int port,
-        std::size_t numRelays, const std::vector<std::string>& categories, bool thermalSupported = false,
-        bool profileGSupported = false);
+    [[nodiscard]] static std::string buildCapsXml(const OnvifServerConfig& config, const std::string& host,
+        std::int32_t port, std::size_t numRelays, const std::vector<std::string>& categories,
+        bool thermalSupported = false, bool profileGSupported = false);
 
     /// @brief Serializes GetScopesResponse XML.
     [[nodiscard]] static std::string buildScopesXml(

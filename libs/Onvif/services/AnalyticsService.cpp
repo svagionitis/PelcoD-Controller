@@ -255,7 +255,7 @@ SoapHandlerResult AnalyticsService::handleCreateRules(const SoapContext& ctx)
     std::vector<AnalyticsRule> newRules = parseAnalyticsRules(ctx.reqNode);
     const auto analyticsHandler = m_ctx.getAnalyticsHandler ? m_ctx.getAnalyticsHandler() : nullptr;
     if (analyticsHandler) {
-        analyticsHandler->handleCreateRules(configToken, newRules);
+        static_cast<void>(analyticsHandler->handleCreateRules(configToken, newRules));
     } else {
         for (auto& r : newRules) {
             m_rules.push_back(std::move(r));
@@ -271,7 +271,7 @@ SoapHandlerResult AnalyticsService::handleModifyRules(const SoapContext& ctx)
     std::vector<AnalyticsRule> modRules = parseAnalyticsRules(ctx.reqNode);
     const auto analyticsHandler = m_ctx.getAnalyticsHandler ? m_ctx.getAnalyticsHandler() : nullptr;
     if (analyticsHandler) {
-        analyticsHandler->handleModifyRules(configToken, modRules);
+        static_cast<void>(analyticsHandler->handleModifyRules(configToken, modRules));
     } else {
         for (const auto& mr : modRules) {
             for (auto& ir : m_rules) {
@@ -295,7 +295,7 @@ SoapHandlerResult AnalyticsService::handleDeleteRules(const SoapContext& ctx)
     }
     const auto analyticsHandler = m_ctx.getAnalyticsHandler ? m_ctx.getAnalyticsHandler() : nullptr;
     if (analyticsHandler) {
-        analyticsHandler->handleDeleteRules(configToken, delNames);
+        static_cast<void>(analyticsHandler->handleDeleteRules(configToken, delNames));
     } else {
         m_rules.erase(std::remove_if(m_rules.begin(), m_rules.end(),
                           [&](const AnalyticsRule& r) {
@@ -374,7 +374,7 @@ SoapHandlerResult AnalyticsService::handleCreateModules(const SoapContext& ctx)
     }
     const auto analyticsHandler = m_ctx.getAnalyticsHandler ? m_ctx.getAnalyticsHandler() : nullptr;
     if (analyticsHandler) {
-        analyticsHandler->handleCreateAnalyticsModules(configToken, newMods);
+        static_cast<void>(analyticsHandler->handleCreateAnalyticsModules(configToken, newMods));
     } else {
         for (auto& m : newMods) {
             m_modules.push_back(std::move(m));
@@ -399,7 +399,7 @@ SoapHandlerResult AnalyticsService::handleModifyModules(const SoapContext& ctx)
     }
     const auto analyticsHandler = m_ctx.getAnalyticsHandler ? m_ctx.getAnalyticsHandler() : nullptr;
     if (analyticsHandler) {
-        analyticsHandler->handleModifyAnalyticsModules(configToken, modMods);
+        static_cast<void>(analyticsHandler->handleModifyAnalyticsModules(configToken, modMods));
     } else {
         for (const auto& mm : modMods) {
             for (auto& im : m_modules) {
@@ -423,7 +423,7 @@ SoapHandlerResult AnalyticsService::handleDeleteModules(const SoapContext& ctx)
     }
     const auto analyticsHandler = m_ctx.getAnalyticsHandler ? m_ctx.getAnalyticsHandler() : nullptr;
     if (analyticsHandler) {
-        analyticsHandler->handleDeleteAnalyticsModules(configToken, delNames);
+        static_cast<void>(analyticsHandler->handleDeleteAnalyticsModules(configToken, delNames));
     } else {
         m_modules.erase(std::remove_if(m_modules.begin(), m_modules.end(),
                             [&](const AnalyticsModule& m) {

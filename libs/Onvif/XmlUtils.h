@@ -3,8 +3,6 @@
 /// @file XmlUtils.h
 /// @brief XML traversal and namespace-agnostic element lookup utilities for ONVIF.
 
-#include "OnvifTypes.h"
-
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -17,6 +15,8 @@
 #include <vector>
 
 #include <pugixml.hpp>
+
+#include "OnvifTypes.h"
 
 namespace Onvif::Xml {
 

@@ -49,7 +49,7 @@ public:
     /// @brief Modifies an existing privacy mask.
     /// @param[in] mask Updated mask settings.
     /// @return True on success.
-    bool handleSetMask(const PrivacyMask& mask) override;
+    [[nodiscard]] bool handleSetMask(const PrivacyMask& mask) override;
 
     /// @brief Creates a new privacy mask.
     /// @param[in] mask New mask to register.
@@ -59,7 +59,7 @@ public:
     /// @brief Deletes a privacy mask by token.
     /// @param[in] maskToken Token of mask to delete.
     /// @return True if deleted.
-    bool handleDeleteMask(const std::string& maskToken) override;
+    [[nodiscard]] bool handleDeleteMask(const std::string& maskToken) override;
 
     // =========================================================================
     // IVideoSourceModeHandler Implementation
@@ -75,7 +75,7 @@ public:
     /// @param[in] modeToken Desired mode token.
     /// @param[out] outRebootNeeded Set to true if reboot is required.
     /// @return True on success.
-    bool handleSetVideoSourceMode(
+    [[nodiscard]] bool handleSetVideoSourceMode(
         const std::string& videoSourceToken, const std::string& modeToken, bool& outRebootNeeded) override;
 
 private:

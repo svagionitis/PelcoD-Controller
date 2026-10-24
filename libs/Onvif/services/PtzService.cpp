@@ -359,7 +359,7 @@ SoapHandlerResult PtzService::handleRelMove(const SoapContext& ctx)
 
     const auto ptz = m_ctx.getPtzHandler ? m_ctx.getPtzHandler() : nullptr;
     if (ptz) {
-        ptz->handleRelativeMove(pan, tilt, zoom, speed, spaceUri);
+        static_cast<void>(ptz->handleRelativeMove(pan, tilt, zoom, speed, spaceUri));
     }
     return SoapHandlerResult::ok("    <tptz:RelativeMoveResponse/>\r\n");
 }

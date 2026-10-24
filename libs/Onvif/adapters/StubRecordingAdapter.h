@@ -52,7 +52,8 @@ public:
     /// @param[in] recordingToken Recording token.
     /// @param[in] config Updated configuration.
     /// @return True on success.
-    bool handleSetRecordingConfig(const std::string& recordingToken, const RecordingConfig& config) override;
+    [[nodiscard]] bool handleSetRecordingConfig(
+        const std::string& recordingToken, const RecordingConfig& config) override;
 
     /// @brief Deletes a recording container by token.
     /// @param[in] recordingToken Recording token to delete.
@@ -111,7 +112,7 @@ public:
     /// @param[in] keepAliveTime Session keepalive string.
     /// @return Unique search session token string.
     [[nodiscard]] std::string handleFindRecordings(
-        const std::string& scope, int maxMatches, const std::string& keepAliveTime) override;
+        const std::string& scope, std::int32_t maxMatches, const std::string& keepAliveTime) override;
 
     /// @brief Polls results for an active recording search query.
     /// @param[in] searchToken Search session token.
@@ -124,7 +125,7 @@ public:
     /// @param[in] maxMatches Maximum match count.
     /// @return Unique search session token string.
     [[nodiscard]] std::string handleFindEvents(
-        const std::string& startUtc, const std::string& endUtc, int maxMatches) override;
+        const std::string& startUtc, const std::string& endUtc, std::int32_t maxMatches) override;
 
     /// @brief Polls results for an active event search query.
     /// @param[in] searchToken Search session token.

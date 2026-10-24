@@ -4,6 +4,7 @@
 #include "SubscriptionManager.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <ctime>
 
 #include <algorithm>
@@ -30,13 +31,13 @@ namespace {
     [[nodiscard]] std::string formatIso8601Utc(std::chrono::system_clock::time_point tp)
     {
         const std::time_t t { std::chrono::system_clock::to_time_t(tp) };
-        std::tm tmBuf {};
+        std::tm tmBuf { };
 #ifdef _WIN32
         gmtime_s(&tmBuf, &t);
 #else
         gmtime_r(&t, &tmBuf);
 #endif
-        std::ostringstream ss {};
+        std::ostringstream ss { };
         ss << std::put_time(&tmBuf, "%Y-%m-%dT%H:%M:%SZ");
         return ss.str();
     }
@@ -55,7 +56,7 @@ namespace {
         }
         const auto parseNum = [](const char* p, std::size_t len, int& out) noexcept -> bool {
             const auto res = std::from_chars(p, p + len, out);
-            return res.ec == std::errc {};
+            return res.ec == std::errc { };
         };
         int year { 0 };
         int month { 0 };
@@ -67,7 +68,7 @@ namespace {
             || !parseNum(&dtStr[11], 2U, hour) || !parseNum(&dtStr[14], 2U, min) || !parseNum(&dtStr[17], 2U, sec)) {
             return std::nullopt;
         }
-        std::tm tmBuf {};
+        std::tm tmBuf { };
         tmBuf.tm_year = year - 1900;
         tmBuf.tm_mon = month - 1;
         tmBuf.tm_mday = day;
@@ -126,7 +127,7 @@ void SubscriptionManager::sweeperLoop()
         if (m_sweepCv.wait_for(lock, m_config.sweepInterval, [this] { return !m_sweeperRunning.load(); })) {
             break;
         }
-        sweepExpired();
+        static_cast<void>(sweepExpired());
     }
 }
 
@@ -184,7 +185,7 @@ std::chrono::seconds SubscriptionManager::parseLease(std::string_view termStr) c
     // Try parsing as simple integer seconds
     int rawSec { 0 };
     const auto res { std::from_chars(termStr.data(), termStr.data() + termStr.size(), rawSec) };
-    if (res.ec == std::errc {} && rawSec > 0) {
+    if (res.ec == std::errc { } && rawSec > 0) {
         return std::clamp(std::chrono::seconds(rawSec), m_config.minLease, m_config.maxLease);
     }
 
@@ -240,7 +241,7 @@ SubCreateResult SubscriptionManager::createPushSub(
 
     const auto lease { parseLease(termTimeStr) };
     const auto subId { std::to_string(m_nextSubId++) };
-    PushSub sub {};
+    PushSub sub { };
     sub.id = subId;
     sub.consumerUrl = std::string { consumerUrl };
     sub.topicFilter = std::string { topicFilter };
@@ -308,14 +309,14 @@ bool SubscriptionManager::unsubscribe(std::string_view subId)
     return false;
 }
 
-bool SubscriptionManager::pullMessages(std::string_view subId, int limit, int timeoutSec,
+bool SubscriptionManager::pullMessages(std::string_view subId, std::int32_t limit, std::int32_t timeoutSec,
     std::vector<OnvifEvent>& outEvents, std::string& outCurTime, std::string& outTermTime,
     const std::atomic<bool>& serverRunning)
 {
-    const int clampedLimit { std::clamp(limit, 1, 100) };
-    const int clampedTimeoutSec { std::clamp(timeoutSec, 0, 10) };
+    const std::int32_t clampedLimit { std::clamp(limit, 1, 100) };
+    const std::int32_t clampedTimeoutSec { std::clamp(timeoutSec, 0, 10) };
 
-    std::shared_ptr<PullPointSub> sub {};
+    std::shared_ptr<PullPointSub> sub { };
     {
         std::scoped_lock lock(m_mutex);
         const auto nowSteady { std::chrono::steady_clock::now() };

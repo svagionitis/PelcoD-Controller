@@ -157,7 +157,7 @@ SoapHandlerResult ThermalService::handleSetRadiometry(const SoapContext& ctx)
     }
     const auto handler = m_ctx.getThermalHandler ? m_ctx.getThermalHandler() : nullptr;
     if (handler) {
-        handler->handleSetRadiometryConfig(tok, cfg);
+        static_cast<void>(handler->handleSetRadiometryConfig(tok, cfg));
     }
     m_radiometry = cfg;
     return SoapHandlerResult::ok("    <tth:SetRadiometryConfigurationResponse/>\r\n");
@@ -209,7 +209,7 @@ SoapHandlerResult ThermalService::handleSetSpots(const SoapContext& ctx)
     }
     const auto handler = m_ctx.getThermalHandler ? m_ctx.getThermalHandler() : nullptr;
     if (handler) {
-        handler->handleSetRadiometrySpots(tok, spots);
+        static_cast<void>(handler->handleSetRadiometrySpots(tok, spots));
     }
     m_spots = spots;
     return SoapHandlerResult::ok("    <tth:SetRadiometrySpotsResponse/>\r\n");
@@ -273,7 +273,7 @@ SoapHandlerResult ThermalService::handleSetBoxes(const SoapContext& ctx)
     }
     const auto handler = m_ctx.getThermalHandler ? m_ctx.getThermalHandler() : nullptr;
     if (handler) {
-        handler->handleSetRadiometryBoxes(tok, boxes);
+        static_cast<void>(handler->handleSetRadiometryBoxes(tok, boxes));
     }
     m_boxes = boxes;
     return SoapHandlerResult::ok("    <tth:SetRadiometryBoxesResponse/>\r\n");
@@ -308,7 +308,7 @@ SoapHandlerResult ThermalService::handleSetPalette(const SoapContext& ctx)
     const std::string pal = palNode ? palNode.text().as_string() : "WhiteHot";
     const auto handler = m_ctx.getThermalHandler ? m_ctx.getThermalHandler() : nullptr;
     if (handler) {
-        handler->handleSetColorPalette(tok, pal);
+        static_cast<void>(handler->handleSetColorPalette(tok, pal));
     }
     m_activePalette = pal;
     return SoapHandlerResult::ok("    <tth:SetColorPaletteResponse/>\r\n");
@@ -320,7 +320,7 @@ SoapHandlerResult ThermalService::handleTriggerNuc(const SoapContext& ctx)
     const std::string tok = tokNode ? tokNode.text().as_string() : "VideoSource_1";
     const auto handler = m_ctx.getThermalHandler ? m_ctx.getThermalHandler() : nullptr;
     if (handler) {
-        handler->handleTriggerNuc(tok);
+        static_cast<void>(handler->handleTriggerNuc(tok));
     }
     return SoapHandlerResult::ok("    <tth:TriggerNUCResponse/>\r\n");
 }

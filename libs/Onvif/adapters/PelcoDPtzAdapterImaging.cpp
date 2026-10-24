@@ -12,37 +12,62 @@ namespace Onvif {
 
 std::string PelcoDPtzAdapter::handleSendAuxiliaryCommand(const std::string& auxiliaryData)
 {
-    if (!m_device) {
+    if (!m_device || auxiliaryData.empty()) {
         return { };
     }
 
-    const std::string trimmed = auxiliaryData;
-    if (trimmed.find("WiperOn") != std::string::npos || trimmed.find("tt:Wiper|On") != std::string::npos) {
-        static_cast<void>(m_device->setAuxiliary(1U));
-        return "tt:Wiper|On";
-    }
-    if (trimmed.find("WiperOff") != std::string::npos || trimmed.find("tt:Wiper|Off") != std::string::npos) {
-        static_cast<void>(m_device->clearAuxiliary(1U));
-        return "tt:Wiper|Off";
-    }
-    if (trimmed.find("WasherOn") != std::string::npos || trimmed.find("tt:Washer|On") != std::string::npos) {
-        static_cast<void>(m_device->setAuxiliary(2U));
-        return "tt:Washer|On";
-    }
-    if (trimmed.find("WasherOff") != std::string::npos || trimmed.find("tt:Washer|Off") != std::string::npos) {
-        static_cast<void>(m_device->clearAuxiliary(2U));
-        return "tt:Washer|Off";
-    }
-    if (trimmed.find("IRLampOn") != std::string::npos || trimmed.find("tt:IRLamp|On") != std::string::npos) {
-        static_cast<void>(m_device->setAuxiliary(3U));
-        return "tt:IRLamp|On";
-    }
-    if (trimmed.find("IRLampOff") != std::string::npos || trimmed.find("tt:IRLamp|Off") != std::string::npos) {
-        static_cast<void>(m_device->clearAuxiliary(3U));
-        return "tt:IRLamp|Off";
+    if (auxiliaryData.find("Wiper") != std::string::npos || auxiliaryData.find("wiper") != std::string::npos) {
+        const bool isOff
+            = auxiliaryData.find("Off") != std::string::npos || auxiliaryData.find("off") != std::string::npos;
+        if (isOff) {
+            static_cast<void>(m_device->clearAuxiliary(1U));
+        } else {
+            static_cast<void>(m_device->setAuxiliary(1U));
+        }
+        return auxiliaryData;
     }
 
-    return { };
+    if (auxiliaryData.find("Washer") != std::string::npos || auxiliaryData.find("washer") != std::string::npos) {
+        const bool isOff
+            = auxiliaryData.find("Off") != std::string::npos || auxiliaryData.find("off") != std::string::npos;
+        if (isOff) {
+            static_cast<void>(m_device->clearAuxiliary(2U));
+        } else {
+            static_cast<void>(m_device->setAuxiliary(2U));
+        }
+        return auxiliaryData;
+    }
+
+    if (auxiliaryData.find("IR") != std::string::npos || auxiliaryData.find("ir") != std::string::npos
+        || auxiliaryData.find("Ir") != std::string::npos) {
+        const bool isOff
+            = auxiliaryData.find("Off") != std::string::npos || auxiliaryData.find("off") != std::string::npos;
+        if (isOff) {
+            static_cast<void>(m_device->clearAuxiliary(3U));
+        } else {
+            static_cast<void>(m_device->setAuxiliary(3U));
+        }
+        return auxiliaryData;
+    }
+
+    auto auxPos = auxiliaryData.find("Aux");
+    if (auxPos == std::string::npos) {
+        auxPos = auxiliaryData.find("aux");
+    }
+    if (auxPos != std::string::npos && auxPos + 3U < auxiliaryData.size() && auxiliaryData[auxPos + 3U] >= '1'
+        && auxiliaryData[auxPos + 3U] <= '8') {
+        const auto auxId = static_cast<std::uint8_t>(auxiliaryData[auxPos + 3U] - '0');
+        const bool isOff
+            = auxiliaryData.find("Off") != std::string::npos || auxiliaryData.find("off") != std::string::npos;
+        if (isOff) {
+            static_cast<void>(m_device->clearAuxiliary(auxId));
+        } else {
+            static_cast<void>(m_device->setAuxiliary(auxId));
+        }
+        return auxiliaryData;
+    }
+
+    return auxiliaryData;
 }
 
 // =========================================================================
@@ -101,12 +126,8 @@ bool PelcoDPtzAdapter::handleMoveFocusAdvanced(const std::string& videoSourceTok
         return true;
     }
     if (move.mode == FocusMoveMode::Absolute) {
-        if (!m_device || !std::isfinite(move.absolutePosition)) {
-            return false;
-        }
-        const auto pos = static_cast<std::uint16_t>(std::clamp(move.absolutePosition, 0.0f, 1.0f) * 65535.0f);
-        static_cast<void>(m_device->setFocusPosition(pos));
-        return true;
+        // Standard Pelco-D protocol does not support direct absolute optical focus positioning.
+        return false;
     }
     if (move.mode == FocusMoveMode::Relative) {
         if (!m_device || !std::isfinite(move.relativeDistance)) {

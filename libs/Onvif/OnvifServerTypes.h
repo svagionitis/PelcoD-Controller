@@ -3,9 +3,6 @@
 /// @file OnvifServerTypes.h
 /// @brief Configuration and interface types for the embedded ONVIF server and WS-Discovery responder.
 
-#include "OnvifAuthTypes.h"
-#include "OnvifTypes.h"
-
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -14,6 +11,9 @@
 #include <optional>
 #include <string>
 #include <vector>
+
+#include "OnvifAuthTypes.h"
+#include "OnvifTypes.h"
 
 namespace Onvif {
 
@@ -67,7 +67,7 @@ struct NotificationConfig {
 
 /// @enum ProvisioningState
 /// @brief Device provisioning lifecycle state for first-boot security (ETSI EN 303 645 §5.1).
-enum class ProvisioningState {
+enum class ProvisioningState : std::uint8_t {
     Unprovisioned, ///< No administrator account configured; operational endpoints blocked.
     Provisioned ///< Administrator account established; fully operational.
 };
@@ -101,22 +101,22 @@ struct VideoSourceConfig {
     std::string name { "VideoSourceConfig" };
 
     /// @brief Number of profiles referencing this configuration.
-    int useCount { 1 };
+    std::int32_t useCount { 1 };
 
     /// @brief Attached physical video source token.
     std::string sourceToken { "VideoSource_1" };
 
     /// @brief Source window X coordinate.
-    int x { 0 };
+    std::int32_t x { 0 };
 
     /// @brief Source window Y coordinate.
-    int y { 0 };
+    std::int32_t y { 0 };
 
     /// @brief Source window width.
-    int width { 1920 };
+    std::int32_t width { 1920 };
 
     /// @brief Source window height.
-    int height { 1080 };
+    std::int32_t height { 1080 };
 };
 
 /// @struct ServerMediaProfile
@@ -174,7 +174,7 @@ struct OnvifServerConfig {
     std::string bindAddress { "0.0.0.0" };
 
     /// @brief HTTP server listening port (default: 8080).
-    int port { 8080 };
+    std::int32_t port { 8080 };
 
     /// @brief Operational discovery mode (Discoverable or NonDiscoverable).
     DiscoveryMode discoveryMode { DiscoveryMode::Discoverable };
@@ -351,7 +351,8 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] settings New imaging parameters.
     /// @return True if settings were successfully applied.
-    virtual bool handleSetImagingSettings(const std::string& videoSourceToken, const ImagingSettings& settings) = 0;
+    [[nodiscard]] virtual bool handleSetImagingSettings(
+        const std::string& videoSourceToken, const ImagingSettings& settings) = 0;
 
     /// @brief Starts continuous optical focus movement.
     /// @param[in] videoSourceToken Video source token.
@@ -374,7 +375,7 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] move Focus movement request.
     /// @return True if focus command was accepted.
-    virtual bool handleMoveFocusAdvanced(const std::string& videoSourceToken, const FocusMove& move)
+    [[nodiscard]] virtual bool handleMoveFocusAdvanced(const std::string& videoSourceToken, const FocusMove& move)
     {
         if (move.mode == FocusMoveMode::Continuous) {
             handleMoveFocus(videoSourceToken, move.continuousSpeed);
@@ -395,7 +396,7 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] presetToken Target preset token.
     /// @return True if preset was recalled.
-    virtual bool handleSetCurrentImagingPreset(
+    [[nodiscard]] virtual bool handleSetCurrentImagingPreset(
         const std::string& /*videoSourceToken*/, const std::string& /*presetToken*/)
     {
         return false;
@@ -424,13 +425,14 @@ public:
     /// @param[in] token Relay token.
     /// @param[in] settings Updated configuration parameters.
     /// @return True if configuration was applied.
-    virtual bool handleSetRelayOutputSettings(const std::string& token, const RelayOutputConfig& settings) = 0;
+    [[nodiscard]] virtual bool handleSetRelayOutputSettings(const std::string& token, const RelayOutputConfig& settings)
+        = 0;
 
     /// @brief Changes the logical state (Active/Inactive) of a relay.
     /// @param[in] token Relay token.
     /// @param[in] state Desired logical state.
     /// @return True if state was changed.
-    virtual bool handleSetRelayOutputState(const std::string& token, RelayLogicalState state) = 0;
+    [[nodiscard]] virtual bool handleSetRelayOutputState(const std::string& token, RelayLogicalState state) = 0;
 
     /// @brief Retrieves all configured digital inputs.
     /// @return Vector of DigitalInputConfig.
@@ -476,12 +478,12 @@ public:
     /// @brief Recalls and moves camera to the designated preset.
     /// @param[in] token Preset identifier token.
     /// @return True if command successfully dispatched.
-    virtual bool handleGotoPreset(const std::string& token) = 0;
+    [[nodiscard]] virtual bool handleGotoPreset(const std::string& token) = 0;
 
     /// @brief Removes a previously stored preset.
     /// @param[in] token Preset identifier token to delete.
     /// @return True if removed successfully.
-    virtual bool handleRemovePreset(const std::string& token) = 0;
+    [[nodiscard]] virtual bool handleRemovePreset(const std::string& token) = 0;
 
     /// @brief Retrieves list of currently active presets.
     /// @return Vector of preset tokens and names.
@@ -516,7 +518,7 @@ public:
     /// @brief Modifies an existing preset tour's configuration and spots.
     /// @param[in] tour Updated tour parameters and spots.
     /// @return True if modified successfully.
-    virtual bool handleModifyPresetTour(const PresetTour& /*tour*/)
+    [[nodiscard]] virtual bool handleModifyPresetTour(const PresetTour& /*tour*/)
     {
         return false;
     }
@@ -525,7 +527,7 @@ public:
     /// @param[in] tourToken Tour identifier token.
     /// @param[in] op Operation to execute.
     /// @return True if operation succeeded.
-    virtual bool handleOperatePresetTour(const std::string& /*tourToken*/, PresetTourOperation /*op*/)
+    [[nodiscard]] virtual bool handleOperatePresetTour(const std::string& /*tourToken*/, PresetTourOperation /*op*/)
     {
         return false;
     }
@@ -533,7 +535,7 @@ public:
     /// @brief Deletes a preset tour.
     /// @param[in] tourToken Tour identifier token to remove.
     /// @return True if removed successfully.
-    virtual bool handleRemovePresetTour(const std::string& /*tourToken*/)
+    [[nodiscard]] virtual bool handleRemovePresetTour(const std::string& /*tourToken*/)
     {
         return false;
     }
@@ -545,8 +547,8 @@ public:
     /// @param[in] speed Movement speed ratio [0.0 to 1.0].
     /// @param[in] spaceUri Coordinate space URI.
     /// @return True if relative move command dispatched.
-    virtual bool handleRelativeMove(std::optional<float> pan, std::optional<float> tilt, std::optional<float> zoom,
-        float speed = 1.0f, const std::string& spaceUri = "")
+    [[nodiscard]] virtual bool handleRelativeMove(std::optional<float> pan, std::optional<float> tilt,
+        std::optional<float> zoom, float speed = 1.0f, const std::string& spaceUri = "")
     {
         static_cast<void>(pan);
         static_cast<void>(tilt);
@@ -559,14 +561,14 @@ public:
     /// @brief Directs camera head to return to configured home position.
     /// @param[in] speed Movement speed ratio [0.0 to 1.0].
     /// @return True if command dispatched.
-    virtual bool handleGotoHomePosition(float /*speed*/ = 1.0f)
+    [[nodiscard]] virtual bool handleGotoHomePosition(float /*speed*/ = 1.0f)
     {
         return false;
     }
 
     /// @brief Stores current camera position as reference home position.
     /// @return True if home position saved.
-    virtual bool handleSetHomePosition()
+    [[nodiscard]] virtual bool handleSetHomePosition()
     {
         return false;
     }
@@ -583,7 +585,7 @@ public:
     /// @param[in] profileToken Media profile token.
     /// @param[in] target Target geolocation, speed, and optional framing area dimensions.
     /// @return True if command accepted and dispatched.
-    virtual bool handleGeoMove(const std::string& /*profileToken*/, const GeoMoveTarget& /*target*/)
+    [[nodiscard]] virtual bool handleGeoMove(const std::string& /*profileToken*/, const GeoMoveTarget& /*target*/)
     {
         return false;
     }
@@ -630,7 +632,7 @@ public:
     /// @brief Modifies an existing OSD overlay.
     /// @param[in] osd Updated OSD configuration.
     /// @return True on success.
-    virtual bool handleSetOSD(const OsdConfig& /*osd*/)
+    [[nodiscard]] virtual bool handleSetOSD(const OsdConfig& /*osd*/)
     {
         return false;
     }
@@ -638,7 +640,7 @@ public:
     /// @brief Deletes an OSD overlay.
     /// @param[in] osdToken Token of the OSD to delete.
     /// @return True if removed successfully.
-    virtual bool handleDeleteOSD(const std::string& /*osdToken*/)
+    [[nodiscard]] virtual bool handleDeleteOSD(const std::string& /*osdToken*/)
     {
         return false;
     }
@@ -660,7 +662,7 @@ public:
     /// @brief Adds new ONVIF user accounts.
     /// @param[in] users Vector of new users to create.
     /// @return True on success.
-    virtual bool handleCreateUsers(const std::vector<OnvifUser>& /*users*/)
+    [[nodiscard]] virtual bool handleCreateUsers(const std::vector<OnvifUser>& /*users*/)
     {
         return false;
     }
@@ -668,7 +670,7 @@ public:
     /// @brief Updates an existing ONVIF user's password and/or role.
     /// @param[in] user Updated user record.
     /// @return True on success.
-    virtual bool handleSetUser(const OnvifUser& /*user*/)
+    [[nodiscard]] virtual bool handleSetUser(const OnvifUser& /*user*/)
     {
         return false;
     }
@@ -676,7 +678,7 @@ public:
     /// @brief Removes user accounts by username.
     /// @param[in] usernames List of usernames to delete.
     /// @return True on success.
-    virtual bool handleDeleteUsers(const std::vector<std::string>& /*usernames*/)
+    [[nodiscard]] virtual bool handleDeleteUsers(const std::vector<std::string>& /*usernames*/)
     {
         return false;
     }
@@ -691,7 +693,7 @@ public:
     /// @brief Modifies a network interface configuration.
     /// @param[in] config Updated interface settings.
     /// @return True on success.
-    virtual bool handleSetNetworkInterfaces(const NetworkInterfaceConfig& /*config*/)
+    [[nodiscard]] virtual bool handleSetNetworkInterfaces(const NetworkInterfaceConfig& /*config*/)
     {
         return false;
     }
@@ -706,7 +708,7 @@ public:
     /// @brief Sets default network gateway address (< 30 chars).
     /// @param[in] gateway Gateway IP address.
     /// @return True on success.
-    virtual bool handleSetDefaultGateway(const std::string& /*gateway*/)
+    [[nodiscard]] virtual bool handleSetDefaultGateway(const std::string& /*gateway*/)
     {
         return false;
     }
@@ -721,7 +723,7 @@ public:
     /// @brief Updates DNS server configuration.
     /// @param[in] dns New DNS settings.
     /// @return True on success.
-    virtual bool handleSetDNS(const DnsConfig& /*dns*/)
+    [[nodiscard]] virtual bool handleSetDNS(const DnsConfig& /*dns*/)
     {
         return false;
     }
@@ -736,7 +738,7 @@ public:
     /// @brief Updates NTP server configuration.
     /// @param[in] ntp New NTP settings.
     /// @return True on success.
-    virtual bool handleSetNTP(const NtpConfig& /*ntp*/)
+    [[nodiscard]] virtual bool handleSetNTP(const NtpConfig& /*ntp*/)
     {
         return false;
     }
@@ -751,7 +753,7 @@ public:
     /// @brief Updates device hostname.
     /// @param[in] hostname New hostname.
     /// @return True on success.
-    virtual bool handleSetHostname(const std::string& /*hostname*/)
+    [[nodiscard]] virtual bool handleSetHostname(const std::string& /*hostname*/)
     {
         return false;
     }
@@ -759,7 +761,7 @@ public:
     /// @brief Configures system date, time, and timezone.
     /// @param[in] dt Updated system date and time settings.
     /// @return True on success.
-    virtual bool handleSetSystemDateAndTime(const SystemDateTimeConfig& /*dt*/)
+    [[nodiscard]] virtual bool handleSetSystemDateAndTime(const SystemDateTimeConfig& /*dt*/)
     {
         return false;
     }
@@ -767,7 +769,7 @@ public:
     /// @brief Resets system to factory defaults.
     /// @param[in] type Factory default reset type (Hard or Soft).
     /// @return True on success.
-    virtual bool handleSetSystemFactoryDefault(FactoryDefaultType /*type*/)
+    [[nodiscard]] virtual bool handleSetSystemFactoryDefault(FactoryDefaultType /*type*/)
     {
         return false;
     }
@@ -804,7 +806,7 @@ public:
     /// @brief Restores system settings from an archive payload string.
     /// @param[in] backupData Backup payload to restore.
     /// @return True on success.
-    virtual bool handleRestoreSystem(const std::string& /*backupData*/)
+    [[nodiscard]] virtual bool handleRestoreSystem(const std::string& /*backupData*/)
     {
         return false;
     }
@@ -826,7 +828,7 @@ public:
     /// @brief Updates network protocol settings.
     /// @param[in] protocols Updated network protocols.
     /// @return True on success.
-    virtual bool handleSetNetworkProtocols(const std::vector<NetworkProtocolConfig>& /*protocols*/)
+    [[nodiscard]] virtual bool handleSetNetworkProtocols(const std::vector<NetworkProtocolConfig>& /*protocols*/)
     {
         return false;
     }
@@ -841,7 +843,7 @@ public:
     /// @brief Updates device discovery mode.
     /// @param[in] mode Target DiscoveryMode.
     /// @return True on success.
-    virtual bool handleSetDiscoveryMode(DiscoveryMode /*mode*/)
+    [[nodiscard]] virtual bool handleSetDiscoveryMode(DiscoveryMode /*mode*/)
     {
         return false;
     }
@@ -868,7 +870,7 @@ public:
     /// @param[in] daysValid Validity period in days.
     /// @return Created OnvifCertificate.
     [[nodiscard]] virtual OnvifCertificate handleCreateCertificate(
-        const std::string& certificateId, const std::string& subject, int /*daysValid*/ = 365)
+        const std::string& certificateId, const std::string& subject, std::int32_t /*daysValid*/ = 365)
     {
         OnvifCertificate cert { };
         cert.certificateId = certificateId;
@@ -897,7 +899,7 @@ public:
     /// @brief Loads or updates signed certificates onto the device.
     /// @param[in] certificates List of certificates to store.
     /// @return True on success.
-    virtual bool handleLoadCertificates(const std::vector<OnvifCertificate>& /*certificates*/)
+    [[nodiscard]] virtual bool handleLoadCertificates(const std::vector<OnvifCertificate>& /*certificates*/)
     {
         return true;
     }
@@ -905,7 +907,7 @@ public:
     /// @brief Deletes a certificate by token ID.
     /// @param[in] certificateId Certificate token to delete.
     /// @return True if deleted.
-    virtual bool handleDeleteCertificate(const std::string& /*certificateId*/)
+    [[nodiscard]] virtual bool handleDeleteCertificate(const std::string& /*certificateId*/)
     {
         return false;
     }
@@ -920,7 +922,7 @@ public:
     /// @brief Configures client certificate authentication mode (< 30 chars).
     /// @param[in] mode Desired client certificate mode.
     /// @return True on success.
-    virtual bool handleSetClientCertMode(ClientCertificateMode /*mode*/)
+    [[nodiscard]] virtual bool handleSetClientCertMode(ClientCertificateMode /*mode*/)
     {
         return true;
     }
@@ -936,7 +938,7 @@ public:
     /// @brief Updates device geographic location and mounting orientation.
     /// @param[in] location Updated LocationEntity.
     /// @return True on success.
-    virtual bool handleSetGeoLocation(const LocationEntity& /*location*/)
+    [[nodiscard]] virtual bool handleSetGeoLocation(const LocationEntity& /*location*/)
     {
         return false;
     }
@@ -944,7 +946,7 @@ public:
     /// @brief Deletes/clears device geographic location configuration.
     /// @param[in] entityToken Entity identifier.
     /// @return True if deleted.
-    virtual bool handleDeleteGeoLocation(const std::string& /*entityToken*/)
+    [[nodiscard]] virtual bool handleDeleteGeoLocation(const std::string& /*entityToken*/)
     {
         return false;
     }
@@ -1013,7 +1015,7 @@ public:
     /// @brief Deletes a recording container by token.
     /// @param[in] recordingToken Recording token to delete.
     /// @return True on success.
-    virtual bool handleDeleteRecording(const std::string& recordingToken) = 0;
+    [[nodiscard]] virtual bool handleDeleteRecording(const std::string& recordingToken) = 0;
 
     /// @brief Retrieves configuration attributes for a specific recording container (< 30 chars).
     /// @param[in] recordingToken Recording token.
@@ -1025,7 +1027,8 @@ public:
     /// @param[in] recordingToken Recording token.
     /// @param[in] config Updated configuration.
     /// @return True on success.
-    virtual bool handleSetRecordingConfig(const std::string& recordingToken, const RecordingConfig& config) = 0;
+    [[nodiscard]] virtual bool handleSetRecordingConfig(
+        const std::string& recordingToken, const RecordingConfig& config) = 0;
 
     /// @brief Retrieves aggregated storage volume and time window metrics.
     /// @return RecordingSummary structure.
@@ -1043,13 +1046,13 @@ public:
     /// @brief Deletes a recording job by token.
     /// @param[in] jobToken Job token to delete.
     /// @return True on success.
-    virtual bool handleDeleteRecordingJob(const std::string& jobToken) = 0;
+    [[nodiscard]] virtual bool handleDeleteRecordingJob(const std::string& jobToken) = 0;
 
     /// @brief Modifies recording job mode (Active / Idle).
     /// @param[in] jobToken Job token.
     /// @param[in] mode Desired mode.
     /// @return True on success.
-    virtual bool handleSetRecordingJobMode(const std::string& jobToken, RecordingJobMode mode) = 0;
+    [[nodiscard]] virtual bool handleSetRecordingJobMode(const std::string& jobToken, RecordingJobMode mode) = 0;
 
     /// @brief Retrieves all tracks associated with a recording.
     /// @param[in] recordingToken Recording token.
@@ -1070,7 +1073,7 @@ public:
     /// @param[in] recordingToken Recording token.
     /// @param[in] trackToken Track token to delete.
     /// @return True on success.
-    virtual bool handleDeleteTrack(const std::string& recordingToken, const std::string& trackToken) = 0;
+    [[nodiscard]] virtual bool handleDeleteTrack(const std::string& recordingToken, const std::string& trackToken) = 0;
 };
 
 /// @class ISearchHandler
@@ -1085,7 +1088,7 @@ public:
     /// @param[in] keepAliveTime Session keepalive string.
     /// @return Unique search session token string.
     [[nodiscard]] virtual std::string handleFindRecordings(
-        const std::string& scope, int maxMatches, const std::string& keepAliveTime) = 0;
+        const std::string& scope, std::int32_t maxMatches, const std::string& keepAliveTime) = 0;
 
     /// @brief Polls results for an active recording search query (< 30 chars).
     /// @param[in] searchToken Search session token.
@@ -1099,7 +1102,7 @@ public:
     /// @param[in] maxMatches Maximum match count.
     /// @return Unique search session token string.
     [[nodiscard]] virtual std::string handleFindEvents(
-        const std::string& startUtc, const std::string& endUtc, int maxMatches) = 0;
+        const std::string& startUtc, const std::string& endUtc, std::int32_t maxMatches) = 0;
 
     /// @brief Polls results for an active event search query.
     /// @param[in] searchToken Search session token.
@@ -1110,7 +1113,7 @@ public:
     /// @brief Closes an active search query session.
     /// @param[in] searchToken Search session token.
     /// @return True on success.
-    virtual bool handleEndSearch(const std::string& searchToken) = 0;
+    [[nodiscard]] virtual bool handleEndSearch(const std::string& searchToken) = 0;
 };
 
 /// @class IReplayHandler
@@ -1133,7 +1136,7 @@ public:
     /// @brief Configures replay session timeouts.
     /// @param[in] config Updated replay parameters.
     /// @return True on success.
-    virtual bool handleSetReplayConfiguration(const ReplayConfiguration& config) = 0;
+    [[nodiscard]] virtual bool handleSetReplayConfiguration(const ReplayConfiguration& config) = 0;
 };
 
 /// @class IAnalyticsHandler
@@ -1163,7 +1166,8 @@ public:
     /// @param[in] configToken VideoAnalyticsConfiguration token.
     /// @param[in] rules Rules to create.
     /// @return True on success.
-    virtual bool handleCreateRules(const std::string& /*configToken*/, const std::vector<AnalyticsRule>& /*rules*/)
+    [[nodiscard]] virtual bool handleCreateRules(
+        const std::string& /*configToken*/, const std::vector<AnalyticsRule>& /*rules*/)
     {
         return true;
     }
@@ -1172,7 +1176,8 @@ public:
     /// @param[in] configToken VideoAnalyticsConfiguration token.
     /// @param[in] rules Updated rules.
     /// @return True on success.
-    virtual bool handleModifyRules(const std::string& /*configToken*/, const std::vector<AnalyticsRule>& /*rules*/)
+    [[nodiscard]] virtual bool handleModifyRules(
+        const std::string& /*configToken*/, const std::vector<AnalyticsRule>& /*rules*/)
     {
         return true;
     }
@@ -1181,7 +1186,8 @@ public:
     /// @param[in] configToken VideoAnalyticsConfiguration token.
     /// @param[in] ruleNames Names of rules to delete.
     /// @return True on success.
-    virtual bool handleDeleteRules(const std::string& /*configToken*/, const std::vector<std::string>& /*ruleNames*/)
+    [[nodiscard]] virtual bool handleDeleteRules(
+        const std::string& /*configToken*/, const std::vector<std::string>& /*ruleNames*/)
     {
         return true;
     }
@@ -1207,7 +1213,7 @@ public:
     /// @param[in] configToken Configuration token.
     /// @param[in] modules Modules to create.
     /// @return True on success.
-    virtual bool handleCreateAnalyticsModules(
+    [[nodiscard]] virtual bool handleCreateAnalyticsModules(
         const std::string& /*configToken*/, const std::vector<AnalyticsModule>& /*modules*/)
     {
         return true;
@@ -1217,7 +1223,7 @@ public:
     /// @param[in] configToken Configuration token.
     /// @param[in] modules Updated modules.
     /// @return True on success.
-    virtual bool handleModifyAnalyticsModules(
+    [[nodiscard]] virtual bool handleModifyAnalyticsModules(
         const std::string& /*configToken*/, const std::vector<AnalyticsModule>& /*modules*/)
     {
         return true;
@@ -1227,7 +1233,7 @@ public:
     /// @param[in] configToken Configuration token.
     /// @param[in] moduleNames Names of modules to delete.
     /// @return True on success.
-    virtual bool handleDeleteAnalyticsModules(
+    [[nodiscard]] virtual bool handleDeleteAnalyticsModules(
         const std::string& /*configToken*/, const std::vector<std::string>& /*moduleNames*/)
     {
         return true;
@@ -1267,7 +1273,7 @@ public:
     /// @brief Modifies an existing privacy mask.
     /// @param[in] mask Updated mask settings.
     /// @return True on success.
-    virtual bool handleSetMask(const PrivacyMask& /*mask*/)
+    [[nodiscard]] virtual bool handleSetMask(const PrivacyMask& /*mask*/)
     {
         return false;
     }
@@ -1275,7 +1281,7 @@ public:
     /// @brief Creates a new privacy mask.
     /// @param[in] mask New mask to register.
     /// @return Assigned mask token on success, empty on failure.
-    virtual std::string handleCreateMask(const PrivacyMask& /*mask*/)
+    [[nodiscard]] virtual std::string handleCreateMask(const PrivacyMask& /*mask*/)
     {
         return { };
     }
@@ -1283,7 +1289,7 @@ public:
     /// @brief Deletes a privacy mask by token.
     /// @param[in] maskToken Token of mask to delete.
     /// @return True if deleted.
-    virtual bool handleDeleteMask(const std::string& /*maskToken*/)
+    [[nodiscard]] virtual bool handleDeleteMask(const std::string& /*maskToken*/)
     {
         return false;
     }
@@ -1309,7 +1315,7 @@ public:
     /// @param[in] modeToken Desired mode token (e.g. "Mode_4K30").
     /// @param[out] outRebootNeeded Set to true if camera reboot is required to activate mode.
     /// @return True on successful mode switch request.
-    virtual bool handleSetVideoSourceMode(
+    [[nodiscard]] virtual bool handleSetVideoSourceMode(
         const std::string& /*videoSourceToken*/, const std::string& /*modeToken*/, bool& outRebootNeeded)
     {
         outRebootNeeded = false;
@@ -1335,7 +1341,8 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] config Updated radiometry configuration.
     /// @return True on success.
-    virtual bool handleSetRadiometryConfig(const std::string& /*videoSourceToken*/, const RadiometryConfig& /*config*/)
+    [[nodiscard]] virtual bool handleSetRadiometryConfig(
+        const std::string& /*videoSourceToken*/, const RadiometryConfig& /*config*/)
     {
         return false;
     }
@@ -1352,7 +1359,7 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] spots Vector of spots.
     /// @return True on success.
-    virtual bool handleSetRadiometrySpots(
+    [[nodiscard]] virtual bool handleSetRadiometrySpots(
         const std::string& /*videoSourceToken*/, const std::vector<RadiometrySpot>& /*spots*/)
     {
         return false;
@@ -1370,7 +1377,7 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] boxes Vector of measurement boxes.
     /// @return True on success.
-    virtual bool handleSetRadiometryBoxes(
+    [[nodiscard]] virtual bool handleSetRadiometryBoxes(
         const std::string& /*videoSourceToken*/, const std::vector<RadiometryBox>& /*boxes*/)
     {
         return false;
@@ -1388,7 +1395,8 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] paletteToken Desired palette token (e.g. "Ironbow").
     /// @return True on success.
-    virtual bool handleSetColorPalette(const std::string& /*videoSourceToken*/, const std::string& /*paletteToken*/)
+    [[nodiscard]] virtual bool handleSetColorPalette(
+        const std::string& /*videoSourceToken*/, const std::string& /*paletteToken*/)
     {
         return false;
     }
@@ -1396,7 +1404,7 @@ public:
     /// @brief Triggers Non-Uniformity Correction (NUC / flat-field shutter calibration).
     /// @param[in] videoSourceToken Video source token.
     /// @return True on success.
-    virtual bool handleTriggerNuc(const std::string& /*videoSourceToken*/)
+    [[nodiscard]] virtual bool handleTriggerNuc(const std::string& /*videoSourceToken*/)
     {
         return false;
     }

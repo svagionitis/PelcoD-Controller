@@ -219,20 +219,23 @@ bool StubAnalyticsAdapter::handleSetMetadataConfig(const MetadataConfiguration& 
 MetadataConfigurationOptions StubAnalyticsAdapter::handleGetMetaConfigOptions(
     const std::string& /*configToken*/, const std::string& /*profileToken*/)
 {
-    MetadataConfigurationOptions opt;
-    opt.ptzStatusFilterSupported = true;
-    opt.ptzPositionFilterSupported = true;
-    opt.geoFilterSupported = true;
+    MetadataConfigurationOptions opt { };
+    opt.ptzStatusSupported = true;
+    opt.analyticsSupported = true;
+    opt.eventsSupported = true;
     return opt;
 }
 
 MetadataStreamPayload StubAnalyticsAdapter::handleGetCurrentMetadata(const std::string& /*profileToken*/)
 {
     std::scoped_lock lock(m_mutex);
-    MetadataStreamPayload p;
-    p.topic = "tns1:VideoAnalytics/Objects";
-    p.utcTime = "2026-09-17T00:00:00Z";
-    p.detectedObjects = m_detectedObjects;
+    MetadataStreamPayload p { };
+    AnalyticsFrame frame { };
+    frame.utcTime = "2026-09-17T00:00:00Z";
+    frame.frameWidth = 1920;
+    frame.frameHeight = 1080;
+    frame.objects = m_detectedObjects;
+    p.analyticsFrame = frame;
     return p;
 }
 

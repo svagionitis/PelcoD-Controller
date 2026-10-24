@@ -28,6 +28,8 @@ struct ThermalServiceContext {
 /// @brief Modular service implementation for ONVIF Thermal & Radiometry extension.
 class ThermalService : public IService {
 public:
+    /// @brief Constructs ThermalService with injected environment.
+    /// @param[in] ctx Thermal service dependencies.
     explicit ThermalService(ThermalServiceContext ctx);
     ~ThermalService() override = default;
 
@@ -36,7 +38,12 @@ public:
     ThermalService(ThermalService&&) = default;
     ThermalService& operator=(ThermalService&&) = default;
 
+    /// @brief Registers all thermal & radiometry operations with the SoapRouter.
+    /// @param[in,out] router Target SoapRouter instance.
     void registerRoutes(SoapRouter& router) override;
+
+    /// @brief Canonical service name ("Thermal").
+    /// @return String view of service name.
     [[nodiscard]] std::string_view serviceName() const noexcept override;
 
 private:
@@ -51,7 +58,7 @@ private:
     SoapHandlerResult handleSetPalette(const SoapContext& ctx);
     SoapHandlerResult handleTriggerNuc(const SoapContext& ctx);
 
-    ThermalServiceContext m_ctx;
+    ThermalServiceContext m_ctx { };
     RadiometryConfig m_radiometry { };
     std::vector<RadiometrySpot> m_spots { };
     std::vector<RadiometryBox> m_boxes { };

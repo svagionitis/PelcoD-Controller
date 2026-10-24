@@ -91,11 +91,11 @@ public:
 
     /// @brief Queries camera UTC time and synchronizes client clock offset.
     /// @return True if system date/time query succeeded.
-    bool synchronizeSystemTime();
+    [[nodiscard]] bool synchronizeSystemTime();
 
     /// @brief Sends a hardware/system reboot request to the camera.
     /// @return True if system reboot command was accepted.
-    bool systemReboot();
+    [[nodiscard]] bool systemReboot();
 
     // =========================================================================
     // Device Management & Security Extensions
@@ -108,17 +108,17 @@ public:
     /// @brief Creates one or more new ONVIF user accounts on the device.
     /// @param[in] users Vector of new users to create.
     /// @return True on success.
-    bool createUsers(const std::vector<OnvifUser>& users);
+    [[nodiscard]] bool createUsers(const std::vector<OnvifUser>& users);
 
     /// @brief Modifies an existing ONVIF user's password and/or authorization level.
     /// @param[in] user Updated user parameters.
     /// @return True on success.
-    bool setUser(const OnvifUser& user);
+    [[nodiscard]] bool setUser(const OnvifUser& user);
 
     /// @brief Deletes ONVIF user accounts by username.
     /// @param[in] usernames List of usernames to remove.
     /// @return True on success.
-    bool deleteUsers(const std::vector<std::string>& usernames);
+    [[nodiscard]] bool deleteUsers(const std::vector<std::string>& usernames);
 
     /// @brief Queries list of network adapter interface configurations.
     /// @return Vector of NetworkInterfaceConfig records.
@@ -127,7 +127,7 @@ public:
     /// @brief Updates network interface parameters.
     /// @param[in] config Updated interface settings.
     /// @return True on success.
-    bool setNetworkInterfaces(const NetworkInterfaceConfig& config);
+    [[nodiscard]] bool setNetworkInterfaces(const NetworkInterfaceConfig& config);
 
     /// @brief Queries default network gateway IPv4 address.
     /// @return Gateway IP address string.
@@ -136,7 +136,7 @@ public:
     /// @brief Sets default network gateway address.
     /// @param[in] gateway Gateway IP address string.
     /// @return True on success.
-    bool setNetworkDefaultGateway(const std::string& gateway);
+    [[nodiscard]] bool setNetworkDefaultGateway(const std::string& gateway);
 
     /// @brief Queries DNS server configuration.
     /// @return DnsConfig or nullopt on communication failure.
@@ -145,7 +145,7 @@ public:
     /// @brief Sets DNS server configuration.
     /// @param[in] dns New DNS configuration.
     /// @return True on success.
-    bool setDNS(const DnsConfig& dns);
+    [[nodiscard]] bool setDNS(const DnsConfig& dns);
 
     /// @brief Queries NTP server configuration.
     /// @return NtpConfig or nullopt on communication failure.
@@ -154,7 +154,7 @@ public:
     /// @brief Sets NTP server configuration.
     /// @param[in] ntp New NTP configuration.
     /// @return True on success.
-    bool setNTP(const NtpConfig& ntp);
+    [[nodiscard]] bool setNTP(const NtpConfig& ntp);
 
     /// @brief Queries device hostname.
     /// @return Hostname string.
@@ -163,17 +163,17 @@ public:
     /// @brief Sets device hostname.
     /// @param[in] hostname New hostname string.
     /// @return True on success.
-    bool setHostname(const std::string& hostname);
+    [[nodiscard]] bool setHostname(const std::string& hostname);
 
     /// @brief Updates camera system date, time, and timezone.
     /// @param[in] dateTime Date and time parameters.
     /// @return True on success.
-    bool setSystemDateAndTime(const SystemDateTimeConfig& dateTime);
+    [[nodiscard]] bool setSystemDateAndTime(const SystemDateTimeConfig& dateTime);
 
     /// @brief Resets device to factory default settings.
     /// @param[in] type FactoryDefaultType (Hard or Soft).
     /// @return True on success.
-    bool setSystemFactoryDefault(FactoryDefaultType type = FactoryDefaultType::Soft);
+    [[nodiscard]] bool setSystemFactoryDefault(FactoryDefaultType type = FactoryDefaultType::Soft);
 
     /// @brief Queries device scopes.
     /// @return Vector of scope URIs.
@@ -182,17 +182,17 @@ public:
     /// @brief Adds configurable scopes to device.
     /// @param[in] scopes List of scope URIs to add.
     /// @return True on success.
-    bool addScopes(const std::vector<std::string>& scopes);
+    [[nodiscard]] bool addScopes(const std::vector<std::string>& scopes);
 
     /// @brief Removes configurable scopes from device.
     /// @param[in] scopes List of scope URIs to remove.
     /// @return True on success.
-    bool removeScopes(const std::vector<std::string>& scopes);
+    [[nodiscard]] bool removeScopes(const std::vector<std::string>& scopes);
 
     /// @brief Sets/replaces configurable scopes on device.
     /// @param[in] scopes Complete list of scope URIs.
     /// @return True on success.
-    bool setScopes(const std::vector<std::string>& scopes);
+    [[nodiscard]] bool setScopes(const std::vector<std::string>& scopes);
 
     /// @brief Queries device geographic location and mounting orientation (ONVIF Device Management).
     /// @param[in] entityToken Entity identifier (default: "Device").
@@ -202,12 +202,12 @@ public:
     /// @brief Configures device geographic location and mounting orientation.
     /// @param[in] location LocationEntity struct.
     /// @return True on success.
-    bool setGeoLocation(const LocationEntity& location);
+    [[nodiscard]] bool setGeoLocation(const LocationEntity& location);
 
     /// @brief Deletes/clears device geographic location configuration.
     /// @param[in] entityToken Entity identifier (default: "Device").
     /// @return True on success.
-    bool deleteGeoLocation(const std::string& entityToken = "Device");
+    [[nodiscard]] bool deleteGeoLocation(const std::string& entityToken = "Device");
 
     /// @brief Queries the operational discovery mode of the device.
     /// @details Profile S §7.2 / ONVIF Core §8.1 GetDiscoveryMode.
@@ -218,7 +218,7 @@ public:
     /// @details Profile S §7.2 / ONVIF Core §8.1 SetDiscoveryMode.
     /// @param[in] mode Target DiscoveryMode enum value.
     /// @return True on success.
-    bool setDiscoveryMode(DiscoveryMode mode);
+    [[nodiscard]] bool setDiscoveryMode(DiscoveryMode mode);
 
     /// @brief Queries network protocol configurations (HTTP, HTTPS, RTSP ports and status).
     /// @details Profile S §7.2 / ONVIF Core §8.2 GetNetworkProtocols.
@@ -229,7 +229,7 @@ public:
     /// @details Profile S §7.2 / ONVIF Core §8.2 SetNetworkProtocols.
     /// @param[in] protocols List of protocol configurations to update.
     /// @return True on success.
-    bool setNetworkProtocols(const std::vector<NetworkProtocolConfig>& protocols);
+    [[nodiscard]] bool setNetworkProtocols(const std::vector<NetworkProtocolConfig>& protocols);
 
     // =========================================================================
     // Media Service
@@ -256,7 +256,7 @@ public:
     /// @details Profile S §8.2 / Media ver10 DeleteProfile. Fixed profiles cannot be deleted.
     /// @param[in] token Media profile token to delete.
     /// @return True on success, false on failure or if profile is fixed.
-    bool deleteProfile(const std::string& token);
+    [[nodiscard]] bool deleteProfile(const std::string& token);
 
     /// @brief Queries list of all video encoder configurations on the device.
     /// @details Profile S §8.2 / Media ver10 GetVideoEncoderConfigurations.
@@ -287,13 +287,13 @@ public:
     /// @details Profile S §8.2 / Media ver10 SetVideoEncoderConfiguration.
     /// @param[in] config Updated video encoder configuration parameters.
     /// @return True on success.
-    bool setVideoEncoderConfiguration(const VideoEncoderConfig& config);
+    [[nodiscard]] bool setVideoEncoderConfiguration(const VideoEncoderConfig& config);
 
     /// @brief Requests the media service to emit an instantaneous decoder refresh (IDR) keyframe.
     /// @details Profile S §8.2 / Media ver10 SetSynchronizationPoint.
     /// @param[in] profileToken Target media profile token.
     /// @return True on success.
-    bool mediaSetSyncPoint(const std::string& profileToken);
+    [[nodiscard]] bool mediaSetSyncPoint(const std::string& profileToken);
 
     /// @brief Resolves RTSP stream URI for a given media profile.
     /// @param[in] profileToken Media profile token (e.g. "Profile_1").
@@ -337,12 +337,12 @@ public:
     /// @brief Modifies an existing OSD overlay.
     /// @param[in] osd Updated OSD configuration.
     /// @return True on success.
-    bool setOSD(const OsdConfig& osd);
+    [[nodiscard]] bool setOSD(const OsdConfig& osd);
 
     /// @brief Deletes an OSD overlay.
     /// @param[in] osdToken Token of the OSD to delete.
     /// @return True if removed successfully.
-    bool deleteOSD(const std::string& osdToken);
+    [[nodiscard]] bool deleteOSD(const std::string& osdToken);
 
     // =========================================================================
     // Privacy Masks & Video Source Modes (Profile T / Media2)
@@ -371,12 +371,12 @@ public:
     /// @brief Modifies an existing privacy mask.
     /// @param[in] mask Updated mask configuration.
     /// @return True on success.
-    bool setMask(const PrivacyMask& mask);
+    [[nodiscard]] bool setMask(const PrivacyMask& mask);
 
     /// @brief Deletes a privacy mask.
     /// @param[in] maskToken Token of mask to delete.
     /// @return True on success.
-    bool deleteMask(const std::string& maskToken);
+    [[nodiscard]] bool deleteMask(const std::string& maskToken);
 
     /// @brief Queries available video source capture modes.
     /// @param[in] videoSourceToken Video source token (default: "VideoSource_1").
@@ -388,7 +388,7 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] modeToken Desired mode token (e.g. "Mode_4K30").
     /// @return True if mode switch succeeded (or initiated reboot).
-    bool setVideoSourceMode(const std::string& videoSourceToken, const std::string& modeToken);
+    [[nodiscard]] bool setVideoSourceMode(const std::string& videoSourceToken, const std::string& modeToken);
 
     // =========================================================================
     // Thermal & Radiometry Service (ver10/thermal/wsdl)
@@ -404,7 +404,7 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] config Updated parameters.
     /// @return True on success.
-    bool setRadiometryConfiguration(const std::string& videoSourceToken, const RadiometryConfig& config);
+    [[nodiscard]] bool setRadiometryConfiguration(const std::string& videoSourceToken, const RadiometryConfig& config);
 
     /// @brief Retrieves spotmeter temperature measurements.
     /// @param[in] videoSourceToken Video source token.
@@ -415,7 +415,8 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] spots Vector of spots.
     /// @return True on success.
-    bool setRadiometrySpots(const std::string& videoSourceToken, const std::vector<RadiometrySpot>& spots);
+    [[nodiscard]] bool setRadiometrySpots(
+        const std::string& videoSourceToken, const std::vector<RadiometrySpot>& spots);
 
     /// @brief Retrieves rectangular zone temperature measurements.
     /// @param[in] videoSourceToken Video source token.
@@ -426,7 +427,7 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] boxes Vector of boxes.
     /// @return True on success.
-    bool setRadiometryBoxes(const std::string& videoSourceToken, const std::vector<RadiometryBox>& boxes);
+    [[nodiscard]] bool setRadiometryBoxes(const std::string& videoSourceToken, const std::vector<RadiometryBox>& boxes);
 
     /// @brief Retrieves available false-color palettes.
     /// @param[in] videoSourceToken Video source token.
@@ -437,12 +438,12 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] paletteToken Palette token (e.g. "Ironbow").
     /// @return True on success.
-    bool setColorPalette(const std::string& videoSourceToken, const std::string& paletteToken);
+    [[nodiscard]] bool setColorPalette(const std::string& videoSourceToken, const std::string& paletteToken);
 
     /// @brief Triggers Non-Uniformity Correction (NUC / shutter calibration).
     /// @param[in] videoSourceToken Video source token.
     /// @return True on success.
-    bool triggerNuc(const std::string& videoSourceToken = "VideoSource_1");
+    [[nodiscard]] bool triggerNuc(const std::string& videoSourceToken = "VideoSource_1");
 
     // =========================================================================
     // PTZ Service
@@ -454,7 +455,8 @@ public:
     /// @param[in] tiltSpeed Normalized vertical velocity [-1.0 (down) to +1.0 (up)].
     /// @param[in] zoomSpeed Normalized zoom velocity [-1.0 (wide) to +1.0 (tele)].
     /// @return True if command was acknowledged by camera.
-    bool continuousMove(const std::string& profileToken, double panSpeed, double tiltSpeed, double zoomSpeed = 0.0);
+    [[nodiscard]] bool continuousMove(
+        const std::string& profileToken, double panSpeed, double tiltSpeed, double zoomSpeed = 0.0);
 
     /// @brief Sends relative translation command to step PTZ position by a delta.
     /// @param[in] profileToken Media profile token.
@@ -462,7 +464,7 @@ public:
     /// @param[in] tiltTranslation Normalized tilt offset step [-1.0 to +1.0].
     /// @param[in] zoomTranslation Normalized zoom offset step [-1.0 to +1.0].
     /// @return True if relative move command succeeded.
-    bool relativeMove(
+    [[nodiscard]] bool relativeMove(
         const std::string& profileToken, double panTranslation, double tiltTranslation, double zoomTranslation = 0.0);
 
     /// @brief Stops active pan/tilt or zoom motion.
@@ -470,7 +472,7 @@ public:
     /// @param[in] stopPanTilt If true, stops pan and tilt motorized drive.
     /// @param[in] stopZoom If true, stops motorized zoom drive.
     /// @return True if stop command succeeded.
-    bool stop(const std::string& profileToken, bool stopPanTilt = true, bool stopZoom = true);
+    [[nodiscard]] bool stop(const std::string& profileToken, bool stopPanTilt = true, bool stopZoom = true);
 
     /// @brief Queries current pan/tilt/zoom position and movement status.
     /// @param[in] profileToken Media profile token.
@@ -483,7 +485,7 @@ public:
     /// @param[in] tilt Normalized tilt [-1.0, +1.0].
     /// @param[in] zoom Normalized zoom [0.0, 1.0].
     /// @return True if absolute move command succeeded.
-    bool absoluteMove(const std::string& profileToken, double pan, double tilt, double zoom);
+    [[nodiscard]] bool absoluteMove(const std::string& profileToken, double pan, double tilt, double zoom);
 
     /// @brief Moves PTZ head to absolute spherical angles in degrees (PositionSphericalSpace).
     /// @param[in] profileToken Media profile token.
@@ -491,7 +493,7 @@ public:
     /// @param[in] elevationDeg Elevation angle in degrees [-90.0, +90.0].
     /// @param[in] zoom Normalized zoom position [0.0, 1.0].
     /// @return True if command acknowledged.
-    bool absoluteMoveSpherical(
+    [[nodiscard]] bool absoluteMoveSpherical(
         const std::string& profileToken, double azimuthDeg, double elevationDeg, double zoom = 0.0);
 
     /// @brief Commands camera PTZ head to aim at geographic target coordinates (ONVIF GeoMove).
@@ -501,18 +503,19 @@ public:
     /// @param[in] areaWidth Optional target framing width in meters.
     /// @param[in] areaHeight Optional target framing height in meters.
     /// @return True if GeoMove command acknowledged.
-    bool geoMove(const std::string& profileToken, const GeoLocation& target, std::optional<float> speed = std::nullopt,
-        std::optional<float> areaWidth = std::nullopt, std::optional<float> areaHeight = std::nullopt);
+    [[nodiscard]] bool geoMove(const std::string& profileToken, const GeoLocation& target,
+        std::optional<float> speed = std::nullopt, std::optional<float> areaWidth = std::nullopt,
+        std::optional<float> areaHeight = std::nullopt);
 
     /// @brief Moves PTZ head to configured camera home position.
     /// @param[in] profileToken Media profile token.
     /// @return True if goto home position command succeeded.
-    bool gotoHomePosition(const std::string& profileToken);
+    [[nodiscard]] bool gotoHomePosition(const std::string& profileToken);
 
     /// @brief Saves current PTZ position as the camera home position.
     /// @param[in] profileToken Media profile token.
     /// @return True if set home position command succeeded.
-    bool setHomePosition(const std::string& profileToken);
+    [[nodiscard]] bool setHomePosition(const std::string& profileToken);
 
     /// @brief Queries list of stored presets for a media profile.
     /// @param[in] profileToken Media profile token.
@@ -532,13 +535,13 @@ public:
     /// @param[in] presetToken Preset identifier token.
     /// @param[in] speed Normalized speed [0.0 to 1.0].
     /// @return True if goto preset command succeeded.
-    bool gotoPreset(const std::string& profileToken, const std::string& presetToken, double speed = 1.0);
+    [[nodiscard]] bool gotoPreset(const std::string& profileToken, const std::string& presetToken, double speed = 1.0);
 
     /// @brief Removes a preset from camera storage.
     /// @param[in] profileToken Media profile token.
     /// @param[in] presetToken Preset identifier token.
     /// @return True if preset removal succeeded.
-    bool removePreset(const std::string& profileToken, const std::string& presetToken);
+    [[nodiscard]] bool removePreset(const std::string& profileToken, const std::string& presetToken);
 
     /// @brief Queries list of configured preset tours for a media profile.
     /// @param[in] profileToken Media profile token.
@@ -561,20 +564,21 @@ public:
     /// @param[in] profileToken Media profile token.
     /// @param[in] tour Preset tour structure with updated spots.
     /// @return True if modification succeeded.
-    bool modifyPresetTour(const std::string& profileToken, const PresetTour& tour);
+    [[nodiscard]] bool modifyPresetTour(const std::string& profileToken, const PresetTour& tour);
 
     /// @brief Controls execution of an ONVIF Preset Tour (Start, Stop, Pause).
     /// @param[in] profileToken Media profile token.
     /// @param[in] tourToken Identifier token of the preset tour.
     /// @param[in] op Operation to execute.
     /// @return True if operation command succeeded.
-    bool operatePresetTour(const std::string& profileToken, const std::string& tourToken, PresetTourOperation op);
+    [[nodiscard]] bool operatePresetTour(
+        const std::string& profileToken, const std::string& tourToken, PresetTourOperation op);
 
     /// @brief Deletes a preset tour from camera storage.
     /// @param[in] profileToken Media profile token.
     /// @param[in] tourToken Identifier token of the preset tour.
     /// @return True if deletion succeeded.
-    bool removePresetTour(const std::string& profileToken, const std::string& tourToken);
+    [[nodiscard]] bool removePresetTour(const std::string& profileToken, const std::string& tourToken);
 
     /// @brief Sends an ONVIF auxiliary command (wiper, washer, IR, aux relays).
     /// @param[in] profileToken Media profile token.
@@ -597,19 +601,19 @@ public:
     /// @param[in] settings New imaging parameters to apply.
     /// @param[in] forcePersistence If true, saves changes to non-volatile memory.
     /// @return True if imaging settings update was accepted.
-    bool setImagingSettings(
+    [[nodiscard]] bool setImagingSettings(
         const std::string& videoSourceToken, const ImagingSettings& settings, bool forcePersistence = true);
 
     /// @brief Starts continuous motorized optical focus movement.
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] speed Normalized focus speed [-1.0 (near) to +1.0 (far)].
     /// @return True if focus move command was accepted.
-    bool moveFocus(const std::string& videoSourceToken, float speed);
+    [[nodiscard]] bool moveFocus(const std::string& videoSourceToken, float speed);
 
     /// @brief Stops motorized optical focus movement.
     /// @param[in] videoSourceToken Video source token.
     /// @return True if focus stop command was accepted.
-    bool stopFocus(const std::string& videoSourceToken);
+    [[nodiscard]] bool stopFocus(const std::string& videoSourceToken);
 
     /// @brief Queries current focus status and encoder position.
     /// @param[in] videoSourceToken Video source token.
@@ -620,21 +624,21 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] speed Speed ratio [-1.0 to 1.0].
     /// @return True if command was accepted.
-    bool moveFocusContinuous(const std::string& videoSourceToken, float speed);
+    [[nodiscard]] bool moveFocusContinuous(const std::string& videoSourceToken, float speed);
 
     /// @brief Moves optical focus to absolute position.
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] position Target position [0.0 to 1.0].
     /// @param[in] speed Velocity ratio [0.0 to 1.0].
     /// @return True if command was accepted.
-    bool moveFocusAbsolute(const std::string& videoSourceToken, float position, float speed = 1.0f);
+    [[nodiscard]] bool moveFocusAbsolute(const std::string& videoSourceToken, float position, float speed = 1.0f);
 
     /// @brief Moves optical focus relative to current position.
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] distance Displacement [-1.0 to 1.0].
     /// @param[in] speed Velocity ratio [0.0 to 1.0].
     /// @return True if command was accepted.
-    bool moveFocusRelative(const std::string& videoSourceToken, float distance, float speed = 1.0f);
+    [[nodiscard]] bool moveFocusRelative(const std::string& videoSourceToken, float distance, float speed = 1.0f);
 
     /// @brief Retrieves list of saved optical imaging presets.
     /// @param[in] videoSourceToken Video source token.
@@ -645,7 +649,7 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] presetToken Target preset token.
     /// @return True if preset recalled.
-    bool setCurrentImagingPreset(const std::string& videoSourceToken, const std::string& presetToken);
+    [[nodiscard]] bool setCurrentImagingPreset(const std::string& videoSourceToken, const std::string& presetToken);
 
     // =========================================================================
     // Device I/O & Relay Outputs Service (Profile S & T)
@@ -664,13 +668,13 @@ public:
     /// @param[in] relayToken Target relay token.
     /// @param[in] settings Updated configuration.
     /// @return True if update accepted.
-    bool setRelayOutputSettings(const std::string& relayToken, const RelayOutputConfig& settings);
+    [[nodiscard]] bool setRelayOutputSettings(const std::string& relayToken, const RelayOutputConfig& settings);
 
     /// @brief Changes the logical state of a relay output.
     /// @param[in] relayToken Target relay token.
     /// @param[in] state Target state (Active or Inactive).
     /// @return True if state change accepted.
-    bool setRelayOutputState(const std::string& relayToken, RelayLogicalState state);
+    [[nodiscard]] bool setRelayOutputState(const std::string& relayToken, RelayLogicalState state);
 
     /// @brief Queries all digital inputs.
     /// @return Vector of DigitalInputConfig.
@@ -690,12 +694,12 @@ public:
     /// @param[in] messageLimit Maximum number of event messages to retrieve.
     /// @return Vector of parsed OnvifEvent items.
     [[nodiscard]] std::vector<OnvifEvent> pullMessages(
-        const std::string& subscriptionUrl, int timeoutSeconds = 5, int messageLimit = 10);
+        const std::string& subscriptionUrl, std::int32_t timeoutSeconds = 5, std::int32_t messageLimit = 10);
 
     /// @brief Unsubscribes and closes an active PullPoint event subscription.
     /// @param[in] subscriptionUrl Subscription reference URL.
     /// @return True if unsubscription succeeded.
-    bool unsubscribe(const std::string& subscriptionUrl);
+    [[nodiscard]] bool unsubscribe(const std::string& subscriptionUrl);
 
     // =========================================================================
     // Metadata Service (Profile T & M)
@@ -713,7 +717,7 @@ public:
     /// @brief Updates parameters of an existing Metadata Configuration.
     /// @param[in] config Updated MetadataConfiguration structure.
     /// @return True on success.
-    bool setMetadataConfiguration(const MetadataConfiguration& config);
+    [[nodiscard]] bool setMetadataConfiguration(const MetadataConfiguration& config);
 
     /// @brief Queries metadata streaming capability options (< 30 chars).
     /// @param[in] configToken Configuration token.
@@ -746,19 +750,19 @@ public:
     /// @param[in] configToken Video analytics configuration token.
     /// @param[in] rules Vector of rules to create.
     /// @return True on success.
-    bool createRules(const std::string& configToken, const std::vector<AnalyticsRule>& rules);
+    [[nodiscard]] bool createRules(const std::string& configToken, const std::vector<AnalyticsRule>& rules);
 
     /// @brief Modifies parameters of existing analytics rules.
     /// @param[in] configToken Video analytics configuration token.
     /// @param[in] rules Vector of updated rules.
     /// @return True on success.
-    bool modifyRules(const std::string& configToken, const std::vector<AnalyticsRule>& rules);
+    [[nodiscard]] bool modifyRules(const std::string& configToken, const std::vector<AnalyticsRule>& rules);
 
     /// @brief Deletes analytics rules by name.
     /// @param[in] configToken Video analytics configuration token.
     /// @param[in] ruleNames Names of rules to delete.
     /// @return True on success.
-    bool deleteRules(const std::string& configToken, const std::vector<std::string>& ruleNames);
+    [[nodiscard]] bool deleteRules(const std::string& configToken, const std::vector<std::string>& ruleNames);
 
     /// @brief Retrieves list of supported analytics modules.
     /// @param[in] configToken Video analytics configuration token.
@@ -776,19 +780,22 @@ public:
     /// @param[in] configToken Video analytics configuration token.
     /// @param[in] modules Modules to create.
     /// @return True on success.
-    bool createAnalyticsModules(const std::string& configToken, const std::vector<AnalyticsModule>& modules);
+    [[nodiscard]] bool createAnalyticsModules(
+        const std::string& configToken, const std::vector<AnalyticsModule>& modules);
 
     /// @brief Modifies parameters of existing analytics modules.
     /// @param[in] configToken Video analytics configuration token.
     /// @param[in] modules Updated modules.
     /// @return True on success.
-    bool modifyAnalyticsModules(const std::string& configToken, const std::vector<AnalyticsModule>& modules);
+    [[nodiscard]] bool modifyAnalyticsModules(
+        const std::string& configToken, const std::vector<AnalyticsModule>& modules);
 
     /// @brief Deletes analytics modules by name.
     /// @param[in] configToken Video analytics configuration token.
     /// @param[in] moduleNames Names of modules to delete.
     /// @return True on success.
-    bool deleteAnalyticsModules(const std::string& configToken, const std::vector<std::string>& moduleNames);
+    [[nodiscard]] bool deleteAnalyticsModules(
+        const std::string& configToken, const std::vector<std::string>& moduleNames);
 
     // =========================================================================
     // System Maintenance & Device Service Extensions
@@ -810,7 +817,7 @@ public:
     /// @brief Restores system settings on device using a backup archive payload.
     /// @param[in] backupData Backup archive payload.
     /// @return True on success.
-    bool restoreSystem(const std::string& backupData);
+    [[nodiscard]] bool restoreSystem(const std::string& backupData);
 
     /// @brief Queries unique endpoint reference identifier GUID/UUID from device.
     /// @return Endpoint reference string or nullopt on failure.
@@ -835,7 +842,7 @@ public:
     /// @param[in] daysValid Validity period in days.
     /// @return Created OnvifCertificate or nullopt on failure.
     [[nodiscard]] std::optional<OnvifCertificate> createCertificate(
-        const std::string& certificateId, const std::string& subject, int daysValid = 365);
+        const std::string& certificateId, const std::string& subject, std::int32_t daysValid = 365);
 
     /// @brief Generates a PKCS#10 Certificate Signing Request (CSR) on device.
     /// @param[in] certificateId Target certificate token.
@@ -847,12 +854,12 @@ public:
     /// @brief Uploads signed X.509 certificates to device.
     /// @param[in] certificates List of certificates to upload.
     /// @return True on success.
-    bool loadCertificates(const std::vector<OnvifCertificate>& certificates);
+    [[nodiscard]] bool loadCertificates(const std::vector<OnvifCertificate>& certificates);
 
     /// @brief Deletes certificates from device by token ID.
     /// @param[in] certificateIds List of certificate IDs to delete.
     /// @return True on success.
-    bool deleteCertificates(const std::vector<std::string>& certificateIds);
+    [[nodiscard]] bool deleteCertificates(const std::vector<std::string>& certificateIds);
 
     /// @brief Queries TLS client certificate authentication mode.
     /// @return ClientCertificateMode or nullopt on failure.
@@ -861,7 +868,7 @@ public:
     /// @brief Configures TLS client certificate authentication mode.
     /// @param[in] mode Desired ClientCertificateMode.
     /// @return True on success.
-    bool setClientCertificateMode(ClientCertificateMode mode);
+    [[nodiscard]] bool setClientCertificateMode(ClientCertificateMode mode);
 
     // =========================================================================
     // Profile G: Recording Service
@@ -884,12 +891,12 @@ public:
     /// @brief Updates configuration of an existing recording container.
     /// @param[in] config Updated recording configuration.
     /// @return True on success.
-    bool setRecordingConfiguration(const RecordingConfig& config);
+    [[nodiscard]] bool setRecordingConfiguration(const RecordingConfig& config);
 
     /// @brief Deletes a recording container and its stored data.
     /// @param[in] recordingToken Target recording token.
     /// @return True on success.
-    bool deleteRecording(const std::string& recordingToken);
+    [[nodiscard]] bool deleteRecording(const std::string& recordingToken);
 
     /// @brief Adds a track (video, audio, metadata) to a recording container.
     /// @param[in] recordingToken Parent recording token.
@@ -902,7 +909,7 @@ public:
     /// @param[in] recordingToken Parent recording token.
     /// @param[in] trackToken Track token to delete.
     /// @return True on success.
-    bool deleteTrack(const std::string& recordingToken, const std::string& trackToken);
+    [[nodiscard]] bool deleteTrack(const std::string& recordingToken, const std::string& trackToken);
 
     /// @brief Retrieves list of active automated recording jobs.
     /// @return Vector of RecordingJob structures.
@@ -917,12 +924,12 @@ public:
     /// @param[in] jobToken Target job token.
     /// @param[in] mode Desired RecordingJobMode.
     /// @return True on success.
-    bool setRecordingJobMode(const std::string& jobToken, RecordingJobMode mode);
+    [[nodiscard]] bool setRecordingJobMode(const std::string& jobToken, RecordingJobMode mode);
 
     /// @brief Deletes a recording job.
     /// @param[in] jobToken Target job token.
     /// @return True on success.
-    bool deleteRecordingJob(const std::string& jobToken);
+    [[nodiscard]] bool deleteRecordingJob(const std::string& jobToken);
 
     /// @brief Retrieves overall storage and time range summary for recordings.
     /// @return RecordingSummary or nullopt on failure.
@@ -938,7 +945,7 @@ public:
     /// @param[in] keepAliveTime Search session keepalive ISO duration.
     /// @return Search session token or nullopt on failure.
     [[nodiscard]] std::optional<std::string> findRecordings(
-        const std::string& scope = "", int maxMatches = 10, const std::string& keepAliveTime = "PT60S");
+        const std::string& scope = "", std::int32_t maxMatches = 10, const std::string& keepAliveTime = "PT60S");
 
     /// @brief Polls results for an active recording search query.
     /// @param[in] searchToken Search session token.
@@ -951,7 +958,7 @@ public:
     /// @param[in] maxMatches Maximum matches.
     /// @return Search session token or nullopt on failure.
     [[nodiscard]] std::optional<std::string> findEvents(
-        const std::string& startUtc, const std::string& endUtc = "", int maxMatches = 10);
+        const std::string& startUtc, const std::string& endUtc = "", std::int32_t maxMatches = 10);
 
     /// @brief Polls results for an active event search query.
     /// @param[in] searchToken Search session token.
@@ -961,7 +968,7 @@ public:
     /// @brief Closes an active search query session.
     /// @param[in] searchToken Search session token.
     /// @return True on success.
-    bool endSearch(const std::string& searchToken);
+    [[nodiscard]] bool endSearch(const std::string& searchToken);
 
     // =========================================================================
     // Profile G: Replay Service
@@ -981,7 +988,7 @@ public:
     /// @brief Configures replay session timeouts.
     /// @param[in] config Desired replay configuration.
     /// @return True on success.
-    bool setReplayConfiguration(const ReplayConfiguration& config);
+    [[nodiscard]] bool setReplayConfiguration(const ReplayConfiguration& config);
 
     // =========================================================================
     // XML Envelope & Parsing Helpers (Public for testing)

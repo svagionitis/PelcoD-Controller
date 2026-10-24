@@ -1,5 +1,7 @@
 #include "DeviceSystemAdapter.h"
 
+#include <cstdint>
+
 #include <algorithm>
 #include <functional>
 #include <mutex>
@@ -93,7 +95,7 @@ std::vector<DigitalInputConfig> DeviceSystemAdapter::handleGetDigitalInputs()
 std::string DeviceSystemAdapter::handleGetSystemLog(SystemLogType logType)
 {
     if (logType == SystemLogType::Access) {
-        return "2026-09-17T00:00:00Z [INFO] ONVIF Service Access: admin logged in from 192.168.1.100\n";
+        return "2026-09-17T00:00:00Z [INFO] ACCESS LOG: admin logged in from 192.168.1.100\n";
     }
     return "2026-09-17T00:00:00Z [INFO] Pelco-D PTZ Device initialised successfully on address 1\n";
 }
@@ -101,8 +103,7 @@ std::string DeviceSystemAdapter::handleGetSystemLog(SystemLogType logType)
 SystemSupportInfo DeviceSystemAdapter::handleGetSystemSupportInfo()
 {
     SystemSupportInfo info { };
-    info.binaryData = "UEVMQ08tRC1TUEVDLTEuMA==";
-    info.stringData = "Pelco-D Controller Support Info v1.0 (Core HW: Virtual-PTZ-Bridge)";
+    info.rawDiagnostics = "Pelco-D Controller Support Info v1.0 (Core HW: Virtual-PTZ-Bridge)";
     return info;
 }
 
@@ -139,7 +140,7 @@ std::optional<CertificateInformation> DeviceSystemAdapter::handleGetCertInformat
 }
 
 OnvifCertificate DeviceSystemAdapter::handleCreateCertificate(
-    const std::string& certificateId, const std::string& subject, int daysValid)
+    const std::string& certificateId, const std::string& subject, std::int32_t daysValid)
 {
     std::scoped_lock lock(m_mutex);
     auto cert = OnvifSecurity::generateSelfSignedCertificate(certificateId, subject, daysValid);
@@ -149,7 +150,7 @@ OnvifCertificate DeviceSystemAdapter::handleCreateCertificate(
 
 Pkcs10Request DeviceSystemAdapter::handleGetPkcs10Request(const std::string& certificateId, const std::string& subject)
 {
-    return OnvifSecurity::createPkcs10Csr(certificateId, subject);
+    return OnvifSecurity::generatePkcs10Csr(certificateId, subject);
 }
 
 bool DeviceSystemAdapter::handleLoadCertificates(const std::vector<OnvifCertificate>& certificates)

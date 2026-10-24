@@ -1,5 +1,7 @@
 #include "StubRecordingAdapter.h"
 
+#include <cstdint>
+
 #include <algorithm>
 #include <mutex>
 #include <optional>
@@ -193,7 +195,7 @@ bool StubRecordingAdapter::handleDeleteTrack(const std::string& recordingToken, 
 // =========================================================================
 
 std::string StubRecordingAdapter::handleFindRecordings(
-    const std::string& /*scope*/, int /*maxMatches*/, const std::string& /*keepAliveTime*/)
+    const std::string& /*scope*/, std::int32_t /*maxMatches*/, const std::string& /*keepAliveTime*/)
 {
     std::scoped_lock lock(m_mutex);
     const std::string token = "SearchSession_" + std::to_string(m_nextSearchSessionId++);
@@ -224,7 +226,7 @@ std::vector<RecordingSearchResult> StubRecordingAdapter::handleGetRecordingSearc
 }
 
 std::string StubRecordingAdapter::handleFindEvents(
-    const std::string& startUtc, const std::string& /*endUtc*/, int /*maxMatches*/)
+    const std::string& startUtc, const std::string& /*endUtc*/, std::int32_t /*maxMatches*/)
 {
     std::scoped_lock lock(m_mutex);
     const std::string token = "EventSearch_" + std::to_string(m_nextSearchSessionId++);

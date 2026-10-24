@@ -106,7 +106,7 @@ SoapHandlerResult DeviceService::handleSetClientCert(const SoapContext& ctx)
     const ClientCertificateMode mode = clientCertModeFromString(modeStr);
     const auto dev = m_ctx.getDeviceHandler ? m_ctx.getDeviceHandler() : nullptr;
     if (dev) {
-        dev->handleSetClientCertMode(mode);
+        static_cast<void>(dev->handleSetClientCertMode(mode));
     }
     m_clientCertMode = mode;
     return SoapHandlerResult::ok("    <tds:SetClientCertificateModeResponse/>\r\n");
@@ -151,7 +151,7 @@ SoapHandlerResult DeviceService::handleSetGeoLoc(const SoapContext& ctx)
     }
     const auto dev = m_ctx.getDeviceHandler ? m_ctx.getDeviceHandler() : nullptr;
     if (dev) {
-        dev->handleSetGeoLocation(loc);
+        static_cast<void>(dev->handleSetGeoLocation(loc));
     }
     return SoapHandlerResult::ok("    <tds:SetGeoLocationResponse/>\r\n");
 }
@@ -162,7 +162,7 @@ SoapHandlerResult DeviceService::handleDeleteGeoLoc(const SoapContext& ctx)
     const std::string ent = entNode ? entNode.text().as_string() : "Device";
     const auto dev = m_ctx.getDeviceHandler ? m_ctx.getDeviceHandler() : nullptr;
     if (dev) {
-        dev->handleDeleteGeoLocation(ent);
+        static_cast<void>(dev->handleDeleteGeoLocation(ent));
     }
     return SoapHandlerResult::ok("    <tds:DeleteGeoLocationResponse/>\r\n");
 }

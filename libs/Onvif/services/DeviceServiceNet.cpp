@@ -60,7 +60,7 @@ SoapHandlerResult DeviceService::handleSetNetIfaces(const SoapContext& ctx)
 
     const auto dev = m_ctx.getDeviceHandler ? m_ctx.getDeviceHandler() : nullptr;
     if (dev) {
-        dev->handleSetNetworkInterfaces(iface);
+        static_cast<void>(dev->handleSetNetworkInterfaces(iface));
     }
     auto it = std::find_if(m_netInterfaces.begin(), m_netInterfaces.end(),
         [&](const NetworkInterfaceConfig& c) { return c.token == iface.token; });
@@ -130,7 +130,7 @@ SoapHandlerResult DeviceService::handleSetGateway(const SoapContext& ctx)
     const std::string gw = gwNode ? gwNode.text().as_string() : "";
     const auto dev = m_ctx.getDeviceHandler ? m_ctx.getDeviceHandler() : nullptr;
     if (dev) {
-        dev->handleSetDefaultGateway(gw);
+        static_cast<void>(dev->handleSetDefaultGateway(gw));
     }
     m_gateway = gw;
     return SoapHandlerResult::ok("    <tds:SetNetworkDefaultGatewayResponse/>\r\n");
@@ -161,7 +161,7 @@ SoapHandlerResult DeviceService::handleSetDns(const SoapContext& ctx)
 
     const auto dev = m_ctx.getDeviceHandler ? m_ctx.getDeviceHandler() : nullptr;
     if (dev) {
-        dev->handleSetDNS(dns);
+        static_cast<void>(dev->handleSetDNS(dns));
     }
     m_dns = dns;
     return SoapHandlerResult::ok("    <tds:SetDNSResponse/>\r\n");
@@ -192,7 +192,7 @@ SoapHandlerResult DeviceService::handleSetNtp(const SoapContext& ctx)
 
     const auto dev = m_ctx.getDeviceHandler ? m_ctx.getDeviceHandler() : nullptr;
     if (dev) {
-        dev->handleSetNTP(ntp);
+        static_cast<void>(dev->handleSetNTP(ntp));
     }
     m_ntp = ntp;
     return SoapHandlerResult::ok("    <tds:SetNTPResponse/>\r\n");
@@ -211,7 +211,7 @@ SoapHandlerResult DeviceService::handleSetHostname(const SoapContext& ctx)
     const std::string hn = hnNode ? hnNode.text().as_string() : "";
     const auto dev = m_ctx.getDeviceHandler ? m_ctx.getDeviceHandler() : nullptr;
     if (dev) {
-        dev->handleSetHostname(hn);
+        static_cast<void>(dev->handleSetHostname(hn));
     }
     m_hostname = hn;
     return SoapHandlerResult::ok("    <tds:SetHostnameResponse/>\r\n");
@@ -242,7 +242,7 @@ SoapHandlerResult DeviceService::handleSetDiscMode(const SoapContext& ctx)
     }
     const auto dev = m_ctx.getDeviceHandler ? m_ctx.getDeviceHandler() : nullptr;
     if (dev) {
-        dev->handleSetDiscoveryMode(target);
+        static_cast<void>(dev->handleSetDiscoveryMode(target));
     }
     if (m_ctx.setDiscoveryMode) {
         m_ctx.setDiscoveryMode(target);
@@ -380,7 +380,7 @@ SoapHandlerResult DeviceService::handleSetVideoMode(const SoapContext& ctx)
     bool rebootNeeded = false;
     const auto handler = m_ctx.getVideoSourceModeHandler ? m_ctx.getVideoSourceModeHandler() : nullptr;
     if (handler) {
-        handler->handleSetVideoSourceMode("VideoSource_1", tok, rebootNeeded);
+        static_cast<void>(handler->handleSetVideoSourceMode("VideoSource_1", tok, rebootNeeded));
     }
     std::ostringstream ss;
     ss << "    <tds:SetVideoSourceModeResponse><tds:Reboot>" << (rebootNeeded ? "true" : "false")

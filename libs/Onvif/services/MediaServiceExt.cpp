@@ -138,7 +138,7 @@ SoapHandlerResult MediaService::handleDeleteOSD(const SoapContext& ctx, const st
     const std::string tok = tokNode ? tokNode.text().as_string() : "";
     const auto handler = m_ctx.getOsdHandler ? m_ctx.getOsdHandler() : nullptr;
     if (handler) {
-        handler->handleDeleteOSD(tok);
+        static_cast<void>(handler->handleDeleteOSD(tok));
     }
     m_osds.erase(tok);
     return SoapHandlerResult::ok("    <" + prefix + ":DeleteOSDResponse/>\r\n");
@@ -153,7 +153,7 @@ SoapHandlerResult MediaService::handleSetOSD(const SoapContext& ctx, const std::
     }
     const auto handler = m_ctx.getOsdHandler ? m_ctx.getOsdHandler() : nullptr;
     if (handler) {
-        handler->handleSetOSD(osd);
+        static_cast<void>(handler->handleSetOSD(osd));
     }
     m_osds[osd.token] = osd;
     return SoapHandlerResult::ok("    <" + prefix + ":SetOSDResponse/>\r\n");
@@ -291,7 +291,7 @@ SoapHandlerResult MediaService::handleDeleteMask(const SoapContext& ctx, const s
     const std::string tok = tokNode ? tokNode.text().as_string() : "";
     const auto handler = m_ctx.getMaskHandler ? m_ctx.getMaskHandler() : nullptr;
     if (handler) {
-        handler->handleDeleteMask(tok);
+        static_cast<void>(handler->handleDeleteMask(tok));
     }
     m_masks.erase(
         std::remove_if(m_masks.begin(), m_masks.end(), [&tok](const PrivacyMask& m) { return m.token == tok; }),
@@ -305,7 +305,7 @@ SoapHandlerResult MediaService::handleSetMask(const SoapContext& ctx, const std:
     PrivacyMask mask = parseMaskNode(maskNode);
     const auto handler = m_ctx.getMaskHandler ? m_ctx.getMaskHandler() : nullptr;
     if (handler) {
-        handler->handleSetMask(mask);
+        static_cast<void>(handler->handleSetMask(mask));
     }
     const auto it
         = std::find_if(m_masks.begin(), m_masks.end(), [&](const PrivacyMask& m) { return m.token == mask.token; });
@@ -383,7 +383,7 @@ SoapHandlerResult MediaService::handleSetVideoMode(const SoapContext& ctx, const
     bool rebootNeeded = false;
     const auto handler = m_ctx.getVideoSourceModeHandler ? m_ctx.getVideoSourceModeHandler() : nullptr;
     if (handler) {
-        handler->handleSetVideoSourceMode("VideoSource_1", tok, rebootNeeded);
+        static_cast<void>(handler->handleSetVideoSourceMode("VideoSource_1", tok, rebootNeeded));
     }
     std::ostringstream ss;
     ss << "    <" << prefix << ":SetVideoSourceModeResponse><" << prefix << ":Reboot>"

@@ -69,7 +69,7 @@ enum class DispatchStatus : std::uint8_t {
 /// @brief Result payload produced by a SOAP operation handler.
 struct SoapHandlerResult {
     bool success { true }; ///< True if operation succeeded.
-    int httpStatusCode { 200 }; ///< Target HTTP response status code.
+    std::int32_t httpStatusCode { 200 }; ///< Target HTTP response status code.
     std::string responseBody { }; ///< Serialized XML response fragment (Body child).
     std::string faultSubcode { }; ///< Optional ONVIF subcode if failed (e.g. "ter:InvalidArgVal").
     std::string faultSecondarySubcode { }; ///< Optional secondary subcode (e.g. "ter:NoToken").
@@ -79,7 +79,7 @@ struct SoapHandlerResult {
     /// @param[in] body Serialized XML payload of response.
     /// @param[in] code HTTP status code (defaults to 200).
     /// @return Formatted successful SoapHandlerResult.
-    [[nodiscard]] static SoapHandlerResult ok(std::string body, int code = 200)
+    [[nodiscard]] static SoapHandlerResult ok(std::string body, std::int32_t code = 200)
     {
         SoapHandlerResult res { };
         res.success = true;
@@ -95,7 +95,7 @@ struct SoapHandlerResult {
     /// @param[in] secondary Optional secondary subcode (e.g. "ter:NoToken").
     /// @return Formatted fault SoapHandlerResult.
     [[nodiscard]] static SoapHandlerResult fault(
-        std::string subcode, std::string reason, int code = 400, std::string secondary = "")
+        std::string subcode, std::string reason, std::int32_t code = 400, std::string secondary = "")
     {
         SoapHandlerResult res { };
         res.success = false;
@@ -121,7 +121,7 @@ struct RouteEntry {
 /// @brief Comprehensive result returned by SoapRouter::dispatch().
 struct DispatchResult {
     DispatchStatus status { DispatchStatus::Success }; ///< Dispatch status code.
-    int httpStatusCode { 200 }; ///< HTTP response code.
+    std::int32_t httpStatusCode { 200 }; ///< HTTP response code.
     std::string responseXml { }; ///< Serialized body fragment or SOAP Fault XML.
 };
 

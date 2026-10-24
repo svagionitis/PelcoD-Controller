@@ -3,6 +3,7 @@
 /// @file OnvifTypes.h
 /// @brief Common data structures, enums, and models for ONVIF Profile S client.
 
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -14,32 +15,32 @@ namespace Onvif {
 /// @struct DiscoveredDevice
 /// @brief Device metadata discovered via WS-Discovery multicast probe.
 struct DiscoveredDevice {
-    std::string endpoint; ///< Device service URL (XAddr), e.g. http://192.168.1.100/onvif/device_service
-    std::string ip; ///< IPv4 address extracted from endpoint or probe
-    std::string hardware; ///< Hardware model name
-    std::string name; ///< Device name
-    std::string location; ///< Physical location from scope
-    std::vector<std::string> scopes; ///< All discovered ONVIF scope URIs
+    std::string endpoint { }; ///< Device service URL (XAddr), e.g. http://192.168.1.100/onvif/device_service
+    std::string ip { }; ///< IPv4 address extracted from endpoint or probe
+    std::string hardware { }; ///< Hardware model name
+    std::string name { }; ///< Device name
+    std::string location { }; ///< Physical location from scope
+    std::vector<std::string> scopes { }; ///< All discovered ONVIF scope URIs
 };
 
 /// @struct DeviceInformation
 /// @brief Hardware identification metadata queried via GetDeviceInformation.
 struct DeviceInformation {
-    std::string manufacturer; ///< Manufacturer name
-    std::string model; ///< Camera model
-    std::string firmwareVersion; ///< Firmware revision string
-    std::string serialNumber; ///< Factory serial number
-    std::string hardwareId; ///< Hardware board identifier
+    std::string manufacturer { }; ///< Manufacturer name
+    std::string model { }; ///< Camera model
+    std::string firmwareVersion { }; ///< Firmware revision string
+    std::string serialNumber { }; ///< Factory serial number
+    std::string hardwareId { }; ///< Hardware board identifier
 };
 
 /// @struct MediaProfile
 /// @brief Media profile containing video encoder configuration.
 struct MediaProfile {
-    std::string token; ///< Unique profile identifier token, e.g. "Profile_1"
-    std::string name; ///< User-friendly profile label, e.g. "MainStream"
-    int videoWidth { 0 }; ///< Native video resolution width in pixels
-    int videoHeight { 0 }; ///< Native video resolution height in pixels
-    std::string videoEncoding; ///< Encoding format (e.g. "H264", "H265", "JPEG")
+    std::string token { }; ///< Unique profile identifier token, e.g. "Profile_1"
+    std::string name { }; ///< User-friendly profile label, e.g. "MainStream"
+    std::int32_t videoWidth { 0 }; ///< Native video resolution width in pixels
+    std::int32_t videoHeight { 0 }; ///< Native video resolution height in pixels
+    std::string videoEncoding { }; ///< Encoding format (e.g. "H264", "H265", "JPEG")
     std::string videoSourceToken { }; ///< Video source configuration token for imaging service
     bool fixed { false }; ///< True if profile is fixed/immutable
     std::string vscToken { }; ///< Video source configuration token
@@ -57,16 +58,16 @@ enum class DiscoveryMode : std::uint8_t { Discoverable, NonDiscoverable };
 struct NetworkProtocolConfig {
     std::string name { }; ///< Protocol name (e.g. "HTTP", "HTTPS", "RTSP")
     bool enabled { true }; ///< Operational enable/disable state
-    int port { 8080 }; ///< Port number (1-65535)
+    std::int32_t port { 8080 }; ///< Port number (1-65535)
 };
 
 /// @struct StreamUriInfo
 /// @brief RTSP streaming URI and session properties queried via GetStreamUri.
 struct StreamUriInfo {
-    std::string uri; ///< Full RTSP stream URL, e.g. rtsp://192.168.1.100:554/live/ch0
-    bool invalidAfterConnect { false };
-    bool invalidAfterReboot { false };
-    std::string timeout; ///< Stream keep-alive timeout
+    std::string uri { }; ///< Full RTSP stream URL, e.g. rtsp://192.168.1.100:554/live/ch0
+    bool invalidAfterConnect { false }; ///< Invalidated upon successful client connection
+    bool invalidAfterReboot { false }; ///< Invalidated upon device reboot
+    std::string timeout { }; ///< Stream keep-alive timeout
 };
 
 /// @struct PtzStatus
@@ -76,7 +77,7 @@ struct PtzStatus {
     double tilt { 0.0 }; ///< Normalized tilt position [-1.0 down to +1.0 up]
     double zoom { 0.0 }; ///< Normalized zoom position [0.0 wide to 1.0 tele]
     bool isMoving { false }; ///< True if motorized drive is actively moving
-    std::string utcTime; ///< Camera UTC timestamp
+    std::string utcTime { }; ///< Camera UTC timestamp
 };
 
 /// @struct PtzPreset
@@ -213,14 +214,14 @@ struct OsdConfig {
 struct VideoEncoderConfig {
     std::string token { "VideoEncoderConfig_1" }; ///< Unique configuration token
     std::string name { "VideoEncoderConfig" }; ///< User-friendly configuration name
-    int useCount { 1 }; ///< Number of profiles referencing this configuration
+    std::int32_t useCount { 1 }; ///< Number of profiles referencing this configuration
     std::string encoding { "H264" }; ///< Video codec ("H264", "H265", "JPEG")
-    int width { 1920 }; ///< Frame width in pixels
-    int height { 1080 }; ///< Frame height in pixels
+    std::int32_t width { 1920 }; ///< Frame width in pixels
+    std::int32_t height { 1080 }; ///< Frame height in pixels
     float quality { 5.0f }; ///< Encoding quality level
     float frameRateLimit { 30.0f }; ///< Maximum encoded framerate
-    int bitrateLimitKbps { 4096 }; ///< Bitrate target limit in Kbps
-    int govLength { 30 }; ///< Group of Video / keyframe interval
+    std::int32_t bitrateLimitKbps { 4096 }; ///< Bitrate target limit in Kbps
+    std::int32_t govLength { 30 }; ///< Group of Video / keyframe interval
     std::string h264Profile { "Main" }; ///< H.264 profile ("Baseline", "Main", "High", "Extended")
     std::string sessionTimeout { "PT30S" }; ///< RTSP session timeout
 };
@@ -228,15 +229,15 @@ struct VideoEncoderConfig {
 /// @struct VideoResolution
 /// @brief Video frame resolution in pixels.
 struct VideoResolution {
-    int width { 1920 }; ///< Frame width in pixels
-    int height { 1080 }; ///< Frame height in pixels
+    std::int32_t width { 1920 }; ///< Frame width in pixels
+    std::int32_t height { 1080 }; ///< Frame height in pixels
 };
 
 /// @struct IntRange
 /// @brief Inclusive integer range.
 struct IntRange {
-    int min { 0 }; ///< Minimum boundary
-    int max { 0 }; ///< Maximum boundary
+    std::int32_t min { 0 }; ///< Minimum boundary
+    std::int32_t max { 0 }; ///< Maximum boundary
 };
 
 /// @struct VideoEncoderOptions
@@ -277,7 +278,7 @@ struct ZoomLimits {
 struct PTZConfiguration {
     std::string token { "PTZConfig_1" }; ///< Unique configuration token
     std::string name { "PTZConfig" }; ///< User-friendly configuration name
-    int useCount { 1 }; ///< Number of profiles referencing this configuration
+    std::int32_t useCount { 1 }; ///< Number of profiles referencing this configuration
     std::string nodeToken { "PTZNode_1" }; ///< Bound physical PTZ node identifier
     std::string defaultAbsolutePanTiltPositionSpace {
         "http://www.onvif.org/ver10/tptz/PanTiltSpaces/PositionGenericSpace"
@@ -328,7 +329,7 @@ struct AnalyticsRule {
     float minConfidence { 0.5f }; ///< Minimum confidence threshold for classification
 
     // Sensitivity for CellMotionDetector
-    int sensitivity { 50 }; ///< Sensitivity percentage [0, 100]
+    std::int32_t sensitivity { 50 }; ///< Sensitivity percentage [0, 100]
 };
 
 /// @struct AnalyticsRuleDescription
@@ -412,7 +413,7 @@ struct NetworkIPv4Config {
     bool enabled { true }; ///< True if IPv4 stack is enabled
     bool dhcp { true }; ///< True if IPv4 address is assigned via DHCP
     std::string manualAddress { "192.168.1.100" }; ///< Static IPv4 address
-    int prefixLength { 24 }; ///< Subnet prefix length (e.g. 24 for 255.255.255.0)
+    std::int32_t prefixLength { 24 }; ///< Subnet prefix length (e.g. 24 for 255.255.255.0)
 };
 
 /// @struct NetworkInterfaceConfig
@@ -422,7 +423,7 @@ struct NetworkInterfaceConfig {
     bool enabled { true }; ///< Adapter enabled state
     std::string name { "eth0" }; ///< System device name
     std::string hwAddress { "00:11:22:33:44:55" }; ///< Physical MAC address
-    int mtu { 1500 }; ///< Maximum transmission unit in bytes
+    std::int32_t mtu { 1500 }; ///< Maximum transmission unit in bytes
     NetworkIPv4Config ipv4 { }; ///< IPv4 parameters
 };
 
@@ -451,12 +452,12 @@ struct SystemDateTimeConfig {
     std::string dateTimeType { "NTP" }; ///< "Manual" or "NTP"
     bool daylightSavings { false }; ///< True if daylight saving time active
     std::string timeZone { "UTC" }; ///< Posix or standard timezone identifier (e.g. "UTC", "GMT+2")
-    int hour { 0 }; ///< UTC hour [0, 23]
-    int minute { 0 }; ///< UTC minute [0, 59]
-    int second { 0 }; ///< UTC second [0, 59]
-    int year { 2026 }; ///< Gregorian year
-    int month { 1 }; ///< Month [1, 12]
-    int day { 1 }; ///< Day [1, 31]
+    std::int32_t hour { 0 }; ///< UTC hour [0, 23]
+    std::int32_t minute { 0 }; ///< UTC minute [0, 59]
+    std::int32_t second { 0 }; ///< UTC second [0, 59]
+    std::int32_t year { 2026 }; ///< Gregorian year
+    std::int32_t month { 1 }; ///< Month [1, 12]
+    std::int32_t day { 1 }; ///< Day [1, 31]
 };
 
 /// @enum RelayLogicalState
@@ -546,7 +547,7 @@ struct BoundingBox {
 /// @struct AnalyticsObject
 /// @brief Classified object detected in a video analytics frame (Profile M).
 struct AnalyticsObject {
-    int objectId { 0 }; ///< Unique object tracking identifier
+    std::int32_t objectId { 0 }; ///< Unique object tracking identifier
     std::string className { "Human" }; ///< Object class: "Human", "Vehicle", "Bike", "Bag"
     float confidence { 1.0f }; ///< Classification confidence [0.0, 1.0]
     BoundingBox boundingBox { }; ///< Spatial position on frame
@@ -558,8 +559,8 @@ struct AnalyticsObject {
 /// @brief Video analytics time-slice frame containing detected objects (Profile M).
 struct AnalyticsFrame {
     std::string utcTime { }; ///< Frame timestamp in ISO 8601 UTC
-    int frameWidth { 1920 }; ///< Frame pixel width
-    int frameHeight { 1080 }; ///< Frame pixel height
+    std::int32_t frameWidth { 1920 }; ///< Frame pixel width
+    std::int32_t frameHeight { 1080 }; ///< Frame pixel height
     std::vector<AnalyticsObject> objects { }; ///< Detected objects
 };
 
@@ -568,7 +569,7 @@ struct AnalyticsFrame {
 struct MetadataConfiguration {
     std::string token { "MetadataConfig_1" }; ///< Configuration token
     std::string name { "MetadataConfiguration" }; ///< Configuration name
-    int useCount { 1 }; ///< Number of profiles referencing this configuration
+    std::int32_t useCount { 1 }; ///< Number of profiles referencing this configuration
     std::string sessionTimeout { "PT60S" }; ///< Streaming session keep-alive timeout
     bool ptzStatusEnabled { true }; ///< Stream PTZ status telemetry (Profile T)
     bool analyticsEnabled { true }; ///< Stream object analytics & bounding boxes (Profile M)
@@ -685,7 +686,7 @@ struct RecordingConfig {
 struct RecordingSummary {
     std::string dataFrom { }; ///< Earliest recording timestamp (ISO 8601 UTC)
     std::string dataUntil { }; ///< Latest recording timestamp (ISO 8601 UTC)
-    int numberRecordings { 0 }; ///< Total number of recording containers
+    std::int32_t numberRecordings { 0 }; ///< Total number of recording containers
     std::uint64_t totalStorageBytes { 0 }; ///< Total disk bytes consumed
 };
 
@@ -711,7 +712,7 @@ struct RecordingJob {
     std::string jobToken { "Job_1" }; ///< Unique job token
     std::string recordingToken { "Recording_1" }; ///< Target recording token
     RecordingJobMode mode { RecordingJobMode::Active }; ///< Current job mode
-    int priority { 1 }; ///< Priority integer
+    std::int32_t priority { 1 }; ///< Priority integer
     std::string sourceToken { "VideoSource_1" }; ///< Video source token
 };
 
@@ -858,14 +859,14 @@ struct SphericalPosition {
 
 /// @enum MaskType
 /// @brief Visual obfuscation appearance for ONVIF Privacy Masks (Profile T).
-enum class MaskType {
+enum class MaskType : std::uint8_t {
     Color, ///< Solid opaque color rectangle or polygon
     Pixelated, ///< Mosaic / pixelated blur effect
     Blurred ///< Gaussian blur effect
 };
 
 /// @brief Converts MaskType enum to ONVIF string representation.
-inline std::string maskTypeToString(MaskType type)
+[[nodiscard]] inline std::string maskTypeToString(MaskType type)
 {
     switch (type) {
     case MaskType::Pixelated:
@@ -879,7 +880,7 @@ inline std::string maskTypeToString(MaskType type)
 }
 
 /// @brief Converts ONVIF string representation to MaskType enum.
-inline MaskType stringToMaskType(const std::string& str)
+[[nodiscard]] inline MaskType stringToMaskType(const std::string& str)
 {
     if (str == "Pixelated")
         return MaskType::Pixelated;
@@ -891,9 +892,9 @@ inline MaskType stringToMaskType(const std::string& str)
 /// @struct MaskColor
 /// @brief Color specification for solid color privacy masks.
 struct MaskColor {
-    int x { 0 }; ///< Color coordinate X (e.g. Red in RGB, Y in YUV) [0..255]
-    int y { 0 }; ///< Color coordinate Y (e.g. Green in RGB, U in YUV) [0..255]
-    int z { 0 }; ///< Color coordinate Z (e.g. Blue in RGB, V in YUV) [0..255]
+    std::int32_t x { 0 }; ///< Color coordinate X (e.g. Red in RGB, Y in YUV) [0..255]
+    std::int32_t y { 0 }; ///< Color coordinate Y (e.g. Green in RGB, U in YUV) [0..255]
+    std::int32_t z { 0 }; ///< Color coordinate Z (e.g. Blue in RGB, V in YUV) [0..255]
     std::string colorspace { "RGB" }; ///< Color space ("RGB", "YUV")
 };
 
@@ -911,8 +912,8 @@ struct PrivacyMask {
 /// @struct MaskOptions
 /// @brief Privacy mask capabilities and limits supported by device (Media2 GetMaskOptions).
 struct MaskOptions {
-    int maxMasks { 8 }; ///< Maximum simultaneous masks
-    int maxPoints { 8 }; ///< Maximum vertices per polygon mask
+    std::int32_t maxMasks { 8 }; ///< Maximum simultaneous masks
+    std::int32_t maxPoints { 8 }; ///< Maximum vertices per polygon mask
     std::vector<MaskType> supportedTypes { MaskType::Color, MaskType::Pixelated,
         MaskType::Blurred }; ///< Supported visual mask styles
     std::vector<std::string> supportedColorSpaces { "RGB" }; ///< Supported color spaces
@@ -926,8 +927,8 @@ struct VideoSourceMode {
     std::string token { }; ///< Mode identifier (e.g. "Mode_1080p60", "Mode_4K30")
     bool enabled { false }; ///< True if this mode is currently active
     float maxFramerate { 30.0f }; ///< Maximum framerate supported in this mode
-    int width { 1920 }; ///< Maximum image width in pixels
-    int height { 1080 }; ///< Maximum image height in pixels
+    std::int32_t width { 1920 }; ///< Maximum image width in pixels
+    std::int32_t height { 1080 }; ///< Maximum image height in pixels
     std::vector<std::string> encodings { "H264", "H265" }; ///< Supported video encodings
     bool reboot { false }; ///< True if applying mode triggers hardware reboot
     std::string description { }; ///< Human-readable mode label
@@ -935,7 +936,7 @@ struct VideoSourceMode {
 
 /// @enum RadiometryAlarmType
 /// @brief Type of radiometric temperature threshold alarm.
-enum class RadiometryAlarmType {
+enum class RadiometryAlarmType : std::uint8_t {
     HighTemperature, ///< Triggered when temperature rises above threshold
     LowTemperature ///< Triggered when temperature falls below threshold
 };

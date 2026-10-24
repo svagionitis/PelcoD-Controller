@@ -77,7 +77,7 @@ public:
     /// @brief Sets network protocol configurations.
     /// @param[in] protocols List of updated protocols.
     /// @return True on success.
-    bool setNetworkProtocols(const std::vector<NetworkProtocolConfig>& protocols);
+    [[nodiscard]] bool setNetworkProtocols(const std::vector<NetworkProtocolConfig>& protocols);
 
     /// @brief Gets active server configuration.
     /// @return Copy of active OnvifServerConfig.

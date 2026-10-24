@@ -47,14 +47,14 @@ struct OnvifServer::Impl {
     ~Impl();
 
     // Operational lifecycle methods
-    bool start();
+    [[nodiscard]] bool start();
     void stop();
     [[nodiscard]] bool isRunning() const noexcept;
     [[nodiscard]] ProvisioningState provisioningState() const noexcept;
     [[nodiscard]] DiscoveryMode getDiscoveryMode() const noexcept;
     void setDiscoveryMode(DiscoveryMode mode);
     [[nodiscard]] std::vector<NetworkProtocolConfig> getNetworkProtocols() const;
-    bool setNetworkProtocols(const std::vector<NetworkProtocolConfig>& protocols);
+    [[nodiscard]] bool setNetworkProtocols(const std::vector<NetworkProtocolConfig>& protocols);
     [[nodiscard]] OnvifServerConfig getConfig() const;
     [[nodiscard]] std::shared_ptr<ScopeStore> getScopeStore() const noexcept;
     [[nodiscard]] const SoapRouter& getSoapRouter() const noexcept;

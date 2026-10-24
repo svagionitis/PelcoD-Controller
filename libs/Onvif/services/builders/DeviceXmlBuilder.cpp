@@ -61,7 +61,7 @@ std::string DeviceXmlBuilder::buildSysDateXml(const SystemDateTimeConfig& dt)
     return ss.str();
 }
 
-std::string DeviceXmlBuilder::buildCapsXml(const OnvifServerConfig& config, const std::string& host, int port,
+std::string DeviceXmlBuilder::buildCapsXml(const OnvifServerConfig& config, const std::string& host, std::int32_t port,
     std::size_t numRelays, const std::vector<std::string>& categories, bool thermalSupported, bool profileGSupported)
 {
     static_cast<void>(config);

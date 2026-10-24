@@ -39,6 +39,8 @@ struct MediaServiceContext {
 /// @brief Modular service implementation for ONVIF Media (trt / tr2 WSDL).
 class MediaService : public IService {
 public:
+    /// @brief Constructs MediaService with injected environment.
+    /// @param[in] ctx Media service dependencies.
     explicit MediaService(MediaServiceContext ctx);
     ~MediaService() override = default;
 
@@ -47,7 +49,12 @@ public:
     MediaService(MediaService&&) = default;
     MediaService& operator=(MediaService&&) = default;
 
+    /// @brief Registers all trt and tr2 operations with the SoapRouter.
+    /// @param[in,out] router Target SoapRouter instance.
     void registerRoutes(SoapRouter& router) override;
+
+    /// @brief Canonical service name ("Media").
+    /// @return String view of service name.
     [[nodiscard]] std::string_view serviceName() const noexcept override;
 
 private:
@@ -92,7 +99,7 @@ private:
     SoapHandlerResult handleSetMetaConfig(const SoapContext& ctx, const std::string& prefix);
     SoapHandlerResult handleGetMetaOptions(const SoapContext& ctx, const std::string& prefix);
 
-    MediaServiceContext m_ctx;
+    MediaServiceContext m_ctx { };
     std::vector<ServerMediaProfile> m_profiles { };
     std::vector<VideoSourceConfig> m_videoSources { };
     std::vector<VideoEncoderConfig> m_videoEncoders { };

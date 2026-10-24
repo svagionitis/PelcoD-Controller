@@ -247,7 +247,8 @@ void OnvifServer::Impl::handleMetadataStream(const httplib::Request& req, httpli
     const auto ptzHdlr = getPtzHandler();
     if (metadataHdlr) {
         payload = metadataHdlr->handleGetCurrentMetadata("");
-    } else if (ptzHdlr) {
+    }
+    if (!payload.ptzStatus.has_value() && ptzHdlr) {
         payload.ptzStatus = ptzHdlr->handleGetStatus();
     }
     const std::string xml = generateMetadataStreamXml(payload);

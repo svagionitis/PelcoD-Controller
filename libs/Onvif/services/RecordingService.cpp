@@ -203,7 +203,7 @@ SoapHandlerResult RecordingService::handleSetRecConfig(const SoapContext& ctx)
 
     const auto h = m_ctx.getRecordingHandler ? m_ctx.getRecordingHandler() : nullptr;
     if (h) {
-        h->handleSetRecordingConfig(tok, cfg);
+        static_cast<void>(h->handleSetRecordingConfig(tok, cfg));
     }
     for (auto& r : m_recordings) {
         if (r.recordingToken == tok) {
@@ -254,7 +254,7 @@ SoapHandlerResult RecordingService::handleDeleteRecord(const SoapContext& ctx)
 
     const auto h = m_ctx.getRecordingHandler ? m_ctx.getRecordingHandler() : nullptr;
     if (h) {
-        h->handleDeleteRecording(tok);
+        static_cast<void>(h->handleDeleteRecording(tok));
     }
     m_recordings.erase(std::remove_if(m_recordings.begin(), m_recordings.end(),
                            [&tok](const RecordingConfig& r) { return r.recordingToken == tok; }),
@@ -354,7 +354,7 @@ SoapHandlerResult RecordingService::handleDeleteTrack(const SoapContext& ctx)
 
     const auto h = m_ctx.getRecordingHandler ? m_ctx.getRecordingHandler() : nullptr;
     if (h) {
-        h->handleDeleteTrack(recTok, trkTok);
+        static_cast<void>(h->handleDeleteTrack(recTok, trkTok));
     }
     for (auto& r : m_recordings) {
         if (r.recordingToken == recTok) {
@@ -431,7 +431,7 @@ SoapHandlerResult RecordingService::handleSetJobMode(const SoapContext& ctx)
 
     const auto h = m_ctx.getRecordingHandler ? m_ctx.getRecordingHandler() : nullptr;
     if (h) {
-        h->handleSetRecordingJobMode(jobTok, mode);
+        static_cast<void>(h->handleSetRecordingJobMode(jobTok, mode));
     }
     for (auto& j : m_jobs) {
         if (j.jobToken == jobTok) {
@@ -449,7 +449,7 @@ SoapHandlerResult RecordingService::handleDeleteRecJob(const SoapContext& ctx)
 
     const auto h = m_ctx.getRecordingHandler ? m_ctx.getRecordingHandler() : nullptr;
     if (h) {
-        h->handleDeleteRecordingJob(tok);
+        static_cast<void>(h->handleDeleteRecordingJob(tok));
     }
     m_jobs.erase(
         std::remove_if(m_jobs.begin(), m_jobs.end(), [&tok](const RecordingJob& j) { return j.jobToken == tok; }),

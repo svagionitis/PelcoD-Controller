@@ -159,7 +159,7 @@ SoapHandlerResult DeviceIoService::handleSetRelaySettings(const SoapContext& ctx
 
     const auto io = m_ctx.getDeviceIoHandler ? m_ctx.getDeviceIoHandler() : nullptr;
     if (io) {
-        io->handleSetRelayOutputSettings(token, updated);
+        static_cast<void>(io->handleSetRelayOutputSettings(token, updated));
     }
     for (auto& r : m_relays) {
         if (r.token == token) {
@@ -182,7 +182,7 @@ SoapHandlerResult DeviceIoService::handleSetRelayState(const SoapContext& ctx)
 
     const auto io = m_ctx.getDeviceIoHandler ? m_ctx.getDeviceIoHandler() : nullptr;
     if (io) {
-        io->handleSetRelayOutputState(tok, st);
+        static_cast<void>(io->handleSetRelayOutputState(tok, st));
     }
     for (auto& r : m_relays) {
         if (r.token == tok) {

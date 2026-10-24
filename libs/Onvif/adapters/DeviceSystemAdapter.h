@@ -106,7 +106,7 @@ public:
     /// @param[in] daysValid Validity period in days.
     /// @return Created OnvifCertificate.
     [[nodiscard]] OnvifCertificate handleCreateCertificate(
-        const std::string& certificateId, const std::string& subject, int daysValid = 365) override;
+        const std::string& certificateId, const std::string& subject, std::int32_t daysValid = 365) override;
 
     /// @brief Generates a PKCS#10 Certificate Signing Request (CSR).
     /// @param[in] certificateId Certificate identifier.
@@ -132,7 +132,7 @@ public:
     /// @brief Configures client certificate authentication mode.
     /// @param[in] mode Desired client certificate mode.
     /// @return True on success.
-    bool handleSetClientCertMode(ClientCertificateMode mode) override;
+    [[nodiscard]] bool handleSetClientCertMode(ClientCertificateMode mode) override;
 
     /// @brief Queries device geographic location and mounting orientation.
     /// @param[in] entityToken Entity identifier.

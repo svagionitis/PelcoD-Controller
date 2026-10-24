@@ -5,15 +5,15 @@
 /// @details Defines the ONVIF Core access classes, authentication outcomes, the authenticated
 ///          principal and the authentication configuration embedded in OnvifServerConfig.
 
-#include "OnvifTypes.h"
-
-#include <pugixml.hpp>
-
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
+
+#include <pugixml.hpp>
+
+#include "OnvifTypes.h"
 
 namespace Onvif {
 
@@ -30,8 +30,8 @@ enum class TlsVerificationMode : std::uint8_t {
 /// @brief TLS/HTTPS transport security settings for OnvifHttpClient.
 struct TlsConfig {
     TlsVerificationMode mode { TlsVerificationMode::Strict };
-    std::string caBundlePath {}; ///< Custom CA certificate bundle path (optional).
-    std::string pinnedPublicKey {}; ///< SHA-256 base64 pinned public key hash (optional).
+    std::string caBundlePath { }; ///< Custom CA certificate bundle path (optional).
+    std::string pinnedPublicKey { }; ///< SHA-256 base64 pinned public key hash (optional).
 };
 
 /// @enum AccessClass
@@ -63,7 +63,7 @@ enum class AuthOutcome : std::uint8_t {
 /// @struct Principal
 /// @brief Identity of an authenticated caller.
 struct Principal {
-    std::string username {}; ///< Authenticated user name (empty if anonymous).
+    std::string username { }; ///< Authenticated user name (empty if anonymous).
     OnvifUserLevel level { OnvifUserLevel::Anonymous }; ///< Privilege level of the user.
 };
 
@@ -71,18 +71,18 @@ struct Principal {
 /// @brief Outcome of an authentication attempt together with the resolved principal.
 struct AuthResult {
     AuthOutcome outcome { AuthOutcome::NoCredentials }; ///< Result category.
-    Principal principal {}; ///< Valid only when outcome == AuthOutcome::Success.
+    Principal principal { }; ///< Valid only when outcome == AuthOutcome::Success.
 };
 
 /// @struct AuthInput
 /// @brief Transport-independent view of the credential-bearing parts of a request.
 /// @note All views must outlive the authenticate() call that consumes them.
 struct AuthInput {
-    std::string_view method {}; ///< HTTP method (e.g. "POST").
-    std::string_view uri {}; ///< HTTP request-target used for Digest uri binding.
-    std::string_view authorization {}; ///< Raw HTTP Authorization header value (may be empty).
-    pugi::xml_node securityHeader {}; ///< wsse:Security element from the SOAP Header (may be null).
-    std::string_view remoteAddr {}; ///< Peer address, used for logging and back-off only.
+    std::string_view method { }; ///< HTTP method (e.g. "POST").
+    std::string_view uri { }; ///< HTTP request-target used for Digest uri binding.
+    std::string_view authorization { }; ///< Raw HTTP Authorization header value (may be empty).
+    pugi::xml_node securityHeader { }; ///< wsse:Security element from the SOAP Header (may be null).
+    std::string_view remoteAddr { }; ///< Peer address, used for logging and back-off only.
 };
 
 /// @struct OnvifAuthConfig

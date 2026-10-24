@@ -28,9 +28,9 @@ namespace Onvif {
 /// @brief Result of a subscription creation request.
 struct SubCreateResult {
     bool success { false };
-    std::string id {};
-    std::string terminationTimeUtc {};
-    std::string errorReason {};
+    std::string id { };
+    std::string terminationTimeUtc { };
+    std::string errorReason { };
 };
 
 /// @class SubscriptionManager
@@ -76,7 +76,7 @@ public:
     /// @brief Removes an active subscription.
     /// @param[in] subId Subscription token ID.
     /// @return True if subscription was found and erased.
-    bool unsubscribe(std::string_view subId);
+    [[nodiscard]] bool unsubscribe(std::string_view subId);
 
     /// @brief Pulls queued events for a PullPoint subscription.
     /// @param[in] subId Subscription token ID.
@@ -87,7 +87,7 @@ public:
     /// @param[out] outTermTime Subscription termination timestamp string.
     /// @param[in] serverRunning Server running flag to abort wait on shutdown.
     /// @return True on success; false if subscription ID is unknown or expired.
-    [[nodiscard]] bool pullMessages(std::string_view subId, int limit, int timeoutSec,
+    [[nodiscard]] bool pullMessages(std::string_view subId, std::int32_t limit, std::int32_t timeoutSec,
         std::vector<OnvifEvent>& outEvents, std::string& outCurTime, std::string& outTermTime,
         const std::atomic<bool>& serverRunning);
 
@@ -98,7 +98,7 @@ public:
 
     /// @brief Sweeps and removes all expired subscriptions.
     /// @return Number of evicted subscriptions.
-    std::size_t sweepExpired();
+    [[nodiscard]] std::size_t sweepExpired();
 
     /// @brief Wakes up all waiting PullPoint subscribers (used during server shutdown).
     void notifyAll();
@@ -135,31 +135,31 @@ public:
 
 private:
     struct PullPointSub {
-        std::string id {};
-        std::chrono::steady_clock::time_point terminationTime {};
-        std::string topicFilter {};
-        std::deque<OnvifEvent> queue {};
-        std::mutex mutex {};
-        std::condition_variable cv {};
+        std::string id { };
+        std::chrono::steady_clock::time_point terminationTime { };
+        std::string topicFilter { };
+        std::deque<OnvifEvent> queue { };
+        std::mutex mutex { };
+        std::condition_variable cv { };
     };
 
     struct PushSub {
-        std::string id {};
-        std::string consumerUrl {};
-        std::chrono::steady_clock::time_point terminationTime {};
-        std::string topicFilter {};
+        std::string id { };
+        std::string consumerUrl { };
+        std::chrono::steady_clock::time_point terminationTime { };
+        std::string topicFilter { };
     };
 
-    NotificationConfig m_config;
-    mutable std::mutex m_mutex {};
-    std::map<std::string, std::shared_ptr<PullPointSub>> m_pullSubs {};
-    std::map<std::string, PushSub> m_pushSubs {};
+    NotificationConfig m_config { };
+    mutable std::mutex m_mutex { };
+    std::map<std::string, std::shared_ptr<PullPointSub>> m_pullSubs { };
+    std::map<std::string, PushSub> m_pushSubs { };
     std::uint32_t m_nextSubId { 1U };
 
     std::atomic<bool> m_sweeperRunning { false };
-    std::condition_variable m_sweepCv {};
-    std::mutex m_sweepMutex {};
-    std::thread m_sweepThread {};
+    std::condition_variable m_sweepCv { };
+    std::mutex m_sweepMutex { };
+    std::thread m_sweepThread { };
 
     void sweeperLoop();
 };

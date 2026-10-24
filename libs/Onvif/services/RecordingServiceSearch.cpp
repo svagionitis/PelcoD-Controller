@@ -170,7 +170,7 @@ SoapHandlerResult RecordingService::handleEndSearch(const SoapContext& ctx)
     const std::string searchToken = tokNode ? tokNode.text().as_string() : "";
     const auto searchHandler = m_ctx.getSearchHandler ? m_ctx.getSearchHandler() : nullptr;
     if (searchHandler) {
-        searchHandler->handleEndSearch(searchToken);
+        static_cast<void>(searchHandler->handleEndSearch(searchToken));
     }
     m_recSearches.erase(searchToken);
     m_eventSearches.erase(searchToken);
@@ -225,7 +225,7 @@ SoapHandlerResult RecordingService::handleSetReplayConfig(const SoapContext& ctx
     cfg.sessionTimeout = timeoutStr;
     const auto replayHandler = m_ctx.getReplayHandler ? m_ctx.getReplayHandler() : nullptr;
     if (replayHandler) {
-        replayHandler->handleSetReplayConfiguration(cfg);
+        static_cast<void>(replayHandler->handleSetReplayConfiguration(cfg));
     }
     m_replayConfig.sessionTimeout = timeoutStr;
     return SoapHandlerResult::ok("    <trp:SetReplayConfigurationResponse/>\r\n");

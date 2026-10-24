@@ -46,7 +46,8 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] config Updated radiometry configuration.
     /// @return True on success.
-    bool handleSetRadiometryConfig(const std::string& videoSourceToken, const RadiometryConfig& config) override;
+    [[nodiscard]] bool handleSetRadiometryConfig(
+        const std::string& videoSourceToken, const RadiometryConfig& config) override;
 
     /// @brief Retrieves radiometric spot meters.
     /// @param[in] videoSourceToken Video source token.
@@ -57,7 +58,7 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] spots Vector of spots.
     /// @return True on success.
-    bool handleSetRadiometrySpots(
+    [[nodiscard]] bool handleSetRadiometrySpots(
         const std::string& videoSourceToken, const std::vector<RadiometrySpot>& spots) override;
 
     /// @brief Retrieves radiometric measurement boxes.
@@ -69,7 +70,7 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] boxes Vector of measurement boxes.
     /// @return True on success.
-    bool handleSetRadiometryBoxes(
+    [[nodiscard]] bool handleSetRadiometryBoxes(
         const std::string& videoSourceToken, const std::vector<RadiometryBox>& boxes) override;
 
     /// @brief Retrieves available thermal false-color palettes.
@@ -81,12 +82,13 @@ public:
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] paletteToken Desired palette token.
     /// @return True on success.
-    bool handleSetColorPalette(const std::string& videoSourceToken, const std::string& paletteToken) override;
+    [[nodiscard]] bool handleSetColorPalette(
+        const std::string& videoSourceToken, const std::string& paletteToken) override;
 
     /// @brief Triggers Non-Uniformity Correction (NUC / flat-field shutter calibration).
     /// @param[in] videoSourceToken Video source token.
     /// @return True on success.
-    bool handleTriggerNuc(const std::string& videoSourceToken) override;
+    [[nodiscard]] bool handleTriggerNuc(const std::string& videoSourceToken) override;
 
 private:
     std::shared_ptr<PelcoD::PelcoDDevice> m_device;

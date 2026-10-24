@@ -29,6 +29,8 @@ struct DeviceIoServiceContext {
 /// @brief Modular service implementation for ONVIF DeviceIO (tmd WSDL).
 class DeviceIoService : public IService {
 public:
+    /// @brief Constructs DeviceIoService with injected environment.
+    /// @param[in] ctx DeviceIO service dependencies.
     explicit DeviceIoService(DeviceIoServiceContext ctx);
     ~DeviceIoService() override = default;
 
@@ -37,7 +39,12 @@ public:
     DeviceIoService(DeviceIoService&&) = default;
     DeviceIoService& operator=(DeviceIoService&&) = default;
 
+    /// @brief Registers all tmd operations with the SoapRouter.
+    /// @param[in,out] router Target SoapRouter instance.
     void registerRoutes(SoapRouter& router) override;
+
+    /// @brief Canonical service name ("DeviceIO").
+    /// @return String view of service name.
     [[nodiscard]] std::string_view serviceName() const noexcept override;
 
 private:
@@ -48,7 +55,7 @@ private:
     SoapHandlerResult handleGetInputs(const SoapContext& ctx);
     SoapHandlerResult handleGetInputOptions(const SoapContext& ctx);
 
-    DeviceIoServiceContext m_ctx;
+    DeviceIoServiceContext m_ctx { };
     std::vector<RelayOutputConfig> m_relays { };
     std::vector<DigitalInputConfig> m_inputs { };
 };

@@ -2404,7 +2404,7 @@ std::vector<OnvifEvent> OnvifClient::parsePullMessagesResponse(const std::string
 }
 
 std::vector<OnvifEvent> OnvifClient::pullMessages(
-    const std::string& subscriptionUrl, int timeoutSeconds, int messageLimit)
+    const std::string& subscriptionUrl, std::int32_t timeoutSeconds, std::int32_t messageLimit)
 {
     if (subscriptionUrl.empty()) {
         return { };
@@ -2598,7 +2598,7 @@ std::optional<CertificateInformation> OnvifClient::getCertificateInformation(con
 }
 
 std::optional<OnvifCertificate> OnvifClient::createCertificate(
-    const std::string& certificateId, const std::string& subject, int daysValid)
+    const std::string& certificateId, const std::string& subject, std::int32_t daysValid)
 {
     std::ostringstream ss;
     ss << "<tds:CreateCertificate xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\">\n"
@@ -2858,7 +2858,7 @@ std::optional<RecordingSummary> OnvifClient::getRecordingSummary()
 // =========================================================================
 
 std::optional<std::string> OnvifClient::findRecordings(
-    const std::string& scope, int maxMatches, const std::string& keepAliveTime)
+    const std::string& scope, std::int32_t maxMatches, const std::string& keepAliveTime)
 {
     const std::string url = resolveServiceUrl(m_capabilities.searchXAddr, m_deviceEndpoint, "/onvif/search_service");
     std::ostringstream ss;
@@ -2889,7 +2889,7 @@ std::vector<RecordingSearchResult> OnvifClient::getRecordingSearchResults(const 
 }
 
 std::optional<std::string> OnvifClient::findEvents(
-    const std::string& startUtc, const std::string& endUtc, int maxMatches)
+    const std::string& startUtc, const std::string& endUtc, std::int32_t maxMatches)
 {
     const std::string url = resolveServiceUrl(m_capabilities.searchXAddr, m_deviceEndpoint, "/onvif/search_service");
     std::ostringstream ss;

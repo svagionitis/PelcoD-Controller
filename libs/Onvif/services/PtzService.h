@@ -32,6 +32,8 @@ struct PtzServiceContext {
 /// @brief Modular service implementation for ONVIF PTZ (tptz WSDL).
 class PtzService : public IService {
 public:
+    /// @brief Constructs PtzService with injected environment.
+    /// @param[in] ctx PTZ service dependencies.
     explicit PtzService(PtzServiceContext ctx);
     ~PtzService() override = default;
 
@@ -40,7 +42,12 @@ public:
     PtzService(PtzService&&) = default;
     PtzService& operator=(PtzService&&) = default;
 
+    /// @brief Registers all tptz operations with the SoapRouter.
+    /// @param[in,out] router Target SoapRouter instance.
     void registerRoutes(SoapRouter& router) override;
+
+    /// @brief Canonical service name ("PTZ").
+    /// @return String view of service name.
     [[nodiscard]] std::string_view serviceName() const noexcept override;
 
 private:
@@ -72,7 +79,7 @@ private:
     SoapHandlerResult handleSendAux(const SoapContext& ctx);
     SoapHandlerResult handleGeoMove(const SoapContext& ctx);
 
-    PtzServiceContext m_ctx;
+    PtzServiceContext m_ctx { };
     std::vector<PTZConfiguration> m_ptzConfigs { };
     std::vector<PtzPreset> m_presets { };
     std::vector<PresetTour> m_presetTours { };

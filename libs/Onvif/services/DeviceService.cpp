@@ -253,8 +253,8 @@ SoapHandlerResult DeviceService::handleSetSysDate(const SoapContext& ctx)
     }
 
     const auto dev = m_ctx.getDeviceHandler ? m_ctx.getDeviceHandler() : nullptr;
-    if (dev) {
-        dev->handleSetSystemDateAndTime(dt);
+    if (dev && !dev->handleSetSystemDateAndTime(dt)) {
+        return SoapHandlerResult::fault("ter:InvalidArgVal", "Failed to set system date and time", 400);
     }
     m_dateTime = dt;
     return SoapHandlerResult::ok("    <tds:SetSystemDateAndTimeResponse/>\r\n");
@@ -281,8 +281,8 @@ SoapHandlerResult DeviceService::handleFactoryDefault(const SoapContext& ctx)
     const FactoryDefaultType type = (defType == "Hard") ? FactoryDefaultType::Hard : FactoryDefaultType::Soft;
 
     const auto dev = m_ctx.getDeviceHandler ? m_ctx.getDeviceHandler() : nullptr;
-    if (dev) {
-        dev->handleSetSystemFactoryDefault(type);
+    if (dev && !dev->handleSetSystemFactoryDefault(type)) {
+        return SoapHandlerResult::fault("ter:ActionNotSupported", "Failed to restore factory default", 500);
     }
     if (m_ctx.credStore) {
         m_ctx.credStore->reset(m_ctx.config.defaultUsers);

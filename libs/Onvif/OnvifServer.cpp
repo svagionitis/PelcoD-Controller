@@ -529,8 +529,8 @@ bool OnvifServer::Impl::setNetworkProtocols(const std::vector<NetworkProtocolCon
         }
     }
     const auto devHandler = getDeviceManagementHandler();
-    if (devHandler) {
-        devHandler->handleSetNetworkProtocols(protocols);
+    if (devHandler && !devHandler->handleSetNetworkProtocols(protocols)) {
+        return false;
     }
     std::scoped_lock lock(deviceMutex);
     for (const auto& u : protocols) {
