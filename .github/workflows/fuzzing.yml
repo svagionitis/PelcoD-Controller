@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Clang & Dependencies
         run: |
@@ -74,7 +74,7 @@ jobs:
 
       - name: Archive Crash Artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-crash-artifacts
           path: artifacts/

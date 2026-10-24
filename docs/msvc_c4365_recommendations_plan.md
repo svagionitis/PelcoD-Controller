@@ -484,10 +484,10 @@ Establish a formal, mandatory Continuous Integration gate running MSVC with `/W4
 |         ▼                                                                                         |
 |  Matrix Runner: windows-2022 (Config: Debug, Release)                                             |
 |         │                                                                                         |
-|         ├──► 1. actions/checkout@v4                                                               |
+|         ├──► 1. actions/checkout@v7                                                               |
 |         ├──► 2. ilammy/msvc-dev-cmd@v1 (Environment init for MSVC 2022)                           |
-|         ├──► 3. jurplel/install-qt-action@v3 (Qt 6.6.1 win64_msvc2019_64 with caching)           |
-|         ├──► 4. actions/cache@v4 (Restore vcpkg installed libs & binary archives)                 |
+|         ├──► 3. jurplel/install-qt-action@v4 (Qt 6.6.1 win64_msvc2019_64 with caching)           |
+|         ├──► 4. actions/cache@v6 (Restore vcpkg installed libs & binary archives)                 |
 |         ├──► 5. CMake Configure (-G "Visual Studio 17 2022" -A x64 /W4 /WX /w14365 /we4365)       |
 |         ├──► 6. Build All Targets (cmake --build build --config <Config> --parallel)              |
 |         └──► 7. Run CTest Suite (ctest --test-dir build -C <Config> --output-on-failure)         |
@@ -511,10 +511,10 @@ flowchart TD
     G1 --> Matrix
 
     subgraph Pipeline["Step Execution Sequence"]
-        S1["actions/checkout@v4"]
+        S1["actions/checkout@v7"]
         S2["ilammy/msvc-dev-cmd@v1<br/>(Visual Studio 2022 Dev Cmd)"]
-        S4["jurplel/install-qt-action@v3<br/>(Qt 6.6.1 msvc2019_64)"]
-        S5["actions/cache@v4<br/>(vcpkg binaries & archives)"]
+        S4["jurplel/install-qt-action@v4<br/>(Qt 6.6.1 msvc2019_64)"]
+        S5["actions/cache@v6<br/>(vcpkg binaries & archives)"]
         S6["CMake Configure<br/>(/W4 /WX /w14365 /we4365)"]
         S7["CMake Build<br/>(cmake --build build --parallel)"]
         S8["CTest Execution<br/>(ctest --test-dir build --parallel)"]
@@ -555,20 +555,20 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Visual Studio Developer Command Prompt
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Install Qt 6
-        uses: jurplel/install-qt-action@v3
+        uses: jurplel/install-qt-action@v4
         with:
           version: '6.6.1'
           arch: 'win64_msvc2019_64'
           cache: true
 
       - name: Restore vcpkg Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ${{ github.workspace }}/vcpkg_installed
