@@ -1,0 +1,23 @@
+{
+  "target": {
+    "host": "127.0.0.1",
+    "port": 8080,
+    "path_prefix": "/onvif",
+    "discovery_port": 3702,
+    "admin_username": "admin",
+    "admin_password": "AdminPass123!"
+  },
+  "profile_s": {
+    "profile_token": "Profile1",
+    "rtsp_url_pattern": "rtsp://{host}:554/stream1",
+    "snapshot_url_pattern": "http://{host}:{port}/onvif/snapshot",
+    "pan_tilt_space": "http://www.onvif.org/ver10/tptz/PanTiltSpaces/VelocityGenericSpace",
+    "zoom_space": "http://www.onvif.org/ver10/tptz/ZoomSpaces/VelocityGenericSpace"
+  },
+  "timeouts": {
+    "discovery_ms": 500,
+    "http_connect_sec": 2.0,
+    "http_request_sec": 5.0,
+    "pull_messages_sec": 3.0
+  }
+}

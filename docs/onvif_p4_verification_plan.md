@@ -34,7 +34,7 @@ While Phases P0 (Security Hardening), P1 (Protocol Correctness), P2 (Profile S C
 | Ingress Fuzzing      | Zero fuzz testing on untrusted     | LLVM libFuzzer harnesses for SOAP parsing,| [Phase 3](onvif_p4_phase3_fuzz_testing_plan.md) |
 |                      | network inputs (pugixml, UDP 3702) | WS-Discovery, client responses, & auth    |               |
 +----------------------+------------------------------------+-------------------------------------------+---------------+
-| Standards            | No ODTT or schema conformance runs;| Formal ODTT test procedure + automated    | Phase 4       |
+| Standards            | No ODTT or schema conformance runs;| Formal ODTT test procedure + automated    | [Phase 4](onvif_p4_phase4_conformance_runner_plan.md) |
 | Conformance          | Unverified WSDL XML compliance     | Python WSDL/XSD schema conformance runner |               |
 +----------------------+------------------------------------+-------------------------------------------+---------------+
 | CI & Sanitizers      | Windows-only CI; No Linux build;   | Multi-platform CI matrix: GCC/Clang, MSVC,| Phase 5       |
@@ -385,7 +385,7 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
 
 ---
 
-## 6. Phase 4: ONVIF Profile S Conformance Runner & ODTT Integration
+## 6. Phase 4: ONVIF Profile S Conformance Runner & ODTT Integration ([Phase 4 Detailed Plan](onvif_p4_phase4_conformance_runner_plan.md))
 
 ### 6.1 Formal ONVIF Device Test Tool (ODTT) Test Plan
 

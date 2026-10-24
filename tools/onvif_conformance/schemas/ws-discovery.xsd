@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema targetNamespace="http://schemas.xmlsoap.org/ws/2005/04/discovery"
+           xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:wsd="http://schemas.xmlsoap.org/ws/2005/04/discovery"
+           xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing"
+           elementFormDefault="qualified"
+           blockDefault="#all">
+
+  <xs:element name="Probe" type="wsd:ProbeType"/>
+  <xs:complexType name="ProbeType">
+    <xs:sequence>
+      <xs:element ref="wsd:Types" minOccurs="0"/>
+      <xs:element ref="wsd:Scopes" minOccurs="0"/>
+      <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:anyAttribute namespace="##other" processContents="lax"/>
+  </xs:complexType>
+
+  <xs:element name="ProbeMatches" type="wsd:ProbeMatchesType"/>
+  <xs:complexType name="ProbeMatchesType">
+    <xs:sequence>
+      <xs:element ref="wsd:ProbeMatch" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:anyAttribute namespace="##other" processContents="lax"/>
+  </xs:complexType>
+
+  <xs:element name="ProbeMatch" type="wsd:ProbeMatchType"/>
+  <xs:complexType name="ProbeMatchType">
+    <xs:sequence>
+      <xs:element name="EndpointReference" type="xs:anyType"/>
+      <xs:element ref="wsd:Types" minOccurs="0"/>
+      <xs:element ref="wsd:Scopes" minOccurs="0"/>
+      <xs:element ref="wsd:XAddrs" minOccurs="0"/>
+      <xs:element ref="wsd:MetadataVersion"/>
+      <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:anyAttribute namespace="##other" processContents="lax"/>
+  </xs:complexType>
+
+  <xs:element name="Types" type="xs:QName"/>
+  <xs:element name="Scopes" type="wsd:ScopesType"/>
+  <xs:complexType name="ScopesType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="MatchBy" type="xs:anyURI" use="optional"/>
+        <xs:anyAttribute namespace="##other" processContents="lax"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:element name="XAddrs" type="xs:string"/>
+  <xs:element name="MetadataVersion" type="xs:unsignedInt"/>
+</xs:schema>

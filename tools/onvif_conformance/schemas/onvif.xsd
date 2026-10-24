@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema targetNamespace="http://www.onvif.org/ver10/schema"
+           xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tt="http://www.onvif.org/ver10/schema"
+           elementFormDefault="qualified">
+
+  <xs:simpleType name="ReferenceToken">
+    <xs:restriction base="xs:string">
+      <xs:maxLength value="64"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="Vector2D">
+    <xs:attribute name="x" type="xs:float" use="required"/>
+    <xs:attribute name="y" type="xs:float" use="required"/>
+    <xs:attribute name="space" type="xs:anyURI" use="optional"/>
+  </xs:complexType>
+
+  <xs:complexType name="Vector1D">
+    <xs:attribute name="x" type="xs:float" use="required"/>
+    <xs:attribute name="space" type="xs:anyURI" use="optional"/>
+  </xs:complexType>
+
+  <xs:complexType name="PTZVector">
+    <xs:sequence>
+      <xs:element name="PanTilt" type="tt:Vector2D" minOccurs="0"/>
+      <xs:element name="Zoom" type="tt:Vector1D" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="PTZSpeed">
+    <xs:sequence>
+      <xs:element name="PanTilt" type="tt:Vector2D" minOccurs="0"/>
+      <xs:element name="Zoom" type="tt:Vector1D" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="VideoResolution">
+    <xs:sequence>
+      <xs:element name="Width" type="xs:int"/>
+      <xs:element name="Height" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="IntRange">
+    <xs:sequence>
+      <xs:element name="Min" type="xs:int"/>
+      <xs:element name="Max" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="FloatRange">
+    <xs:sequence>
+      <xs:element name="Min" type="xs:float"/>
+      <xs:element name="Max" type="xs:float"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="VideoSourceConfiguration">
+    <xs:sequence>
+      <xs:element name="Name" type="xs:string"/>
+      <xs:element name="UseCount" type="xs:int"/>
+      <xs:element name="SourceToken" type="tt:ReferenceToken"/>
+      <xs:element name="Bounds" type="xs:anyType" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="token" type="tt:ReferenceToken" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="VideoEncoderConfiguration">
+    <xs:sequence>
+      <xs:element name="Name" type="xs:string"/>
+      <xs:element name="UseCount" type="xs:int"/>
+      <xs:element name="Encoding" type="xs:string"/>
+      <xs:element name="Resolution" type="tt:VideoResolution"/>
+      <xs:element name="Quality" type="xs:float" minOccurs="0"/>
+      <xs:element name="RateControl" type="xs:anyType" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="token" type="tt:ReferenceToken" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="MediaUri">
+    <xs:sequence>
+      <xs:element name="Uri" type="xs:anyURI"/>
+      <xs:element name="InvalidAfterConnect" type="xs:boolean"/>
+      <xs:element name="InvalidAfterReboot" type="xs:boolean"/>
+      <xs:element name="Timeout" type="xs:duration"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:element name="VideoSourceConfiguration" type="tt:VideoSourceConfiguration"/>
+  <xs:element name="VideoEncoderConfiguration" type="tt:VideoEncoderConfiguration"/>
+</xs:schema>

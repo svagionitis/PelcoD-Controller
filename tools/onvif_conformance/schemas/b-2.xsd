@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema targetNamespace="http://docs.oasis-open.org/wsn/b-2"
+           xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:wsnt="http://docs.oasis-open.org/wsn/b-2"
+           xmlns:wsa="http://www.w3.org/2005/08/addressing"
+           elementFormDefault="qualified">
+
+  <xs:import namespace="http://www.w3.org/2005/08/addressing" schemaLocation="ws-addr.xsd"/>
+
+  <xs:element name="NotificationMessage" type="wsnt:NotificationMessageType"/>
+  <xs:complexType name="NotificationMessageType">
+    <xs:sequence>
+      <xs:element name="SubscriptionReference" type="wsa:EndpointReferenceType" minOccurs="0"/>
+      <xs:element name="Topic" type="wsnt:TopicExpressionType" minOccurs="0"/>
+      <xs:element name="ProducerReference" type="wsa:EndpointReferenceType" minOccurs="0"/>
+      <xs:element name="Message">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:any namespace="##any" processContents="lax"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="TopicExpressionType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="Dialect" type="xs:anyURI" use="required"/>
+        <xs:anyAttribute namespace="##other" processContents="lax"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:element name="Renew">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="TerminationTime" type="xs:string"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="Unsubscribe">
+    <xs:complexType>
+      <xs:sequence/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

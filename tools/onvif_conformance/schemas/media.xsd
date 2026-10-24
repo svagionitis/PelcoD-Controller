@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema targetNamespace="http://www.onvif.org/ver10/media/wsdl"
+           xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:trt="http://www.onvif.org/ver10/media/wsdl"
+           xmlns:tt="http://www.onvif.org/ver10/schema"
+           elementFormDefault="qualified">
+
+  <xs:import namespace="http://www.onvif.org/ver10/schema" schemaLocation="onvif.xsd"/>
+
+  <xs:complexType name="Profile">
+    <xs:sequence>
+      <xs:element name="Name" type="xs:string"/>
+      <xs:element ref="tt:VideoSourceConfiguration" minOccurs="0"/>
+      <xs:element ref="tt:VideoEncoderConfiguration" minOccurs="0"/>
+      <xs:element name="PTZConfiguration" type="xs:anyType" minOccurs="0"/>
+      <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="token" type="tt:ReferenceToken" use="required"/>
+    <xs:attribute name="fixed" type="xs:boolean" use="optional"/>
+  </xs:complexType>
+
+  <xs:element name="GetProfiles">
+    <xs:complexType>
+      <xs:sequence/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="GetProfilesResponse">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Profiles" type="trt:Profile" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="GetProfile">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="ProfileToken" type="tt:ReferenceToken"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="GetProfileResponse">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Profile" type="trt:Profile"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="GetStreamUri">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="StreamSetup" type="xs:anyType"/>
+        <xs:element name="ProfileToken" type="tt:ReferenceToken"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="GetStreamUriResponse">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="MediaUri" type="tt:MediaUri"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="GetSnapshotUri">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="ProfileToken" type="tt:ReferenceToken"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="GetSnapshotUriResponse">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="MediaUri" type="tt:MediaUri"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

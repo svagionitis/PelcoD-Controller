@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema targetNamespace="http://www.onvif.org/ver10/device/wsdl"
+           xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tds="http://www.onvif.org/ver10/device/wsdl"
+           xmlns:tt="http://www.onvif.org/ver10/schema"
+           elementFormDefault="qualified">
+
+  <xs:import namespace="http://www.onvif.org/ver10/schema" schemaLocation="onvif.xsd"/>
+
+  <xs:element name="GetSystemDateAndTime">
+    <xs:complexType>
+      <xs:sequence/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="GetSystemDateAndTimeResponse">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="SystemDateAndTime" type="tds:SystemDateAndTime"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="SystemDateAndTime">
+    <xs:sequence>
+      <xs:element name="DateTimeType" type="xs:string"/>
+      <xs:element name="DaylightSavings" type="xs:boolean"/>
+      <xs:element name="TimeZone" type="xs:anyType" minOccurs="0"/>
+      <xs:element name="UTCDateTime" type="xs:anyType" minOccurs="0"/>
+      <xs:element name="LocalDateTime" type="xs:anyType" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:element name="GetDeviceInformation">
+    <xs:complexType>
+      <xs:sequence/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="GetDeviceInformationResponse">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Manufacturer" type="xs:string"/>
+        <xs:element name="Model" type="xs:string"/>
+        <xs:element name="FirmwareVersion" type="xs:string"/>
+        <xs:element name="SerialNumber" type="xs:string"/>
+        <xs:element name="HardwareId" type="xs:string"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="GetServices">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="IncludeCapability" type="xs:boolean"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="GetServicesResponse">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Service" type="tds:Service" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="Service">
+    <xs:sequence>
+      <xs:element name="Namespace" type="xs:anyURI"/>
+      <xs:element name="XAddr" type="xs:anyURI"/>
+      <xs:element name="Capabilities" type="xs:anyType" minOccurs="0"/>
+      <xs:element name="Version" type="tds:OnvifVersion"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="OnvifVersion">
+    <xs:sequence>
+      <xs:element name="Major" type="xs:int"/>
+      <xs:element name="Minor" type="xs:int"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:element name="GetCapabilities">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Category" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="GetCapabilitiesResponse">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Capabilities" type="tds:Capabilities"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="Capabilities">
+    <xs:sequence>
+      <xs:element name="Device" type="xs:anyType" minOccurs="0"/>
+      <xs:element name="Events" type="xs:anyType" minOccurs="0"/>
+      <xs:element name="Imaging" type="xs:anyType" minOccurs="0"/>
+      <xs:element name="Media" type="xs:anyType" minOccurs="0"/>
+      <xs:element name="PTZ" type="xs:anyType" minOccurs="0"/>
+      <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

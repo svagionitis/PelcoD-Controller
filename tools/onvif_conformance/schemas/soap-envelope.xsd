@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema targetNamespace="http://www.w3.org/2003/05/soap-envelope"
+           xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
+           elementFormDefault="qualified">
+
+  <xs:import namespace="http://www.w3.org/XML/1998/namespace" schemaLocation="xml.xsd"/>
+
+  <xs:element name="Envelope" type="soap:Envelope"/>
+  <xs:complexType name="Envelope">
+    <xs:sequence>
+      <xs:element ref="soap:Header" minOccurs="0"/>
+      <xs:element ref="soap:Body"/>
+    </xs:sequence>
+    <xs:anyAttribute namespace="##other" processContents="lax"/>
+  </xs:complexType>
+
+  <xs:element name="Header" type="soap:Header"/>
+  <xs:complexType name="Header">
+    <xs:sequence>
+      <xs:any namespace="##any" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:anyAttribute namespace="##other" processContents="lax"/>
+  </xs:complexType>
+
+  <xs:element name="Body" type="soap:Body"/>
+  <xs:complexType name="Body">
+    <xs:sequence>
+      <xs:any namespace="##any" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:anyAttribute namespace="##other" processContents="lax"/>
+  </xs:complexType>
+
+  <xs:element name="Fault" type="soap:Fault"/>
+  <xs:complexType name="Fault">
+    <xs:sequence>
+      <xs:element name="Code" type="soap:faultcode"/>
+      <xs:element name="Reason" type="soap:faultreason"/>
+      <xs:element name="Node" type="xs:anyURI" minOccurs="0"/>
+      <xs:element name="Role" type="xs:anyURI" minOccurs="0"/>
+      <xs:element name="Detail" type="soap:detail" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="faultcode">
+    <xs:sequence>
+      <xs:element name="Value" type="soap:faultcodeEnum"/>
+      <xs:element name="Subcode" type="soap:subcode" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="faultcodeEnum">
+    <xs:restriction base="xs:QName">
+      <xs:enumeration value="soap:DataEncodingUnknown"/>
+      <xs:enumeration value="soap:MustUnderstand"/>
+      <xs:enumeration value="soap:Receiver"/>
+      <xs:enumeration value="soap:Sender"/>
+      <xs:enumeration value="soap:VersionMismatch"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="subcode">
+    <xs:sequence>
+      <xs:element name="Value" type="xs:QName"/>
+      <xs:element name="Subcode" type="soap:subcode" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="faultreason">
+    <xs:sequence>
+      <xs:element name="Text" type="soap:reasontext" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="reasontext">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute ref="xml:lang" use="required"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:complexType name="detail">
+    <xs:sequence>
+      <xs:any namespace="##any" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:anyAttribute namespace="##other" processContents="lax"/>
+  </xs:complexType>
+</xs:schema>
