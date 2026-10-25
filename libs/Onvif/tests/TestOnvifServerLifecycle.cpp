@@ -1,7 +1,8 @@
 /// @file TestOnvifServerLifecycle.cpp
 /// @brief Conformance tests for ONVIF server startup, failure handling, and lifecycle (Finding H2).
 
-#include <atomic>
+#include <cstdint>
+
 #include <chrono>
 #include <memory>
 #include <string>
@@ -12,10 +13,9 @@
 #include <Onvif/OnvifServer.h>
 #include <Onvif/OnvifServerTypes.h>
 
-namespace {
+#include "OnvifTestFixtures.h"
 
-/// @brief Atomic port sequence generator for isolated lifecycle test ports.
-std::atomic<int> g_lifecyclePort { 19450 };
+namespace {
 
 /// @brief Creates an OnvifServerConfig pre-provisioned with valid credentials.
 /// @param[in] port TCP port number to configure.
@@ -46,7 +46,7 @@ std::atomic<int> g_lifecyclePort { 19450 };
 /// @brief Verifies that attempting to bind to an already-bound port causes start() to return false.
 TEST(TestOnvifServerLifecycle, PortConflictFails)
 {
-    const int port { g_lifecyclePort.fetch_add(1) };
+    const int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     const auto config1 { makeTestConfig(port) };
     const auto config2 { makeTestConfig(port) };
 
@@ -66,7 +66,7 @@ TEST(TestOnvifServerLifecycle, PortConflictFails)
 /// @brief Verifies that calling start() on an already-running server is idempotent and returns true.
 TEST(TestOnvifServerLifecycle, IdempotentStart)
 {
-    const int port { g_lifecyclePort.fetch_add(1) };
+    const int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     const auto config { makeTestConfig(port) };
 
     Onvif::OnvifServer server { config };
@@ -84,7 +84,7 @@ TEST(TestOnvifServerLifecycle, IdempotentStart)
 /// @brief Verifies that a server can be cleanly stopped and restarted on the same port.
 TEST(TestOnvifServerLifecycle, StartStopRestart)
 {
-    const int port { g_lifecyclePort.fetch_add(1) };
+    const int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     const auto config { makeTestConfig(port) };
 
     Onvif::OnvifServer server { config };
@@ -107,7 +107,7 @@ TEST(TestOnvifServerLifecycle, StartStopRestart)
 /// @brief Verifies that an OnvifServer instance destructs cleanly after a failed start() without crashing.
 TEST(TestOnvifServerLifecycle, DestructionOnFail)
 {
-    const int port { g_lifecyclePort.fetch_add(1) };
+    const int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     const auto primaryConfig { makeTestConfig(port) };
     Onvif::OnvifServer primaryServer { primaryConfig };
     EXPECT_TRUE(primaryServer.start());
@@ -128,7 +128,7 @@ TEST(TestOnvifServerLifecycle, DestructionOnFail)
 /// @brief Verifies that start() refuses unauthenticated operation on non-loopback bindings.
 TEST(TestOnvifServerLifecycle, RefuseNoAuthNonLoop)
 {
-    const int port { g_lifecyclePort.fetch_add(1) };
+    const int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     auto config { makeTestConfig(port, "192.168.1.100") };
     config.auth.enabled = false;
 
@@ -140,7 +140,7 @@ TEST(TestOnvifServerLifecycle, RefuseNoAuthNonLoop)
 /// @brief Verifies that start() refuses default passwords on non-loopback bindings.
 TEST(TestOnvifServerLifecycle, RefuseDefPwdNonLoop)
 {
-    const int port { g_lifecyclePort.fetch_add(1) };
+    const int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     auto config { makeTestConfig(port, "192.168.1.100") };
     config.auth.enabled = true;
     config.auth.allowDefaultPassword = false;

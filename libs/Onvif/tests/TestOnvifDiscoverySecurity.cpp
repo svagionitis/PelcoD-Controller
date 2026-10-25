@@ -19,6 +19,8 @@
 #include <Onvif/WsDiscoveryValidator.h>
 #include <Transport/SocketUtils.h>
 
+#include "OnvifTestFixtures.h"
+
 using namespace Onvif;
 namespace Net = Transport::Net;
 
@@ -293,7 +295,7 @@ TEST(TestOnvifDiscoverySecurity, LiveServerDropsProbeMatchesAndSelfLoop)
     }
 
     OnvifServerConfig config {};
-    config.port = 18880;
+    config.port = static_cast<int>(Onvif::Test::getFreeEphemeralPort());
     config.deviceName = "Live Discovery Test Camera";
     config.serviceUuid = "33333333-4444-5555-6666-777777777777";
     config.discovery.enableMulticastLoopback = true;

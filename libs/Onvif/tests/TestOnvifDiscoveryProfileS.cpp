@@ -15,6 +15,7 @@
 #include "Onvif/WsDiscoveryCommon.h"
 #include "Onvif/WsDiscoveryServer.h"
 #include "Onvif/WsDiscoveryValidator.h"
+#include "OnvifTestFixtures.h"
 
 using namespace Onvif;
 
@@ -229,7 +230,7 @@ TEST(TestOnvifDiscoveryProfileS, DiscoveryModeStateTracking)
 TEST(TestOnvifDiscoveryProfileS, ServerDiscoveryModeControl)
 {
     OnvifServerConfig config {};
-    config.port = 18080;
+    config.port = static_cast<int>(Onvif::Test::getFreeEphemeralPort());
     config.auth.enabled = false;
     config.bindAddress = "127.0.0.1";
 

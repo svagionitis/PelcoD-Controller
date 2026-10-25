@@ -4,6 +4,7 @@
 ///          on invalid/expired subscription tokens, accurate lease renewal arithmetic, and starvation prevention.
 
 #include "OnvifTestClient.h"
+#include "OnvifTestFixtures.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -30,9 +31,6 @@ using namespace Onvif;
 using OnvifTest::OnvifTestClient;
 
 namespace {
-
-/// @brief Atomic counter to assign unique ports per test fixture.
-std::atomic<int> g_lifecycleTestPort { 19500 };
 
 /// @brief Wraps inner XML in a SOAP 1.2 envelope with ONVIF and WS-Addressing namespaces.
 [[nodiscard]] std::string makeEnvelope(const std::string& bodyXml)
@@ -90,7 +88,7 @@ std::atomic<int> g_lifecycleTestPort { 19500 };
 /// @brief Integration fixture testing event subscription endpoints and failure modes.
 class OnvifEventLifecycleTest : public ::testing::Test {
 protected:
-    int m_port { g_lifecycleTestPort.fetch_add(1) };
+    int m_port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     OnvifServerConfig m_config {};
     std::unique_ptr<OnvifServer> m_server {};
     std::unique_ptr<OnvifTestClient> m_client {};

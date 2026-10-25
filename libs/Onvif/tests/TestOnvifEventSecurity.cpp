@@ -4,6 +4,7 @@
 ///          subscription quotas are strictly enforced, and event dispatch does not exhaust threads.
 
 #include "OnvifTestClient.h"
+#include "OnvifTestFixtures.h"
 
 #include <Onvif/HttplibInclude.h>
 #include <Onvif/NotificationDispatcher.h>
@@ -14,6 +15,8 @@
 
 #include <gtest/gtest.h>
 #include <pugixml.hpp>
+
+#include <cstdint>
 
 #include <atomic>
 #include <chrono>
@@ -27,9 +30,6 @@ using OnvifTest::defaultAdmin;
 using OnvifTest::OnvifTestClient;
 
 namespace {
-
-/// @brief Atomic counter to assign unique ports per test fixture.
-std::atomic<int> g_eventTestPort { 19200 };
 
 /// @brief Wraps a SOAP operation in a standard SOAP 1.2 envelope.
 /// @param[in] bodyXml Inner XML body.
@@ -84,7 +84,7 @@ std::string makeSubscribeBody(const std::string& consumerUrl, const std::string&
 /// @brief Integration fixture testing SSRF and subscription constraints on OnvifServer.
 class OnvifEventSecurityTest : public ::testing::Test {
 protected:
-    int m_port { g_eventTestPort.fetch_add(1) };
+    int m_port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     OnvifServerConfig m_config {};
     std::unique_ptr<OnvifServer> m_server {};
     std::unique_ptr<OnvifTestClient> m_client {};

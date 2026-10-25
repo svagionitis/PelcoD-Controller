@@ -1,7 +1,8 @@
 /// @file TestOnvifSoapFault.cpp
 /// @brief Conformance tests for SOAP 1.2 Receiver and ActionNotSupported faults (Finding C3).
 
-#include <atomic>
+#include <cstdint>
+
 #include <chrono>
 #include <memory>
 #include <string>
@@ -16,10 +17,9 @@
 #include <Onvif/XmlUtils.h>
 
 #include "OnvifTestClient.h"
+#include "OnvifTestFixtures.h"
 
 namespace {
-
-std::atomic<int> g_nextPort { 19350 };
 
 [[nodiscard]] std::string wrapEnvelope(const std::string& faultXml)
 {
@@ -135,7 +135,7 @@ class OnvifSoapFaultServerTest : public ::testing::Test {
 protected:
     void SetUp() override
     {
-        m_port = g_nextPort.fetch_add(1);
+        m_port = static_cast<int>(Onvif::Test::getFreeEphemeralPort());
         Onvif::OnvifServerConfig config {};
         config.bindAddress = "127.0.0.1";
         config.port = m_port;

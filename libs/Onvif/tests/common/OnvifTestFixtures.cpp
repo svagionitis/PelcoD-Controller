@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <atomic>
 #include <chrono>
 #include <iostream>
 #include <memory>
@@ -27,12 +28,13 @@ namespace Onvif::Test {
 
 std::uint16_t getFreeEphemeralPort()
 {
+    static std::atomic<std::uint16_t> s_fallbackPort { 20000U };
 #if defined(_WIN32)
     WSADATA wsa { };
     static_cast<void>(WSAStartup(MAKEWORD(2, 2), &wsa));
     SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (sock == INVALID_SOCKET) {
-        return 18080U;
+        return s_fallbackPort.fetch_add(1U);
     }
     sockaddr_in addr { };
     addr.sin_family = AF_INET;
@@ -40,7 +42,7 @@ std::uint16_t getFreeEphemeralPort()
     addr.sin_port = 0; // OS allocates ephemeral port
     if (bind(sock, reinterpret_cast<sockaddr*>(&addr), static_cast<int>(sizeof(addr))) != 0) {
         closesocket(sock);
-        return 18080U;
+        return s_fallbackPort.fetch_add(1U);
     }
     int len = static_cast<int>(sizeof(addr));
     static_cast<void>(getsockname(sock, reinterpret_cast<sockaddr*>(&addr), &len));
@@ -50,15 +52,17 @@ std::uint16_t getFreeEphemeralPort()
 #else
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
-        return 18080U;
+        return s_fallbackPort.fetch_add(1U);
     }
+    const int opt { 1 };
+    static_cast<void>(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)));
     sockaddr_in addr { };
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = 0;
     if (bind(sock, reinterpret_cast<sockaddr*>(&addr), static_cast<socklen_t>(sizeof(addr))) != 0) {
         close(sock);
-        return 18080U;
+        return s_fallbackPort.fetch_add(1U);
     }
     socklen_t len = static_cast<socklen_t>(sizeof(addr));
     static_cast<void>(getsockname(sock, reinterpret_cast<sockaddr*>(&addr), &len));

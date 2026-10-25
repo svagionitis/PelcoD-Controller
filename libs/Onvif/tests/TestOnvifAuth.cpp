@@ -14,6 +14,8 @@
 #include <Onvif/SoapFault.h>
 #include <Onvif/UsernameToken.h>
 
+#include "OnvifTestFixtures.h"
+
 #include <gtest/gtest.h>
 #include <openssl/evp.h>
 #include <pugixml.hpp>
@@ -573,7 +575,7 @@ TEST(OnvifServerAuthGuardTest, AuthDisabledNonLoopbackStartFails)
 {
     OnvifServerConfig config {};
     config.bindAddress = "0.0.0.0";
-    config.port = 18711;
+    config.port = static_cast<int>(Onvif::Test::getFreeEphemeralPort());
     config.defaultUsers = seedUsers();
     config.auth.enabled = false;
     OnvifServer server { config };
@@ -585,7 +587,7 @@ TEST(OnvifServerAuthGuardTest, DefaultPasswordNonLoopbackStartFails)
 {
     OnvifServerConfig config {};
     config.bindAddress = "0.0.0.0";
-    config.port = 18712;
+    config.port = static_cast<int>(Onvif::Test::getFreeEphemeralPort());
     config.defaultUsers = { { "admin", "admin", OnvifUserLevel::Administrator } };
     OnvifServer server { config };
     EXPECT_FALSE(server.start());
@@ -595,7 +597,7 @@ TEST(OnvifServerAuthGuardTest, DefaultPasswordAllowedExplicitly)
 {
     OnvifServerConfig config {};
     config.bindAddress = "0.0.0.0";
-    config.port = 18713;
+    config.port = static_cast<int>(Onvif::Test::getFreeEphemeralPort());
     config.defaultUsers = { { "admin", "admin", OnvifUserLevel::Administrator } };
     config.auth.allowDefaultPassword = true;
     OnvifServer server { config };
@@ -607,7 +609,7 @@ TEST(OnvifServerAuthGuardTest, LoopbackWithDefaultsStarts)
 {
     OnvifServerConfig config {};
     config.bindAddress = "127.0.0.1";
-    config.port = 18714;
+    config.port = static_cast<int>(Onvif::Test::getFreeEphemeralPort());
     config.defaultUsers = { { "admin", "admin", OnvifUserLevel::Administrator } };
     OnvifServer server { config };
     EXPECT_TRUE(server.start());
@@ -618,7 +620,7 @@ TEST(OnvifServerAuthGuardTest, PortInUseStartFails)
 {
     OnvifServerConfig config {};
     config.bindAddress = "127.0.0.1";
-    config.port = 18715;
+    config.port = static_cast<int>(Onvif::Test::getFreeEphemeralPort());
     OnvifServer first { config };
     ASSERT_TRUE(first.start());
     OnvifServer second { config };

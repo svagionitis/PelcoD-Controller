@@ -4,6 +4,7 @@
 ///          scope mutations, and diagnostic/backup state access.
 
 #include "OnvifTestClient.h"
+#include "OnvifTestFixtures.h"
 
 #include <Onvif/OnvifServer.h>
 #include <Onvif/OnvifServerTypes.h>
@@ -21,9 +22,6 @@
 #include <vector>
 
 namespace {
-
-/// @brief Atomic port sequence generator for concurrency test ports.
-std::atomic<int> g_concurrencyPort { 19550 };
 
 /// @brief Generates an OnvifServerConfig configured for authenticated loopback testing.
 /// @param[in] port TCP port number.
@@ -133,7 +131,7 @@ public:
 /// @brief Verifies concurrent handler swapping and getter snapshotting without data races.
 TEST(TestOnvifConcurrency, ConcurrentHandlerAccess)
 {
-    const int port { g_concurrencyPort.fetch_add(1) };
+    const int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     const auto config { makeConcurrencyConfig(port) };
 
     Onvif::OnvifServer server { config };
@@ -200,7 +198,7 @@ TEST(TestOnvifConcurrency, ConcurrentHandlerAccess)
 /// @brief Verifies concurrent scope modifications and config reads are thread-safe.
 TEST(TestOnvifConcurrency, ConcurrentScopeModifications)
 {
-    const int port { g_concurrencyPort.fetch_add(1) };
+    const int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     const auto config { makeConcurrencyConfig(port) };
 
     Onvif::OnvifServer server { config };
@@ -277,7 +275,7 @@ TEST(TestOnvifConcurrency, ConcurrentScopeModifications)
 /// @brief Verifies concurrent system diagnostics reads and network updates execute without data race.
 TEST(TestOnvifConcurrency, ConcurrentDiagnosticReads)
 {
-    const int port { g_concurrencyPort.fetch_add(1) };
+    const int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     const auto config { makeConcurrencyConfig(port) };
 
     Onvif::OnvifServer server { config };

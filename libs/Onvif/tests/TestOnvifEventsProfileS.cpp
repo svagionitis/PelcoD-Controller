@@ -19,12 +19,11 @@
 #include "Onvif/OnvifServer.h"
 #include "Onvif/OnvifServerTypes.h"
 #include "OnvifTestClient.h"
+#include "OnvifTestFixtures.h"
 
 using namespace Onvif;
 
 namespace {
-
-std::atomic<int> g_nextEventsPort { 19800 };
 
 constexpr const char* kSoapCt { "application/soap+xml; charset=utf-8" };
 
@@ -49,7 +48,7 @@ std::string wrapSoapEvents(const std::string& bodyXml)
 /// @brief Scoped test fixture holding a running OnvifServer instance.
 struct TestEventsServerContext {
     OnvifServerConfig config {};
-    int port { g_nextEventsPort.fetch_add(1) };
+    int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     std::unique_ptr<OnvifServer> server {};
 
     TestEventsServerContext()

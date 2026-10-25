@@ -1,3 +1,5 @@
+#include <cstdint>
+
 #include <Onvif/OnvifClient.h>
 #include <Onvif/OnvifSecurity.h>
 #include <Onvif/OnvifServer.h>
@@ -5,6 +7,7 @@
 #include <Onvif/XmlUtils.h>
 
 #include "OnvifTestClient.h"
+#include "OnvifTestFixtures.h"
 
 #include <gtest/gtest.h>
 #include <pugixml.hpp>
@@ -168,8 +171,9 @@ class OnvifXmlSecurityTest : public ::testing::Test {
 protected:
     void SetUp() override
     {
+        m_port = static_cast<int>(Onvif::Test::getFreeEphemeralPort());
         m_config.bindAddress = "127.0.0.1";
-        m_config.port = 18095;
+        m_config.port = m_port;
         m_config.deviceName = "Security Test Camera";
         m_config.manufacturer = "PelcoD-Security";
         m_config.model = "Model-Secure";
@@ -188,7 +192,7 @@ protected:
 
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-        m_client = std::make_unique<OnvifTest::OnvifTestClient>("127.0.0.1", 18095);
+        m_client = std::make_unique<OnvifTest::OnvifTestClient>("127.0.0.1", m_port);
         m_client->set_connection_timeout(std::chrono::seconds(2));
         m_client->set_read_timeout(std::chrono::seconds(2));
     }
@@ -200,6 +204,7 @@ protected:
         }
     }
 
+    int m_port { 0 };
     OnvifServerConfig m_config {};
     std::shared_ptr<SecurityMockPtzHandler> m_ptzHandler {};
     std::shared_ptr<SecurityMockOsdHandler> m_osdHandler {};
@@ -318,7 +323,7 @@ TEST_F(OnvifXmlSecurityTest, HostHeaderInjectionSanitized)
                                 "  </SOAP-ENV:Body>\r\n"
                                 "</SOAP-ENV:Envelope>";
 
-    httplib::Client rawClient("127.0.0.1", 18095);
+    httplib::Client rawClient("127.0.0.1", m_port);
     httplib::Headers headers;
     headers.emplace("Host", "attacker.com:8080</XAddr><InjectedTag>hacked</InjectedTag><XAddr>");
 

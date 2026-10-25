@@ -5,6 +5,7 @@
 ///          behavioural red/green state is observable before and after the C1 fix.
 
 #include "OnvifTestClient.h"
+#include "OnvifTestFixtures.h"
 
 #include <Onvif/HttplibInclude.h>
 #include <Onvif/OnvifClient.h>
@@ -34,9 +35,6 @@ using OnvifTest::OnvifTestClient;
 namespace {
 
 constexpr const char* kSoapCt { "application/soap+xml; charset=utf-8" };
-
-/// @brief Next free test port (unique per test to avoid TIME_WAIT collisions).
-std::atomic<int> g_nextPort { 18720 };
 
 /// @brief Wraps an operation body in a SOAP 1.2 envelope declaring common ONVIF prefixes.
 std::string envelope(const std::string& bodyXml)
@@ -154,7 +152,7 @@ class OnvifAuthServerTest : public ::testing::Test {
 protected:
     void SetUp() override
     {
-        port = g_nextPort.fetch_add(1);
+        port = static_cast<int>(Onvif::Test::getFreeEphemeralPort());
         OnvifServerConfig config {};
         config.bindAddress = "127.0.0.1";
         config.port = port;

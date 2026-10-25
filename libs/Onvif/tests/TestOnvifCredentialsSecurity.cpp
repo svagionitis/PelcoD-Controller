@@ -2,6 +2,7 @@
 /// @brief Security unit tests for ONVIF credentials, password policy, vault, and first-boot commissioning (finding C6).
 
 #include "OnvifTestClient.h"
+#include "OnvifTestFixtures.h"
 
 #include <Onvif/CredentialStore.h>
 #include <Onvif/CredentialVault.h>
@@ -12,6 +13,8 @@
 
 #include <gtest/gtest.h>
 #include <pugixml.hpp>
+
+#include <cstdint>
 
 #include <atomic>
 #include <chrono>
@@ -26,8 +29,6 @@ using OnvifTest::makeCreds;
 using OnvifTest::OnvifTestClient;
 
 namespace {
-
-std::atomic<int> g_port { 18910 };
 
 constexpr const char* kSoapCt { "application/soap+xml; charset=utf-8" };
 
@@ -187,7 +188,7 @@ TEST(CredentialVaultTest, SaveAndLoadFromFile)
 
 TEST(OnvifServerProvisioningTest, EmptyDefaultUsersStartsInUnprovisionedMode)
 {
-    const int port { g_port.fetch_add(1) };
+    const int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     OnvifServerConfig config {};
     config.bindAddress = "127.0.0.1";
     config.port = port;
@@ -203,7 +204,7 @@ TEST(OnvifServerProvisioningTest, EmptyDefaultUsersStartsInUnprovisionedMode)
 
 TEST(OnvifServerProvisioningTest, UnprovisionedAllowsDiscoveryPreAuth)
 {
-    const int port { g_port.fetch_add(1) };
+    const int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     OnvifServerConfig config {};
     config.bindAddress = "127.0.0.1";
     config.port = port;
@@ -229,7 +230,7 @@ TEST(OnvifServerProvisioningTest, UnprovisionedAllowsDiscoveryPreAuth)
 
 TEST(OnvifServerProvisioningTest, UnprovisionedRejectsOperationalRequests)
 {
-    const int port { g_port.fetch_add(1) };
+    const int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     OnvifServerConfig config {};
     config.bindAddress = "127.0.0.1";
     config.port = port;
@@ -254,7 +255,7 @@ TEST(OnvifServerProvisioningTest, UnprovisionedRejectsOperationalRequests)
 
 TEST(OnvifServerProvisioningTest, CreateUsersWithWeakPasswordFails)
 {
-    const int port { g_port.fetch_add(1) };
+    const int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     OnvifServerConfig config {};
     config.bindAddress = "127.0.0.1";
     config.port = port;
@@ -277,7 +278,7 @@ TEST(OnvifServerProvisioningTest, CreateUsersWithWeakPasswordFails)
 
 TEST(OnvifServerProvisioningTest, CreateUsersWithStrongPasswordTransitionsToProvisioned)
 {
-    const int port { g_port.fetch_add(1) };
+    const int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     OnvifServerConfig config {};
     config.bindAddress = "127.0.0.1";
     config.port = port;
@@ -312,7 +313,7 @@ TEST(OnvifServerProvisioningTest, CreateUsersWithStrongPasswordTransitionsToProv
 
 TEST(OnvifServerProvisioningTest, FactoryDefaultResetsToUnprovisioned)
 {
-    const int port { g_port.fetch_add(1) };
+    const int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     OnvifServerConfig config {};
     config.bindAddress = "127.0.0.1";
     config.port = port;

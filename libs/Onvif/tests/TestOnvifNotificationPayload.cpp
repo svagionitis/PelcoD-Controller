@@ -4,6 +4,7 @@
 ///          Profile S §8, OASIS WS-BaseNotification §3.1-§3.2, and WS-Addressing 1.0.
 
 #include "OnvifTestClient.h"
+#include "OnvifTestFixtures.h"
 
 #include <Onvif/HttplibInclude.h>
 #include <Onvif/OnvifClient.h>
@@ -12,6 +13,8 @@
 
 #include <gtest/gtest.h>
 #include <pugixml.hpp>
+
+#include <cstdint>
 
 #include <atomic>
 #include <chrono>
@@ -26,9 +29,6 @@ using namespace Onvif;
 using OnvifTest::OnvifTestClient;
 
 namespace {
-
-/// @brief Atomic counter to assign unique port numbers for tests.
-std::atomic<int> g_notifTestPort { 19400 };
 
 /// @brief Wraps SOAP body in standard envelope.
 /// @param[in] bodyXml Inner XML body.
@@ -86,8 +86,8 @@ std::atomic<int> g_notifTestPort { 19400 };
 /// @brief Integration fixture testing notification wire format and compliance.
 class OnvifNotificationPayloadTest : public ::testing::Test {
 protected:
-    int m_serverPort { g_notifTestPort.fetch_add(1) };
-    int m_consumerPort { g_notifTestPort.fetch_add(1) };
+    int m_serverPort { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
+    int m_consumerPort { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     OnvifServerConfig m_config {};
     std::unique_ptr<OnvifServer> m_server {};
     std::unique_ptr<OnvifTestClient> m_client {};

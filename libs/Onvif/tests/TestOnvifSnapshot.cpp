@@ -19,16 +19,15 @@
 #include "Onvif/OnvifServer.h"
 #include "Onvif/OnvifServerTypes.h"
 #include "OnvifTestClient.h"
+#include "OnvifTestFixtures.h"
 
 using namespace Onvif;
 
 namespace {
 
-std::atomic<int> g_nextPort { 19700 };
-
 struct TestServerContext {
     OnvifServerConfig config {};
-    int port { g_nextPort.fetch_add(1) };
+    int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     std::unique_ptr<OnvifServer> server {};
 
     TestServerContext(bool enableAuth = false)

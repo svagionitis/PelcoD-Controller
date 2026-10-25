@@ -17,6 +17,7 @@
 #include <pugixml.hpp>
 
 #include "OnvifTestClient.h"
+#include "OnvifTestFixtures.h"
 #include <Onvif/HttplibInclude.h>
 #include <Onvif/OnvifServer.h>
 #include <Onvif/adapters/PelcoDPtzAdapter.h>
@@ -24,8 +25,6 @@
 #include <PelcoDSim/MockPelcoDDevice.h>
 
 namespace {
-
-std::atomic<int> g_ptzPort { 19400 };
 
 [[nodiscard]] std::string makeSoapRequest(const std::string& payloadXml)
 {
@@ -47,7 +46,7 @@ class PtzConformanceTest : public ::testing::Test {
 protected:
     void SetUp() override
     {
-        m_port = g_ptzPort.fetch_add(1);
+        m_port = static_cast<int>(Onvif::Test::getFreeEphemeralPort());
 
         m_mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(std::uint8_t { 1U });
         m_device = std::make_shared<PelcoD::PelcoDDevice>(m_mockTransport, std::uint8_t { 1U });

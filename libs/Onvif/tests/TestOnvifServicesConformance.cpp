@@ -2,8 +2,8 @@
 /// @brief Conformance and regression tests for ONVIF GetServicesResponse (Finding C4).
 
 #include <cstddef>
+#include <cstdint>
 
-#include <atomic>
 #include <chrono>
 #include <string>
 #include <thread>
@@ -16,11 +16,10 @@
 #include "OnvifServer.h"
 #include "OnvifServerTypes.h"
 #include "OnvifTestClient.h"
+#include "OnvifTestFixtures.h"
 #include "ServiceRegistry.h"
 
 namespace {
-
-std::atomic<int> g_port { 19450 };
 
 constexpr const char* kSoapCt { "application/soap+xml; charset=utf-8" };
 
@@ -252,7 +251,7 @@ TEST(TestOnvifServicesConformance, ConditionalServiceAdvertisement)
 
 TEST(TestOnvifServicesConformance, LiveServerEndToEndGetServices)
 {
-    const int port { g_port.fetch_add(1) };
+    const int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     Onvif::OnvifServerConfig config {};
     config.bindAddress = "127.0.0.1";
     config.port = port;
@@ -343,7 +342,7 @@ TEST(TestOnvifServicesConformance, Ipv6BracketedXAddr)
 
 TEST(TestOnvifServicesConformance, HostHeaderSanitization)
 {
-    const int port { g_port.fetch_add(1) };
+    const int port { static_cast<int>(Onvif::Test::getFreeEphemeralPort()) };
     Onvif::OnvifServerConfig config {};
     config.bindAddress = "0.0.0.0";
     config.port = port;
