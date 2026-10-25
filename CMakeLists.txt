@@ -371,6 +371,9 @@ set(PELCOD_CANDIDATE_TARGETS
     FujinonAppQt
     ViscaAppQt
     PelcoDAppTui
+    VideoAppQt
+    RtspServerAppQt
+    SightlineAppQt
     PelcoDCore
     PelcoDQt
     Math
@@ -387,7 +390,7 @@ set(PELCOD_CANDIDATE_TARGETS
     Nmea
     SightlineCore
     SightlineQt
-    PelcoDVideo
+    Video
     VideoFilters
     DjiTelemetry
     Onvif
