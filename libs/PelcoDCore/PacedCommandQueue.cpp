@@ -2,10 +2,22 @@
 /// @brief Implementation of prioritized paced command queue with exponential retry backoff.
 
 #include "PacedCommandQueue.h"
-#include "PelcoDFrame.h"
+
+#include <cstddef>
+#include <cstdint>
 
 #include <algorithm>
+#include <chrono>
+#include <deque>
+#include <functional>
+#include <mutex>
+#include <string_view>
+#include <utility>
+#include <vector>
+
 #include <glog/logging.h>
+
+#include "PelcoDFrame.h"
 
 namespace PelcoD {
 
@@ -26,8 +38,8 @@ SendResult PacedCommandQueue::enqueue(CommandItem item)
         return SendResult::InvalidFrame;
     }
 
-    std::vector<CommandItem> evictedItems {};
-    EvictionHandler handler {};
+    std::vector<CommandItem> evictedItems { };
+    EvictionHandler handler { };
     SendResult result { SendResult::Success };
 
     {
@@ -133,7 +145,7 @@ SendResult PacedCommandQueue::enqueue(CommandItem item)
 SendResult PacedCommandQueue::enqueue(
     StandardFrame frame, QueryRef query, CommandPriority priority, std::uint64_t motionGeneration)
 {
-    CommandItem item {};
+    CommandItem item { };
     item.frame = frame;
     item.queryKind = query.kind;
     item.queryTag = std::move(query.tag);
@@ -150,20 +162,20 @@ SendResult PacedCommandQueue::enqueue(
     if (frame.empty() || frame[0] != PelcoDFrame::SyncByte || frame.size() > PelcoDFrame::StandardFrameSize) {
         return SendResult::InvalidFrame;
     }
-    StandardFrame stdFrame {};
+    StandardFrame stdFrame { };
     std::copy(frame.begin(), frame.end(), stdFrame.begin());
     return enqueue(stdFrame, std::move(query), priority, motionGeneration);
 }
 
 SendResult PacedCommandQueue::enqueue(StandardFrame frame, CommandPriority priority, std::uint64_t motionGeneration)
 {
-    return enqueue(frame, QueryRef {}, priority, motionGeneration);
+    return enqueue(frame, QueryRef { }, priority, motionGeneration);
 }
 
 SendResult PacedCommandQueue::enqueue(
     const std::vector<std::uint8_t>& frame, CommandPriority priority, std::uint64_t motionGeneration)
 {
-    return enqueue(frame, QueryRef {}, priority, motionGeneration);
+    return enqueue(frame, QueryRef { }, priority, motionGeneration);
 }
 
 std::chrono::milliseconds PacedCommandQueue::scheduleRetry(
@@ -300,12 +312,11 @@ void PacedCommandQueue::wakeAll()
 
 void PacedCommandQueue::clear()
 {
-    std::vector<CommandItem> evictedItems {};
-    EvictionHandler handler {};
+    std::deque<CommandItem> evictedItems { };
+    EvictionHandler handler { };
     {
         std::scoped_lock lock(m_mutex);
-        evictedItems.assign(std::make_move_iterator(m_queue.begin()), std::make_move_iterator(m_queue.end()));
-        m_queue.clear();
+        evictedItems.swap(m_queue);
         handler = m_evictionHandler;
     }
     if (handler && !evictedItems.empty()) {
