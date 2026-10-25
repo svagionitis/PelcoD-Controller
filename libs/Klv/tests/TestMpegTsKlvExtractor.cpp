@@ -1,16 +1,24 @@
-#include "KlvEncoder.h"
 #include "MpegTsKlvExtractor.h"
-#include <gtest/gtest.h>
+
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+
+#include <algorithm>
+#include <string>
 #include <vector>
+
+#include <gtest/gtest.h>
+
+#include "KlvEncoder.h"
 
 using namespace Klv;
 
 namespace {
 
-std::vector<std::uint8_t> createTsPacket(std::uint16_t pid,
-                                         bool pusi,
-                                         const std::vector<std::uint8_t>& payload,
-                                         std::uint8_t cc = 0U) {
+std::vector<std::uint8_t> createTsPacket(
+    std::uint16_t pid, bool pusi, const std::vector<std::uint8_t>& payload, std::uint8_t cc = 0U)
+{
     std::vector<std::uint8_t> ts(MpegTsKlvExtractor::kTsPacketSize, 0xFFU);
     ts[0] = MpegTsKlvExtractor::kTsSyncByte; // 0x47
 
@@ -27,8 +35,8 @@ std::vector<std::uint8_t> createTsPacket(std::uint16_t pid,
     return ts;
 }
 
-std::vector<std::uint8_t> createPesPacket(std::uint8_t streamId,
-                                          const std::vector<std::uint8_t>& klvData) {
+std::vector<std::uint8_t> createPesPacket(std::uint8_t streamId, const std::vector<std::uint8_t>& klvData)
+{
     std::vector<std::uint8_t> pes;
     pes.push_back(0x00U);
     pes.push_back(0x00U);
@@ -50,8 +58,8 @@ std::vector<std::uint8_t> createPesPacket(std::uint8_t streamId,
 
 } // namespace
 
-
-TEST(MpegTsKlvExtractorTest, DirectPidPacketExtraction) {
+TEST(MpegTsKlvExtractorTest, DirectPidPacketExtraction)
+{
     UasDatalinkMessage msg;
     msg.missionId = "MPEG_TS_MISSION";
     msg.platformHeadingDeg = 315.0;
@@ -79,7 +87,8 @@ TEST(MpegTsKlvExtractorTest, DirectPidPacketExtraction) {
     EXPECT_EQ(receivedMission, "MPEG_TS_MISSION");
 }
 
-TEST(MpegTsKlvExtractorTest, AutoDiscoversMetadataPidFromUniversalLabel) {
+TEST(MpegTsKlvExtractorTest, AutoDiscoversMetadataPidFromUniversalLabel)
+{
     UasDatalinkMessage msg;
     msg.platformHeadingDeg = 45.0;
     const auto klvPacket = KlvEncoder::encode(msg);
@@ -91,9 +100,7 @@ TEST(MpegTsKlvExtractorTest, AutoDiscoversMetadataPidFromUniversalLabel) {
     EXPECT_FALSE(extractor.metadataPid().has_value());
 
     int count = 0;
-    extractor.setMessageCallback([&](const UasDatalinkMessage&) {
-        count++;
-    });
+    extractor.setMessageCallback([&](const UasDatalinkMessage&) { count++; });
 
     const std::size_t dispatched = extractor.processStream(tsPacket.data(), tsPacket.size());
     EXPECT_EQ(dispatched, 1U);
@@ -102,7 +109,8 @@ TEST(MpegTsKlvExtractorTest, AutoDiscoversMetadataPidFromUniversalLabel) {
     EXPECT_EQ(count, 1);
 }
 
-TEST(MpegTsKlvExtractorTest, SinglePacketPesImmediateDispatch) {
+TEST(MpegTsKlvExtractorTest, SinglePacketPesImmediateDispatch)
+{
     UasDatalinkMessage msg;
     msg.missionId = "SINGLE_PES";
     msg.platformHeadingDeg = 120.0;
@@ -127,7 +135,8 @@ TEST(MpegTsKlvExtractorTest, SinglePacketPesImmediateDispatch) {
     EXPECT_EQ(msgCount, 1U);
 }
 
-TEST(MpegTsKlvExtractorTest, FragmentedPesMultiPacketReassembly) {
+TEST(MpegTsKlvExtractorTest, FragmentedPesMultiPacketReassembly)
+{
     UasDatalinkMessage msg;
     msg.missionId = "LARGE_FRAGMENTED_PAYLOAD_MISSION_ID_TESTING_123456789";
     msg.platformTailNumber = "DRONE_FRAGMENT_TEST_ALPHA_BRAVO";
@@ -143,7 +152,6 @@ TEST(MpegTsKlvExtractorTest, FragmentedPesMultiPacketReassembly) {
     msg.sensorRelElevationDeg = -15.0;
     const auto klv = KlvEncoder::encode(msg);
     const auto pes = createPesPacket(0xBDU, klv);
-
 
     ASSERT_GT(pes.size(), 184U);
 
@@ -174,7 +182,8 @@ TEST(MpegTsKlvExtractorTest, FragmentedPesMultiPacketReassembly) {
     EXPECT_EQ(msgCount, 1U);
 }
 
-TEST(MpegTsKlvExtractorTest, ContinuityCounterDropHandling) {
+TEST(MpegTsKlvExtractorTest, ContinuityCounterDropHandling)
+{
     UasDatalinkMessage msg1;
     msg1.missionId = "FIRST_FRAGMENTED";
     const auto pes1 = createPesPacket(0xBDU, KlvEncoder::encode(msg1));
@@ -189,7 +198,6 @@ TEST(MpegTsKlvExtractorTest, ContinuityCounterDropHandling) {
     const std::vector<std::uint8_t> part1(pes1.begin(), pes1.begin() + splitLen);
     const auto ts1 = createTsPacket(kPid, true, part1, 0U);
 
-
     // Packet 2: CC jump/gap! Expected CC = 1, but receives CC = 5 (dropped packets)
     const std::vector<std::uint8_t> badPart(20, 0xAAU);
     const auto ts2 = createTsPacket(kPid, false, badPart, 5U);
@@ -202,7 +210,8 @@ TEST(MpegTsKlvExtractorTest, ContinuityCounterDropHandling) {
 
     std::vector<std::string> received;
     extractor.setMessageCallback([&](const UasDatalinkMessage& m) {
-        if (m.missionId) received.push_back(*m.missionId);
+        if (m.missionId)
+            received.push_back(*m.missionId);
     });
 
     EXPECT_EQ(extractor.processTsPacket(ts1.data()), 0U);
@@ -213,7 +222,8 @@ TEST(MpegTsKlvExtractorTest, ContinuityCounterDropHandling) {
     EXPECT_EQ(received.front(), "RECOVERED_STREAM");
 }
 
-TEST(MpegTsKlvExtractorTest, FlushDispatchesBufferedPes) {
+TEST(MpegTsKlvExtractorTest, FlushDispatchesBufferedPes)
+{
     UasDatalinkMessage msg;
     msg.missionId = "FLUSHED_MISSION";
     const auto klv = KlvEncoder::encode(msg);
@@ -241,13 +251,11 @@ TEST(MpegTsKlvExtractorTest, FlushDispatchesBufferedPes) {
     EXPECT_EQ(count, 1);
 }
 
-TEST(MpegTsKlvExtractorTest, ExtractsFromSampleFlightVideo) {
+TEST(MpegTsKlvExtractorTest, ExtractsFromSampleFlightVideo)
+{
 
-    const std::vector<std::string> candidatePaths = {
-        "sample-videos/mpegts-klv-day-flight.ts",
-        "../../../../sample-videos/mpegts-klv-day-flight.ts",
-        "../../../sample-videos/mpegts-klv-day-flight.ts"
-    };
+    const std::vector<std::string> candidatePaths = { "sample-videos/mpegts-klv-day-flight.ts",
+        "../../../../sample-videos/mpegts-klv-day-flight.ts", "../../../sample-videos/mpegts-klv-day-flight.ts" };
 
     std::string videoPath;
     for (const auto& p : candidatePaths) {
@@ -297,12 +305,11 @@ TEST(MpegTsKlvExtractorTest, ExtractsFromSampleFlightVideo) {
     }
 }
 
-TEST(MpegTsKlvExtractorTest, ExtractsFromNightFlightVideo) {
-    const std::vector<std::string> candidatePaths = {
-        "sample-videos/mpegts-klv-night-flight-IR.ts",
-        "../../../../sample-videos/mpegts-klv-night-flight-IR.ts",
-        "../../../sample-videos/mpegts-klv-night-flight-IR.ts"
-    };
+TEST(MpegTsKlvExtractorTest, ExtractsFromNightFlightVideo)
+{
+    const std::vector<std::string> candidatePaths
+        = { "sample-videos/mpegts-klv-night-flight-IR.ts", "../../../../sample-videos/mpegts-klv-night-flight-IR.ts",
+              "../../../sample-videos/mpegts-klv-night-flight-IR.ts" };
 
     std::string videoPath;
     for (const auto& p : candidatePaths) {
@@ -351,5 +358,3 @@ TEST(MpegTsKlvExtractorTest, ExtractsFromNightFlightVideo) {
         EXPECT_TRUE(firstMsg.platformHeadingDeg.has_value());
     }
 }
-
-

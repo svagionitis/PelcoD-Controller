@@ -1,26 +1,27 @@
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <string>
+#include <vector>
+
+#include <gtest/gtest.h>
+
 #include "KlvCrc.h"
 #include "KlvGeodesy.h"
 #include "MpegTsKlvExtractor.h"
-#include <chrono>
-#include <cmath>
-#include <cstdio>
-#include <gtest/gtest.h>
-#include <string>
-#include <vector>
 
 using namespace Klv;
 
 namespace {
 
-std::string findSampleVideo(const std::string& filename) {
-    const std::vector<std::string> prefixes = {
-        "",
-        "sample-videos/",
-        "../sample-videos/",
-        "../../sample-videos/",
-        "../../../sample-videos/",
-        "../../../../sample-videos/"
-    };
+std::string findSampleVideo(const std::string& filename)
+{
+    const std::vector<std::string> prefixes = { "", "sample-videos/", "../sample-videos/", "../../sample-videos/",
+        "../../../sample-videos/", "../../../../sample-videos/" };
 
     for (const auto& prefix : prefixes) {
         const std::string candidate = prefix + filename;
@@ -30,13 +31,14 @@ std::string findSampleVideo(const std::string& filename) {
             return candidate;
         }
     }
-    return {};
+    return { };
 }
 
-std::vector<std::uint8_t> loadFile(const std::string& path) {
+std::vector<std::uint8_t> loadFile(const std::string& path)
+{
     FILE* fp = std::fopen(path.c_str(), "rb");
     if (fp == nullptr) {
-        return {};
+        return { };
     }
 
     std::fseek(fp, 0, SEEK_END);
@@ -52,7 +54,8 @@ std::vector<std::uint8_t> loadFile(const std::string& path) {
 
 } // namespace
 
-TEST(FlightStreamValidationTest, FullDayFlightStreamEndToEnd) {
+TEST(FlightStreamValidationTest, FullDayFlightStreamEndToEnd)
+{
     const std::string videoPath = findSampleVideo("mpegts-klv-day-flight.ts");
     if (videoPath.empty()) {
         GTEST_SKIP() << "sample-videos/mpegts-klv-day-flight.ts not found.";
@@ -65,19 +68,16 @@ TEST(FlightStreamValidationTest, FullDayFlightStreamEndToEnd) {
     std::vector<UasDatalinkMessage> messages;
     std::vector<std::vector<std::uint8_t>> rawPayloads;
 
-    extractor.setMessageCallback([&](const UasDatalinkMessage& msg) {
-        messages.push_back(msg);
-    });
+    extractor.setMessageCallback([&](const UasDatalinkMessage& msg) { messages.push_back(msg); });
 
-    extractor.setKlvPayloadCallback([&](const std::uint8_t* data, std::size_t size) {
-        rawPayloads.emplace_back(data, data + size);
-    });
+    extractor.setKlvPayloadCallback(
+        [&](const std::uint8_t* data, std::size_t size) { rawPayloads.emplace_back(data, data + size); });
 
     const auto startTime = std::chrono::steady_clock::now();
     const std::size_t dispatched = extractor.processStream(streamData.data(), streamData.size());
     const std::size_t flushed = extractor.flush();
-    const auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - startTime).count();
+    const auto durationMs
+        = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count();
 
     // High throughput performance check (< 500 ms for 30.8 MB)
     EXPECT_LT(durationMs, 500);
@@ -134,7 +134,8 @@ TEST(FlightStreamValidationTest, FullDayFlightStreamEndToEnd) {
     }
 }
 
-TEST(FlightStreamValidationTest, FullNightFlightStreamEndToEnd) {
+TEST(FlightStreamValidationTest, FullNightFlightStreamEndToEnd)
+{
     const std::string videoPath = findSampleVideo("mpegts-klv-night-flight-IR.ts");
     if (videoPath.empty()) {
         GTEST_SKIP() << "sample-videos/mpegts-klv-night-flight-IR.ts not found.";
@@ -147,19 +148,16 @@ TEST(FlightStreamValidationTest, FullNightFlightStreamEndToEnd) {
     std::vector<UasDatalinkMessage> messages;
     std::vector<std::vector<std::uint8_t>> rawPayloads;
 
-    extractor.setMessageCallback([&](const UasDatalinkMessage& msg) {
-        messages.push_back(msg);
-    });
+    extractor.setMessageCallback([&](const UasDatalinkMessage& msg) { messages.push_back(msg); });
 
-    extractor.setKlvPayloadCallback([&](const std::uint8_t* data, std::size_t size) {
-        rawPayloads.emplace_back(data, data + size);
-    });
+    extractor.setKlvPayloadCallback(
+        [&](const std::uint8_t* data, std::size_t size) { rawPayloads.emplace_back(data, data + size); });
 
     const auto startTime = std::chrono::steady_clock::now();
     const std::size_t dispatched = extractor.processStream(streamData.data(), streamData.size());
     const std::size_t flushed = extractor.flush();
-    const auto durationMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - startTime).count();
+    const auto durationMs
+        = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count();
 
     EXPECT_LT(durationMs, 500);
 
@@ -202,7 +200,8 @@ TEST(FlightStreamValidationTest, FullNightFlightStreamEndToEnd) {
     }
 }
 
-TEST(FlightStreamValidationTest, ChunkBoundaryInvarianceStressTest) {
+TEST(FlightStreamValidationTest, ChunkBoundaryInvarianceStressTest)
+{
     const std::string videoPath = findSampleVideo("mpegts-klv-day-flight.ts");
     if (videoPath.empty()) {
         GTEST_SKIP() << "sample-videos/mpegts-klv-day-flight.ts not found.";
@@ -213,10 +212,10 @@ TEST(FlightStreamValidationTest, ChunkBoundaryInvarianceStressTest) {
 
     // Test different feeding chunk sizes
     const std::vector<std::size_t> chunkSizes = {
-        188U,          // Single TS packet
-        512U,          // Arbitrary non-188 boundary
-        4096U,         // Page boundary
-        65536U,        // Socket buffer boundary
+        188U, // Single TS packet
+        512U, // Arbitrary non-188 boundary
+        4096U, // Page boundary
+        65536U, // Socket buffer boundary
         streamData.size() // Full monolithic buffer
     };
 
@@ -254,7 +253,8 @@ TEST(FlightStreamValidationTest, ChunkBoundaryInvarianceStressTest) {
     }
 }
 
-TEST(FlightStreamValidationTest, MidStreamSeekAndRecovery) {
+TEST(FlightStreamValidationTest, MidStreamSeekAndRecovery)
+{
     const std::string videoPath = findSampleVideo("mpegts-klv-day-flight.ts");
     if (videoPath.empty()) {
         GTEST_SKIP() << "sample-videos/mpegts-klv-day-flight.ts not found.";
@@ -265,9 +265,7 @@ TEST(FlightStreamValidationTest, MidStreamSeekAndRecovery) {
 
     MpegTsKlvExtractor extractor;
     std::size_t msgCount = 0U;
-    extractor.setMessageCallback([&](const UasDatalinkMessage&) {
-        msgCount++;
-    });
+    extractor.setMessageCallback([&](const UasDatalinkMessage&) { msgCount++; });
 
     // Ingest first 2 MB
     constexpr std::size_t kFirstChunk = 2U * 1024U * 1024U;
@@ -281,8 +279,8 @@ TEST(FlightStreamValidationTest, MidStreamSeekAndRecovery) {
     extractor.reset();
 
     // Ingest remaining bytes from seek position
-    const std::size_t seekDispatched = extractor.processStream(
-        streamData.data() + kSeekOffset, streamData.size() - kSeekOffset);
+    const std::size_t seekDispatched
+        = extractor.processStream(streamData.data() + kSeekOffset, streamData.size() - kSeekOffset);
     const std::size_t seekFlushed = extractor.flush();
     EXPECT_GT(seekDispatched + seekFlushed, 0U);
 
@@ -292,7 +290,8 @@ TEST(FlightStreamValidationTest, MidStreamSeekAndRecovery) {
     EXPECT_EQ(*extractor.metadataPid(), 0x0101U);
 }
 
-TEST(FlightStreamValidationTest, GeodesyTargetConsistency) {
+TEST(FlightStreamValidationTest, GeodesyTargetConsistency)
+{
     const std::string videoPath = findSampleVideo("mpegts-klv-day-flight.ts");
     if (videoPath.empty()) {
         GTEST_SKIP() << "sample-videos/mpegts-klv-day-flight.ts not found.";
@@ -303,9 +302,7 @@ TEST(FlightStreamValidationTest, GeodesyTargetConsistency) {
 
     MpegTsKlvExtractor extractor;
     std::vector<UasDatalinkMessage> messages;
-    extractor.setMessageCallback([&](const UasDatalinkMessage& msg) {
-        messages.push_back(msg);
-    });
+    extractor.setMessageCallback([&](const UasDatalinkMessage& msg) { messages.push_back(msg); });
 
     const std::size_t dispatched = extractor.processStream(streamData.data(), streamData.size());
     const std::size_t flushed = extractor.flush();
@@ -314,8 +311,7 @@ TEST(FlightStreamValidationTest, GeodesyTargetConsistency) {
     ASSERT_FALSE(messages.empty());
 
     for (const auto& msg : messages) {
-        if (msg.sensorLatitudeDeg && msg.sensorLongitudeDeg && msg.sensorTrueAltitudeM &&
-            msg.platformHeadingDeg) {
+        if (msg.sensorLatitudeDeg && msg.sensorLongitudeDeg && msg.sensorTrueAltitudeM && msg.platformHeadingDeg) {
             // Verify WGS84 distance calculation from sensor to adjacent point
             const GeoPoint2D p1 { *msg.sensorLatitudeDeg, *msg.sensorLongitudeDeg };
             const GeoPoint2D p2 { *msg.sensorLatitudeDeg + 0.01, *msg.sensorLongitudeDeg };

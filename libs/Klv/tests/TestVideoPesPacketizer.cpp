@@ -1,22 +1,24 @@
 #include "VideoPesPacketizer.h"
-#include <gtest/gtest.h>
+
+#include <cstddef>
+#include <cstdint>
+
+#include <optional>
 #include <vector>
+
+#include <gtest/gtest.h>
 
 using namespace Klv;
 
-TEST(TestVideoPesPacketizer, HeaderStructurePtsOnly) {
+TEST(TestVideoPesPacketizer, HeaderStructurePtsOnly)
+{
     VideoPesPacketizer packetizer(/*prependAud=*/false);
 
-    const std::vector<std::uint8_t> frameData = {
-        0x00U, 0x00U, 0x00U, 0x01U, 0x65U, 0x88U, 0x84U, 0x00U
-    };
+    const std::vector<std::uint8_t> frameData = { 0x00U, 0x00U, 0x00U, 0x01U, 0x65U, 0x88U, 0x84U, 0x00U };
 
     constexpr std::uint64_t kTimestampUs = 10000000ULL; // 10.0 seconds
-    const auto pes = packetizer.buildPesPacket(frameData.data(),
-                                               frameData.size(),
-                                               kTimestampUs,
-                                               std::nullopt,
-                                               /*isKeyframe=*/true);
+    const auto pes = packetizer.buildPesPacket(frameData.data(), frameData.size(), kTimestampUs, std::nullopt,
+        /*isKeyframe=*/true);
 
     ASSERT_GE(pes.size(), 14U + frameData.size());
 
@@ -29,8 +31,8 @@ TEST(TestVideoPesPacketizer, HeaderStructurePtsOnly) {
     EXPECT_EQ(pes[3], VideoPesPacketizer::kVideoStreamId);
 
     // 3. PES packet length (3 + 5 + 8 = 16 bytes = 0x0010)
-    const auto length = static_cast<std::uint16_t>(
-        (static_cast<std::uint32_t>(pes[4]) << 8U) | static_cast<std::uint32_t>(pes[5]));
+    const auto length
+        = static_cast<std::uint16_t>((static_cast<std::uint32_t>(pes[4]) << 8U) | static_cast<std::uint32_t>(pes[5]));
     EXPECT_EQ(length, 16U);
 
     // 4. Header flags: 0x84 (data alignment), 0x80 (PTS present, DTS absent)
@@ -43,28 +45,23 @@ TEST(TestVideoPesPacketizer, HeaderStructurePtsOnly) {
     constexpr std::uint64_t expectedPts = (kTimestampUs * 90ULL) / 1000ULL;
     EXPECT_EQ(expectedPts, 900000ULL);
 
-    const std::uint64_t parsedPts =
-        ((static_cast<std::uint64_t>(pes[9] & 0x0EU) >> 1U) << 30U) |
-        (static_cast<std::uint64_t>(pes[10]) << 22U) |
-        ((static_cast<std::uint64_t>(pes[11] & 0xFEU) >> 1U) << 15U) |
-        (static_cast<std::uint64_t>(pes[12]) << 7U) |
-        (static_cast<std::uint64_t>(pes[13] & 0xFEU) >> 1U);
+    const std::uint64_t parsedPts = ((static_cast<std::uint64_t>(pes[9] & 0x0EU) >> 1U) << 30U)
+        | (static_cast<std::uint64_t>(pes[10]) << 22U) | ((static_cast<std::uint64_t>(pes[11] & 0xFEU) >> 1U) << 15U)
+        | (static_cast<std::uint64_t>(pes[12]) << 7U) | (static_cast<std::uint64_t>(pes[13] & 0xFEU) >> 1U);
 
     EXPECT_EQ(parsedPts, expectedPts);
 }
 
-TEST(TestVideoPesPacketizer, HeaderStructurePtsAndDts) {
+TEST(TestVideoPesPacketizer, HeaderStructurePtsAndDts)
+{
     VideoPesPacketizer packetizer(/*prependAud=*/false);
 
     const std::vector<std::uint8_t> frameData = { 0x00U, 0x00U, 0x00U, 0x01U, 0x41U, 0x01U };
     constexpr std::uint64_t kPtsUs = 2000000ULL; // 2.0 s (180,000 ticks)
     constexpr std::uint64_t kDtsUs = 1966666ULL; // 1.966666 s
 
-    const auto pes = packetizer.buildPesPacket(frameData.data(),
-                                               frameData.size(),
-                                               kPtsUs,
-                                               kDtsUs,
-                                               /*isKeyframe=*/false);
+    const auto pes = packetizer.buildPesPacket(frameData.data(), frameData.size(), kPtsUs, kDtsUs,
+        /*isKeyframe=*/false);
 
     ASSERT_GE(pes.size(), 19U + frameData.size());
 
@@ -80,7 +77,8 @@ TEST(TestVideoPesPacketizer, HeaderStructurePtsAndDts) {
     EXPECT_EQ(pes[14] & 0xF0U, 0x10U);
 }
 
-TEST(TestVideoPesPacketizer, AutomaticAudPrepending) {
+TEST(TestVideoPesPacketizer, AutomaticAudPrepending)
+{
     VideoPesPacketizer packetizerWithAud(/*prependAud=*/true);
 
     VideoAccessUnit au;
@@ -102,14 +100,13 @@ TEST(TestVideoPesPacketizer, AutomaticAudPrepending) {
     EXPECT_EQ(pes[18], 0x09U); // AUD NAL type
 }
 
-TEST(TestVideoPesPacketizer, UnboundedPesLengthForLargeFrames) {
+TEST(TestVideoPesPacketizer, UnboundedPesLengthForLargeFrames)
+{
     VideoPesPacketizer packetizer(/*prependAud=*/false);
 
     // Create 70 KB payload (> 65535 bytes)
     const std::vector<std::uint8_t> largePayload(70000U, 0x55U);
-    const auto pes = packetizer.buildPesPacket(largePayload.data(),
-                                               largePayload.size(),
-                                               1000ULL);
+    const auto pes = packetizer.buildPesPacket(largePayload.data(), largePayload.size(), 1000ULL);
 
     // Unbounded PES length field must be 0x0000 per ISO/IEC 13818-1
     EXPECT_EQ(pes[4], 0x00U);

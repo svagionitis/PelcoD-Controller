@@ -1,26 +1,27 @@
+#include "MpegTsKlvMuxer.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+
+#include <algorithm>
+#include <string>
+#include <vector>
+
+#include <gtest/gtest.h>
+
 #include "KlvCrc.h"
 #include "KlvEncoder.h"
 #include "MpegTsKlvExtractor.h"
-#include "MpegTsKlvMuxer.h"
-#include <algorithm>
-#include <cstdio>
-#include <gtest/gtest.h>
-#include <string>
-#include <vector>
 
 using namespace Klv;
 
 namespace {
 
-[[nodiscard]] std::string findSampleVideo(const std::string& filename) {
-    const std::vector<std::string> prefixes = {
-        "",
-        "sample-videos/",
-        "../sample-videos/",
-        "../../sample-videos/",
-        "../../../sample-videos/",
-        "../../../../sample-videos/"
-    };
+[[nodiscard]] std::string findSampleVideo(const std::string& filename)
+{
+    const std::vector<std::string> prefixes = { "", "sample-videos/", "../sample-videos/", "../../sample-videos/",
+        "../../../sample-videos/", "../../../../sample-videos/" };
 
     for (const auto& prefix : prefixes) {
         const std::string candidate = prefix + filename;
@@ -30,13 +31,14 @@ namespace {
             return candidate;
         }
     }
-    return {};
+    return { };
 }
 
-[[nodiscard]] std::vector<std::uint8_t> loadVideoFile(const std::string& path) {
+[[nodiscard]] std::vector<std::uint8_t> loadVideoFile(const std::string& path)
+{
     FILE* fp = std::fopen(path.c_str(), "rb");
     if (fp == nullptr) {
-        return {};
+        return { };
     }
 
     std::fseek(fp, 0, SEEK_END);
@@ -52,7 +54,8 @@ namespace {
 
 } // namespace
 
-TEST(MpegTsKlvMuxerTest, PatAndPmtGeneration) {
+TEST(MpegTsKlvMuxerTest, PatAndPmtGeneration)
+{
     MpegTsMuxerConfig config;
     config.programNumber = 100U;
     config.pmtPid = 0x0200U;
@@ -63,9 +66,8 @@ TEST(MpegTsKlvMuxerTest, PatAndPmtGeneration) {
     MpegTsKlvMuxer muxer(config);
 
     std::vector<std::vector<std::uint8_t>> packets;
-    muxer.setPacketCallback([&packets](const std::uint8_t* data, std::size_t size) {
-        packets.emplace_back(data, data + size);
-    });
+    muxer.setPacketCallback(
+        [&packets](const std::uint8_t* data, std::size_t size) { packets.emplace_back(data, data + size); });
 
     const std::size_t emitted = muxer.emitPsiTables();
     ASSERT_EQ(emitted, 2U);
@@ -85,8 +87,8 @@ TEST(MpegTsKlvMuxerTest, PatAndPmtGeneration) {
     EXPECT_EQ(patPacket[5], 0x00U);
 
     // Verify PAT CRC32
-    const std::size_t patSectionLen = ((static_cast<std::size_t>(patPacket[6] & 0x0FU)) << 8U) |
-                                      static_cast<std::size_t>(patPacket[7]);
+    const std::size_t patSectionLen
+        = ((static_cast<std::size_t>(patPacket[6] & 0x0FU)) << 8U) | static_cast<std::size_t>(patPacket[7]);
     const std::size_t patTotalSectionBytes = 3U + patSectionLen;
     const std::uint32_t patCrc = KlvCrc::calculateCrc32Mpeg(patPacket.data() + 5, patTotalSectionBytes);
     EXPECT_EQ(patCrc, 0x00000000U); // A valid section with CRC appended yields remainder 0
@@ -102,14 +104,15 @@ TEST(MpegTsKlvMuxerTest, PatAndPmtGeneration) {
     EXPECT_EQ(pmtPacket[5], 0x02U);
 
     // Verify PMT CRC32
-    const std::size_t pmtSectionLen = ((static_cast<std::size_t>(pmtPacket[6] & 0x0FU)) << 8U) |
-                                      static_cast<std::size_t>(pmtPacket[7]);
+    const std::size_t pmtSectionLen
+        = ((static_cast<std::size_t>(pmtPacket[6] & 0x0FU)) << 8U) | static_cast<std::size_t>(pmtPacket[7]);
     const std::size_t pmtTotalSectionBytes = 3U + pmtSectionLen;
     const std::uint32_t pmtCrc = KlvCrc::calculateCrc32Mpeg(pmtPacket.data() + 5, pmtTotalSectionBytes);
     EXPECT_EQ(pmtCrc, 0x00000000U);
 }
 
-TEST(MpegTsKlvMuxerTest, SinglePacketMuxAndExtractRoundTrip) {
+TEST(MpegTsKlvMuxerTest, SinglePacketMuxAndExtractRoundTrip)
+{
     UasDatalinkMessage msg;
     msg.missionId = "MUXER_SINGLE_TEST";
     msg.platformHeadingDeg = 240.5;
@@ -155,7 +158,8 @@ TEST(MpegTsKlvMuxerTest, SinglePacketMuxAndExtractRoundTrip) {
     EXPECT_EQ(*extractedMsg.precisionTimeStampUs, 1696400000000000ULL);
 }
 
-TEST(MpegTsKlvMuxerTest, LargeFragmentedPesRoundTrip) {
+TEST(MpegTsKlvMuxerTest, LargeFragmentedPesRoundTrip)
+{
     UasDatalinkMessage msg;
     msg.missionId = "EXTENDED_FRAGMENTED_PAYLOAD_MISSION_ID_LONG_STRING_0123456789";
     msg.platformDesignation = "TACTICAL_UAV_SURVEILLANCE_SYSTEM_MARK_IV";
@@ -199,7 +203,8 @@ TEST(MpegTsKlvMuxerTest, LargeFragmentedPesRoundTrip) {
     EXPECT_NEAR(*extractedMsg.sensorTrueAltitudeM, 3500.0, 1.0);
 }
 
-TEST(MpegTsKlvMuxerTest, PtsAndPcrGeneration) {
+TEST(MpegTsKlvMuxerTest, PtsAndPcrGeneration)
+{
     UasDatalinkMessage msg;
     msg.missionId = "TIMING_TEST";
     msg.platformHeadingDeg = 90.0;
@@ -213,9 +218,7 @@ TEST(MpegTsKlvMuxerTest, PtsAndPcrGeneration) {
     MpegTsKlvMuxer muxer(config);
 
     std::vector<std::vector<std::uint8_t>> tsPackets;
-    muxer.setPacketCallback([&tsPackets](const std::uint8_t* p, std::size_t sz) {
-        tsPackets.emplace_back(p, p + sz);
-    });
+    muxer.setPacketCallback([&tsPackets](const std::uint8_t* p, std::size_t sz) { tsPackets.emplace_back(p, p + sz); });
 
     const std::size_t emitted = muxer.muxMessage(msg);
     EXPECT_GT(emitted, 0U);
@@ -241,11 +244,9 @@ TEST(MpegTsKlvMuxerTest, PtsAndPcrGeneration) {
             EXPECT_NE(afFlags & 0x10U, 0x00U); // PCR flag set
 
             // Parse PCR base from bytes 6..9
-            const std::uint64_t pcrBase = (static_cast<std::uint64_t>(pkt[6]) << 25U) |
-                                          (static_cast<std::uint64_t>(pkt[7]) << 17U) |
-                                          (static_cast<std::uint64_t>(pkt[8]) << 9U) |
-                                          (static_cast<std::uint64_t>(pkt[9]) << 1U) |
-                                          (static_cast<std::uint64_t>(pkt[10] >> 7U));
+            const std::uint64_t pcrBase = (static_cast<std::uint64_t>(pkt[6]) << 25U)
+                | (static_cast<std::uint64_t>(pkt[7]) << 17U) | (static_cast<std::uint64_t>(pkt[8]) << 9U)
+                | (static_cast<std::uint64_t>(pkt[9]) << 1U) | (static_cast<std::uint64_t>(pkt[10] >> 7U));
             const std::uint64_t expectedPts = ((kTimestamp * 90ULL) / 1000ULL) & 0x1FFFFFFFFULL;
             EXPECT_EQ(pcrBase, expectedPts);
 
@@ -263,7 +264,8 @@ TEST(MpegTsKlvMuxerTest, PtsAndPcrGeneration) {
     EXPECT_TRUE(foundMeta);
 }
 
-TEST(MpegTsKlvMuxerTest, ContinuityCounterCycling) {
+TEST(MpegTsKlvMuxerTest, ContinuityCounterCycling)
+{
     MpegTsMuxerConfig config;
     config.metadataPid = 0x01E0U;
     MpegTsKlvMuxer muxer(config);
@@ -292,10 +294,11 @@ TEST(MpegTsKlvMuxerTest, ContinuityCounterCycling) {
     }
 }
 
-TEST(MpegTsKlvMuxerTest, StreamTypeAndIdVariations) {
+TEST(MpegTsKlvMuxerTest, StreamTypeAndIdVariations)
+{
     MpegTsMuxerConfig config;
     config.streamType = KlvStreamType::PesPrivateData; // 0x06
-    config.streamId = KlvStreamId::PrivateStream1;     // 0xBD
+    config.streamId = KlvStreamId::PrivateStream1; // 0xBD
     config.metadataPid = 0x0150U;
 
     MpegTsKlvMuxer muxer(config);
@@ -310,7 +313,8 @@ TEST(MpegTsKlvMuxerTest, StreamTypeAndIdVariations) {
     MpegTsKlvExtractor extractor;
     std::string receivedMission;
     extractor.setMessageCallback([&](const UasDatalinkMessage& m) {
-        if (m.missionId) receivedMission = *m.missionId;
+        if (m.missionId)
+            receivedMission = *m.missionId;
     });
 
     const std::size_t dispatched = extractor.processStream(tsBuffer.data(), tsBuffer.size());
@@ -318,7 +322,8 @@ TEST(MpegTsKlvMuxerTest, StreamTypeAndIdVariations) {
     EXPECT_EQ(receivedMission, "STREAM_TYPE_06");
 }
 
-TEST(MpegTsKlvMuxerTest, InterleaveMoonVideo) {
+TEST(MpegTsKlvMuxerTest, InterleaveMoonVideo)
+{
     const std::string videoPath = findSampleVideo("rotating-moon-from-LRO.ts");
     if (videoPath.empty()) {
         GTEST_SKIP() << "sample-videos/rotating-moon-from-LRO.ts not found.";
@@ -333,9 +338,7 @@ TEST(MpegTsKlvMuxerTest, InterleaveMoonVideo) {
     {
         MpegTsKlvExtractor baselineExtractor;
         std::size_t rawKlvCount { 0U };
-        baselineExtractor.setMessageCallback([&rawKlvCount](const UasDatalinkMessage&) {
-            rawKlvCount++;
-        });
+        baselineExtractor.setMessageCallback([&rawKlvCount](const UasDatalinkMessage&) { rawKlvCount++; });
         const std::size_t dispatched = baselineExtractor.processStream(videoData.data(), videoData.size());
         EXPECT_EQ(dispatched, 0U);
         EXPECT_EQ(rawKlvCount, 0U);
@@ -370,9 +373,8 @@ TEST(MpegTsKlvMuxerTest, InterleaveMoonVideo) {
     }
 
     std::vector<std::vector<std::uint8_t>> klvPackets;
-    muxer.setPacketCallback([&klvPackets](const std::uint8_t* p, std::size_t sz) {
-        klvPackets.emplace_back(p, p + sz);
-    });
+    muxer.setPacketCallback(
+        [&klvPackets](const std::uint8_t* p, std::size_t sz) { klvPackets.emplace_back(p, p + sz); });
 
     for (const auto& msg : expectedMessages) {
         const std::size_t count = muxer.muxMessage(msg);
@@ -383,7 +385,7 @@ TEST(MpegTsKlvMuxerTest, InterleaveMoonVideo) {
     // 3. Interleave KLV TS packets into video TS stream
     constexpr std::size_t kVideoStride { 120U };
     const std::size_t totalVideoPackets = videoData.size() / MpegTsKlvMuxer::kTsPacketSize;
-    const std::size_t packetsToUse = std::min(std::size_t{1000U}, totalVideoPackets);
+    const std::size_t packetsToUse = std::min(std::size_t { 1000U }, totalVideoPackets);
 
     std::vector<std::uint8_t> interleavedTs;
     interleavedTs.reserve((packetsToUse + klvPackets.size()) * MpegTsKlvMuxer::kTsPacketSize);
@@ -405,9 +407,7 @@ TEST(MpegTsKlvMuxerTest, InterleaveMoonVideo) {
     // 4. Feed interleaved TS stream into MpegTsKlvExtractor
     MpegTsKlvExtractor extractor;
     std::vector<UasDatalinkMessage> decodedMessages;
-    extractor.setMessageCallback([&decodedMessages](const UasDatalinkMessage& m) {
-        decodedMessages.push_back(m);
-    });
+    extractor.setMessageCallback([&decodedMessages](const UasDatalinkMessage& m) { decodedMessages.push_back(m); });
 
     const std::size_t dispatched = extractor.processStream(interleavedTs.data(), interleavedTs.size());
     EXPECT_EQ(dispatched, expectedMessages.size());
@@ -417,8 +417,10 @@ TEST(MpegTsKlvMuxerTest, InterleaveMoonVideo) {
 
     for (std::size_t i = 0U; i < expectedMessages.size() && i < decodedMessages.size(); ++i) {
         EXPECT_EQ(decodedMessages[i].missionId.value_or(""), expectedMessages[i].missionId.value_or(""));
-        EXPECT_EQ(decodedMessages[i].platformDesignation.value_or(""), expectedMessages[i].platformDesignation.value_or(""));
-        EXPECT_EQ(decodedMessages[i].imageSourceSensor.value_or(""), expectedMessages[i].imageSourceSensor.value_or(""));
+        EXPECT_EQ(
+            decodedMessages[i].platformDesignation.value_or(""), expectedMessages[i].platformDesignation.value_or(""));
+        EXPECT_EQ(
+            decodedMessages[i].imageSourceSensor.value_or(""), expectedMessages[i].imageSourceSensor.value_or(""));
         ASSERT_TRUE(decodedMessages[i].platformHeadingDeg.has_value());
         EXPECT_NEAR(*decodedMessages[i].platformHeadingDeg, *expectedMessages[i].platformHeadingDeg, 0.05);
         ASSERT_TRUE(decodedMessages[i].sensorLatitudeDeg.has_value());
@@ -430,7 +432,8 @@ TEST(MpegTsKlvMuxerTest, InterleaveMoonVideo) {
     }
 }
 
-TEST(MpegTsKlvMuxerTest, MultiStreamPmtGeneration) {
+TEST(MpegTsKlvMuxerTest, MultiStreamPmtGeneration)
+{
     MpegTsMuxerConfig config;
     config.programNumber = 1U;
     config.pmtPid = 0x0100U;
@@ -445,9 +448,8 @@ TEST(MpegTsKlvMuxerTest, MultiStreamPmtGeneration) {
     EXPECT_EQ(muxer.effectivePcrPid(), 0x0101U);
 
     std::vector<std::vector<std::uint8_t>> packets;
-    muxer.setPacketCallback([&packets](const std::uint8_t* data, std::size_t size) {
-        packets.emplace_back(data, data + size);
-    });
+    muxer.setPacketCallback(
+        [&packets](const std::uint8_t* data, std::size_t size) { packets.emplace_back(data, data + size); });
 
     const std::size_t emitted = muxer.emitPsiTables();
     ASSERT_EQ(emitted, 2U);
@@ -470,16 +472,16 @@ TEST(MpegTsKlvMuxerTest, MultiStreamPmtGeneration) {
     EXPECT_EQ(pcrPid, 0x0101U);
 
     // Verify PMT CRC32
-    const std::size_t pmtSectionLen = ((static_cast<std::size_t>(pmtPacket[6] & 0x0FU)) << 8U) |
-                                      static_cast<std::size_t>(pmtPacket[7]);
+    const std::size_t pmtSectionLen
+        = ((static_cast<std::size_t>(pmtPacket[6] & 0x0FU)) << 8U) | static_cast<std::size_t>(pmtPacket[7]);
     const std::size_t pmtTotalSectionBytes = 3U + pmtSectionLen;
     const std::uint32_t pmtCrc = KlvCrc::calculateCrc32Mpeg(pmtPacket.data() + 5, pmtTotalSectionBytes);
     EXPECT_EQ(pmtCrc, 0x00000000U);
 
     // Scan for Video Stream Type (0x1B) and Metadata Stream Type (0x15) inside PMT ES loop
     // PMT section starts at byte 5. Program info length is at bytes 15..16.
-    const std::size_t progInfoLen = ((static_cast<std::size_t>(pmtPacket[15] & 0x0FU)) << 8U) |
-                                    static_cast<std::size_t>(pmtPacket[16]);
+    const std::size_t progInfoLen
+        = ((static_cast<std::size_t>(pmtPacket[15] & 0x0FU)) << 8U) | static_cast<std::size_t>(pmtPacket[16]);
     std::size_t esOffset = 17U + progInfoLen;
 
     bool foundVideoEs = false;
@@ -487,10 +489,10 @@ TEST(MpegTsKlvMuxerTest, MultiStreamPmtGeneration) {
 
     while (esOffset + 5U <= 5U + pmtTotalSectionBytes - 4U) {
         const std::uint8_t st = pmtPacket[esOffset];
-        const std::uint16_t elemPid = static_cast<std::uint16_t>(((pmtPacket[esOffset + 1] & 0x1FU) << 8U) |
-                                                                 pmtPacket[esOffset + 2]);
-        const std::size_t esInfoLength = ((static_cast<std::size_t>(pmtPacket[esOffset + 3] & 0x0FU)) << 8U) |
-                                         static_cast<std::size_t>(pmtPacket[esOffset + 4]);
+        const std::uint16_t elemPid
+            = static_cast<std::uint16_t>(((pmtPacket[esOffset + 1] & 0x1FU) << 8U) | pmtPacket[esOffset + 2]);
+        const std::size_t esInfoLength = ((static_cast<std::size_t>(pmtPacket[esOffset + 3] & 0x0FU)) << 8U)
+            | static_cast<std::size_t>(pmtPacket[esOffset + 4]);
 
         if (st == 0x1BU && elemPid == 0x0101U) {
             foundVideoEs = true;
@@ -505,7 +507,8 @@ TEST(MpegTsKlvMuxerTest, MultiStreamPmtGeneration) {
     EXPECT_TRUE(foundMetaEs);
 }
 
-TEST(MpegTsKlvMuxerTest, VideoAccessUnitMuxing) {
+TEST(MpegTsKlvMuxerTest, VideoAccessUnitMuxing)
+{
     MpegTsMuxerConfig config;
     config.videoCodec = VideoCodec::H264;
     config.videoPid = 0x0101U;
@@ -534,7 +537,8 @@ TEST(MpegTsKlvMuxerTest, VideoAccessUnitMuxing) {
     EXPECT_TRUE((videoPkt[1] & 0x40U) != 0U); // PUSI = 1
 }
 
-TEST(MpegTsKlvMuxerTest, SynchronizedVideoAndTelemetryMuxing) {
+TEST(MpegTsKlvMuxerTest, SynchronizedVideoAndTelemetryMuxing)
+{
     MpegTsMuxerConfig config;
     config.videoCodec = VideoCodec::H264;
     config.videoPid = 0x0101U;
@@ -543,7 +547,7 @@ TEST(MpegTsKlvMuxerTest, SynchronizedVideoAndTelemetryMuxing) {
     MpegTsKlvMuxer muxer(config);
 
     constexpr std::uint64_t kVideoPtsUs = 10000000ULL; // 10.0 s
-    constexpr std::uint64_t kKlvPtsUs = 10010000ULL;   // 10.01 s (10 ms difference, well within <= 50 ms)
+    constexpr std::uint64_t kKlvPtsUs = 10010000ULL; // 10.01 s (10 ms difference, well within <= 50 ms)
 
     VideoAccessUnit au;
     au.codec = VideoCodec::H264;

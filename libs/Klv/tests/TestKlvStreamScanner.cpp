@@ -1,11 +1,19 @@
-#include "KlvEncoder.h"
 #include "KlvStreamScanner.h"
-#include <gtest/gtest.h>
+
+#include <cstddef>
+#include <cstdint>
+
+#include <string>
 #include <vector>
+
+#include <gtest/gtest.h>
+
+#include "KlvEncoder.h"
 
 using namespace Klv;
 
-TEST(KlvStreamScannerTest, ExtractsPacketWithSurroundingGarbage) {
+TEST(KlvStreamScannerTest, ExtractsPacketWithSurroundingGarbage)
+{
     UasDatalinkMessage msg;
     msg.missionId = "TEST_SCANNER";
     msg.platformHeadingDeg = 270.0;
@@ -34,7 +42,8 @@ TEST(KlvStreamScannerTest, ExtractsPacketWithSurroundingGarbage) {
     EXPECT_EQ(receivedMission, "TEST_SCANNER");
 }
 
-TEST(KlvStreamScannerTest, FragmentedPacketReassembly) {
+TEST(KlvStreamScannerTest, FragmentedPacketReassembly)
+{
     UasDatalinkMessage msg;
     msg.missionId = "FRAGMENTED_STREAM";
     msg.sensorTrueAltitudeM = 500.0;
@@ -42,9 +51,7 @@ TEST(KlvStreamScannerTest, FragmentedPacketReassembly) {
 
     KlvStreamScanner scanner;
     int packetCount = 0;
-    scanner.setMessageCallback([&](const UasDatalinkMessage&) {
-        packetCount++;
-    });
+    scanner.setMessageCallback([&](const UasDatalinkMessage&) { packetCount++; });
 
     // Split packet across 3 separate network chunks
     const std::size_t chunk1Size = 10U;
@@ -61,7 +68,8 @@ TEST(KlvStreamScannerTest, FragmentedPacketReassembly) {
     EXPECT_EQ(packetCount, 1);
 }
 
-TEST(KlvStreamScannerTest, MultipleConsecutivePackets) {
+TEST(KlvStreamScannerTest, MultipleConsecutivePackets)
+{
     UasDatalinkMessage msg1;
     msg1.platformHeadingDeg = 10.0;
     const auto pkt1 = KlvEncoder::encode(msg1);

@@ -1,20 +1,27 @@
-#include "MpegTsKlvMuxer.h"
 #include "PtsSyncManager.h"
-#include <gtest/gtest.h>
+
+#include <cstddef>
+#include <cstdint>
+
+#include <optional>
+#include <string>
 #include <vector>
+
+#include <gtest/gtest.h>
+
+#include "MpegTsKlvMuxer.h"
 
 using namespace Klv;
 
-TEST(TestPtsSyncManager, NominalInSync) {
+TEST(TestPtsSyncManager, NominalInSync)
+{
     PtsSyncConfig config;
     config.maxSyncDeltaMs = 50U;
     config.jitterBufferDepthMs = 40U;
     PtsSyncManager manager(config);
 
     std::vector<SynchronizedAccessUnit> outputs;
-    manager.setSyncCallback([&outputs](const SynchronizedAccessUnit& item) {
-        outputs.push_back(item);
-    });
+    manager.setSyncCallback([&outputs](const SynchronizedAccessUnit& item) { outputs.push_back(item); });
 
     constexpr std::uint64_t kBaseTimeUs = 1000000ULL;
     // Push 3 frames at 30 fps (33,333 us) with matching telemetry
@@ -45,16 +52,15 @@ TEST(TestPtsSyncManager, NominalInSync) {
     EXPECT_EQ(stats.droppedPackets, 0U);
 }
 
-TEST(TestPtsSyncManager, TelemetrySkewWithinCompliantLimit) {
+TEST(TestPtsSyncManager, TelemetrySkewWithinCompliantLimit)
+{
     PtsSyncConfig config;
     config.maxSyncDeltaMs = 50U;
     config.jitterBufferDepthMs = 40U;
     PtsSyncManager manager(config);
 
     std::vector<SynchronizedAccessUnit> outputs;
-    manager.setSyncCallback([&outputs](const SynchronizedAccessUnit& item) {
-        outputs.push_back(item);
-    });
+    manager.setSyncCallback([&outputs](const SynchronizedAccessUnit& item) { outputs.push_back(item); });
 
     constexpr std::uint64_t kVideoPts = 2000000ULL;
     constexpr std::uint64_t kTelemetryPts = 2025000ULL; // +25 ms skew (compliant since <= 50 ms)
@@ -78,7 +84,8 @@ TEST(TestPtsSyncManager, TelemetrySkewWithinCompliantLimit) {
     EXPECT_EQ(stats.clampedPackets, 0U);
 }
 
-TEST(TestPtsSyncManager, StrictClampPolicy) {
+TEST(TestPtsSyncManager, StrictClampPolicy)
+{
     PtsSyncConfig config;
     config.syncPolicy = PtsSyncPolicy::StrictClamp;
     config.maxSyncDeltaMs = 50U;
@@ -86,9 +93,7 @@ TEST(TestPtsSyncManager, StrictClampPolicy) {
     PtsSyncManager manager(config);
 
     std::vector<SynchronizedAccessUnit> outputs;
-    manager.setSyncCallback([&outputs](const SynchronizedAccessUnit& item) {
-        outputs.push_back(item);
-    });
+    manager.setSyncCallback([&outputs](const SynchronizedAccessUnit& item) { outputs.push_back(item); });
 
     constexpr std::uint64_t kVideoPts = 3000000ULL;
     constexpr std::uint64_t kLaggingTelemetryPts = 3080000ULL; // +80 ms skew (> 50 ms)
@@ -114,7 +119,8 @@ TEST(TestPtsSyncManager, StrictClampPolicy) {
     EXPECT_EQ(stats.clampedPackets, 1U);
 }
 
-TEST(TestPtsSyncManager, NearestFramePolicy) {
+TEST(TestPtsSyncManager, NearestFramePolicy)
+{
     PtsSyncConfig config;
     config.syncPolicy = PtsSyncPolicy::NearestFrame;
     config.maxSyncDeltaMs = 50U;
@@ -122,9 +128,7 @@ TEST(TestPtsSyncManager, NearestFramePolicy) {
     PtsSyncManager manager(config);
 
     std::vector<SynchronizedAccessUnit> outputs;
-    manager.setSyncCallback([&outputs](const SynchronizedAccessUnit& item) {
-        outputs.push_back(item);
-    });
+    manager.setSyncCallback([&outputs](const SynchronizedAccessUnit& item) { outputs.push_back(item); });
 
     constexpr std::uint64_t kVideoPts = 4000000ULL;
     constexpr std::uint64_t kTelemetryPts = 4070000ULL; // +70 ms skew
@@ -150,16 +154,15 @@ TEST(TestPtsSyncManager, NearestFramePolicy) {
     EXPECT_EQ(stats.clampedPackets, 1U);
 }
 
-TEST(TestPtsSyncManager, DropStalePolicy) {
+TEST(TestPtsSyncManager, DropStalePolicy)
+{
     PtsSyncConfig config;
     config.syncPolicy = PtsSyncPolicy::DropStale;
     config.maxSyncDeltaMs = 50U;
     PtsSyncManager manager(config);
 
     std::vector<SynchronizedAccessUnit> outputs;
-    manager.setSyncCallback([&outputs](const SynchronizedAccessUnit& item) {
-        outputs.push_back(item);
-    });
+    manager.setSyncCallback([&outputs](const SynchronizedAccessUnit& item) { outputs.push_back(item); });
 
     constexpr std::uint64_t kVideoPts = 5000000ULL;
     constexpr std::uint64_t kStaleTelemetryPts = 5090000ULL; // +90 ms skew
@@ -182,7 +185,8 @@ TEST(TestPtsSyncManager, DropStalePolicy) {
     EXPECT_EQ(stats.droppedPackets, 1U);
 }
 
-TEST(TestPtsSyncManager, MuxerBindingRoundTrip) {
+TEST(TestPtsSyncManager, MuxerBindingRoundTrip)
+{
     MpegTsMuxerConfig muxConfig;
     muxConfig.videoCodec = VideoCodec::H264;
     muxConfig.videoPid = 0x0101U;
@@ -191,9 +195,7 @@ TEST(TestPtsSyncManager, MuxerBindingRoundTrip) {
     MpegTsKlvMuxer muxer(muxConfig);
 
     std::vector<std::vector<std::uint8_t>> tsPackets;
-    muxer.setPacketCallback([&tsPackets](const std::uint8_t* p, std::size_t sz) {
-        tsPackets.emplace_back(p, p + sz);
-    });
+    muxer.setPacketCallback([&tsPackets](const std::uint8_t* p, std::size_t sz) { tsPackets.emplace_back(p, p + sz); });
 
     PtsSyncConfig syncConfig;
     PtsSyncManager syncManager(syncConfig);
@@ -216,8 +218,10 @@ TEST(TestPtsSyncManager, MuxerBindingRoundTrip) {
     bool foundMeta = false;
     for (const auto& pkt : tsPackets) {
         const std::uint16_t pid = static_cast<std::uint16_t>(((pkt[1] & 0x1FU) << 8U) | pkt[2]);
-        if (pid == 0x0101U) foundVideo = true;
-        if (pid == 0x01E0U) foundMeta = true;
+        if (pid == 0x0101U)
+            foundVideo = true;
+        if (pid == 0x01E0U)
+            foundMeta = true;
     }
 
     EXPECT_TRUE(foundVideo);

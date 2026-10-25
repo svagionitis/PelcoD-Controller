@@ -1,15 +1,20 @@
 #include "VideoNaluParser.h"
-#include <gtest/gtest.h>
+
+#include <cstddef>
+#include <cstdint>
+
 #include <vector>
+
+#include <gtest/gtest.h>
 
 using namespace Klv;
 
-TEST(TestVideoNaluParser, StartCodeScanning) {
+TEST(TestVideoNaluParser, StartCodeScanning)
+{
     // 00 00 01 (3-byte) and 00 00 00 01 (4-byte)
     const std::vector<std::uint8_t> buffer = {
-        0xAAU, 0xBBU,
-        0x00U, 0x00U, 0x01U, 0x07U, 0x01U, // 3-byte prefix at offset 2
-        0x00U, 0x00U, 0x00U, 0x01U, 0x08U  // 4-byte prefix at offset 7
+        0xAAU, 0xBBU, 0x00U, 0x00U, 0x01U, 0x07U, 0x01U, // 3-byte prefix at offset 2
+        0x00U, 0x00U, 0x00U, 0x01U, 0x08U // 4-byte prefix at offset 7
     };
 
     std::size_t prefixLen = 0U;
@@ -17,15 +22,18 @@ TEST(TestVideoNaluParser, StartCodeScanning) {
     EXPECT_EQ(offset1, 2U);
     EXPECT_EQ(prefixLen, 3U);
 
-    const std::size_t offset2 = VideoNaluParser::findStartCode(buffer.data(), buffer.size(), offset1 + prefixLen, prefixLen);
+    const std::size_t offset2
+        = VideoNaluParser::findStartCode(buffer.data(), buffer.size(), offset1 + prefixLen, prefixLen);
     EXPECT_EQ(offset2, 7U);
     EXPECT_EQ(prefixLen, 4U);
 
-    const std::size_t offset3 = VideoNaluParser::findStartCode(buffer.data(), buffer.size(), offset2 + prefixLen, prefixLen);
+    const std::size_t offset3
+        = VideoNaluParser::findStartCode(buffer.data(), buffer.size(), offset2 + prefixLen, prefixLen);
     EXPECT_EQ(offset3, buffer.size());
 }
 
-TEST(TestVideoNaluParser, H264NaluClassification) {
+TEST(TestVideoNaluParser, H264NaluClassification)
+{
     EXPECT_EQ(VideoNaluParser::extractNaluType(0x67U, VideoCodec::H264), 7U); // SPS
     EXPECT_EQ(VideoNaluParser::extractNaluType(0x68U, VideoCodec::H264), 8U); // PPS
     EXPECT_EQ(VideoNaluParser::extractNaluType(0x65U, VideoCodec::H264), 5U); // IDR
@@ -37,7 +45,8 @@ TEST(TestVideoNaluParser, H264NaluClassification) {
     EXPECT_FALSE(VideoNaluParser::isKeyframeType(7U, VideoCodec::H264));
 }
 
-TEST(TestVideoNaluParser, H265NaluClassification) {
+TEST(TestVideoNaluParser, H265NaluClassification)
+{
     // H.265: NAL type in bits 9..14 (byte 0 shifted right 1, mask 0x3F)
     // VPS (32): 32 << 1 = 0x40
     EXPECT_EQ(VideoNaluParser::extractNaluType(0x40U, VideoCodec::H265), 32U);
@@ -57,24 +66,22 @@ TEST(TestVideoNaluParser, H265NaluClassification) {
     EXPECT_FALSE(VideoNaluParser::isKeyframeType(32U, VideoCodec::H265));
 }
 
-TEST(TestVideoNaluParser, ParseCompleteAccessUnitH264) {
+TEST(TestVideoNaluParser, ParseCompleteAccessUnitH264)
+{
     // Synthesize an H.264 Access Unit:
     // [Start Code 4B] [AUD]
     // [Start Code 4B] [SPS]
     // [Start Code 4B] [PPS]
     // [Start Code 4B] [IDR Slice]
     const std::vector<std::uint8_t> frameData = {
-        0x00U, 0x00U, 0x00U, 0x01U, 0x09U, 0x10U,                   // AUD
-        0x00U, 0x00U, 0x00U, 0x01U, 0x67U, 0x42U, 0x00U, 0x1FU,     // SPS
-        0x00U, 0x00U, 0x00U, 0x01U, 0x68U, 0xCEU, 0x3CU, 0x80U,     // PPS
-        0x00U, 0x00U, 0x00U, 0x01U, 0x65U, 0x88U, 0x84U, 0x00U      // IDR
+        0x00U, 0x00U, 0x00U, 0x01U, 0x09U, 0x10U, // AUD
+        0x00U, 0x00U, 0x00U, 0x01U, 0x67U, 0x42U, 0x00U, 0x1FU, // SPS
+        0x00U, 0x00U, 0x00U, 0x01U, 0x68U, 0xCEU, 0x3CU, 0x80U, // PPS
+        0x00U, 0x00U, 0x00U, 0x01U, 0x65U, 0x88U, 0x84U, 0x00U // IDR
     };
 
     constexpr std::uint64_t kPts = 12345678ULL;
-    const auto au = VideoNaluParser::parseAccessUnit(frameData.data(),
-                                                     frameData.size(),
-                                                     VideoCodec::H264,
-                                                     kPts);
+    const auto au = VideoNaluParser::parseAccessUnit(frameData.data(), frameData.size(), VideoCodec::H264, kPts);
 
     EXPECT_EQ(au.codec, VideoCodec::H264);
     EXPECT_EQ(au.ptsUs, kPts);
@@ -91,25 +98,20 @@ TEST(TestVideoNaluParser, ParseCompleteAccessUnitH264) {
     EXPECT_TRUE(au.nalus[3].isKeyframe);
 }
 
-TEST(TestVideoNaluParser, StreamingChunkPush) {
+TEST(TestVideoNaluParser, StreamingChunkPush)
+{
     VideoNaluParser parser(VideoCodec::H264);
 
     std::vector<VideoAccessUnit> emittedAus;
-    parser.setUnitCallback([&emittedAus](const VideoAccessUnit& au) {
-        emittedAus.push_back(au);
-    });
+    parser.setUnitCallback([&emittedAus](const VideoAccessUnit& au) { emittedAus.push_back(au); });
 
     // Frame 1: AUD + IDR Slice (first_mb_in_slice = 0)
-    const std::vector<std::uint8_t> frame1 = {
-        0x00U, 0x00U, 0x00U, 0x01U, 0x09U, 0x10U,
-        0x00U, 0x00U, 0x00U, 0x01U, 0x65U, 0xB8U, 0x00U
-    };
+    const std::vector<std::uint8_t> frame1
+        = { 0x00U, 0x00U, 0x00U, 0x01U, 0x09U, 0x10U, 0x00U, 0x00U, 0x00U, 0x01U, 0x65U, 0xB8U, 0x00U };
 
     // Frame 2: AUD + Non-IDR Slice
-    const std::vector<std::uint8_t> frame2 = {
-        0x00U, 0x00U, 0x00U, 0x01U, 0x09U, 0x30U,
-        0x00U, 0x00U, 0x00U, 0x01U, 0x41U, 0x9AU, 0x00U
-    };
+    const std::vector<std::uint8_t> frame2
+        = { 0x00U, 0x00U, 0x00U, 0x01U, 0x09U, 0x30U, 0x00U, 0x00U, 0x00U, 0x01U, 0x41U, 0x9AU, 0x00U };
 
     // Push Frame 1 in two separate chunks
     const std::size_t chunk1Size = 4U;
