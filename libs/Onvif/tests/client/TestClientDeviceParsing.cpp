@@ -89,6 +89,39 @@ TEST(ClientDeviceParsingTest, DiscoveryProbeMatches)
     EXPECT_EQ(devices[0].scopes.size(), 5U);
 }
 
+TEST(ClientDeviceParsingTest, ProbeMatchesWithMalformedPercentEncodingDoesNotThrow)
+{
+    const std::string malformedXml
+        = "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" "
+          "xmlns:d=\"http://schemas.xmlsoap.org/ws/2005/04/discovery\" "
+          "xmlns:wsa=\"http://schemas.xmlsoap.org/ws/2004/08/addressing\">\n"
+          "  <soap:Body>\n"
+          "    <d:ProbeMatches>\n"
+          "      <d:ProbeMatch>\n"
+          "        <wsa:EndpointReference>\n"
+          "          <wsa:Address>urn:uuid:11111111-2222-3333-4444-555555555555</wsa:Address>\n"
+          "        </wsa:EndpointReference>\n"
+          "        <d:Types>dn:NetworkVideoTransmitter</d:Types>\n"
+          "        <d:Scopes>\n"
+          "          onvif://www.onvif.org/hardware/%zz\n"
+          "          onvif://www.onvif.org/name/Cam%2\n"
+          "          onvif://www.onvif.org/location/Hall%20B\n"
+          "        </d:Scopes>\n"
+          "        <d:XAddrs>http://192.168.1.50/onvif/device_service</d:XAddrs>\n"
+          "      </d:ProbeMatch>\n"
+          "    </d:ProbeMatches>\n"
+          "  </soap:Body>\n"
+          "</soap:Envelope>";
+
+    EXPECT_NO_THROW({
+        const auto devices = Onvif::OnvifDiscovery::parseProbeMatches(malformedXml, "192.168.1.50");
+        ASSERT_EQ(devices.size(), 1U);
+        EXPECT_EQ(devices[0].hardware, "%zz");
+        EXPECT_EQ(devices[0].name, "Cam%2");
+        EXPECT_EQ(devices[0].location, "Hall B");
+    });
+}
+
 TEST(ClientDeviceParsingTest, CapabilitiesParsing)
 {
     const std::string xml

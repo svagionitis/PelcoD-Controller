@@ -49,6 +49,16 @@ namespace {
     static_assert(!isAsciiHexDigit('g'), "'g' is not ASCII hex digit");
     static_assert(!isAsciiHexDigit('G'), "'G' is not ASCII hex digit");
 
+    static_assert(hexDigitValue('0') == 0, "hexDigitValue('0') must be 0");
+    static_assert(hexDigitValue('9') == 9, "hexDigitValue('9') must be 9");
+    static_assert(hexDigitValue('a') == 10, "hexDigitValue('a') must be 10");
+    static_assert(hexDigitValue('f') == 15, "hexDigitValue('f') must be 15");
+    static_assert(hexDigitValue('A') == 10, "hexDigitValue('A') must be 10");
+    static_assert(hexDigitValue('F') == 15, "hexDigitValue('F') must be 15");
+    static_assert(hexDigitValue('g') == -1, "hexDigitValue('g') must be -1");
+    static_assert(hexDigitValue('Z') == -1, "hexDigitValue('Z') must be -1");
+    static_assert(hexDigitValue('/') == -1, "hexDigitValue('/') must be -1");
+
     static_assert(isAsciiSpace(' '), "' ' is ASCII space");
     static_assert(isAsciiSpace('\t'), "'\\t' is ASCII space");
     static_assert(isAsciiSpace('\r'), "'\\r' is ASCII space");
@@ -250,6 +260,47 @@ namespace {
         // Empty view returns empty vector
         const std::vector<std::uint8_t> emptyBytes { stringToBytes("") };
         EXPECT_TRUE(emptyBytes.empty());
+    }
+
+    TEST(AsciiUtilsTest, ParseHexByteValidation)
+    {
+        std::uint8_t byte { 0U };
+        EXPECT_TRUE(parseHexByte('2', '0', byte));
+        EXPECT_EQ(byte, 0x20U);
+
+        EXPECT_TRUE(parseHexByte('A', 'F', byte));
+        EXPECT_EQ(byte, 0xAFU);
+
+        EXPECT_TRUE(parseHexByte('a', 'f', byte));
+        EXPECT_EQ(byte, 0xAFU);
+
+        EXPECT_FALSE(parseHexByte('z', '0', byte));
+        EXPECT_FALSE(parseHexByte('0', 'z', byte));
+        EXPECT_FALSE(parseHexByte('!', '@', byte));
+    }
+
+    TEST(AsciiUtilsTest, UrlDecodeStandardSequences)
+    {
+        EXPECT_EQ(urlDecode(""), "");
+        EXPECT_EQ(urlDecode("simple"), "simple");
+        EXPECT_EQ(urlDecode("hello+world"), "hello world");
+        EXPECT_EQ(urlDecode("hello%20world"), "hello world");
+        EXPECT_EQ(urlDecode("foo%21bar"), "foo!bar");
+        EXPECT_EQ(urlDecode("100%25"), "100%");
+        EXPECT_EQ(urlDecode("a%2fb%3fc"), "a/b?c");
+    }
+
+    TEST(AsciiUtilsTest, UrlDecodeMalformedPercentSequencesDoesNotThrow)
+    {
+        EXPECT_NO_THROW({
+            EXPECT_EQ(urlDecode("%"), "%");
+            EXPECT_EQ(urlDecode("%a"), "%a");
+            EXPECT_EQ(urlDecode("%zz"), "%zz");
+            EXPECT_EQ(urlDecode("%2g"), "%2g");
+            EXPECT_EQ(urlDecode("test%"), "test%");
+            EXPECT_EQ(urlDecode("test%1"), "test%1");
+            EXPECT_EQ(urlDecode("%!@#"), "%!@#");
+        });
     }
 
 } // namespace

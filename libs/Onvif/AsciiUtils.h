@@ -60,6 +60,41 @@ namespace Onvif {
     return ((ch >= '0') && (ch <= '9')) || ((ch >= 'a') && (ch <= 'f')) || ((ch >= 'A') && (ch <= 'F'));
 }
 
+/// @brief Converts an ASCII hexadecimal digit ('0'..'9', 'a'..'f', 'A'..'F') to its numeric value (0..15).
+/// @details Does not throw, does not allocate, and is independent of host C/C++ locale.
+/// @param[in] ch Input character.
+/// @return Integer value 0..15 if valid hex digit, otherwise -1.
+[[nodiscard]] constexpr int hexDigitValue(char ch) noexcept
+{
+    if ((ch >= '0') && (ch <= '9')) {
+        return ch - '0';
+    }
+    if ((ch >= 'a') && (ch <= 'f')) {
+        return (ch - 'a') + 10;
+    }
+    if ((ch >= 'A') && (ch <= 'F')) {
+        return (ch - 'A') + 10;
+    }
+    return -1;
+}
+
+/// @brief Parses two hexadecimal ASCII characters into a byte value.
+/// @details Does not throw, does not allocate.
+/// @param[in] hi Upper nibble hex char ('0'..'9', 'A'..'F', 'a'..'f').
+/// @param[in] lo Lower nibble hex char ('0'..'9', 'A'..'F', 'a'..'f').
+/// @param[out] outByte Output byte.
+/// @return true if both characters were valid hexadecimal digits, false otherwise.
+[[nodiscard]] constexpr bool parseHexByte(char hi, char lo, std::uint8_t& outByte) noexcept
+{
+    const int h { hexDigitValue(hi) };
+    const int l { hexDigitValue(lo) };
+    if ((h < 0) || (l < 0)) {
+        return false;
+    }
+    outByte = static_cast<std::uint8_t>((static_cast<unsigned int>(h) << 4U) | static_cast<unsigned int>(l));
+    return true;
+}
+
 /// @brief Checks whether a character is standard ASCII whitespace (space, tab, CR, LF).
 /// @details Does not throw, does not allocate, and is independent of host C/C++ locale.
 /// @param[in] ch Input character.
@@ -108,12 +143,40 @@ namespace Onvif {
 /// @return Newly allocated lowercase std::string with single reservation.
 [[nodiscard]] inline std::string toLowerAsciiString(std::string_view text)
 {
-    std::string result {};
+    std::string result { };
     result.reserve(text.size());
     for (const char ch : text) {
         result.push_back(toLowerAscii(ch));
     }
     return result;
+}
+
+/// @brief Decodes a percent-encoded (URL-encoded) ASCII string view per RFC 3986.
+/// @details Replaces '+' with space and '%XX' hexadecimal sequences with their corresponding byte.
+/// Malformed sequences (e.g. invalid hex digits or incomplete '%') are preserved as literal characters
+/// without throwing exceptions (CERT ERR55-CPP / CERT ERR51-CPP).
+/// @param[in] in Input URL-encoded string view.
+/// @return Decoded std::string.
+[[nodiscard]] inline std::string urlDecode(std::string_view in)
+{
+    std::string out { };
+    out.reserve(in.size());
+    for (std::size_t i { 0U }; i < in.size(); ++i) {
+        if ((in[i] == '%') && (i + 2U < in.size())) {
+            std::uint8_t byteVal { 0U };
+            if (parseHexByte(in[i + 1U], in[i + 2U], byteVal)) {
+                out.push_back(static_cast<char>(byteVal));
+                i += 2U;
+                continue;
+            }
+        }
+        if (in[i] == '+') {
+            out.push_back(' ');
+        } else {
+            out.push_back(in[i]);
+        }
+    }
+    return out;
 }
 
 /// @brief Safely converts a character range into a std::vector<std::uint8_t> with explicit casting.
@@ -122,7 +185,7 @@ namespace Onvif {
 /// @return Vector of unsigned bytes.
 [[nodiscard]] inline std::vector<std::uint8_t> stringToBytes(std::string_view text)
 {
-    std::vector<std::uint8_t> bytes {};
+    std::vector<std::uint8_t> bytes { };
     bytes.reserve(text.size());
     for (const char ch : text) {
         bytes.push_back(static_cast<std::uint8_t>(ch));

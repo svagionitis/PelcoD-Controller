@@ -7,6 +7,7 @@
 #include <chrono>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -14,6 +15,7 @@
 
 #include <Transport/SocketUtils.h>
 
+#include "AsciiUtils.h"
 #include "WsDiscoveryCommon.h"
 #include "XmlUtils.h"
 
@@ -23,30 +25,12 @@ namespace Net = Transport::Net;
 
 namespace {
 
-    std::string urlDecode(const std::string& in)
-    {
-        std::string out {};
-        out.reserve(in.size());
-        for (std::size_t i = 0; i < in.size(); ++i) {
-            if (in[i] == '%' && i + 2 < in.size()) {
-                const int hexVal = std::stoi(in.substr(i + 1, 2), nullptr, 16);
-                out.push_back(static_cast<char>(hexVal));
-                i += 2;
-            } else if (in[i] == '+') {
-                out.push_back(' ');
-            } else {
-                out.push_back(in[i]);
-            }
-        }
-        return out;
-    }
-
     std::string extractIpFromUrl(const std::string& url)
     {
         // Search for scheme delimiter "://"
         const auto schemePos = url.find("://");
         if (schemePos == std::string::npos) {
-            return {};
+            return { };
         }
         const std::size_t hostStart = schemePos + 3;
         const auto hostEnd = url.find_first_of(":/", hostStart);
@@ -64,7 +48,7 @@ std::string OnvifDiscovery::createProbePayload(const std::string& messageUuid)
 {
     const std::string uuid = messageUuid.empty() ? generateRandomUuid() : messageUuid;
 
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
        << "<e:Envelope xmlns:e=\"http://www.w3.org/2003/05/soap-envelope\" "
        << "xmlns:w=\"http://schemas.xmlsoap.org/ws/2004/08/addressing\" "
@@ -87,26 +71,26 @@ std::string OnvifDiscovery::createProbePayload(const std::string& messageUuid)
 std::vector<DiscoveredDevice> OnvifDiscovery::parseProbeMatches(
     const std::string& xmlResponse, const std::string& senderIp)
 {
-    std::vector<DiscoveredDevice> devices {};
+    std::vector<DiscoveredDevice> devices { };
 
-    pugi::xml_document doc {};
+    pugi::xml_document doc { };
     const pugi::xml_parse_result result = doc.load_string(xmlResponse.c_str());
     if (!result) {
         return devices;
     }
 
-    std::vector<pugi::xml_node> probeMatchNodes {};
+    std::vector<pugi::xml_node> probeMatchNodes { };
     collectNodesWithSuffix(doc, "ProbeMatch", probeMatchNodes);
 
     for (const auto& matchNode : probeMatchNodes) {
-        DiscoveredDevice dev {};
+        DiscoveredDevice dev { };
 
         const auto xAddrsNode = findNodeWithSuffix(matchNode, "XAddrs");
         if (xAddrsNode) {
             const std::string xAddrsStr = xAddrsNode.text().as_string();
             // XAddrs can contain multiple space-separated URIs; pick first valid HTTP/HTTPS URI
             std::istringstream iss(xAddrsStr);
-            std::string token {};
+            std::string token { };
             while (iss >> token) {
                 if (token.rfind("http://", 0) == 0 || token.rfind("https://", 0) == 0) {
                     if (dev.endpoint.empty()) {
@@ -127,7 +111,7 @@ std::vector<DiscoveredDevice> OnvifDiscovery::parseProbeMatches(
         if (scopesNode) {
             const std::string scopesStr = scopesNode.text().as_string();
             std::istringstream iss(scopesStr);
-            std::string scopeUri {};
+            std::string scopeUri { };
             while (iss >> scopeUri) {
                 dev.scopes.push_back(scopeUri);
 
@@ -135,12 +119,13 @@ std::vector<DiscoveredDevice> OnvifDiscovery::parseProbeMatches(
                 constexpr const char* kHwPrefix = "onvif://www.onvif.org/hardware/";
                 constexpr const char* kLocPrefix = "onvif://www.onvif.org/location/";
 
-                if (scopeUri.rfind(kNamePrefix, 0) == 0) {
-                    dev.name = urlDecode(scopeUri.substr(std::strlen(kNamePrefix)));
-                } else if (scopeUri.rfind(kHwPrefix, 0) == 0) {
-                    dev.hardware = urlDecode(scopeUri.substr(std::strlen(kHwPrefix)));
-                } else if (scopeUri.rfind(kLocPrefix, 0) == 0) {
-                    dev.location = urlDecode(scopeUri.substr(std::strlen(kLocPrefix)));
+                const std::string_view scopeView { scopeUri };
+                if (scopeView.rfind(kNamePrefix, 0) == 0) {
+                    dev.name = urlDecode(scopeView.substr(std::strlen(kNamePrefix)));
+                } else if (scopeView.rfind(kHwPrefix, 0) == 0) {
+                    dev.hardware = urlDecode(scopeView.substr(std::strlen(kHwPrefix)));
+                } else if (scopeView.rfind(kLocPrefix, 0) == 0) {
+                    dev.location = urlDecode(scopeView.substr(std::strlen(kLocPrefix)));
                 }
             }
         }
@@ -157,7 +142,7 @@ std::vector<DiscoveredDevice> OnvifDiscovery::parseProbeMatches(
 
 std::vector<DiscoveredDevice> OnvifDiscovery::discoverDevices(std::chrono::milliseconds timeout)
 {
-    std::vector<DiscoveredDevice> discovered {};
+    std::vector<DiscoveredDevice> discovered { };
 
     Net::ensureWinsockInitialized();
 
@@ -179,7 +164,7 @@ std::vector<DiscoveredDevice> OnvifDiscovery::discoverDevices(std::chrono::milli
     setsockopt(sockFd, IPPROTO_IP, IP_MULTICAST_TTL, reinterpret_cast<const char*>(&ttl), sizeof(ttl));
 #endif
 
-    sockaddr_in destAddr {};
+    sockaddr_in destAddr { };
     destAddr.sin_family = AF_INET;
     destAddr.sin_port = htons(kMulticastPort);
     inet_pton(AF_INET, kMulticastIp, &destAddr.sin_addr);
@@ -194,7 +179,7 @@ std::vector<DiscoveredDevice> OnvifDiscovery::discoverDevices(std::chrono::milli
     }
 
     const auto startTime = std::chrono::steady_clock::now();
-    std::array<char, 16384> buffer {};
+    std::array<char, 16384> buffer { };
 
     while (true) {
         const auto elapsed
@@ -204,7 +189,7 @@ std::vector<DiscoveredDevice> OnvifDiscovery::discoverDevices(std::chrono::milli
         }
 
         const int remainingMs = static_cast<int>((timeout - elapsed).count());
-        Net::PollFd pfd {};
+        Net::PollFd pfd { };
         pfd.fd = sockFd;
         pfd.events = POLLIN;
 
@@ -214,7 +199,7 @@ std::vector<DiscoveredDevice> OnvifDiscovery::discoverDevices(std::chrono::milli
         }
 
         if (pfd.revents & POLLIN) {
-            sockaddr_in senderAddr {};
+            sockaddr_in senderAddr { };
             Net::SockOptLenType senderLen = sizeof(senderAddr);
             const auto recvd = recvfrom(sockFd, buffer.data(), static_cast<Net::SockBufLenType>(buffer.size() - 1), 0,
                 reinterpret_cast<struct sockaddr*>(&senderAddr), &senderLen);
