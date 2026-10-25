@@ -241,7 +241,9 @@ std::optional<std::vector<OnvifUser>> CredentialVault::loadFromFile(const std::s
     if (!ifs.is_open()) {
         return std::nullopt;
     }
-    std::string envelope { (std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>() };
+    std::ostringstream ss { };
+    ss << ifs.rdbuf();
+    const std::string envelope { ss.str() };
     return decrypt(envelope, key);
 }
 

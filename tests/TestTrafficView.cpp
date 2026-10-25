@@ -6,9 +6,12 @@
 #include "PelcoDDevice.h"
 #include "views/TrafficView.h"
 
-#include <gtest/gtest.h>
+#include <cstdint>
 #include <cstdio>
 #include <fstream>
+#include <gtest/gtest.h>
+#include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -39,7 +42,7 @@ TEST(TestTrafficView, TrafficFiltering)
     EXPECT_EQ(tv.getFilteredPacketCount(), 3U);
 
     // Press 'f' to switch to TxOnly
-    InputEvent fEv { Key::Character, 'f', {} };
+    InputEvent fEv { Key::Character, 'f', { } };
     tv.handleInput(fEv, dev);
     EXPECT_EQ(tv.getFilter(), TrafficFilter::TxOnly);
     EXPECT_EQ(tv.getFilteredPacketCount(), 2U);
@@ -50,7 +53,7 @@ TEST(TestTrafficView, TrafficFiltering)
     EXPECT_EQ(tv.getFilteredPacketCount(), 1U);
 
     // Press 'F' (uppercase) to cycle back to All
-    InputEvent fUpperEv { Key::Character, 'F', {} };
+    InputEvent fUpperEv { Key::Character, 'F', { } };
     tv.handleInput(fUpperEv, dev);
     EXPECT_EQ(tv.getFilter(), TrafficFilter::All);
     EXPECT_EQ(tv.getFilteredPacketCount(), 3U);
@@ -76,7 +79,9 @@ TEST(TestTrafficView, TrafficExport)
     {
         std::ifstream ifs(tmpLogPath);
         ASSERT_TRUE(ifs.is_open());
-        std::string content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+        std::ostringstream ss { };
+        ss << ifs.rdbuf();
+        const std::string content { ss.str() };
         EXPECT_NE(content.find("Pelco-D Controller - Traffic Capture Log"), std::string::npos);
         EXPECT_NE(content.find("Filter Mode : ALL"), std::string::npos);
         EXPECT_NE(content.find("TX"), std::string::npos);
@@ -91,7 +96,9 @@ TEST(TestTrafficView, TrafficExport)
     {
         std::ifstream ifs(tmpLogPath);
         ASSERT_TRUE(ifs.is_open());
-        std::string content((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+        std::ostringstream ss { };
+        ss << ifs.rdbuf();
+        const std::string content { ss.str() };
         EXPECT_NE(content.find("Filter Mode : TX ONLY"), std::string::npos);
         EXPECT_NE(content.find("Total records exported: 1"), std::string::npos);
     }
@@ -112,7 +119,7 @@ TEST(TestTrafficView, TrafficRenderingAndControls)
     tv.render(canvas, 1, 80, 24);
 
     // Toggle Pause
-    InputEvent pauseEv { Key::Character, 'p', {} };
+    InputEvent pauseEv { Key::Character, 'p', { } };
     tv.handleInput(pauseEv, dev);
 
     // Try adding a packet while paused - should not be added
@@ -124,7 +131,7 @@ TEST(TestTrafficView, TrafficRenderingAndControls)
     tv.handleInput(pauseEv, dev);
 
     // Clear
-    InputEvent clearEv { Key::Character, 'c', {} };
+    InputEvent clearEv { Key::Character, 'c', { } };
     tv.handleInput(clearEv, dev);
     EXPECT_EQ(tv.getPacketCount(), 0U);
 }

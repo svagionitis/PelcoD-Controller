@@ -10,6 +10,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -298,7 +299,9 @@ void PelcoDPtzAdapter::loadTours()
     if (!in.is_open()) {
         return;
     }
-    std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::ostringstream ss { };
+    ss << in.rdbuf();
+    const std::string content { ss.str() };
     if (content.empty()) {
         return;
     }
