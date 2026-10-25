@@ -37,12 +37,13 @@ namespace {
                                                  "abcdefghijklmnopqrstuvwxyz"
                                                  "0123456789+/" };
 
-    constexpr std::int64_t kSecondsPerDay { 86400LL };
-    constexpr std::int64_t kMaxSafeDays { 36500LL }; // 100 years max
+    constexpr std::int64_t kMinSafeDays { 1 };
+    constexpr std::int64_t kSecondsPerDay { 86400 };
+    constexpr std::int64_t kMaxSafeDays { 36500 }; // 100 years max
 
     [[nodiscard]] std::int64_t safeValiditySeconds(int daysValid) noexcept
     {
-        const auto days = std::clamp(static_cast<std::int64_t>(daysValid), 1LL, kMaxSafeDays);
+        const auto days = std::clamp(static_cast<std::int64_t>(daysValid), kMinSafeDays, kMaxSafeDays);
         return days * kSecondsPerDay;
     }
 
