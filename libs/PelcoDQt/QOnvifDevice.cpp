@@ -1,5 +1,14 @@
 #include "QOnvifDevice.h"
 
+#include <cstddef>
+
+#include <algorithm>
+#include <chrono>
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
+
 #include <QThread>
 
 namespace PelcoD::Qt {
@@ -84,7 +93,7 @@ bool QOnvifDevice::connectToCamera(const QString& endpoint, const QString& usern
     m_client = std::make_unique<Onvif::OnvifClient>(endpoint.toStdString(), creds);
 
     // Synchronize camera clock
-    m_client->synchronizeSystemTime();
+    static_cast<void>(m_client->synchronizeSystemTime());
 
     // Query capabilities
     const auto caps = m_client->getCapabilities();
@@ -215,7 +224,7 @@ void QOnvifDevice::move(double panSpeed, double tiltSpeed)
     if (!m_client || m_activeProfileToken.isEmpty()) {
         return;
     }
-    m_client->continuousMove(m_activeProfileToken.toStdString(), panSpeed, tiltSpeed, 0.0);
+    static_cast<void>(m_client->continuousMove(m_activeProfileToken.toStdString(), panSpeed, tiltSpeed, 0.0));
 }
 
 void QOnvifDevice::zoom(int direction, double speed)
@@ -224,7 +233,7 @@ void QOnvifDevice::zoom(int direction, double speed)
         return;
     }
     const double z = (direction > 0) ? speed : ((direction < 0) ? -speed : 0.0);
-    m_client->continuousMove(m_activeProfileToken.toStdString(), 0.0, 0.0, z);
+    static_cast<void>(m_client->continuousMove(m_activeProfileToken.toStdString(), 0.0, 0.0, z));
 }
 
 void QOnvifDevice::stopMotion(bool stopPanTilt, bool stopZoom)
@@ -232,7 +241,7 @@ void QOnvifDevice::stopMotion(bool stopPanTilt, bool stopZoom)
     if (!m_client || m_activeProfileToken.isEmpty()) {
         return;
     }
-    m_client->stop(m_activeProfileToken.toStdString(), stopPanTilt, stopZoom);
+    static_cast<void>(m_client->stop(m_activeProfileToken.toStdString(), stopPanTilt, stopZoom));
 }
 
 void QOnvifDevice::absoluteMove(double pan, double tilt, double zoom)
@@ -240,7 +249,7 @@ void QOnvifDevice::absoluteMove(double pan, double tilt, double zoom)
     if (!m_client || m_activeProfileToken.isEmpty()) {
         return;
     }
-    m_client->absoluteMove(m_activeProfileToken.toStdString(), pan, tilt, zoom);
+    static_cast<void>(m_client->absoluteMove(m_activeProfileToken.toStdString(), pan, tilt, zoom));
 }
 
 void QOnvifDevice::absoluteMoveSpherical(double azimuthDeg, double elevationDeg, double zoom)
@@ -248,7 +257,8 @@ void QOnvifDevice::absoluteMoveSpherical(double azimuthDeg, double elevationDeg,
     if (!m_client || m_activeProfileToken.isEmpty()) {
         return;
     }
-    m_client->absoluteMoveSpherical(m_activeProfileToken.toStdString(), azimuthDeg, elevationDeg, zoom);
+    static_cast<void>(
+        m_client->absoluteMoveSpherical(m_activeProfileToken.toStdString(), azimuthDeg, elevationDeg, zoom));
 }
 
 void QOnvifDevice::geoMove(double lat, double lon, double elevation, double speed, double areaWidth, double areaHeight)
@@ -295,7 +305,7 @@ void QOnvifDevice::relativeMove(double pan, double tilt, double zoom)
     if (!m_client || m_activeProfileToken.isEmpty()) {
         return;
     }
-    m_client->relativeMove(m_activeProfileToken.toStdString(), pan, tilt, zoom);
+    static_cast<void>(m_client->relativeMove(m_activeProfileToken.toStdString(), pan, tilt, zoom));
 }
 
 void QOnvifDevice::gotoHomePosition()
@@ -303,7 +313,7 @@ void QOnvifDevice::gotoHomePosition()
     if (!m_client || m_activeProfileToken.isEmpty()) {
         return;
     }
-    m_client->gotoHomePosition(m_activeProfileToken.toStdString());
+    static_cast<void>(m_client->gotoHomePosition(m_activeProfileToken.toStdString()));
 }
 
 void QOnvifDevice::setHomePosition()
@@ -311,7 +321,7 @@ void QOnvifDevice::setHomePosition()
     if (!m_client || m_activeProfileToken.isEmpty()) {
         return;
     }
-    m_client->setHomePosition(m_activeProfileToken.toStdString());
+    static_cast<void>(m_client->setHomePosition(m_activeProfileToken.toStdString()));
 }
 
 QString QOnvifDevice::sendAuxiliaryCommand(const QString& auxiliaryData)
@@ -507,7 +517,7 @@ void QOnvifDevice::focusContinuous(float speed, const QString& videoSourceToken)
         return;
     }
 
-    m_client->moveFocus(token.toStdString(), speed);
+    static_cast<void>(m_client->moveFocus(token.toStdString(), speed));
 }
 
 void QOnvifDevice::focusStop(const QString& videoSourceToken)
@@ -521,7 +531,7 @@ void QOnvifDevice::focusStop(const QString& videoSourceToken)
         return;
     }
 
-    m_client->stopFocus(token.toStdString());
+    static_cast<void>(m_client->stopFocus(token.toStdString()));
     m_focusStatus.moveStatus = "IDLE";
     emit focusStatusUpdated(m_focusStatus);
 }
@@ -555,7 +565,7 @@ void QOnvifDevice::focusAbsolute(float position, float speed, const QString& vid
         return;
     }
 
-    m_client->moveFocusAbsolute(token.toStdString(), position, speed);
+    static_cast<void>(m_client->moveFocusAbsolute(token.toStdString(), position, speed));
     m_focusStatus.position = std::clamp(position, 0.0f, 1.0f);
     m_focusStatus.moveStatus = "MOVING";
     emit focusStatusUpdated(m_focusStatus);
@@ -572,7 +582,7 @@ void QOnvifDevice::focusRelative(float distance, float speed, const QString& vid
         return;
     }
 
-    m_client->moveFocusRelative(token.toStdString(), distance, speed);
+    static_cast<void>(m_client->moveFocusRelative(token.toStdString(), distance, speed));
     m_focusStatus.position = std::clamp(m_focusStatus.position + distance, 0.0f, 1.0f);
     m_focusStatus.moveStatus = "MOVING";
     emit focusStatusUpdated(m_focusStatus);
@@ -651,7 +661,7 @@ void QOnvifDevice::stopEventSubscription()
 
     m_eventSubActive = false;
     if (m_client && !m_eventSubscriptionUrl.isEmpty()) {
-        m_client->unsubscribe(m_eventSubscriptionUrl.toStdString());
+        static_cast<void>(m_client->unsubscribe(m_eventSubscriptionUrl.toStdString()));
     }
     m_eventSubscriptionUrl.clear();
 }
