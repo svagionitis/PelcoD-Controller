@@ -280,7 +280,7 @@ TEST(PatrolControllerTest, PatrolCallbacks)
     std::atomic<bool> stateIdleFired { false };
     std::atomic<bool> stepChangedFired { false };
 
-    PelcoD::PatrolController controller([](std::uint8_t) {});
+    PelcoD::PatrolController controller([](std::uint8_t) { });
 
     controller.setStateChangedCallback([&](PelcoD::PatrolState state) {
         if (state == PelcoD::PatrolState::Running) {
@@ -311,9 +311,9 @@ TEST(PatrolControllerTest, PatrolCallbacks)
 TEST(PatrolControllerTest, PatrolDwellTicking)
 {
     std::atomic<bool> tickFired { false };
-    std::atomic<uint32_t> lastRemaining { 999U };
+    std::atomic<std::uint32_t> lastRemaining { 999U };
 
-    PelcoD::PatrolController controller([](std::uint8_t) {});
+    PelcoD::PatrolController controller([](std::uint8_t) { });
 
     controller.setDwellTickCallback([&](std::size_t, std::uint32_t remainingSeconds) {
         tickFired.store(true);
@@ -334,9 +334,9 @@ TEST(PatrolControllerTest, PatrolDwellTicking)
 /// @brief Thread-safe recorder of dispatched preset identifiers.
 /// @details Shared by the C1 regression tests to wait for specific dispatch counts.
 struct PresetRecorder {
-    std::mutex mtx {};
-    std::condition_variable cv {};
-    std::vector<std::uint8_t> presets {};
+    std::mutex mtx { };
+    std::condition_variable cv { };
+    std::vector<std::uint8_t> presets { };
 
     /// @brief Record a dispatched preset and wake any waiters.
     /// @param[in] presetId Preset identifier that was dispatched.
@@ -370,7 +370,7 @@ struct PresetRecorder {
 ///          The tour must restart from step 0 and dispatch preset 1 again.
 TEST(PatrolControllerTest, StartWhilePausedRestarts)
 {
-    PresetRecorder rec {};
+    PresetRecorder rec { };
     PelcoD::PatrolController controller([&rec](std::uint8_t presetId) { rec.record(presetId); });
     controller.addStep(PelcoD::PatrolStep { 1U, 20U, "Step 1", 0U });
     controller.addStep(PelcoD::PatrolStep { 2U, 20U, "Step 2", 0U });
@@ -398,7 +398,7 @@ TEST(PatrolControllerTest, StartWhilePausedRestarts)
 /// @details The new first step must be dispatched immediately after the restart.
 TEST(PatrolControllerTest, StartAfterSetStepsWhilePaused)
 {
-    PresetRecorder rec {};
+    PresetRecorder rec { };
     PelcoD::PatrolController controller([&rec](std::uint8_t presetId) { rec.record(presetId); });
     controller.addStep(PelcoD::PatrolStep { 1U, 20U, "Step 1", 0U });
 
@@ -418,7 +418,7 @@ TEST(PatrolControllerTest, StartAfterSetStepsWhilePaused)
 /// @details Any reassignment of a joinable std::thread aborts the process.
 TEST(PatrolControllerTest, PauseStartCycleStress)
 {
-    PelcoD::PatrolController controller([](std::uint8_t) {});
+    PelcoD::PatrolController controller([](std::uint8_t) { });
     controller.addStep(PelcoD::PatrolStep { 1U, 20U, "Step 1", 0U });
 
     for (std::uint32_t i { 0U }; i < 25U; ++i) {
@@ -435,12 +435,12 @@ TEST(PatrolControllerTest, PauseStartCycleStress)
 ///          throwing std::system_error on the worker and terminating the process.
 TEST(PatrolControllerTest, StartFromFinishedCbFails)
 {
-    std::mutex mtx {};
-    std::condition_variable cv {};
+    std::mutex mtx { };
+    std::condition_variable cv { };
     bool done { false };
     bool restartResult { true };
 
-    PelcoD::PatrolController controller([](std::uint8_t) {});
+    PelcoD::PatrolController controller([](std::uint8_t) { });
     controller.addStep(PelcoD::PatrolStep { 1U, 1U, "Step 1", 0U });
     controller.setLoop(false);
     controller.setTourFinishedCallback([&]() {
@@ -464,7 +464,7 @@ TEST(PatrolControllerTest, StartFromFinishedCbFails)
 /// @details Verifies the finished worker is joined before a new worker is spawned.
 TEST(PatrolControllerTest, RestartAfterTourFinished)
 {
-    PresetRecorder rec {};
+    PresetRecorder rec { };
     std::atomic<bool> finished { false };
     PelcoD::PatrolController controller([&rec](std::uint8_t presetId) { rec.record(presetId); });
     controller.setTourFinishedCallback([&finished]() { finished.store(true); });
@@ -487,8 +487,8 @@ TEST(PatrolControllerTest, RestartAfterTourFinished)
 /// @brief Verify that PatrolStep::speed is passed to the step dispatcher (M6).
 TEST(PatrolControllerTest, PatrolStepSpeedDispatched)
 {
-    std::mutex mtx {};
-    std::condition_variable cv {};
+    std::mutex mtx { };
+    std::condition_variable cv { };
     std::uint8_t receivedPreset { 0U };
     std::uint8_t receivedSpeed { 0U };
     bool dispatched { false };
@@ -521,7 +521,7 @@ TEST(PatrolControllerTest, PatrolStepSpeedDispatched)
 TEST(PatrolControllerTest, DeviceDestroyedBeforeTourStartSafe)
 {
     auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
-    auto device = std::make_shared<PelcoD::PelcoDDevice>(transport, 1U);
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(transport, static_cast<std::uint8_t>(1U));
     PelcoD::PatrolController controller(device);
     controller.addStep(PelcoD::PatrolStep { 1U, 1U, "Preset 1", 0U });
 
@@ -536,7 +536,7 @@ TEST(PatrolControllerTest, DeviceDestroyedBeforeTourStartSafe)
 TEST(PatrolControllerTest, DeviceDestroyedDuringActiveTourTerminatesWithoutUaf)
 {
     auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
-    auto device = std::make_shared<PelcoD::PelcoDDevice>(transport, 1U);
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(transport, static_cast<std::uint8_t>(1U));
     PelcoD::PatrolController controller(device);
     controller.addStep(PelcoD::PatrolStep { 1U, 1U, "Preset 1", 0U });
     controller.addStep(PelcoD::PatrolStep { 2U, 1U, "Preset 2", 0U });
@@ -559,7 +559,7 @@ TEST(PatrolControllerTest, DeviceDestroyedDuringActiveTourTerminatesWithoutUaf)
 TEST(PatrolControllerTest, SharedPtrDeviceAccessorAndDispatch)
 {
     auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
-    auto device = std::make_shared<PelcoD::PelcoDDevice>(transport, 1U);
+    auto device = std::make_shared<PelcoD::PelcoDDevice>(transport, static_cast<std::uint8_t>(1U));
     PelcoD::PatrolController controller;
     controller.setDevice(device);
 
@@ -577,10 +577,10 @@ TEST(PatrolControllerTest, SharedPtrDeviceAccessorAndDispatch)
 TEST(PatrolControllerTest, ClearCommandDispatcherWithNullptr)
 {
     PelcoD::PatrolController controller;
-    controller.setCommandDispatcher([](std::uint8_t) {});
+    controller.setCommandDispatcher([](std::uint8_t) { });
     controller.setCommandDispatcher(nullptr);
 
-    controller.setCommandDispatcher([](std::uint8_t, std::uint8_t) {});
+    controller.setCommandDispatcher([](std::uint8_t, std::uint8_t) { });
     controller.setCommandDispatcher(nullptr);
 }
 

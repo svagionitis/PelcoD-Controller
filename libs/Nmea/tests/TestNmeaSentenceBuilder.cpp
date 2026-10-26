@@ -1,6 +1,11 @@
 #include "NmeaSentenceBuilder.h"
 #include "NmeaSentenceParser.h"
 
+#include <cstdint>
+
+#include <optional>
+#include <string>
+
 #include <gtest/gtest.h>
 
 namespace Nmea {
@@ -11,7 +16,7 @@ namespace {
         const std::string sentence = NmeaSentenceBuilder::buildHdt(284.6, "HE");
         EXPECT_TRUE(NmeaChecksum::validate(sentence));
 
-        HdtData parsed {};
+        HdtData parsed { };
         ASSERT_TRUE(NmeaSentenceParser::parseHdt(sentence, parsed, true));
         EXPECT_TRUE(parsed.valid);
         EXPECT_NEAR(parsed.headingDegrees, 284.6, 1e-1);
@@ -22,7 +27,7 @@ namespace {
         const std::string sentence = NmeaSentenceBuilder::buildThs(172.9, NmeaFaaMode::Autonomous, "HE");
         EXPECT_TRUE(NmeaChecksum::validate(sentence));
 
-        ThsData parsed {};
+        ThsData parsed { };
         ASSERT_TRUE(NmeaSentenceParser::parseThs(sentence, parsed, true));
         EXPECT_TRUE(parsed.valid);
         EXPECT_NEAR(parsed.headingDegrees, 172.9, 1e-1);
@@ -31,7 +36,7 @@ namespace {
 
     TEST(TestNmeaSentenceBuilder, RoundtripGga)
     {
-        GgaData inData {};
+        GgaData inData { };
         inData.utcTime = { 10, 15, 30, 0 };
         inData.coordinates = { 37.7749, -122.4194 };
         inData.fixQuality = NmeaFixQuality::DgpsFix;
@@ -45,7 +50,7 @@ namespace {
         const std::string sentence = NmeaSentenceBuilder::buildGga(inData, "GP");
         EXPECT_TRUE(NmeaChecksum::validate(sentence));
 
-        GgaData outData {};
+        GgaData outData { };
         ASSERT_TRUE(NmeaSentenceParser::parseGga(sentence, outData, true));
         EXPECT_TRUE(outData.valid);
         EXPECT_EQ(outData.utcTime.hour, 10U);
@@ -60,7 +65,7 @@ namespace {
 
     TEST(TestNmeaSentenceBuilder, RoundtripRmc)
     {
-        RmcData inData {};
+        RmcData inData { };
         inData.utcTime = { 18, 45, 12, 0 };
         inData.statusActive = true;
         inData.coordinates = { -22.9068, -43.1729 }; // Rio de Janeiro
@@ -73,7 +78,7 @@ namespace {
         const std::string sentence = NmeaSentenceBuilder::buildRmc(inData, "GN");
         EXPECT_TRUE(NmeaChecksum::validate(sentence));
 
-        RmcData outData {};
+        RmcData outData { };
         ASSERT_TRUE(NmeaSentenceParser::parseRmc(sentence, outData, true));
         EXPECT_TRUE(outData.valid);
         EXPECT_TRUE(outData.statusActive);
@@ -88,7 +93,7 @@ namespace {
 
     TEST(TestNmeaSentenceBuilder, RoundtripTtm)
     {
-        TtmData inData {};
+        TtmData inData { };
         inData.targetNumber = 42U;
         inData.targetDistanceNmi = 6.45;
         inData.bearingDegrees = 112.5;
@@ -108,7 +113,7 @@ namespace {
         const std::string sentence = NmeaSentenceBuilder::buildTtm(inData, "RA");
         EXPECT_TRUE(NmeaChecksum::validate(sentence));
 
-        TtmData outData {};
+        TtmData outData { };
         ASSERT_TRUE(NmeaSentenceParser::parseTtm(sentence, outData, true));
         EXPECT_TRUE(outData.valid);
         EXPECT_EQ(outData.targetNumber, 42U);
@@ -125,7 +130,7 @@ namespace {
         const std::string sentence = NmeaSentenceBuilder::buildXdrPitchRoll(3.14, -1.59, "II");
         EXPECT_TRUE(NmeaChecksum::validate(sentence));
 
-        XdrData outData {};
+        XdrData outData { };
         ASSERT_TRUE(NmeaSentenceParser::parseXdr(sentence, outData, true));
         EXPECT_TRUE(outData.valid);
         ASSERT_EQ(outData.transducers.size(), 2U);
@@ -137,19 +142,19 @@ namespace {
 
     TEST(TestNmeaSentenceBuilder, RoundtripGsa)
     {
-        GsaData inData {};
+        GsaData inData { };
         inData.selectionMode = 'A';
         inData.fixMode = 3U;
         inData.activeSatellitePrns = { 3U, 7U, 11U, 14U, 19U, 28U };
         inData.pdop = 1.8;
         inData.hdop = 1.0;
         inData.vdop = 1.5;
-        inData.systemId = 1U;
+        inData.systemId = static_cast<std::uint8_t>(1U);
 
         const std::string sentence = NmeaSentenceBuilder::buildGsa(inData, "GP");
         EXPECT_TRUE(NmeaChecksum::validate(sentence));
 
-        GsaData outData {};
+        GsaData outData { };
         ASSERT_TRUE(NmeaSentenceParser::parseGsa(sentence, outData, true));
         EXPECT_TRUE(outData.valid);
         EXPECT_EQ(outData.selectionMode, 'A');
@@ -164,19 +169,16 @@ namespace {
 
     TEST(TestNmeaSentenceBuilder, RoundtripGsv)
     {
-        GsvData inData {};
+        GsvData inData { };
         inData.totalSentences = 1U;
         inData.sentenceNumber = 1U;
         inData.totalSatellitesInView = 2U;
-        inData.satellites = {
-            { 5U, 45.0, 120.0, 48.0 },
-            { 9U, 30.0, 240.0, std::nullopt }
-        };
+        inData.satellites = { { 5U, 45.0, 120.0, 48.0 }, { 9U, 30.0, 240.0, std::nullopt } };
 
         const std::string sentence = NmeaSentenceBuilder::buildGsv(inData, "GP");
         EXPECT_TRUE(NmeaChecksum::validate(sentence));
 
-        GsvData outData {};
+        GsvData outData { };
         ASSERT_TRUE(NmeaSentenceParser::parseGsv(sentence, outData, true));
         EXPECT_TRUE(outData.valid);
         EXPECT_EQ(outData.totalSentences, 1U);
@@ -190,7 +192,7 @@ namespace {
 
     TEST(TestNmeaSentenceBuilder, RoundtripZda)
     {
-        ZdaData inData {};
+        ZdaData inData { };
         inData.utcTime = { 14, 25, 40, 250 };
         inData.day = 29U;
         inData.month = 9U;
@@ -201,7 +203,7 @@ namespace {
         const std::string sentence = NmeaSentenceBuilder::buildZda(inData, "GP");
         EXPECT_TRUE(NmeaChecksum::validate(sentence));
 
-        ZdaData outData {};
+        ZdaData outData { };
         ASSERT_TRUE(NmeaSentenceParser::parseZda(sentence, outData, true));
         EXPECT_TRUE(outData.valid);
         EXPECT_EQ(outData.utcTime.hour, 14U);
@@ -215,7 +217,7 @@ namespace {
 
     TEST(TestNmeaSentenceBuilder, RoundtripVbwAndVhw)
     {
-        VbwData inVbw {};
+        VbwData inVbw { };
         inVbw.longitudinalWaterSpeedKnots = 15.2;
         inVbw.transverseWaterSpeedKnots = 0.5;
         inVbw.waterSpeedStatus = 'A';
@@ -226,13 +228,13 @@ namespace {
         const std::string vbwSent = NmeaSentenceBuilder::buildVbw(inVbw, "VD");
         EXPECT_TRUE(NmeaChecksum::validate(vbwSent));
 
-        VbwData outVbw {};
+        VbwData outVbw { };
         ASSERT_TRUE(NmeaSentenceParser::parseVbw(vbwSent, outVbw, true));
         EXPECT_TRUE(outVbw.valid);
         EXPECT_NEAR(outVbw.longitudinalWaterSpeedKnots, 15.2, 1e-1);
         EXPECT_NEAR(outVbw.longitudinalGroundSpeedKnots, 15.5, 1e-1);
 
-        VhwData inVhw {};
+        VhwData inVhw { };
         inVhw.headingDegreesTrue = 210.5;
         inVhw.headingDegreesMagnetic = 208.1;
         inVhw.speedWaterKnots = 14.8;
@@ -241,7 +243,7 @@ namespace {
         const std::string vhwSent = NmeaSentenceBuilder::buildVhw(inVhw, "VW");
         EXPECT_TRUE(NmeaChecksum::validate(vhwSent));
 
-        VhwData outVhw {};
+        VhwData outVhw { };
         ASSERT_TRUE(NmeaSentenceParser::parseVhw(vhwSent, outVhw, true));
         EXPECT_TRUE(outVhw.valid);
         ASSERT_TRUE(outVhw.headingDegreesTrue.has_value());
@@ -250,20 +252,20 @@ namespace {
 
     TEST(TestNmeaSentenceBuilder, RoundtripDptAndDbt)
     {
-        DptData inDpt {};
+        DptData inDpt { };
         inDpt.waterDepthMeters = 32.4;
         inDpt.offsetMeters = -2.1;
 
         const std::string dptSent = NmeaSentenceBuilder::buildDpt(inDpt, "SD");
         EXPECT_TRUE(NmeaChecksum::validate(dptSent));
 
-        DptData outDpt {};
+        DptData outDpt { };
         ASSERT_TRUE(NmeaSentenceParser::parseDpt(dptSent, outDpt, true));
         EXPECT_TRUE(outDpt.valid);
         EXPECT_NEAR(outDpt.waterDepthMeters, 32.4, 1e-1);
         EXPECT_NEAR(outDpt.offsetMeters, -2.1, 1e-1);
 
-        DbtData inDbt {};
+        DbtData inDbt { };
         inDbt.depthFeet = 99.0;
         inDbt.depthMeters = 30.18;
         inDbt.depthFathoms = 16.5;
@@ -271,7 +273,7 @@ namespace {
         const std::string dbtSent = NmeaSentenceBuilder::buildDbt(inDbt, "SD");
         EXPECT_TRUE(NmeaChecksum::validate(dbtSent));
 
-        DbtData outDbt {};
+        DbtData outDbt { };
         ASSERT_TRUE(NmeaSentenceParser::parseDbt(dbtSent, outDbt, true));
         EXPECT_TRUE(outDbt.valid);
         EXPECT_NEAR(outDbt.depthFeet, 99.0, 1e-1);
@@ -279,7 +281,7 @@ namespace {
 
     TEST(TestNmeaSentenceBuilder, RoundtripBamSentences)
     {
-        Bam::AlfData inAlf {};
+        Bam::AlfData inAlf { };
         inAlf.alertPriority = 'W';
         inAlf.alertCategory = 'B';
         inAlf.alertState = 'S';
@@ -290,27 +292,27 @@ namespace {
         const std::string alfSent = NmeaSentenceBuilder::buildAlf(inAlf, "BN");
         EXPECT_TRUE(NmeaChecksum::validate(alfSent));
 
-        Bam::AlfData outAlf {};
+        Bam::AlfData outAlf { };
         ASSERT_TRUE(NmeaSentenceParser::parseAlf(alfSent, outAlf, true));
         EXPECT_TRUE(outAlf.valid);
         EXPECT_EQ(outAlf.alertPriority, 'W');
         EXPECT_EQ(outAlf.alertIdentifier, 2005U);
         EXPECT_EQ(outAlf.alertText, "High Gimbal Temp");
 
-        Bam::AlcData inAlc {};
+        Bam::AlcData inAlc { };
         inAlc.alertCount = 1U;
         inAlc.alertEntries = { { 2005U, 1U, 2U } };
 
         const std::string alcSent = NmeaSentenceBuilder::buildAlc(inAlc, "BN");
         EXPECT_TRUE(NmeaChecksum::validate(alcSent));
 
-        Bam::AlcData outAlc {};
+        Bam::AlcData outAlc { };
         ASSERT_TRUE(NmeaSentenceParser::parseAlc(alcSent, outAlc, true));
         EXPECT_TRUE(outAlc.valid);
         ASSERT_EQ(outAlc.alertEntries.size(), 1U);
         EXPECT_EQ(outAlc.alertEntries[0].alertIdentifier, 2005U);
 
-        Bam::ArcData inArc {};
+        Bam::ArcData inArc { };
         inArc.alertIdentifier = 2005U;
         inArc.alertInstance = 1U;
         inArc.command = 'Q';
@@ -318,12 +320,12 @@ namespace {
         const std::string arcSent = NmeaSentenceBuilder::buildArc(inArc, "BN");
         EXPECT_TRUE(NmeaChecksum::validate(arcSent));
 
-        Bam::ArcData outArc {};
+        Bam::ArcData outArc { };
         ASSERT_TRUE(NmeaSentenceParser::parseArc(arcSent, outArc, true));
         EXPECT_TRUE(outArc.valid);
         EXPECT_EQ(outArc.command, 'Q');
 
-        Bam::HbtData inHbt {};
+        Bam::HbtData inHbt { };
         inHbt.configuredIntervalSec = 30.0;
         inHbt.equipmentStatus = 'A';
         inHbt.sequentialSentenceId = 3U;
@@ -331,7 +333,7 @@ namespace {
         const std::string hbtSent = NmeaSentenceBuilder::buildHbt(inHbt, "BN");
         EXPECT_TRUE(NmeaChecksum::validate(hbtSent));
 
-        Bam::HbtData outHbt {};
+        Bam::HbtData outHbt { };
         ASSERT_TRUE(NmeaSentenceParser::parseHbt(hbtSent, outHbt, true));
         EXPECT_TRUE(outHbt.valid);
         EXPECT_EQ(outHbt.sequentialSentenceId, 3U);

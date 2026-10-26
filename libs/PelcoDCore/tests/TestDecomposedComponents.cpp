@@ -12,9 +12,12 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
+
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <string>
 #include <vector>
 
 using namespace PelcoD;
@@ -22,7 +25,7 @@ using namespace std::chrono_literals;
 
 TEST(TelemetryCoordinatorTest, InitialStateAndSetters)
 {
-    TelemetryCoordinator coordinator {};
+    TelemetryCoordinator coordinator { };
     EXPECT_FALSE(coordinator.getStatus().connected);
     EXPECT_EQ(coordinator.getStatus().address, 1U);
 
@@ -73,7 +76,7 @@ TEST(TelemetryCoordinatorTest, InitialStateAndSetters)
 
 TEST(TelemetryCoordinatorTest, FrameFilteringByAddress)
 {
-    TelemetryCoordinator coordinator {};
+    TelemetryCoordinator coordinator { };
     coordinator.setAddress(1U);
 
     // Response for address 1 (pan response 0x1234 = 4660 centidegrees)
@@ -90,7 +93,7 @@ TEST(TelemetryCoordinatorTest, FrameFilteringByAddress)
 
 TEST(TelemetryCoordinatorTest, PollingConfiguration)
 {
-    TelemetryCoordinator coordinator {};
+    TelemetryCoordinator coordinator { };
     EXPECT_FALSE(coordinator.isPolling());
     EXPECT_EQ(coordinator.getPollIntervalMs(), 1000U);
 
@@ -101,7 +104,7 @@ TEST(TelemetryCoordinatorTest, PollingConfiguration)
 
 TEST(ProtocolMetricsTest, CounterAndLatencyRecording)
 {
-    ProtocolMetrics metrics {};
+    ProtocolMetrics metrics { };
     const auto initialStats = metrics.getStats();
     EXPECT_EQ(initialStats.queriesSent, 0U);
     EXPECT_EQ(initialStats.queriesCompleted, 0U);
@@ -135,7 +138,7 @@ TEST(ProtocolMetricsTest, CounterAndLatencyRecording)
 
 TEST(CallbackDispatcherTest, DispatchAndLifecycle)
 {
-    CallbackDispatcher dispatcher {};
+    CallbackDispatcher dispatcher { };
 
     std::atomic<std::uint32_t> statusFired { 0U };
     std::atomic<std::uint32_t> trafficFired { 0U };
@@ -160,7 +163,7 @@ TEST(CallbackDispatcherTest, DispatchAndLifecycle)
     auto connLatency = dispatcher.addQueryLatencyCallback(
         [&](const std::string&, std::chrono::microseconds, bool) { latencyFired.fetch_add(1U); });
 
-    DeviceStatus dummyStatus {};
+    DeviceStatus dummyStatus { };
     dispatcher.notifyStatus(dummyStatus);
     dispatcher.notifyTraffic(true, { 0xFF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01 });
     dispatcher.notifyTimeout("QueryPan");
@@ -201,7 +204,7 @@ TEST(CallbackDispatcherTest, DispatchAndLifecycle)
 TEST(PelcoDSessionAndCommandsTest, PtzCommandDispatchThroughSession)
 {
     auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
-    auto session = std::make_shared<PelcoDSession>(transport, 1U);
+    auto session = std::make_shared<PelcoDSession>(transport, static_cast<std::uint8_t>(1U));
     auto telemetry = std::make_shared<TelemetryCoordinator>();
     auto guard = std::make_shared<MotionSafetyGuard>(session);
 

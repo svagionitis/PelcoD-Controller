@@ -42,13 +42,13 @@ namespace {
         bool sendData(const std::vector<std::uint8_t>& data) override
         {
             std::lock_guard<std::mutex> lock(m_txMutex);
-            m_sentPackets.push_back(std::string(data.begin(), data.end()));
+            m_sentPackets.push_back(std::string(reinterpret_cast<const char*>(data.data()), data.size()));
             return true;
         }
 
         void injectString(std::string_view text)
         {
-            std::vector<std::uint8_t> data {};
+            std::vector<std::uint8_t> data { };
             data.reserve(text.size());
             for (const char ch : text) {
                 data.push_back(static_cast<std::uint8_t>(ch));
@@ -70,8 +70,8 @@ namespace {
 
     private:
         std::atomic<bool> m_isOpen { false };
-        mutable std::mutex m_txMutex {};
-        std::vector<std::string> m_sentPackets {};
+        mutable std::mutex m_txMutex { };
+        std::vector<std::string> m_sentPackets { };
     };
 
     TEST(TestFlirPfecDevice, LifecycleAndConnection)
@@ -189,7 +189,7 @@ namespace {
         ASSERT_TRUE(camera.start(std::chrono::milliseconds(0)));
 
         std::atomic<bool> positionCallbackFired { false };
-        PfecGimbalPosition reportedPos {};
+        PfecGimbalPosition reportedPos { };
         const auto subId = camera.addPositionCallback([&](const PfecGimbalPosition& pos) {
             positionCallbackFired = true;
             reportedPos = pos;

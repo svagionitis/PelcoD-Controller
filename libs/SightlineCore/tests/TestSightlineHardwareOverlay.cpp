@@ -10,6 +10,12 @@
 #include "modules/SightlineOverlayParser.h"
 #include "modules/SightlineSerialBuilder.h"
 
+#include <cstddef>
+#include <cstdint>
+
+#include <string>
+#include <vector>
+
 #include <gtest/gtest.h>
 
 namespace Sightline {
@@ -18,7 +24,7 @@ namespace {
     /// @brief Verify lens and hardware control commands serialization.
     TEST(TestSightlineHardwareOverlay, BuildLensHardware)
     {
-        MsgLensCommand lensCmd {};
+        MsgLensCommand lensCmd { };
         lensCmd.cameraIndex = 0U;
         lensCmd.commandType = 3U; // Zoom In
         lensCmd.rateOrPosition = 500;
@@ -29,7 +35,7 @@ namespace {
         const auto facadeLensPkt = SightlineProtocolBuilder::buildLensCommand(lensCmd);
         EXPECT_EQ(lensPkt, facadeLensPkt);
 
-        MsgFocusParameters focusMsg {};
+        MsgFocusParameters focusMsg { };
         focusMsg.cameraIndex = 0U;
         focusMsg.focusMode = 1U;
         focusMsg.roiX = 400U;
@@ -39,7 +45,7 @@ namespace {
         const auto focusPkt = SightlineFocusBuilder::buildFocusParameters(focusMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(focusPkt), MessageId::FocusParameters);
 
-        MsgSetLensParameters lensParams {};
+        MsgSetLensParameters lensParams { };
         lensParams.cameraIndex = 0U;
         lensParams.minFocalLengthMm = 4.5;
         lensParams.maxFocalLengthMm = 135.0;
@@ -48,7 +54,7 @@ namespace {
         const auto paramsPkt = SightlineFocusBuilder::buildSetLensParameters(lensParams);
         EXPECT_EQ(SightlineFraming::identifyMessage(paramsPkt), MessageId::SetLensParameters);
 
-        MsgGPIO gpioMsg {};
+        MsgGPIO gpioMsg { };
         gpioMsg.pinMask = 0x0FU;
         gpioMsg.pinValues = 0x05U;
         gpioMsg.directionMask = 0x0FU;
@@ -59,14 +65,14 @@ namespace {
     /// @brief Verify overlay and reticle commands serialization.
     TEST(TestSightlineHardwareOverlay, BuildOverlays)
     {
-        MsgSetOverlayMode overlayMode {};
+        MsgSetOverlayMode overlayMode { };
         overlayMode.cameraIndex = 0U;
         overlayMode.primaryReticle = 0x11U; // Cross reticle, white
         overlayMode.graphics = OverlayGraphicsFlags::TrackIndex | OverlayGraphicsFlags::UserOverlayObjects;
         const auto modePkt = SightlineOverlayBuilder::buildSetOverlayMode(overlayMode);
         EXPECT_EQ(SightlineFraming::identifyMessage(modePkt), MessageId::SetOverlayMode);
 
-        MsgDrawOverlay drawObj {};
+        MsgDrawOverlay drawObj { };
         drawObj.cameraIndex = 0U;
         drawObj.objectId = 1U;
         drawObj.action = OverlayActionFlags::Create;
@@ -89,7 +95,7 @@ namespace {
     /// @brief Verify auto-focus statistics parsing (0x55).
     TEST(TestSightlineHardwareOverlay, ParseFocusStats)
     {
-        std::vector<std::uint8_t> payload {};
+        std::vector<std::uint8_t> payload { };
         payload.push_back(0U); // cameraIndex
         payload.push_back(1U); // focusMode
         SightlineFraming::appendU16Le(payload, 400U); // roiX
@@ -99,7 +105,7 @@ namespace {
 
         const auto pkt = SightlineFraming::buildPacket(MessageId::FocusStats, payload);
 
-        MsgFocusParameters out {};
+        MsgFocusParameters out { };
         ASSERT_TRUE(SightlineFocusParser::parseFocusStats(pkt, out));
         EXPECT_EQ(out.cameraIndex, 0U);
         EXPECT_EQ(out.focusMode, 1U);
@@ -109,7 +115,7 @@ namespace {
         EXPECT_EQ(out.roiHeight, 150U);
 
         // Verify facade equivalence
-        MsgFocusParameters facadeOut {};
+        MsgFocusParameters facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseFocusStats(pkt, facadeOut));
         EXPECT_EQ(facadeOut.roiWidth, 200U);
     }
@@ -120,7 +126,7 @@ namespace {
         const auto getPkt = SightlineFocusBuilder::buildGetLensParameters(1U);
         EXPECT_EQ(SightlineFraming::identifyMessage(getPkt), MessageId::GetParameters);
 
-        MsgSetLensParameters setMsg {};
+        MsgSetLensParameters setMsg { };
         setMsg.cameraIndex = 1U;
         setMsg.minFocalLengthMm = 5.0;
         setMsg.maxFocalLengthMm = 150.0;
@@ -130,7 +136,7 @@ namespace {
         const auto setPkt = SightlineFocusBuilder::buildSetLensParameters(setMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(setPkt), MessageId::SetLensParameters);
 
-        MsgSetLensParameters parsed {};
+        MsgSetLensParameters parsed { };
         ASSERT_TRUE(SightlineFocusParser::parseLensParameters(setPkt, parsed));
         EXPECT_EQ(parsed.cameraIndex, 1U);
         EXPECT_DOUBLE_EQ(parsed.minFocalLengthMm, 5.0);
@@ -139,7 +145,7 @@ namespace {
         EXPECT_DOUBLE_EQ(parsed.horizontalFovTeleDeg, 2.0);
 
         // Facade equivalence
-        MsgSetLensParameters facadeOut {};
+        MsgSetLensParameters facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseLensParameters(setPkt, facadeOut));
         EXPECT_DOUBLE_EQ(facadeOut.maxFocalLengthMm, 150.0);
 
@@ -152,7 +158,7 @@ namespace {
     TEST(TestSightlineHardwareOverlay, BuildAndParsePhase5Overlays)
     {
         // 1. Overlay Mode (0x06 / 0x42)
-        MsgSetOverlayMode modeIn {};
+        MsgSetOverlayMode modeIn { };
         modeIn.cameraIndex = 1U;
         modeIn.primaryReticle = 0x11U; // Cross reticle, white
         modeIn.secondaryReticle = 0x21U; // Circle reticle, white
@@ -165,7 +171,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(modePkt), MessageId::SetOverlayMode);
         EXPECT_EQ(modePkt, SightlineProtocolBuilder::buildSetOverlayMode(modeIn));
 
-        MsgSetOverlayMode modeOut {};
+        MsgSetOverlayMode modeOut { };
         ASSERT_TRUE(SightlineOverlayParser::parseOverlayMode(modePkt, modeOut));
         EXPECT_EQ(modeOut.cameraIndex, 1U);
         EXPECT_EQ(modeOut.primaryReticle, 0x11U);
@@ -177,12 +183,12 @@ namespace {
         // CurrentOverlayMode (0x42) response
         const auto curModePkt
             = SightlineFraming::buildPacket(MessageId::CurrentOverlayMode, SightlineFraming::extractPayload(modePkt));
-        MsgSetOverlayMode curModeOut {};
+        MsgSetOverlayMode curModeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseOverlayMode(curModePkt, curModeOut));
         EXPECT_EQ(curModeOut.primaryReticle, 0x11U);
 
         // 2. Draw Object (0x3B)
-        MsgDrawObject objIn {};
+        MsgDrawObject objIn { };
         objIn.objectId = 5U;
         objIn.action = OverlayActionFlags::Create;
         objIn.propertyFlags = OverlayPropertyFlags::CoordDisplayStatic;
@@ -198,7 +204,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(objPkt), MessageId::DrawObject);
         EXPECT_EQ(objPkt, SightlineProtocolBuilder::buildDrawObject(objIn));
 
-        MsgDrawObject objOut {};
+        MsgDrawObject objOut { };
         ASSERT_TRUE(SightlineOverlayParser::parseDrawObject(objPkt, objOut));
         EXPECT_EQ(objOut.objectId, 5U);
         EXPECT_EQ(objOut.shapeType, 1U);
@@ -207,12 +213,12 @@ namespace {
         EXPECT_EQ(objOut.color, 0x0EU);
         EXPECT_EQ(objOut.text, "UAV-1");
 
-        MsgDrawObject facadeObjOut {};
+        MsgDrawObject facadeObjOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseDrawObject(objPkt, facadeObjOut));
         EXPECT_EQ(facadeObjOut.text, "UAV-1");
 
         // 3. Draw Overlay (0x9C)
-        MsgDrawOverlay drawIn {};
+        MsgDrawOverlay drawIn { };
         drawIn.cameraIndex = 2U;
         drawIn.objectId = 7U;
         drawIn.action = OverlayActionFlags::Create;
@@ -231,7 +237,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(drawPkt), MessageId::DrawOverlay);
         EXPECT_EQ(drawPkt, SightlineProtocolBuilder::buildDrawOverlay(drawIn));
 
-        MsgDrawOverlay drawOut {};
+        MsgDrawOverlay drawOut { };
         ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(drawPkt, drawOut));
         EXPECT_EQ(drawOut.cameraIndex, 2U);
         EXPECT_EQ(drawOut.objectId, 7U);
@@ -240,12 +246,12 @@ namespace {
         EXPECT_TRUE(drawOut.hasE);
         EXPECT_EQ(drawOut.e, 2U);
 
-        MsgDrawOverlay facadeDrawOut {};
+        MsgDrawOverlay facadeDrawOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseDrawOverlay(drawPkt, facadeDrawOut));
         EXPECT_EQ(facadeDrawOut.text, "ALPHA");
 
         // 4. Logo Parameters (0x9B)
-        MsgLogoParameters logoIn {};
+        MsgLogoParameters logoIn { };
         logoIn.cameraIndex = 1U;
         logoIn.logoOpacity = 200U;
         logoIn.offsetX = 50U;
@@ -259,19 +265,19 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(getLogoPkt), MessageId::GetParameters);
         EXPECT_EQ(getLogoPkt, SightlineProtocolBuilder::buildGetLogoParameters(1U));
 
-        MsgLogoParameters logoOut {};
+        MsgLogoParameters logoOut { };
         ASSERT_TRUE(SightlineOverlayParser::parseLogoParameters(logoPkt, logoOut));
         EXPECT_EQ(logoOut.cameraIndex, 1U);
         EXPECT_EQ(logoOut.logoOpacity, 200U);
         EXPECT_EQ(logoOut.offsetX, 50U);
         EXPECT_EQ(logoOut.offsetY, 80U);
 
-        MsgLogoParameters facadeLogoOut {};
+        MsgLogoParameters facadeLogoOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseLogoParameters(logoPkt, facadeLogoOut));
         EXPECT_EQ(facadeLogoOut.logoOpacity, 200U);
 
         // 5. Ancillary Text Metadata (0xAC)
-        MsgAncillaryTextMetadata textIn {};
+        MsgAncillaryTextMetadata textIn { };
         textIn.creationTime = 123456789ULL;
         textIn.source = "human";
         textIn.originator = "UAV-OP1";
@@ -282,7 +288,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(textPkt), MessageId::AncillaryTextMetadata);
         EXPECT_EQ(textPkt, SightlineProtocolBuilder::buildAncillaryTextMetadata(textIn));
 
-        MsgAncillaryTextMetadata textOut {};
+        MsgAncillaryTextMetadata textOut { };
         ASSERT_TRUE(SightlineOverlayParser::parseAncillaryTextMetadata(textPkt, textOut));
         EXPECT_EQ(textOut.creationTime, 123456789ULL);
         EXPECT_EQ(textOut.source, "human");
@@ -290,12 +296,12 @@ namespace {
         EXPECT_EQ(textOut.messageBody, "LAT: 37.7749 N LON: 122.4194 W");
         EXPECT_EQ(textOut.displayId, 0x0002U);
 
-        MsgAncillaryTextMetadata facadeTextOut {};
+        MsgAncillaryTextMetadata facadeTextOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseAncillaryTextMetadata(textPkt, facadeTextOut));
         EXPECT_EQ(facadeTextOut.messageBody, textIn.messageBody);
 
         // 6. User Font (0xAE)
-        MsgUserFont fontIn {};
+        MsgUserFont fontIn { };
         fontIn.userFontIndex = 2U;
         fontIn.fontFileName = "NotoSansKR-Regular.ttf";
 
@@ -303,12 +309,12 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(fontPkt), MessageId::UserFont);
         EXPECT_EQ(fontPkt, SightlineProtocolBuilder::buildUserFont(fontIn));
 
-        MsgUserFont fontOut {};
+        MsgUserFont fontOut { };
         ASSERT_TRUE(SightlineOverlayParser::parseUserFont(fontPkt, fontOut));
         EXPECT_EQ(fontOut.userFontIndex, 2U);
         EXPECT_EQ(fontOut.fontFileName, "NotoSansKR-Regular.ttf");
 
-        MsgUserFont facadeFontOut {};
+        MsgUserFont facadeFontOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseUserFont(fontPkt, facadeFontOut));
         EXPECT_EQ(facadeFontOut.fontFileName, "NotoSansKR-Regular.ttf");
 
@@ -316,20 +322,20 @@ namespace {
         const auto getIdsPkt = SightlineOverlayBuilder::buildGetOverlayObjectsIds(0U);
         EXPECT_EQ(SightlineFraming::identifyMessage(getIdsPkt), MessageId::GetParameters);
 
-        MsgCurrentOverlayObjectsIds idsOut {};
+        MsgCurrentOverlayObjectsIds idsOut { };
         idsOut.idMask[0U] = (1ULL << 1U) | (1ULL << 5U); // Objects 1 and 5 active
         EXPECT_TRUE(idsOut.isObjectActive(1U));
         EXPECT_TRUE(idsOut.isObjectActive(5U));
         EXPECT_FALSE(idsOut.isObjectActive(2U));
 
-        std::vector<std::uint8_t> idsPayload {};
+        std::vector<std::uint8_t> idsPayload { };
         SightlineFraming::appendU64Le(idsPayload, idsOut.idMask[0U]);
         SightlineFraming::appendU64Le(idsPayload, idsOut.idMask[1U]);
         SightlineFraming::appendU64Le(idsPayload, idsOut.idMask[2U]);
         SightlineFraming::appendU64Le(idsPayload, idsOut.idMask[3U]);
         // Re-construct framed 0x68 packet
         const auto idsPkt = SightlineFraming::buildPacket(MessageId::CurrentOverlayObjectsIds, idsPayload);
-        MsgCurrentOverlayObjectsIds parsedIds {};
+        MsgCurrentOverlayObjectsIds parsedIds { };
         ASSERT_TRUE(SightlineOverlayParser::parseOverlayObjectsIds(idsPkt, parsedIds));
         EXPECT_TRUE(parsedIds.isObjectActive(1U));
         EXPECT_TRUE(parsedIds.isObjectActive(5U));
@@ -344,7 +350,7 @@ namespace {
         const std::vector<std::uint8_t> expectedCrossPkt { 0x51U, 0xACU, 0x13U, 0x9CU, 0x00U, 0x01U, 0x01U, 0x04U,
             0x09U, 0x00U, 0x00U, 0x00U, 0x00U, 0x19U, 0x00U, 0x00U, 0x00U, 0x0EU, 0x00U, 0x01U, 0x00U, 0x97U };
 
-        MsgDrawOverlay crossIn {};
+        MsgDrawOverlay crossIn { };
         crossIn.cameraIndex = 0U;
         crossIn.objectId = 1U;
         crossIn.action = OverlayActionFlags::Create;
@@ -362,7 +368,7 @@ namespace {
         const auto builtCrossPkt = SightlineOverlayBuilder::buildDrawOverlay(crossIn);
         EXPECT_EQ(builtCrossPkt, expectedCrossPkt);
 
-        MsgDrawOverlay parsedCross {};
+        MsgDrawOverlay parsedCross { };
         ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(expectedCrossPkt, parsedCross));
         EXPECT_EQ(parsedCross.cameraIndex, 0U);
         EXPECT_EQ(parsedCross.objectId, 1U);
@@ -376,7 +382,7 @@ namespace {
         const std::vector<std::uint8_t> expectedBoxPkt { 0x51U, 0xACU, 0x13U, 0x9CU, 0x00U, 0x01U, 0x01U, 0x84U, 0x05U,
             0x01U, 0x00U, 0x01U, 0x00U, 0x28U, 0x00U, 0x28U, 0x00U, 0x11U, 0x00U, 0x01U, 0x00U, 0x0FU };
 
-        MsgDrawOverlay boxIn {};
+        MsgDrawOverlay boxIn { };
         boxIn.cameraIndex = 0U;
         boxIn.objectId = 1U;
         boxIn.action = OverlayActionFlags::Create;
@@ -399,7 +405,7 @@ namespace {
         const std::vector<std::uint8_t> expectedDeletePkt { 0x51U, 0xACU, 0x13U, 0x9CU, 0x00U, 0x01U, 0x00U, 0x84U,
             0x05U, 0x01U, 0x00U, 0x01U, 0x00U, 0x80U, 0x02U, 0xE0U, 0x01U, 0x11U, 0x00U, 0x01U, 0x00U, 0x16U };
 
-        MsgDrawOverlay deleteIn {};
+        MsgDrawOverlay deleteIn { };
         deleteIn.cameraIndex = 0U;
         deleteIn.objectId = 1U;
         deleteIn.action = OverlayActionFlags::Destroy; // 0x00
@@ -426,7 +432,7 @@ namespace {
             0x72U, 0x20U, 0x63U, 0x6FU, 0x6FU, 0x6CU, 0x69U, 0x6EU, 0x67U, 0x20U, 0x64U, 0x6FU, 0x77U, 0x6EU, 0x00U,
             0x00U, 0x9BU };
 
-        MsgDrawOverlay textIn {};
+        MsgDrawOverlay textIn { };
         textIn.cameraIndex = 0U;
         textIn.objectId = 1U;
         textIn.action = OverlayActionFlags::Create;
@@ -513,7 +519,7 @@ namespace {
         EXPECT_EQ(utcObj.text, "UTC: %s");
 
         const auto utcPkt = SightlineOverlayBuilder::buildDrawOverlay(utcObj);
-        MsgDrawOverlay parsedUtc {};
+        MsgDrawOverlay parsedUtc { };
         ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(utcPkt, parsedUtc));
         EXPECT_EQ(parsedUtc.type, OverlayObjectType::KlvField);
         EXPECT_EQ(parsedUtc.text, "UTC: %s");
@@ -526,7 +532,7 @@ namespace {
         EXPECT_EQ((slantObj.d >> 8U) & 0xFFU, 0U);
 
         const auto slantPkt = SightlineOverlayBuilder::buildDrawOverlay(slantObj);
-        MsgDrawOverlay parsedSlant {};
+        MsgDrawOverlay parsedSlant { };
         ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(slantPkt, parsedSlant));
         EXPECT_EQ(parsedSlant.text, "Slant: %f m");
     }
@@ -534,7 +540,7 @@ namespace {
     /// @brief Verify batch draw overlay serializer.
     TEST(TestSightlineHardwareOverlay, BatchOverlay)
     {
-        std::vector<MsgDrawOverlay> batch {};
+        std::vector<MsgDrawOverlay> batch { };
         batch.push_back(SightlineOverlayBuilder::makeCrossOverlay(0U, 1U, 320, 240, 20U));
         batch.push_back(SightlineOverlayBuilder::makeTextOverlay(0U, 2U, 100, 100, "TRACK 1"));
         batch.push_back(SightlineOverlayBuilder::makeDestroyOverlay(0U, 3U));
@@ -562,7 +568,7 @@ namespace {
             ByteView pktView { batchBytes.data() + offset, totalPktLen };
             EXPECT_EQ(SightlineFraming::identifyMessage(pktView), MessageId::DrawOverlay);
 
-            MsgDrawOverlay parsed {};
+            MsgDrawOverlay parsed { };
             ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(pktView, parsed));
             EXPECT_EQ(parsed.objectId, batch[packetCount].objectId);
 
@@ -576,7 +582,7 @@ namespace {
     /// @brief Verify active object IDs bitmask extraction.
     TEST(TestSightlineHardwareOverlay, OverlayIdsBitmask)
     {
-        MsgCurrentOverlayObjectsIds msg {};
+        MsgCurrentOverlayObjectsIds msg { };
         EXPECT_TRUE(msg.getActiveObjectIds().empty());
 
         msg.setObjectActive(1U, true);
@@ -599,7 +605,7 @@ namespace {
         payload[8U] = 0x01U;
 
         const auto pkt = SightlineFraming::buildPacket(MessageId::CurrentOverlayObjectsIds, payload);
-        MsgCurrentOverlayObjectsIds parsed {};
+        MsgCurrentOverlayObjectsIds parsed { };
         ASSERT_TRUE(SightlineOverlayParser::parseOverlayObjectsIds(pkt, parsed));
         EXPECT_TRUE(parsed.isObjectActive(1U));
         EXPECT_TRUE(parsed.isObjectActive(64U));
@@ -612,14 +618,14 @@ namespace {
         // Truncated DrawOverlay (< 15 bytes payload)
         std::vector<std::uint8_t> shortPayload(10U, 0U);
         const auto shortDrawPkt = SightlineFraming::buildPacket(MessageId::DrawOverlay, shortPayload);
-        MsgDrawOverlay parsedDraw {};
+        MsgDrawOverlay parsedDraw { };
         EXPECT_FALSE(SightlineOverlayParser::parseDrawOverlay(shortDrawPkt, parsedDraw));
 
         // Truncated OverlayMode:
         // Less than 4 bytes must fail
         std::vector<std::uint8_t> tooShortModePayload(3U, 0U);
         const auto tooShortModePkt = SightlineFraming::buildPacket(MessageId::CurrentOverlayMode, tooShortModePayload);
-        MsgSetOverlayMode parsedMode {};
+        MsgSetOverlayMode parsedMode { };
         EXPECT_FALSE(SightlineOverlayParser::parseOverlayMode(tooShortModePkt, parsedMode));
 
         // 4 bytes minimal payload must succeed
@@ -640,8 +646,8 @@ namespace {
         EXPECT_EQ(parsedMode.cursorReticle, 0x05U);
 
         // Empty CurrentOverlayObjectsIds must fail gracefully
-        const auto emptyIdsPkt = SightlineFraming::buildPacket(MessageId::CurrentOverlayObjectsIds, {});
-        MsgCurrentOverlayObjectsIds parsedIds {};
+        const auto emptyIdsPkt = SightlineFraming::buildPacket(MessageId::CurrentOverlayObjectsIds, { });
+        MsgCurrentOverlayObjectsIds parsedIds { };
         EXPECT_FALSE(SightlineOverlayParser::parseOverlayObjectsIds(emptyIdsPkt, parsedIds));
 
         // Partial (e.g. 16 bytes) CurrentOverlayObjectsIds must succeed and populate first 128 bits
@@ -668,7 +674,7 @@ namespace {
         EXPECT_EQ(queryPayload[1U], 7U);
 
         // 2. Deserialization of 0x6B parameter packet with text
-        std::vector<std::uint8_t> paramPayload {};
+        std::vector<std::uint8_t> paramPayload { };
         paramPayload.push_back(static_cast<std::uint8_t>(OverlayObjectType::TextExtended)); // type
         paramPayload.push_back(7U); // objectId
         paramPayload.push_back(OverlayPropertyFlags::OriginUpperLeft | OverlayPropertyFlags::SaveToFlash); // flags
@@ -679,11 +685,13 @@ namespace {
         SightlineFraming::appendU16Le(paramPayload, 1U); // d (Font)
         paramPayload.push_back(0x0EU); // color (White on Transparent)
         const std::string bannerText = "AIR DEFENSE ALPHA";
-        paramPayload.insert(paramPayload.end(), bannerText.begin(), bannerText.end());
+        for (const char ch : bannerText) {
+            paramPayload.push_back(static_cast<std::uint8_t>(ch));
+        }
         paramPayload.push_back(0U); // Null terminator
 
         const auto paramPkt = SightlineFraming::buildPacket(MessageId::CurrentOverlayObjectParameters, paramPayload);
-        MsgCurrentOverlayObjectParameters parsedParams {};
+        MsgCurrentOverlayObjectParameters parsedParams { };
         ASSERT_TRUE(SightlineOverlayParser::parseOverlayObjectParams(paramPkt, parsedParams));
         EXPECT_EQ(parsedParams.type, static_cast<std::uint8_t>(OverlayObjectType::TextExtended));
         EXPECT_EQ(parsedParams.objectId, 7U);
@@ -697,7 +705,7 @@ namespace {
         EXPECT_EQ(parsedParams.text, "AIR DEFENSE ALPHA");
 
         // Facade equivalence
-        MsgCurrentOverlayObjectParameters facadeParams {};
+        MsgCurrentOverlayObjectParameters facadeParams { };
         ASSERT_TRUE(SightlineProtocolParser::parseOverlayObjectParams(paramPkt, facadeParams));
         EXPECT_EQ(facadeParams.text, parsedParams.text);
 
@@ -713,7 +721,7 @@ namespace {
     /// @brief Verify full 21-byte round-trip covering all fields of MsgSetOverlayMode.
     TEST(TestSightlineHardwareOverlay, OverlayModeRoundTrip)
     {
-        MsgSetOverlayMode modeIn {};
+        MsgSetOverlayMode modeIn { };
         modeIn.primaryReticle = 0x11U; // Cross, White
         modeIn.secondaryReticle = 0x24U; // Circle, Dark Gray
         modeIn.graphics = 0x1234U; // Custom bitmask
@@ -743,7 +751,7 @@ namespace {
         // Exact payload length check (22 bytes payload + 5 bytes framing = 27 bytes)
         EXPECT_EQ(modePkt.size(), 27U);
 
-        MsgSetOverlayMode modeOut {};
+        MsgSetOverlayMode modeOut { };
         ASSERT_TRUE(SightlineOverlayParser::parseOverlayMode(modePkt, modeOut));
         EXPECT_EQ(modeOut.primaryReticle, modeIn.primaryReticle);
         EXPECT_EQ(modeOut.secondaryReticle, modeIn.secondaryReticle);
@@ -768,7 +776,7 @@ namespace {
         EXPECT_EQ(modeOut.mtiLabelDeconflict, modeIn.mtiLabelDeconflict);
 
         // Facade equivalence
-        MsgSetOverlayMode facadeOut {};
+        MsgSetOverlayMode facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseOverlayMode(modePkt, facadeOut));
         EXPECT_EQ(facadeOut.fontScale, modeIn.fontScale);
         EXPECT_EQ(facadeOut.graphics, modeIn.graphics);
@@ -778,7 +786,7 @@ namespace {
     TEST(TestSightlineHardwareOverlay, DrawOverlayPrimitives)
     {
         // 1. Circle Primitive (Type 0)
-        MsgDrawOverlay circle {};
+        MsgDrawOverlay circle { };
         circle.cameraIndex = 0U;
         circle.objectId = 10U;
         circle.action = OverlayActionFlags::Create;
@@ -787,14 +795,14 @@ namespace {
         circle.b = 150U; // Y
         circle.c = 50U; // Radius
         const auto circlePkt = SightlineOverlayBuilder::buildDrawOverlay(circle);
-        MsgDrawOverlay circleOut {};
+        MsgDrawOverlay circleOut { };
         ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(circlePkt, circleOut));
         EXPECT_EQ(circleOut.type, OverlayObjectType::Circle);
         EXPECT_EQ(circleOut.a, 200U);
         EXPECT_EQ(circleOut.c, 50U);
 
         // 2. Line Primitive (Type 2)
-        MsgDrawOverlay line {};
+        MsgDrawOverlay line { };
         line.cameraIndex = 1U;
         line.objectId = 11U;
         line.action = OverlayActionFlags::Create;
@@ -806,7 +814,7 @@ namespace {
         line.e = 3U; // Thickness
         line.hasE = true;
         const auto linePkt = SightlineOverlayBuilder::buildDrawOverlay(line);
-        MsgDrawOverlay lineOut {};
+        MsgDrawOverlay lineOut { };
         ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(linePkt, lineOut));
         EXPECT_EQ(lineOut.type, OverlayObjectType::Line);
         EXPECT_EQ(lineOut.c, 300U);
@@ -815,7 +823,7 @@ namespace {
         EXPECT_EQ(lineOut.e, 3U);
 
         // 3. 5-bit Alpha Blending in Action Byte (Bits 3..7)
-        MsgDrawOverlay alphaRect {};
+        MsgDrawOverlay alphaRect { };
         alphaRect.cameraIndex = 0U;
         alphaRect.objectId = 12U;
         // Alpha = 25 (out of 31) -> 25 << 3 | 0x01
@@ -827,7 +835,7 @@ namespace {
         alphaRect.c = 200U;
         alphaRect.d = 120U;
         const auto alphaPkt = SightlineOverlayBuilder::buildDrawOverlay(alphaRect);
-        MsgDrawOverlay alphaOut {};
+        MsgDrawOverlay alphaOut { };
         ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(alphaPkt, alphaOut));
         EXPECT_EQ((alphaOut.action >> OverlayActionFlags::AlphaShift) & 0x1FU, 25U);
         EXPECT_EQ(alphaOut.action & 0x01U, OverlayActionFlags::Create);
@@ -838,13 +846,13 @@ namespace {
         MsgDrawOverlay negCross = SightlineOverlayBuilder::makeCrossOverlay(
             0U, 13U, negX, negY, 20U, OverlayPaletteColor::LightBlue, 1U, false);
         const auto negPkt = SightlineOverlayBuilder::buildDrawOverlay(negCross);
-        MsgDrawOverlay negOut {};
+        MsgDrawOverlay negOut { };
         ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(negPkt, negOut));
         EXPECT_EQ(static_cast<std::int16_t>(negOut.a), negX);
         EXPECT_EQ(static_cast<std::int16_t>(negOut.b), negY);
 
         // 5. Square and FilledSquare Primitives (Types 10 & 11)
-        MsgDrawOverlay square {};
+        MsgDrawOverlay square { };
         square.type = OverlayObjectType::Square;
         square.objectId = 14U;
         square.action = OverlayActionFlags::Create;
@@ -852,7 +860,7 @@ namespace {
         square.b = 400U;
         square.c = 60U; // Side length
         const auto squarePkt = SightlineOverlayBuilder::buildDrawOverlay(square);
-        MsgDrawOverlay squareOut {};
+        MsgDrawOverlay squareOut { };
         ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(squarePkt, squareOut));
         EXPECT_EQ(squareOut.type, OverlayObjectType::Square);
         EXPECT_EQ(squareOut.c, 60U);
@@ -862,7 +870,7 @@ namespace {
     TEST(TestSightlineHardwareOverlay, OptionalParamsAndText)
     {
         // 1. Standard 15-byte fixed layout (hasE = false, hasF = false)
-        MsgDrawOverlay fixed15 {};
+        MsgDrawOverlay fixed15 { };
         fixed15.type = OverlayObjectType::Rectangle;
         fixed15.objectId = 20U;
         fixed15.action = OverlayActionFlags::Create;
@@ -877,7 +885,7 @@ namespace {
         ext17.e = 5U; // Line thickness 5px
         const auto pkt17 = SightlineOverlayBuilder::buildDrawOverlay(ext17);
         EXPECT_EQ(SightlineFraming::extractPayload(pkt17).size(), 17U);
-        MsgDrawOverlay out17 {};
+        MsgDrawOverlay out17 { };
         ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(pkt17, out17));
         EXPECT_TRUE(out17.hasE);
         EXPECT_FALSE(out17.hasF);
@@ -889,7 +897,7 @@ namespace {
         ext19.f = 45U; // 45 degrees angle
         const auto pkt19 = SightlineOverlayBuilder::buildDrawOverlay(ext19);
         EXPECT_EQ(SightlineFraming::extractPayload(pkt19).size(), 19U);
-        MsgDrawOverlay out19 {};
+        MsgDrawOverlay out19 { };
         ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(pkt19, out19));
         EXPECT_TRUE(out19.hasE);
         EXPECT_TRUE(out19.hasF);
@@ -901,7 +909,7 @@ namespace {
         textWithE.hasE = true;
         textWithE.e = 2U;
         const auto textPkt = SightlineOverlayBuilder::buildDrawOverlay(textWithE);
-        MsgDrawOverlay textOut {};
+        MsgDrawOverlay textOut { };
         ASSERT_TRUE(SightlineOverlayParser::parseDrawOverlay(textPkt, textOut));
         EXPECT_EQ(textOut.text, "FIRE MISSION");
         EXPECT_TRUE(textOut.hasE);
@@ -911,7 +919,7 @@ namespace {
     /// @brief Verify active object IDs 256-bit bitmask boundaries across all 4 words.
     TEST(TestSightlineHardwareOverlay, BitmaskBoundaries)
     {
-        MsgCurrentOverlayObjectsIds msg {};
+        MsgCurrentOverlayObjectsIds msg { };
 
         // Boundary bit testing: 0, 1, 63, 64, 127, 128, 199, 200, 255
         const std::vector<std::uint8_t> boundaryIds { 0U, 1U, 63U, 64U, 127U, 128U, 199U, 200U, 255U };
@@ -939,34 +947,34 @@ namespace {
     TEST(TestSightlineHardwareOverlay, FontAndLogoWatermark)
     {
         // 1. User Font Slot 0 (short filename)
-        MsgUserFont font0Msg {};
+        MsgUserFont font0Msg { };
         font0Msg.userFontIndex = 0U;
         font0Msg.fontFileName = "hud.ttf";
         const auto font0 = SightlineOverlayBuilder::buildUserFont(font0Msg);
         EXPECT_EQ(SightlineFraming::identifyMessage(font0), MessageId::UserFont);
-        MsgUserFont font0Out {};
+        MsgUserFont font0Out { };
         ASSERT_TRUE(SightlineOverlayParser::parseUserFont(font0, font0Out));
         EXPECT_EQ(font0Out.userFontIndex, 0U);
         EXPECT_EQ(font0Out.fontFileName, "hud.ttf");
 
         // 2. User Font Slot 15 (max slot, path filename)
-        MsgUserFont font15Msg {};
+        MsgUserFont font15Msg { };
         font15Msg.userFontIndex = 15U;
         font15Msg.fontFileName = "fonts/tactical_symbols_v2.otf";
         const auto font15 = SightlineOverlayBuilder::buildUserFont(font15Msg);
-        MsgUserFont font15Out {};
+        MsgUserFont font15Out { };
         ASSERT_TRUE(SightlineOverlayParser::parseUserFont(font15, font15Out));
         EXPECT_EQ(font15Out.userFontIndex, 15U);
         EXPECT_EQ(font15Out.fontFileName, "fonts/tactical_symbols_v2.otf");
 
         // 3. Logo Watermark Opacity and Offsets
-        MsgLogoParameters logo {};
+        MsgLogoParameters logo { };
         logo.cameraIndex = 3U;
         logo.logoOpacity = 0U; // Fully transparent
         logo.offsetX = 0U;
         logo.offsetY = 0U;
         const auto logoPkt0 = SightlineOverlayBuilder::buildSetLogoParameters(logo);
-        MsgLogoParameters logoOut0 {};
+        MsgLogoParameters logoOut0 { };
         ASSERT_TRUE(SightlineOverlayParser::parseLogoParameters(logoPkt0, logoOut0));
         EXPECT_EQ(logoOut0.cameraIndex, 3U);
         EXPECT_EQ(logoOut0.logoOpacity, 0U);
@@ -975,7 +983,7 @@ namespace {
         logo.offsetX = 1920U;
         logo.offsetY = 1080U;
         const auto logoPktMax = SightlineOverlayBuilder::buildSetLogoParameters(logo);
-        MsgLogoParameters logoOutMax {};
+        MsgLogoParameters logoOutMax { };
         ASSERT_TRUE(SightlineOverlayParser::parseLogoParameters(logoPktMax, logoOutMax));
         EXPECT_EQ(logoOutMax.logoOpacity, 255U);
         EXPECT_EQ(logoOutMax.offsetX, 1920U);
@@ -999,18 +1007,18 @@ namespace {
 
         // 2. Incomplete header (< 4 bytes)
         const std::vector<std::uint8_t> truncHeader { 0x51U, 0xACU, 0x10U };
-        MsgDrawOverlay dummyDraw {};
+        MsgDrawOverlay dummyDraw { };
         EXPECT_FALSE(SightlineOverlayParser::parseDrawOverlay(truncHeader, dummyDraw));
-        MsgSetOverlayMode dummyMode {};
+        MsgSetOverlayMode dummyMode { };
         EXPECT_FALSE(SightlineOverlayParser::parseOverlayMode(truncHeader, dummyMode));
-        MsgLogoParameters dummyLogo {};
+        MsgLogoParameters dummyLogo { };
         EXPECT_FALSE(SightlineOverlayParser::parseLogoParameters(truncHeader, dummyLogo));
 
         // 3. Mismatched Message ID injection
-        const auto validModePkt = SightlineOverlayBuilder::buildSetOverlayMode(MsgSetOverlayMode {});
+        const auto validModePkt = SightlineOverlayBuilder::buildSetOverlayMode(MsgSetOverlayMode { });
         EXPECT_FALSE(SightlineOverlayParser::parseDrawOverlay(validModePkt, dummyDraw));
         EXPECT_FALSE(SightlineOverlayParser::parseLogoParameters(validModePkt, dummyLogo));
-        MsgUserFont dummyFont {};
+        MsgUserFont dummyFont { };
         EXPECT_FALSE(SightlineOverlayParser::parseUserFont(validModePkt, dummyFont));
 
         // 4. Undersized DrawOverlay payload (e.g. 4 bytes instead of 15+)

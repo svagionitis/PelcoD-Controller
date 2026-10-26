@@ -1,10 +1,16 @@
 #include "CompositeTileProvider.h"
 #include "DiskTileCache.h"
 #include "ProceduralGridTileProvider.h"
-#include <gtest/gtest.h>
+#include <cstddef>
+#include <cstdint>
 
 #include <filesystem>
 #include <fstream>
+#include <memory>
+#include <optional>
+#include <string>
+
+#include <gtest/gtest.h>
 
 using namespace Mapping;
 
@@ -13,7 +19,8 @@ class MockNetworkTileProvider : public ITileProvider {
 public:
     int fetchCount { 0 };
 
-    std::optional<TileData> getTile(const TileCoord& /*coord*/) override {
+    std::optional<TileData> getTile(const TileCoord& /*coord*/) override
+    {
         ++fetchCount;
         TileData d;
         d.bytes = { 0x01, 0x02 };
@@ -21,17 +28,20 @@ public:
         return d;
     }
 
-    bool hasTile(const TileCoord& /*coord*/) const noexcept override {
+    bool hasTile(const TileCoord& /*coord*/) const noexcept override
+    {
         return true;
     }
 
-    std::string providerName() const override {
+    std::string providerName() const override
+    {
         return "MockNetworkTileProvider";
     }
 };
 } // namespace
 
-TEST(TestOfflineTileStore, DiskTileCacheStoreAndRetrieve) {
+TEST(TestOfflineTileStore, DiskTileCacheStoreAndRetrieve)
+{
     const std::filesystem::path tempDir = std::filesystem::temp_directory_path() / "pelcod_test_mapping_cache";
     std::filesystem::remove_all(tempDir);
 
@@ -56,7 +66,8 @@ TEST(TestOfflineTileStore, DiskTileCacheStoreAndRetrieve) {
     std::filesystem::remove_all(tempDir);
 }
 
-TEST(TestOfflineTileStore, DiskTileCacheSecondarySearchDirectory) {
+TEST(TestOfflineTileStore, DiskTileCacheSecondarySearchDirectory)
+{
     const std::filesystem::path primaryDir = std::filesystem::temp_directory_path() / "pelcod_primary_cache";
     const std::filesystem::path offlineUsbDir = std::filesystem::temp_directory_path() / "pelcod_offline_usb";
     std::filesystem::remove_all(primaryDir);
@@ -79,13 +90,15 @@ TEST(TestOfflineTileStore, DiskTileCacheSecondarySearchDirectory) {
     const auto retrieved = diskCache.getTile(coord);
     ASSERT_TRUE(retrieved.has_value());
     EXPECT_EQ(retrieved->bytes.size(), 16U);
-    EXPECT_EQ(std::string(retrieved->bytes.begin(), retrieved->bytes.end()), "OFFLINE_MAP_DATA");
+    EXPECT_EQ(std::string(reinterpret_cast<const char*>(retrieved->bytes.data()), retrieved->bytes.size()),
+        "OFFLINE_MAP_DATA");
 
     std::filesystem::remove_all(primaryDir);
     std::filesystem::remove_all(offlineUsbDir);
 }
 
-TEST(TestOfflineTileStore, ProceduralGridTileGeneration) {
+TEST(TestOfflineTileStore, ProceduralGridTileGeneration)
+{
     const TileCoord coord { 100, 200, 9 };
     const TileData grid = ProceduralGridTileProvider::generateGridTile(coord);
 
@@ -96,7 +109,8 @@ TEST(TestOfflineTileStore, ProceduralGridTileGeneration) {
     EXPECT_GT(grid.bytes.size(), kExpectedPixelBytes);
 }
 
-TEST(TestOfflineTileStore, CompositeProviderOfflineOnlyEnforcement) {
+TEST(TestOfflineTileStore, CompositeProviderOfflineOnlyEnforcement)
+{
     const std::filesystem::path tempDir = std::filesystem::temp_directory_path() / "pelcod_composite_cache";
     std::filesystem::remove_all(tempDir);
 

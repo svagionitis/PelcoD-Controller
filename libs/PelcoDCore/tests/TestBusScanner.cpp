@@ -8,9 +8,11 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
+
 #include <atomic>
 #include <chrono>
-#include <cstdint>
+#include <functional>
 #include <future>
 #include <memory>
 #include <mutex>
@@ -23,7 +25,7 @@ namespace {
 /// @details Ensures startScan returns false when start > end, start == 0, or end == 255.
 TEST(BusScannerTest, RangeValidation)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
     PelcoD::BusScanner scanner(mock);
 
     EXPECT_EQ(scanner.getState(), PelcoD::ScanState::Idle);
@@ -122,7 +124,7 @@ TEST(BusScannerTest, SingleDeviceDiscovery)
 /// @details Checks scanProgressCallback firing with correct current address and scanned count for all targets.
 TEST(BusScannerTest, ProgressCallbacks)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
     PelcoD::BusScanner scanner(mock);
 
     PelcoD::ScanConfig cfg;
@@ -164,7 +166,7 @@ TEST(BusScannerTest, ProgressCallbacks)
 /// @details Initiates scan over 20 addresses, calls stopScan after first response, and verifies prompt return to Idle.
 TEST(BusScannerTest, StopScan)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(200U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(200U));
     PelcoD::BusScanner scanner(mock);
 
     PelcoD::ScanConfig cfg;
@@ -203,7 +205,7 @@ TEST(BusScannerTest, StopScan)
 /// @details Checks scan pausing at an intermediate state and resuming successfully to completion.
 TEST(BusScannerTest, PauseResume)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
     PelcoD::BusScanner scanner(mock);
 
     PelcoD::ScanConfig cfg;
@@ -238,7 +240,7 @@ TEST(BusScannerTest, PauseResume)
 /// @details Calls stopScan while scan is paused, verifying prompt unblocking and worker join.
 TEST(BusScannerTest, StopWhilePaused)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
     PelcoD::BusScanner scanner(mock);
 
     PelcoD::ScanConfig cfg;
@@ -361,7 +363,7 @@ TEST(BusScannerTest, MultiBaudDiscovery)
 /// @details Checks callback progression through configured baud list.
 TEST(BusScannerTest, MultiBaudProgressAndCount)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
     PelcoD::BusScanner scanner(mock);
 
     PelcoD::ScanConfig cfg;
@@ -410,7 +412,7 @@ TEST(BusScannerTest, MultiBaudProgressAndCount)
 /// @details Verifies early termination cleanly restores pre-scan baud rate.
 TEST(BusScannerTest, MultiBaudStopScan)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
     mock->setBaudRate(9600U);
     PelcoD::BusScanner scanner(mock);
 
@@ -452,7 +454,7 @@ TEST(BusScannerTest, MultiBaudStopScan)
 TEST(BusScannerTest, ScanTimeoutBehavior)
 {
     // Mock device is configured on address 50
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(50U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(50U));
     PelcoD::BusScanner scanner(mock);
 
     PelcoD::ScanConfig cfg;
@@ -575,8 +577,8 @@ private:
     std::atomic<bool> m_rejectBaud { false };
     std::atomic<std::uint32_t> m_baudRate { 9600U };
     mutable std::mutex m_txMutex;
-    std::vector<std::vector<std::uint8_t>> m_sentPackets {};
-    std::function<std::vector<std::vector<std::uint8_t>>(const std::vector<std::uint8_t>&)> m_responder {};
+    std::vector<std::vector<std::uint8_t>> m_sentPackets { };
+    std::function<std::vector<std::vector<std::uint8_t>>(const std::vector<std::uint8_t>&)> m_responder { };
 };
 
 /// @brief Verify H7a: local RS-485 hardware echo of the query frame is not treated as device discovery.
@@ -625,7 +627,7 @@ TEST(BusScannerTest, ValidPanResponseDiscoveredDespiteEcho)
             const auto panResp = PelcoD::PelcoDFrame::createFrame(2U, 0x00U, 0x59U, 0x23U, 0x28U);
             return { panResp };
         }
-        return {};
+        return { };
     });
 
     PelcoD::BusScanner scanner(transport);
@@ -680,7 +682,7 @@ TEST(BusScannerTest, TransportCallbackDetachedOnStopAndDtor)
 /// @brief Verify H7c: re-entrant access to scanner methods from state callback does not deadlock.
 TEST(BusScannerTest, ReentrantStateCallbackDoesNotDeadlock)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
     PelcoD::BusScanner scanner(mock);
 
     PelcoD::ScanConfig cfg;
@@ -708,7 +710,7 @@ TEST(BusScannerTest, ReentrantStateCallbackDoesNotDeadlock)
 /// @brief Verify H7c: calling startScan from inside finished callback on worker thread returns false safely.
 TEST(BusScannerTest, StartScanFromWorkerCbFailsCleanly)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
     PelcoD::BusScanner scanner(mock);
 
     PelcoD::ScanConfig cfg;
@@ -845,9 +847,9 @@ TEST(BusScannerTest, BusScannerCallbackDisconnectBlocks)
     auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(targetAddr);
     PelcoD::BusScanner scanner(mock);
 
-    std::promise<void> enteredPromise {};
+    std::promise<void> enteredPromise { };
     auto entered = enteredPromise.get_future();
-    std::promise<void> releasePromise {};
+    std::promise<void> releasePromise { };
     const std::shared_future<void> release { releasePromise.get_future().share() };
     std::atomic<bool> cbFinished { false };
 

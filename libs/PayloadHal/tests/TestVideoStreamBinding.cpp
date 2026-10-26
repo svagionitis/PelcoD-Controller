@@ -7,6 +7,9 @@
 #include "VideoStreamTypes.h"
 #include "sim/SimulatedPayload.h"
 
+#include <cstddef>
+#include <cstdint>
+
 #include <chrono>
 #include <cmath>
 #include <memory>
@@ -207,7 +210,8 @@ TEST(TestVideoStreamBinding, BinderDemIntersection)
 
     // Setup a 200m plateau DEM provider
     std::vector<float> elevations(10 * 10, 200.0f);
-    auto dem = std::make_shared<GridDemProvider>(37.70, 37.85, -122.50, -122.35, 10, 10, std::move(elevations));
+    auto dem = std::make_shared<GridDemProvider>(
+        37.70, 37.85, -122.50, -122.35, std::size_t { 10 }, std::size_t { 10 }, std::move(elevations));
     payload->setDemProvider(dem);
 
     auto ptu = payload->panTilt();
@@ -238,7 +242,7 @@ TEST(TestVideoStreamBinding, TelemetryInterpolation)
     const auto baseTime = std::chrono::system_clock::now();
 
     // Record sample at t=0
-    GimbalTelemetry g0 {};
+    GimbalTelemetry g0 { };
     g0.panAngleDeg = 10.0;
     g0.tiltAngleDeg = -20.0;
     g0.panRateDegPerSec = 10.0;
@@ -247,7 +251,7 @@ TEST(TestVideoStreamBinding, TelemetryInterpolation)
     binder.recordGimbalTelemetry(g0);
 
     // Record sample at t=100ms
-    GimbalTelemetry g1 {};
+    GimbalTelemetry g1 { };
     g1.panAngleDeg = 20.0;
     g1.tiltAngleDeg = -30.0;
     g1.panRateDegPerSec = 10.0;
@@ -266,12 +270,12 @@ TEST(TestVideoStreamBinding, TelemetryInterpolation)
     EXPECT_NEAR(syncd.gimbalTelemetry.tiltRateDegPerSec, -5.0, 0.01);
 
     // Test pan wrap-around across 360 deg
-    GimbalTelemetry gw0 {};
+    GimbalTelemetry gw0 { };
     gw0.panAngleDeg = 350.0;
     gw0.timestamp = baseTime + std::chrono::milliseconds(200);
     binder.recordGimbalTelemetry(gw0);
 
-    GimbalTelemetry gw1 {};
+    GimbalTelemetry gw1 { };
     gw1.panAngleDeg = 10.0;
     gw1.timestamp = baseTime + std::chrono::milliseconds(300);
     binder.recordGimbalTelemetry(gw1);
@@ -281,7 +285,7 @@ TEST(TestVideoStreamBinding, TelemetryInterpolation)
     const auto syncdWrap = binder.bindFrame(rawWrap);
     // Midpoint between 350° and 10° rotating forward is 0.0° / 360.0°
     EXPECT_TRUE(std::abs(syncdWrap.gimbalTelemetry.panAngleDeg) < 0.1
-                || std::abs(syncdWrap.gimbalTelemetry.panAngleDeg - 360.0) < 0.1);
+        || std::abs(syncdWrap.gimbalTelemetry.panAngleDeg - 360.0) < 0.1);
 }
 
 TEST(TestVideoStreamBinding, AsynchronousFrameCallback)

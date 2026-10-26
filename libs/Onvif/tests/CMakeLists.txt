@@ -17,6 +17,7 @@ target_link_libraries(OnvifTestCommon PUBLIC
     PelcoDSim
     GTest::gtest
 )
+apply_compiler_flags(OnvifTestCommon)
 
 function(add_onvif_test test_name test_source)
     add_executable(${test_name} ${test_source})

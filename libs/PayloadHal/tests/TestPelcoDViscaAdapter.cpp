@@ -7,12 +7,15 @@
 #include "adapters/PelcoDPtzAdapter.h"
 #include "adapters/PelcoDViscaCompositePayload.h"
 #include "adapters/ViscaSonyAdapter.h"
-#include <gtest/gtest.h>
+#include <cstdint>
 
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <string>
 #include <thread>
+
+#include <gtest/gtest.h>
 
 namespace PayloadHal {
 namespace {
@@ -22,12 +25,13 @@ namespace {
 
     TEST(TestPelcoDViscaAdapter, LifecycleAndStateAggregation)
     {
-        auto mockPtzTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-        auto pelcoDevice = std::make_shared<PelcoD::PelcoDDevice>(mockPtzTransport, 1U);
+        auto mockPtzTransport = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+        auto pelcoDevice = std::make_shared<PelcoD::PelcoDDevice>(mockPtzTransport, static_cast<std::uint8_t>(1U));
 
-        auto mockCameraTransport = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, 1);
+        auto mockCameraTransport
+            = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, static_cast<std::uint8_t>(1U));
         mockCameraTransport->open();
-        auto sonyDevice = std::make_shared<SonyFCBDevice>(mockCameraTransport, 1);
+        auto sonyDevice = std::make_shared<SonyFCBDevice>(mockCameraTransport, static_cast<std::uint8_t>(1U));
 
         auto composite = PayloadFactory::createPelcoDViscaPayload(pelcoDevice, sonyDevice);
         ASSERT_NE(composite, nullptr);
@@ -63,13 +67,14 @@ namespace {
 
     TEST(TestPelcoDViscaAdapter, DirectAdapterInjectionAndAccessors)
     {
-        auto mockPtzTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-        auto pelcoDevice = std::make_shared<PelcoD::PelcoDDevice>(mockPtzTransport, 1U);
+        auto mockPtzTransport = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+        auto pelcoDevice = std::make_shared<PelcoD::PelcoDDevice>(mockPtzTransport, static_cast<std::uint8_t>(1U));
         auto ptu = std::make_shared<PelcoDPtzAdapter>(pelcoDevice);
 
-        auto mockCameraTransport = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, 1);
+        auto mockCameraTransport
+            = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, static_cast<std::uint8_t>(1U));
         mockCameraTransport->open();
-        auto sonyDevice = std::make_shared<SonyFCBDevice>(mockCameraTransport, 1);
+        auto sonyDevice = std::make_shared<SonyFCBDevice>(mockCameraTransport, static_cast<std::uint8_t>(1U));
         auto camera = std::make_shared<ViscaSonyAdapter>(sonyDevice);
 
         PelcoDViscaCompositePayload composite(ptu, camera);
@@ -89,12 +94,13 @@ namespace {
 
     TEST(TestPelcoDViscaAdapter, MotionOpticsAndGeoreferencing)
     {
-        auto mockPtzTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-        auto pelcoDevice = std::make_shared<PelcoD::PelcoDDevice>(mockPtzTransport, 1U);
+        auto mockPtzTransport = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+        auto pelcoDevice = std::make_shared<PelcoD::PelcoDDevice>(mockPtzTransport, static_cast<std::uint8_t>(1U));
 
-        auto mockCameraTransport = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, 1);
+        auto mockCameraTransport
+            = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, static_cast<std::uint8_t>(1U));
         mockCameraTransport->open();
-        auto sonyDevice = std::make_shared<SonyFCBDevice>(mockCameraTransport, 1);
+        auto sonyDevice = std::make_shared<SonyFCBDevice>(mockCameraTransport, static_cast<std::uint8_t>(1U));
 
         PelcoDViscaCompositePayload composite(pelcoDevice, sonyDevice);
         ASSERT_TRUE(composite.connect());

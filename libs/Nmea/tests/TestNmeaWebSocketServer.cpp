@@ -1,13 +1,19 @@
 /// @file TestNmeaWebSocketServer.cpp
 /// @brief Unit tests for RFC 6455 WebSocket server and JSON telemetry broadcasting.
 
-#include "network/NmeaWebSocketServer.h"
 #include "TcpTransport.h"
+#include "network/NmeaWebSocketServer.h"
 
-#include <gtest/gtest.h>
+#include <cstddef>
+#include <cstdint>
+
 #include <chrono>
 #include <future>
 #include <string>
+#include <string_view>
+#include <vector>
+
+#include <gtest/gtest.h>
 
 using namespace Nmea::Network;
 
@@ -34,17 +40,16 @@ TEST(TestNmeaWebSocketServer, HandshakeAndJsonStreaming)
     auto handshakeFuture = handshakePromise.get_future();
 
     client.setDataCallback([&handshakePromise](const std::vector<std::uint8_t>& data) {
-        handshakePromise.set_value(std::string(data.begin(), data.end()));
+        handshakePromise.set_value(std::string(reinterpret_cast<const char*>(data.data()), data.size()));
     });
 
     // 1. Send HTTP Upgrade request
-    const std::string upgradeReq =
-        "GET / HTTP/1.1\r\n"
-        "Host: 127.0.0.1:8092\r\n"
-        "Upgrade: websocket\r\n"
-        "Connection: Upgrade\r\n"
-        "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
-        "Sec-WebSocket-Version: 13\r\n\r\n";
+    const std::string upgradeReq = "GET / HTTP/1.1\r\n"
+                                   "Host: 127.0.0.1:8092\r\n"
+                                   "Upgrade: websocket\r\n"
+                                   "Connection: Upgrade\r\n"
+                                   "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+                                   "Sec-WebSocket-Version: 13\r\n\r\n";
     const auto* pReq = reinterpret_cast<const std::uint8_t*>(upgradeReq.data());
     EXPECT_TRUE(client.sendData(std::vector<std::uint8_t>(pReq, pReq + upgradeReq.size())));
 
@@ -60,7 +65,8 @@ TEST(TestNmeaWebSocketServer, HandshakeAndJsonStreaming)
     client.setDataCallback([&jsonBroadcastPromise](const std::vector<std::uint8_t>& data) {
         // Skip 2-byte unmasked frame header (0x81, len)
         if (data.size() > 2U) {
-            jsonBroadcastPromise.set_value(std::string(data.begin() + 2U, data.end()));
+            jsonBroadcastPromise.set_value(
+                std::string(reinterpret_cast<const char*>(data.data() + 2U), data.size() - 2U));
         }
     });
 

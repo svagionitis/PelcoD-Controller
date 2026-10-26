@@ -1,6 +1,10 @@
 #include "MockPelcoDDevice.h"
 #include "PelcoDFujinon/FujinonSX800Device.h"
 #include "adapters/PelcoDFujinonPayloadAdapter.h"
+
+#include <cstdint>
+#include <memory>
+
 #include <gtest/gtest.h>
 
 namespace PayloadHal {
@@ -8,8 +12,8 @@ namespace {
 
     TEST(TestPelcoDFujinonAdapter, SubsystemsAccessAndLifecycle)
     {
-        auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-        auto fujinonDevice = std::make_shared<PelcoD::FujinonSX800Device>(mockTransport, 1U);
+        auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+        auto fujinonDevice = std::make_shared<PelcoD::FujinonSX800Device>(mockTransport, static_cast<std::uint8_t>(1U));
         PelcoDFujinonPayloadAdapter adapter(fujinonDevice);
 
         auto ptu = adapter.panTilt();
@@ -31,8 +35,8 @@ namespace {
 
     TEST(TestPelcoDFujinonAdapter, OpticsAndEnhancementControls)
     {
-        auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-        auto fujinonDevice = std::make_shared<PelcoD::FujinonSX800Device>(mockTransport, 1U);
+        auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+        auto fujinonDevice = std::make_shared<PelcoD::FujinonSX800Device>(mockTransport, static_cast<std::uint8_t>(1U));
         PelcoDFujinonPayloadAdapter adapter(fujinonDevice);
 
         ASSERT_TRUE(adapter.connect());
@@ -84,8 +88,8 @@ namespace {
 
     TEST(TestPelcoDFujinonAdapter, GroundIntersectionTargetCoordinates)
     {
-        auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-        auto fujinonDevice = std::make_shared<PelcoD::FujinonSX800Device>(mockTransport, 1U);
+        auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+        auto fujinonDevice = std::make_shared<PelcoD::FujinonSX800Device>(mockTransport, static_cast<std::uint8_t>(1U));
         PelcoDFujinonPayloadAdapter adapter(fujinonDevice);
 
         ASSERT_TRUE(adapter.connect());

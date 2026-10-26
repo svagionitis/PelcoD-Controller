@@ -1,13 +1,19 @@
 /// @file TestNmeaTcpServer.cpp
 /// @brief Unit tests for multi-client NMEA 0183 TCP server.
 
-#include "network/NmeaTcpServer.h"
 #include "TcpTransport.h"
+#include "network/NmeaTcpServer.h"
 
-#include <gtest/gtest.h>
+#include <cstddef>
+#include <cstdint>
+
 #include <chrono>
 #include <future>
 #include <string>
+#include <string_view>
+#include <vector>
+
+#include <gtest/gtest.h>
 
 using namespace Nmea::Network;
 
@@ -41,7 +47,7 @@ TEST(TestNmeaTcpServer, LifecycleAndBroadcast)
     auto serverBroadcastFuture = serverBroadcastPromise.get_future();
 
     client.setDataCallback([&serverBroadcastPromise](const std::vector<std::uint8_t>& data) {
-        serverBroadcastPromise.set_value(std::string(data.begin(), data.end()));
+        serverBroadcastPromise.set_value(std::string(reinterpret_cast<const char*>(data.data()), data.size()));
     });
 
     // 1. Broadcast from server to client

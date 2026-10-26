@@ -8,10 +8,13 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdint>
+
 #include <atomic>
 #include <chrono>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -24,8 +27,8 @@ namespace {
 ///          magnification, diagnostics, and general query responses.
 TEST(MockDeviceTest, EndToEnd)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
     std::atomic<bool> statusReceived { false };
     std::atomic<bool> trafficReceived { false };
@@ -119,8 +122,8 @@ TEST(MockDeviceTest, EndToEnd)
 ///          deadlock or cause iterator invalidation.
 TEST(MockDeviceTest, CopyOnWriteCallbacks)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
     std::atomic<int> cb1Count { 0 };
     std::atomic<int> cb2Count { 0 };
@@ -163,8 +166,8 @@ TEST(MockDeviceTest, CopyOnWriteCallbacks)
 /// @details Injects 3 batched frames into mock RX and verifies all are parsed and update status.
 TEST(MockDeviceTest, BurstTelemetryReception)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
     std::atomic<int> rxPacketCount { 0 };
     device.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>&) {
@@ -207,8 +210,8 @@ TEST(MockDeviceTest, BurstTelemetryReception)
 /// @details Starts and stops periodic polling queries, verifying outbound query rate changes.
 TEST(MockDeviceTest, DynamicTelemetryPollingLifecycle)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
     std::atomic<int> txPollQueryCount { 0 };
     device.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>& frame) {
@@ -258,7 +261,7 @@ TEST(MockDeviceTest, DynamicTelemetryPollingLifecycle)
 
     // Verify polling configured before start()
     txPollQueryCount.store(0);
-    PelcoD::PelcoDDevice devicePre(mock, 1U);
+    PelcoD::PelcoDDevice devicePre(mock, static_cast<std::uint8_t>(1U));
     devicePre.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>& frame) {
         if (isTx && frame.size() == PelcoD::PelcoDFrame::StandardFrameSize) {
             const std::uint8_t op = frame[3];
@@ -285,8 +288,8 @@ TEST(MockDeviceTest, DynamicTelemetryPollingLifecycle)
 /// @details Ensures no callbacks fire after clearCallbacks() is invoked.
 TEST(MockDeviceTest, ClearCallbacks)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
     std::atomic<int> trafficCount { 0 };
     std::atomic<int> statusCount { 0 };
@@ -319,8 +322,8 @@ TEST(MockDeviceTest, ClearCallbacks)
 /// @details Tests idempotent sequential start calls, restart cycles, and concurrent multi-threaded starts.
 TEST(MockDeviceTest, ReentrantStart)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
     std::atomic<int> trafficCount { 0 };
     device.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>&) {
@@ -355,7 +358,7 @@ TEST(MockDeviceTest, ReentrantStart)
     device.stop();
 
     // 5. Concurrent multi-threaded start() stress test
-    PelcoD::PelcoDDevice concurrentDevice(mock, 1U);
+    PelcoD::PelcoDDevice concurrentDevice(mock, static_cast<std::uint8_t>(1U));
     std::atomic<int> successCount { 0 };
     constexpr int threadCount = 8;
     std::vector<std::thread> threads;
@@ -384,8 +387,8 @@ TEST(MockDeviceTest, ReentrantStart)
 /// @details Sniffs all traffic on the bus while ensuring device internal status only updates for matching address.
 TEST(MockDeviceTest, SharedBusDeviceFiltering)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
     std::atomic<int> rxTrafficCount { 0 };
     std::atomic<int> statusUpdateCount { 0 };
@@ -432,7 +435,7 @@ TEST(MockDeviceTest, SharedBusDeviceFiltering)
 TEST(MockDeviceTest, QueryResponseCorrelation)
 {
     auto transport = std::make_shared<ControlledTransport>();
-    PelcoD::PelcoDDevice device(transport, 1U);
+    PelcoD::PelcoDDevice device(transport, static_cast<std::uint8_t>(1U));
     device.setQueryTimeoutMs(150U);
 
     std::atomic<bool> panUpdated { false };
@@ -502,7 +505,7 @@ TEST(MockDeviceTest, TransportCallbackDeregistration)
     // Scenario 1: Callbacks are unregistered on explicit stop()
     {
         auto transport = std::make_shared<ControlledTransport>();
-        PelcoD::PelcoDDevice device(transport, 1U);
+        PelcoD::PelcoDDevice device(transport, static_cast<std::uint8_t>(1U));
         ASSERT_TRUE(device.start());
         EXPECT_TRUE(transport->hasDataCallback());
         EXPECT_TRUE(transport->hasStateCallback());
@@ -520,7 +523,7 @@ TEST(MockDeviceTest, TransportCallbackDeregistration)
     {
         auto transport = std::make_shared<ControlledTransport>();
         {
-            PelcoD::PelcoDDevice device(transport, 1U);
+            PelcoD::PelcoDDevice device(transport, static_cast<std::uint8_t>(1U));
             ASSERT_TRUE(device.start());
             EXPECT_TRUE(transport->hasDataCallback());
             EXPECT_TRUE(transport->hasStateCallback());
@@ -537,7 +540,7 @@ TEST(MockDeviceTest, TransportCallbackDeregistration)
     // Scenario 3: Callbacks are cleared if start() fails during open()
     {
         auto failingTransport = std::make_shared<FailingOpenTransport>();
-        PelcoD::PelcoDDevice device(failingTransport, 1U);
+        PelcoD::PelcoDDevice device(failingTransport, static_cast<std::uint8_t>(1U));
         const bool started = device.start();
         EXPECT_FALSE(started);
         EXPECT_FALSE(failingTransport->hasDataCallback());
@@ -549,8 +552,8 @@ TEST(MockDeviceTest, TransportCallbackDeregistration)
 /// @details Concurrently modifies query timeout and device address while dispatching pan and query commands.
 TEST(MockDeviceTest, ConcurrentQueryTimeoutAndAddressUpdates)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
     ASSERT_TRUE(device.start());
 
     std::atomic<bool> running { true };
@@ -595,7 +598,7 @@ TEST(MockDeviceTest, ConcurrentQueryTimeoutAndAddressUpdates)
 TEST(MockDeviceTest, FailedSendDoesNotTriggerTxCallbackOrTimeoutWait)
 {
     auto transport = std::make_shared<FailingSendTransport>();
-    PelcoD::PelcoDDevice device(transport, 1U);
+    PelcoD::PelcoDDevice device(transport, static_cast<std::uint8_t>(1U));
     device.setQueryTimeoutMs(500U);
 
     std::atomic<int> txCount { 0 };
@@ -641,7 +644,7 @@ TEST(MockDeviceTest, FailedSendDoesNotTriggerTxCallbackOrTimeoutWait)
 TEST(MockDeviceTest, StopMotionPreemptsQueries)
 {
     auto transport = std::make_shared<ControlledTransport>();
-    PelcoD::PelcoDDevice device(transport, 1U);
+    PelcoD::PelcoDDevice device(transport, static_cast<std::uint8_t>(1U));
     device.setQueryTimeoutMs(1000U); // 1-second timeout per query
     ASSERT_TRUE(device.start());
 
@@ -690,8 +693,8 @@ TEST(MockDeviceTest, StopMotionPreemptsQueries)
 /// @details Feeds fragmented frames, noisy streams, and oversized buffers into device RX stream.
 TEST(MockDeviceTest, StreamingFramingAndFragmentation)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
     std::atomic<int> rxPacketCount { 0 };
     device.addTrafficCallback([&](bool isTx, const std::vector<std::uint8_t>&) {
@@ -779,8 +782,8 @@ TEST(MockDeviceTest, StreamingFramingAndFragmentation)
 ///          verifying MockPelcoDDevice tracks auxiliary states accurately.
 TEST(MockDeviceTest, AuxiliaryAndPatternControl)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
     ASSERT_TRUE(device.start());
 
     // 1. Auxiliary control
@@ -808,8 +811,8 @@ TEST(MockDeviceTest, AuxiliaryAndPatternControl)
 ///          verifying MockPelcoDDevice internal state updates to these exact coordinates.
 TEST(MockDeviceTest, AbsolutePositioningEndToEnd)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
     ASSERT_TRUE(device.start());
 
     EXPECT_EQ(device.setPanAngle(18000U), PelcoD::SendResult::Success);

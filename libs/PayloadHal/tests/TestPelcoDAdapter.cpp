@@ -3,6 +3,10 @@
 #include "PayloadFactory.h"
 #include "PelcoDCore/PelcoDDevice.h"
 #include "adapters/PelcoDPtzAdapter.h"
+
+#include <cstdint>
+#include <memory>
+
 #include <gtest/gtest.h>
 
 namespace PayloadHal {
@@ -10,8 +14,8 @@ namespace {
 
     TEST(TestPelcoDAdapter, LifecycleAndStabilizationGating)
     {
-        auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-        auto pelcoDevice = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+        auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+        auto pelcoDevice = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, static_cast<std::uint8_t>(1U));
         PelcoDPtzAdapter adapter(pelcoDevice);
 
         EXPECT_FALSE(adapter.supportsStabilization());
@@ -34,8 +38,8 @@ namespace {
 
     TEST(TestPelcoDAdapter, MotionCommands)
     {
-        auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-        auto pelcoDevice = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+        auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+        auto pelcoDevice = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, static_cast<std::uint8_t>(1U));
         PelcoDPtzAdapter adapter(pelcoDevice);
 
         ASSERT_TRUE(adapter.connect());
@@ -58,8 +62,8 @@ namespace {
         EXPECT_DOUBLE_EQ(nudgedTelem.tiltAngleDeg, -23.0);
 
         // Presets
-        EXPECT_TRUE(adapter.savePreset(1));
-        EXPECT_TRUE(adapter.recallPreset(1));
+        EXPECT_TRUE(adapter.savePreset(static_cast<std::uint8_t>(1U)));
+        EXPECT_TRUE(adapter.recallPreset(static_cast<std::uint8_t>(1U)));
 
         adapter.disconnect();
         EXPECT_FALSE(adapter.isConnected());
@@ -67,8 +71,8 @@ namespace {
 
     TEST(TestPelcoDAdapter, CompositePayloadGeoreferenceCoordinates)
     {
-        auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-        auto pelcoDevice = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, 1U);
+        auto mockTransport = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+        auto pelcoDevice = std::make_shared<PelcoD::PelcoDDevice>(mockTransport, static_cast<std::uint8_t>(1U));
         auto composite = PayloadFactory::createPelcoDPayload(pelcoDevice);
         ASSERT_NE(composite, nullptr);
         ASSERT_TRUE(composite->connect());

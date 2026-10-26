@@ -1,7 +1,8 @@
 #include "NmeaDevice.h"
 #include "replay/NmeaReplayTransport.h"
 
-#include <gtest/gtest.h>
+#include <cstddef>
+#include <cstdint>
 
 #include <atomic>
 #include <chrono>
@@ -11,12 +12,14 @@
 #include <thread>
 #include <vector>
 
+#include <gtest/gtest.h>
+
 namespace Nmea {
 namespace {
 
     TEST(TestNmeaReplayTransport, TimestampExtractionAndParsing)
     {
-        NmeaReplayTransport transport {};
+        NmeaReplayTransport transport { };
 
         // 1. Tag block timestamps
         const std::string tagBlockLog
@@ -48,7 +51,7 @@ namespace {
 
     TEST(TestNmeaReplayTransport, NavigationSeekingAndStep)
     {
-        NmeaReplayTransport transport {};
+        NmeaReplayTransport transport { };
         const std::string log = "$GPGGA,120000.00,3700.000,N,12200.000,W,1,08,0.9,10.0,M,0.0,M,,*42\r\n"
                                 "$HEHDT,090.0,T*1B\r\n"
                                 "$GPRMC,120000.00,A,3700.000,N,12200.000,W,12.0,090.0,290926,,,A*7C\r\n"
@@ -58,11 +61,11 @@ namespace {
         EXPECT_EQ(transport.totalLines(), 4U);
         EXPECT_EQ(transport.state(), ReplayState::Stopped);
 
-        std::vector<std::string> receivedLines {};
-        std::mutex rxMutex {};
+        std::vector<std::string> receivedLines { };
+        std::mutex rxMutex { };
         transport.setDataCallback([&](const std::vector<std::uint8_t>& data) {
             std::lock_guard<std::mutex> lock(rxMutex);
-            receivedLines.emplace_back(data.begin(), data.end());
+            receivedLines.emplace_back(reinterpret_cast<const char*>(data.data()), data.size());
         });
 
         // 1. Single stepping
@@ -100,7 +103,7 @@ namespace {
 
     TEST(TestNmeaReplayTransport, SpeedMultiplierBurstMode)
     {
-        NmeaReplayTransport transport {};
+        NmeaReplayTransport transport { };
         const std::string log = "$GPGGA,120000.00,3700.000,N,12200.000,W,1,08,0.9,10.0,M,0.0,M,,*42\r\n"
                                 "$HEHDT,090.0,T*1B\r\n"
                                 "$GPRMC,120000.00,A,3700.000,N,12200.000,W,12.0,090.0,290926,,,A*7C\r\n"
@@ -135,7 +138,7 @@ namespace {
 
     TEST(TestNmeaReplayTransport, SentenceFiltering)
     {
-        NmeaReplayTransport transport {};
+        NmeaReplayTransport transport { };
         const std::string log = "$GPGGA,120000.00,3700.000,N,12200.000,W,1,08,0.9,10.0,M,0.0,M,,*42\r\n"
                                 "$HEHDT,090.0,T*1B\r\n"
                                 "$GPRMC,120000.00,A,3700.000,N,12200.000,W,12.0,090.0,290926,,,A*7C\r\n";
@@ -147,11 +150,11 @@ namespace {
         // Only allow GGA sentences
         transport.setSentenceFilter({ "GGA" });
 
-        std::vector<std::string> received {};
-        std::mutex mtx {};
+        std::vector<std::string> received { };
+        std::mutex mtx { };
         transport.setDataCallback([&](const std::vector<std::uint8_t>& data) {
             std::lock_guard<std::mutex> lock(mtx);
-            received.emplace_back(data.begin(), data.end());
+            received.emplace_back(reinterpret_cast<const char*>(data.data()), data.size());
         });
 
         transport.play();

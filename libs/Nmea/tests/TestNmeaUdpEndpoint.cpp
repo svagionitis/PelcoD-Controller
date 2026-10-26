@@ -3,10 +3,14 @@
 
 #include "network/NmeaUdpEndpoint.h"
 
-#include <gtest/gtest.h>
+#include <cstdint>
+
 #include <chrono>
 #include <future>
 #include <string>
+#include <vector>
+
+#include <gtest/gtest.h>
 
 using namespace Nmea::Network;
 
@@ -30,7 +34,7 @@ TEST(TestNmeaUdpEndpoint, LoopbackSendAndReceive)
     auto bReceivedFuture = bReceivedPromise.get_future();
 
     epB.setDataCallback([&bReceivedPromise](const std::vector<std::uint8_t>& data) {
-        bReceivedPromise.set_value(std::string(data.begin(), data.end()));
+        bReceivedPromise.set_value(std::string(reinterpret_cast<const char*>(data.data()), data.size()));
     });
 
     const std::string testSentence = "$HEHDT,224.5,T*25";

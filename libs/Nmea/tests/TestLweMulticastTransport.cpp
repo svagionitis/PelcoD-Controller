@@ -3,11 +3,16 @@
 #include "lwe/LweMulticastTransport.h"
 #include "lwe/LweTypes.h"
 
+#include <cstdint>
+
 #include <atomic>
 #include <chrono>
-#include <gtest/gtest.h>
+#include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
+
+#include <gtest/gtest.h>
 
 namespace Nmea::Lwe {
 
@@ -69,9 +74,9 @@ TEST(TestLweMulticastTransport, LoopbackTransmissionAndTagBlockInjection)
     receiver.setLoopbackEnabled(true);
 
     std::atomic<bool> packetReceived { false };
-    std::string receivedData {};
+    std::string receivedData { };
     receiver.setDataCallback([&](const std::vector<std::uint8_t>& data) {
-        receivedData.assign(data.begin(), data.end());
+        receivedData.assign(reinterpret_cast<const char*>(data.data()), data.size());
         packetReceived = true;
     });
 
@@ -99,8 +104,8 @@ TEST(TestLweMulticastTransport, LoopbackTransmissionAndTagBlockInjection)
     EXPECT_FALSE(receivedData.empty());
 
     // Verify Tag Block was attached
-    NmeaTagBlock block {};
-    std::string_view remainder {};
+    NmeaTagBlock block { };
+    std::string_view remainder { };
     ASSERT_TRUE(NmeaTagBlockParser::parse(receivedData, block, remainder));
     EXPECT_EQ(block.sourceId, "RA0001");
     EXPECT_EQ(block.lineCount, 1U);

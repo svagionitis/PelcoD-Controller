@@ -4,6 +4,11 @@
 #include "network/Base64.h"
 #include "network/Sha1.h"
 
+#include <cstdint>
+
+#include <string>
+#include <vector>
+
 #include <gtest/gtest.h>
 
 using namespace Nmea::Network;
@@ -23,7 +28,7 @@ TEST(TestNetworkCrypto, Base64EncodingAndDecoding)
     const std::string text = "Maritime Ethernet Interconnect IEC 61162-460!";
     const std::string encoded = Base64::encode(text);
     const std::vector<std::uint8_t> decodedBytes = Base64::decode(encoded);
-    const std::string decodedText(decodedBytes.begin(), decodedBytes.end());
+    const std::string decodedText(reinterpret_cast<const char*>(decodedBytes.data()), decodedBytes.size());
     EXPECT_EQ(decodedText, text);
 }
 
@@ -34,7 +39,7 @@ TEST(TestNetworkCrypto, Sha1Rfc3174Vectors)
 
     // RFC 3174 Test 2: "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"
     EXPECT_EQ(Sha1::computeHex("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"),
-              "84983e441c3bd26ebaae4aa1f95129e5e54670f1");
+        "84983e441c3bd26ebaae4aa1f95129e5e54670f1");
 
     // Empty string
     EXPECT_EQ(Sha1::computeHex(""), "da39a3ee5e6b4b0d3255bfef95601890afd80709");

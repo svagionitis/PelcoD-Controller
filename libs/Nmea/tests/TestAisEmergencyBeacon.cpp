@@ -45,13 +45,13 @@ namespace {
         bool sendData(const std::vector<std::uint8_t>& data) override
         {
             std::lock_guard<std::mutex> lock(m_txMutex);
-            m_sentPackets.push_back(std::string(data.begin(), data.end()));
+            m_sentPackets.push_back(std::string(reinterpret_cast<const char*>(data.data()), data.size()));
             return true;
         }
 
         void injectString(std::string_view text)
         {
-            std::vector<std::uint8_t> data {};
+            std::vector<std::uint8_t> data { };
             data.reserve(text.size());
             for (const char ch : text) {
                 data.push_back(static_cast<std::uint8_t>(ch));
@@ -61,8 +61,8 @@ namespace {
 
     private:
         std::atomic<bool> m_isOpen { false };
-        mutable std::mutex m_txMutex {};
-        std::vector<std::string> m_sentPackets {};
+        mutable std::mutex m_txMutex { };
+        std::vector<std::string> m_sentPackets { };
     };
 
     class AisBitWriter {
@@ -89,7 +89,7 @@ namespace {
 
         [[nodiscard]] std::pair<std::string, std::size_t> toArmoredPayload() const
         {
-            std::vector<std::uint8_t> bytes {};
+            std::vector<std::uint8_t> bytes { };
             std::size_t bitIdx { 0U };
             while (bitIdx < m_bits.size()) {
                 std::uint8_t b { 0U };
@@ -102,7 +102,7 @@ namespace {
                 bytes.push_back(b);
             }
             const std::size_t fillBits = (bytes.size() * 6U - m_bits.size()) % 6U;
-            std::string payload {};
+            std::string payload { };
             payload.reserve(bytes.size());
             for (std::uint8_t v : bytes) {
                 v &= 0x3FU;
@@ -113,12 +113,12 @@ namespace {
         }
 
     private:
-        std::vector<std::uint8_t> m_bits {};
+        std::vector<std::uint8_t> m_bits { };
     };
 
     [[nodiscard]] std::string createSafetyBroadcastSentence(std::uint32_t mmsi, const std::string& text)
     {
-        AisBitWriter writer {};
+        AisBitWriter writer { };
         writer.writeBits(14U, 6U); // Type 14
         writer.writeBits(0U, 2U); // Repeat indicator
         writer.writeBits(mmsi, 30U); // Source MMSI
@@ -133,7 +133,7 @@ namespace {
     [[nodiscard]] std::string createClassAPositionSentence(std::uint32_t mmsi, AisNavStatus navStatus, double latDeg,
         double lonDeg, double sogKnots = 0.0, double cogDeg = 0.0)
     {
-        AisBitWriter writer {};
+        AisBitWriter writer { };
         writer.writeBits(1U, 6U); // Type 1
         writer.writeBits(0U, 2U); // Repeat indicator
         writer.writeBits(mmsi, 30U); // Source MMSI
@@ -181,10 +181,10 @@ namespace {
 
     TEST(TestAisEmergencyBeacon, DecodeSafetyBroadcastActive)
     {
-        AisDecoder decoder {};
+        AisDecoder decoder { };
         const std::string sentence = createSafetyBroadcastSentence(970010123U, "SART ACTIVE");
 
-        AisVesselTarget target {};
+        AisVesselTarget target { };
         ASSERT_TRUE(decoder.decodeSentence(sentence, target, true));
 
         EXPECT_EQ(target.messageType, AisMessageType::SafetyBroadcast14);
@@ -197,10 +197,10 @@ namespace {
 
     TEST(TestAisEmergencyBeacon, DecodeSafetyBroadcastTestMode)
     {
-        AisDecoder decoder {};
+        AisDecoder decoder { };
         const std::string sentence = createSafetyBroadcastSentence(972034567U, "MOB TEST");
 
-        AisVesselTarget target {};
+        AisVesselTarget target { };
         ASSERT_TRUE(decoder.decodeSentence(sentence, target, true));
 
         EXPECT_EQ(target.messageType, AisMessageType::SafetyBroadcast14);
@@ -213,11 +213,11 @@ namespace {
 
     TEST(TestAisEmergencyBeacon, DecodeClassAPositionEmergencyMob)
     {
-        AisDecoder decoder {};
+        AisDecoder decoder { };
         const std::string sentence
             = createClassAPositionSentence(972054321U, AisNavStatus::AisSartActive, 37.8044, -122.4678, 1.5, 90.0);
 
-        AisVesselTarget target {};
+        AisVesselTarget target { };
         ASSERT_TRUE(decoder.decodeSentence(sentence, target, true));
 
         EXPECT_EQ(target.mmsi, 972054321U);
@@ -237,7 +237,7 @@ namespace {
         ASSERT_TRUE(device->start());
 
         std::atomic<bool> alertReceived { false };
-        AisEmergencyAlert receivedAlert {};
+        AisEmergencyAlert receivedAlert { };
 
         const std::size_t subId
             = device->addEmergencyBeaconCallback([&alertReceived, &receivedAlert](const AisEmergencyAlert& alert) {

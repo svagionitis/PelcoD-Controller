@@ -9,6 +9,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <gtest/gtest.h>
 #include <memory>
 #include <thread>
@@ -88,8 +89,7 @@ TEST(TestMotionSafety, PacedCommandQueuePurgeMotionCommands)
     EXPECT_EQ(queue.size(), 1U);
 
     PelcoD::CommandItem remaining;
-    EXPECT_TRUE(queue.popReady(
-        remaining, [] { return false; }, std::chrono::steady_clock::time_point::max(), 10ms));
+    EXPECT_TRUE(queue.popReady(remaining, [] { return false; }, std::chrono::steady_clock::time_point::max(), 10ms));
     EXPECT_EQ(remaining.queryTag, "QueryPan");
 }
 
@@ -287,7 +287,7 @@ TEST(TestMotionSafety, ExtractMotionAxesIdentifiesStopAsNone)
 TEST(TestMotionSafety, SessionPurgesMotionQueueOnTransportDisconnect)
 {
     auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
-    auto session = std::make_shared<PelcoD::PelcoDSession>(transport, 1U);
+    auto session = std::make_shared<PelcoD::PelcoDSession>(transport, static_cast<std::uint8_t>(1U));
     ASSERT_TRUE(session->start());
 
     // Enqueue motion command
@@ -311,8 +311,8 @@ TEST(TestMotionSafety, DispatchOnlyArmsWatchdogOnSuccessfulEnqueue)
 {
     auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
     // Session is NOT started, so enqueue will return TransportClosed
-    auto session = std::make_shared<PelcoD::PelcoDSession>(transport, 1U);
-    PelcoD::MotionSafetyPolicy policy {};
+    auto session = std::make_shared<PelcoD::PelcoDSession>(transport, static_cast<std::uint8_t>(1U));
+    PelcoD::MotionSafetyPolicy policy { };
     policy.deadManTimeout = 50ms;
 
     auto guard = std::make_shared<PelcoD::MotionSafetyGuard>(session, policy);
@@ -331,10 +331,10 @@ TEST(TestMotionSafety, DispatchOnlyArmsWatchdogOnSuccessfulEnqueue)
 TEST(TestMotionSafety, RunawayLimitStopsMotionAfterMaxDuration)
 {
     auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
-    auto session = std::make_shared<PelcoD::PelcoDSession>(transport, 1U);
+    auto session = std::make_shared<PelcoD::PelcoDSession>(transport, static_cast<std::uint8_t>(1U));
     ASSERT_TRUE(session->start());
 
-    PelcoD::MotionSafetyPolicy policy {};
+    PelcoD::MotionSafetyPolicy policy { };
     policy.deadManTimeout = 80ms;
     policy.maxContinuousDuration = 100ms;
 
@@ -364,15 +364,15 @@ TEST(TestMotionSafety, RunawayLimitStopsMotionAfterMaxDuration)
 TEST(TestMotionSafety, SafetyEventCallbackFiresWithAccurateEventAndAxes)
 {
     auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
-    auto session = std::make_shared<PelcoD::PelcoDSession>(transport, 1U);
+    auto session = std::make_shared<PelcoD::PelcoDSession>(transport, static_cast<std::uint8_t>(1U));
     ASSERT_TRUE(session->start());
 
-    PelcoD::MotionSafetyPolicy policy {};
+    PelcoD::MotionSafetyPolicy policy { };
     policy.deadManTimeout = 40ms;
 
     std::atomic<bool> eventFired { false };
-    PelcoD::MotionSafetyEvent receivedEvent {};
-    PelcoD::MotionAxis receivedAxes {};
+    PelcoD::MotionSafetyEvent receivedEvent { };
+    PelcoD::MotionAxis receivedAxes { };
 
     auto guard = std::make_shared<PelcoD::MotionSafetyGuard>(session, policy);
     guard->setSafetyEventCallback([&](PelcoD::MotionSafetyEvent ev, PelcoD::MotionAxis axes) {
@@ -399,7 +399,7 @@ TEST(TestMotionSafety, DeviceFacadePolicyPropagation)
     auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
     PelcoD::PelcoDDevice device { transport, 1U };
 
-    PelcoD::MotionSafetyPolicy policy {};
+    PelcoD::MotionSafetyPolicy policy { };
     policy.deadManTimeout = 120ms;
     policy.maxContinuousDuration = 450ms;
     policy.stopOnDisconnect = true;
@@ -419,13 +419,13 @@ TEST(TestMotionSafety, DeviceMotionSafetyCallback)
     auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
     PelcoD::PelcoDDevice device { transport, 1U };
 
-    PelcoD::MotionSafetyPolicy policy {};
+    PelcoD::MotionSafetyPolicy policy { };
     policy.deadManTimeout = 40ms;
     device.setMotionSafetyPolicy(policy);
 
     std::atomic<bool> callbackFired { false };
-    PelcoD::MotionSafetyEvent capturedEvent {};
-    PelcoD::MotionAxis capturedAxes {};
+    PelcoD::MotionSafetyEvent capturedEvent { };
+    PelcoD::MotionAxis capturedAxes { };
 
     auto conn = device.addMotionSafetyCallback([&](PelcoD::MotionSafetyEvent ev, PelcoD::MotionAxis axes) {
         capturedEvent = ev;
@@ -454,7 +454,7 @@ TEST(TestMotionSafety, SafetyMetricsIncrementOnTrips)
     auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
     PelcoD::PelcoDDevice device { transport, 1U };
 
-    PelcoD::MotionSafetyPolicy policy {};
+    PelcoD::MotionSafetyPolicy policy { };
     policy.deadManTimeout = 40ms;
     device.setMotionSafetyPolicy(policy);
 
@@ -475,7 +475,7 @@ TEST(TestMotionSafety, SafetyInterlockBlocksMotion)
     auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
     PelcoD::PelcoDDevice device { transport, 1U };
 
-    PelcoD::MotionSafetyPolicy policy {};
+    PelcoD::MotionSafetyPolicy policy { };
     policy.deadManTimeout = 100ms;
     policy.maxContinuousDuration = 60ms;
     device.setMotionSafetyPolicy(policy);
@@ -507,12 +507,12 @@ TEST(TestMotionSafety, SafetyInterlockBlocksMotion)
 TEST(TestMotionSafety, PolicyReadUnderLockOnDisconnect)
 {
     auto transport = std::make_shared<PelcoD::Test::CapturingTransport>();
-    auto session = std::make_shared<PelcoD::PelcoDSession>(transport, 1U);
+    auto session = std::make_shared<PelcoD::PelcoDSession>(transport, static_cast<std::uint8_t>(1U));
     auto guard = std::make_shared<PelcoD::MotionSafetyGuard>(session);
 
     std::atomic<bool> running { true };
     std::thread writer { [&running, &guard]() {
-        PelcoD::MotionSafetyPolicy policy {};
+        PelcoD::MotionSafetyPolicy policy { };
         bool toggle { false };
         while (running.load()) {
             toggle = !toggle;

@@ -1,6 +1,10 @@
 #include "MockSonyCamera.h"
 #include "SonyFCBDevice.h"
 #include "adapters/ViscaSonyAdapter.h"
+
+#include <cstdint>
+#include <memory>
+
 #include <gtest/gtest.h>
 
 namespace PayloadHal {
@@ -11,10 +15,11 @@ namespace {
 
     TEST(TestViscaAdapter, LifecycleAndOpticsMapping)
     {
-        auto mockCamera = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, 1);
+        auto mockCamera
+            = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, static_cast<std::uint8_t>(1U));
         mockCamera->open();
 
-        auto fcbDevice = std::make_shared<SonyFCBDevice>(mockCamera, 1);
+        auto fcbDevice = std::make_shared<SonyFCBDevice>(mockCamera, static_cast<std::uint8_t>(1U));
         ViscaSonyAdapter adapter(fcbDevice);
 
         ASSERT_TRUE(adapter.connect());

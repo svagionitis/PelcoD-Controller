@@ -7,11 +7,10 @@
 #include "QPelcoDDevice.h"
 #include "QPelcoDFujinonDevice.h"
 
-#include <QCoreApplication>
-#include <QThread>
+#include <cstdint>
+
 #include <atomic>
 #include <chrono>
-#include <gtest/gtest.h>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -19,14 +18,19 @@
 #include <utility>
 #include <vector>
 
+#include <QCoreApplication>
+#include <QThread>
+
+#include <gtest/gtest.h>
+
 #include "TestHelpers.h"
 
 using namespace PelcoDTest;
 
 TEST(QPelcoDDeviceTest, NoDuplicateSignalsOnReconnection)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoDQt::QPelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoDQt::QPelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
     int txCount { 0 };
     QObject::connect(
@@ -91,8 +95,8 @@ TEST(QPelcoDDeviceTest, AsyncConnectSignalsEmittedOnMainThread)
 
     // Scenario 1: Successful connection
     {
-        auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-        PelcoDQt::QPelcoDDevice device(mock, 1U);
+        auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+        PelcoDQt::QPelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
         std::vector<std::pair<bool, const QThread*>> connectingSignals;
         std::vector<std::pair<bool, const QThread*>> connectionSignals;
@@ -174,8 +178,8 @@ TEST(QPelcoDDeviceTest, InvokeCore)
 {
     // Scenario 1: Configured device executes member function and lambda
     {
-        auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-        PelcoDQt::QPelcoDDevice device(mock, 1U);
+        auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+        PelcoDQt::QPelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
         EXPECT_TRUE(device.connectDevice());
 
         int txCount { 0 };
@@ -300,16 +304,16 @@ TEST(QPatrolControllerTest, SetDeviceNullptr)
     PelcoDQt::QPatrolController controller;
     controller.setDevice(nullptr);
 
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoDQt::QPelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoDQt::QPelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
     controller.setDevice(&device);
     controller.setDevice(nullptr);
 }
 
 TEST(QPelcoDFujinonDeviceTest, InstantiationAndCoreDevice)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoDQt::QPelcoDFujinonDevice fujinonDevice(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoDQt::QPelcoDFujinonDevice fujinonDevice(mock, static_cast<std::uint8_t>(1U));
 
     EXPECT_NE(fujinonDevice.fujinonCoreDevice(), nullptr);
     EXPECT_NE(fujinonDevice.fujinonDevice(), nullptr);

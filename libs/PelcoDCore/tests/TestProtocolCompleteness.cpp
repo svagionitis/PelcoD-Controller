@@ -13,6 +13,11 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <string>
 #include <vector>
 
 namespace {
@@ -32,8 +37,8 @@ TEST(ProtocolCompletenessTest, MagnificationResponseWired)
     const std::uint8_t csum = static_cast<std::uint8_t>((addr + 0x00U + opcByte + msb + lsb) & 0xFFU);
     const std::vector<std::uint8_t> frame { 0xFFU, addr, 0x00U, opcByte, msb, lsb, csum };
 
-    PelcoD::DeviceStatus status {};
-    PelcoD::DeviceInfo info {};
+    PelcoD::DeviceStatus status { };
+    PelcoD::DeviceInfo info { };
     const bool ok = PelcoD::ProtocolParser::updateStatus(frame, status, info);
 
     EXPECT_TRUE(ok);
@@ -72,8 +77,8 @@ TEST(ProtocolCompletenessTest, AckNakParsed)
     const std::uint8_t csum = static_cast<std::uint8_t>((addr + 0x00U + opcByte + echoOpcode + ackByte) & 0xFFU);
     const std::vector<std::uint8_t> frame { 0xFFU, addr, 0x00U, opcByte, echoOpcode, ackByte, csum };
 
-    PelcoD::DeviceStatus status {};
-    PelcoD::DeviceInfo info {};
+    PelcoD::DeviceStatus status { };
+    PelcoD::DeviceInfo info { };
     const bool ok = PelcoD::ProtocolParser::updateStatus(frame, status, info);
 
     EXPECT_TRUE(ok);
@@ -121,8 +126,8 @@ TEST(ProtocolCompletenessTest, DiagnosticsResponseParsed)
     const std::uint8_t csum = static_cast<std::uint8_t>((addr + 0x00U + opcByte + temp + sensorId) & 0xFFU);
     const std::vector<std::uint8_t> frame { 0xFFU, addr, 0x00U, opcByte, temp, sensorId, csum };
 
-    PelcoD::DeviceStatus status {};
-    PelcoD::DeviceInfo info {};
+    PelcoD::DeviceStatus status { };
+    PelcoD::DeviceInfo info { };
     const bool ok = PelcoD::ProtocolParser::updateStatus(frame, status, info);
 
     EXPECT_TRUE(ok);
@@ -167,7 +172,7 @@ TEST(ProtocolCompletenessTest, EnumConversionsAndRanges)
 ///          and panDegrees / tiltDegrees floating point transformations.
 TEST(ProtocolCompletenessTest, DeviceStatusAlarmBits)
 {
-    PelcoD::DeviceStatus status {};
+    PelcoD::DeviceStatus status { };
 
     // No alarms initially
     for (std::uint8_t i = 1U; i <= 8U; ++i) {
@@ -265,8 +270,8 @@ TEST(ProtocolCompletenessTest, Phase1BuildersAndDisassembly)
 /// @brief Verify PelcoDDevice high-level wrappers for Phase 1 commands.
 TEST(ProtocolCompletenessTest, PelcoDDevicePhase1Wrappers)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
     std::vector<std::vector<std::uint8_t>> sentFrames;
     std::mutex mtx;
@@ -348,8 +353,8 @@ TEST(ProtocolCompletenessTest, Phase2BuildersAndDisassembly)
 /// @brief Verify PelcoDDevice high-level wrappers for Phase 2 commands.
 TEST(ProtocolCompletenessTest, PelcoDDevicePhase2Wrappers)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
     std::vector<std::vector<std::uint8_t>> sentFrames;
     std::mutex mtx;
@@ -464,7 +469,7 @@ TEST(ProtocolCompletenessTest, Phase3ResponsesAndParsing)
     EXPECT_TRUE(PelcoD::ProtocolParser::isResponseMatchingQuery("QuerySoftwareVersion", swResp));
     EXPECT_FALSE(PelcoD::ProtocolParser::isResponseMatchingQuery("QueryBuildNumber", swResp));
 
-    PelcoD::VersionInfoSubOpcode verSub {};
+    PelcoD::VersionInfoSubOpcode verSub { };
     std::uint8_t d1 { 0U };
     std::uint8_t d2 { 0U };
     ASSERT_TRUE(PelcoD::ProtocolParser::parseVersionInfo(swResp, verSub, d1, d2));
@@ -474,8 +479,8 @@ TEST(ProtocolCompletenessTest, Phase3ResponsesAndParsing)
     EXPECT_NE(
         PelcoD::ProtocolParser::describeFrame(false, swResp).find("Software Version Response: 2.5"), std::string::npos);
 
-    PelcoD::DeviceStatus status {};
-    PelcoD::DeviceInfo info {};
+    PelcoD::DeviceStatus status { };
+    PelcoD::DeviceInfo info { };
     EXPECT_TRUE(PelcoD::ProtocolParser::updateStatus(swResp, status, info));
     EXPECT_EQ(info.softwareMajor, 2U);
     EXPECT_EQ(info.softwareMinor, 5U);
@@ -499,7 +504,7 @@ TEST(ProtocolCompletenessTest, Phase3ResponsesAndParsing)
     EXPECT_EQ(info.buildNumber, 1234U);
 
     // 3. Time Responses (0x77, odd subs)
-    PelcoD::TimeSubOpcode timeSub {};
+    PelcoD::TimeSubOpcode timeSub { };
     const auto timeSecResp
         = PelcoD::PelcoDFrame::createFrame(addr, static_cast<std::uint8_t>(PelcoD::TimeSubOpcode::ReportSeconds),
             static_cast<std::uint8_t>(PelcoD::ResponseOpcode::TimeMacro), 0x00U, 45U);
@@ -543,8 +548,8 @@ TEST(ProtocolCompletenessTest, Phase3ResponsesAndParsing)
 /// @brief Verify PelcoDDevice high-level wrappers for Phase 3 Version Info and Time macro commands.
 TEST(ProtocolCompletenessTest, PelcoDDevicePhase3Wrappers)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
     std::vector<std::vector<std::uint8_t>> sentFrames;
     std::mutex mtx;
@@ -634,8 +639,8 @@ TEST(ProtocolCompletenessTest, PelcoDDevicePhase3Wrappers)
 /// @brief Verify asynchronous futures for software version and build number queries.
 TEST(ProtocolCompletenessTest, PelcoDDevicePhase3AsyncQueries)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
     ASSERT_TRUE(device.start());
 
@@ -744,8 +749,8 @@ TEST(ProtocolCompletenessTest, Phase4ResponsesAndParsing)
         = PelcoD::PelcoDFrame::createFrame(1U, static_cast<std::uint8_t>(PelcoD::EverestSubOpcode::AzimuthZeroResponse),
             static_cast<std::uint8_t>(PelcoD::ResponseOpcode::Everest), 0x46U, 0x50U);
 
-    PelcoD::DeviceStatus status {};
-    PelcoD::DeviceInfo info {};
+    PelcoD::DeviceStatus status { };
+    PelcoD::DeviceInfo info { };
     ASSERT_TRUE(PelcoD::ProtocolParser::updateStatus(azFrame, status, info));
     EXPECT_EQ(status.azimuthZeroOffsetCentidegrees, 18000U);
 
@@ -785,8 +790,8 @@ TEST(ProtocolCompletenessTest, Phase4ResponsesAndParsing)
 /// @brief Verify high-level PelcoDDevice methods for Phase 4 Aux LED and Everest commands.
 TEST(ProtocolCompletenessTest, PelcoDDevicePhase4Wrappers)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
     std::mutex mtx;
     std::vector<std::vector<std::uint8_t>> sentFrames;
@@ -833,8 +838,8 @@ TEST(ProtocolCompletenessTest, PelcoDDevicePhase4Wrappers)
 /// @brief Verify asynchronous futures for Everest queries.
 TEST(ProtocolCompletenessTest, PelcoDDevicePhase4AsyncQueries)
 {
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
-    PelcoD::PelcoDDevice device(mock, 1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
+    PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
     ASSERT_TRUE(device.start());
 

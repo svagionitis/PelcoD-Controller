@@ -3,15 +3,19 @@
 #include "Stanag4586Types.h"
 #include "sim/SimulatedPayload.h"
 
-#include <gtest/gtest.h>
+#include <cstddef>
+#include <cstdint>
 
 #include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include <gtest/gtest.h>
 
 using namespace PayloadHal;
 
@@ -69,11 +73,11 @@ TEST(TestStanag4586Bridge, WireMarshallingScalars)
 TEST(TestStanag4586Bridge, Message2000BuildAndSerialization)
 {
     auto sim = std::make_shared<SimulatedPayload>();
-    StanagBridgeConfig config {};
+    StanagBridgeConfig config { };
     config.stationId = 1U;
     auto bridge = std::make_shared<Stanag4586Bridge>(sim, config);
 
-    const auto msg = bridge->buildMessage2000(1U);
+    const auto msg = bridge->buildMessage2000(static_cast<std::uint8_t>(1U));
     EXPECT_EQ(msg.stationId, 1U);
     EXPECT_EQ(msg.payloadType, StanagPayloadType::MultiSensorEoIr);
 
@@ -88,7 +92,7 @@ TEST(TestStanag4586Bridge, Message2000BuildAndSerialization)
     EXPECT_TRUE((msg.capabilities & StanagCapabilities::RollStabilization) != 0U);
 
     // Serialize packet
-    const auto packet = bridge->serializeMessage2000(1U);
+    const auto packet = bridge->serializeMessage2000(static_cast<std::uint8_t>(1U));
     const std::size_t expectedSize = STANAG4586_HEADER_SIZE + STANAG_PAYLOAD_SIZE_2000 + 2U;
     ASSERT_EQ(packet.size(), expectedSize);
 
@@ -111,7 +115,7 @@ TEST(TestStanag4586Bridge, Message2000BuildAndSerialization)
 TEST(TestStanag4586Bridge, Message2001ConfigQueryAndAutoReply)
 {
     auto sim = std::make_shared<SimulatedPayload>();
-    StanagBridgeConfig config {};
+    StanagBridgeConfig config { };
     config.stationId = 2U;
     config.autoRespondToConfigRequests = true;
     auto bridge = std::make_shared<Stanag4586Bridge>(sim, config);
@@ -146,12 +150,12 @@ TEST(TestStanag4586Bridge, Message2001ConfigQueryAndAutoReply)
 TEST(TestStanag4586Bridge, Message2003OperatingCommandExecution)
 {
     auto sim = std::make_shared<SimulatedPayload>();
-    StanagBridgeConfig config {};
+    StanagBridgeConfig config { };
     config.stationId = 0U;
     auto bridge = std::make_shared<Stanag4586Bridge>(sim, config);
 
     // 1. Stow command
-    Stanag4586Message2003 stowCmd {};
+    Stanag4586Message2003 stowCmd { };
     stowCmd.stationId = 0U;
     stowCmd.commandedMode = StanagOperatingMode::Stowed;
     EXPECT_TRUE(bridge->dispatchMessage2003(stowCmd));
@@ -159,7 +163,7 @@ TEST(TestStanag4586Bridge, Message2003OperatingCommandExecution)
     EXPECT_TRUE(sim->stowController()->isStowed());
 
     // 2. Active deploy command
-    Stanag4586Message2003 activeCmd {};
+    Stanag4586Message2003 activeCmd { };
     activeCmd.stationId = 0U;
     activeCmd.commandedMode = StanagOperatingMode::Active;
     EXPECT_TRUE(bridge->dispatchMessage2003(activeCmd));
@@ -168,7 +172,7 @@ TEST(TestStanag4586Bridge, Message2003OperatingCommandExecution)
     EXPECT_FALSE(sim->stowController()->isStowed());
 
     // 3. Focus & Iris command
-    Stanag4586Message2003 opticsCmd {};
+    Stanag4586Message2003 opticsCmd { };
     opticsCmd.stationId = 0U;
     opticsCmd.focusMode = StanagFocusMode::ManualFar;
     opticsCmd.manualFocusVelocity = 0.75f;
@@ -177,19 +181,19 @@ TEST(TestStanag4586Bridge, Message2003OperatingCommandExecution)
     EXPECT_TRUE(bridge->dispatchMessage2003(opticsCmd));
 
     // 4. LRF Arm and Fire
-    Stanag4586Message2003 lrfArmCmd {};
+    Stanag4586Message2003 lrfArmCmd { };
     lrfArmCmd.stationId = 0U;
     lrfArmCmd.lrfCommand = StanagLaserCommand::Arm;
     EXPECT_TRUE(bridge->dispatchMessage2003(lrfArmCmd));
     EXPECT_TRUE(sim->lrf()->isArmed());
 
-    Stanag4586Message2003 lrfFireCmd {};
+    Stanag4586Message2003 lrfFireCmd { };
     lrfFireCmd.stationId = 0U;
     lrfFireCmd.lrfCommand = StanagLaserCommand::FireSinglePulse;
     EXPECT_TRUE(bridge->dispatchMessage2003(lrfFireCmd));
 
     // 5. Illuminator Arm and Continuous
-    Stanag4586Message2003 illCmd {};
+    Stanag4586Message2003 illCmd { };
     illCmd.stationId = 0U;
     illCmd.illuminatorCommand = StanagIlluminatorCommand::Continuous;
     EXPECT_TRUE(bridge->dispatchMessage2003(illCmd));
@@ -197,7 +201,7 @@ TEST(TestStanag4586Bridge, Message2003OperatingCommandExecution)
     EXPECT_EQ(sim->illuminator()->mode(), IlluminatorMode::Continuous);
 
     // 6. Auxiliary controls: De-Ice on and single wipe
-    Stanag4586Message2003 auxCmd {};
+    Stanag4586Message2003 auxCmd { };
     auxCmd.stationId = 0U;
     auxCmd.auxiliaryControls = StanagAuxControls::DeIceHeaterOn | StanagAuxControls::WiperSingleCycle;
     EXPECT_TRUE(bridge->dispatchMessage2003(auxCmd));
@@ -211,12 +215,12 @@ TEST(TestStanag4586Bridge, Message2003OperatingCommandExecution)
 TEST(TestStanag4586Bridge, Message2004SteeringCommandAngleAndRate)
 {
     auto sim = std::make_shared<SimulatedPayload>();
-    StanagBridgeConfig config {};
+    StanagBridgeConfig config { };
     config.stationId = 0U;
     auto bridge = std::make_shared<Stanag4586Bridge>(sim, config);
 
     // 1. Angle / Position Mode
-    Stanag4586Message2004 angleCmd {};
+    Stanag4586Message2004 angleCmd { };
     angleCmd.stationId = 0U;
     angleCmd.steeringMode = StanagSteeringMode::AnglePosition;
     angleCmd.commandedAzimuthDeg = 45.0f;
@@ -229,7 +233,7 @@ TEST(TestStanag4586Bridge, Message2004SteeringCommandAngleAndRate)
     EXPECT_NEAR(ptuTelem.tiltAngleDeg, -15.0, 1e-2);
 
     // 2. Rate / Velocity Mode
-    Stanag4586Message2004 rateCmd {};
+    Stanag4586Message2004 rateCmd { };
     rateCmd.stationId = 0U;
     rateCmd.steeringMode = StanagSteeringMode::RateVelocity;
     rateCmd.commandedAzimuthRateDegPerSec = 10.0f;
@@ -241,12 +245,12 @@ TEST(TestStanag4586Bridge, Message2004SteeringCommandAngleAndRate)
     EXPECT_NEAR(rateTelem.tiltRateDegPerSec, -5.0, 1e-2);
 
     // 3. Geo-Pointing Mode
-    PlatformNavData nav {};
+    PlatformNavData nav { };
     nav.position = Klv::GeoPoint3D { 37.7749, -122.4194, 1000.0 };
     nav.headingDeg = 0.0;
     bridge->updateNavData(nav);
 
-    Stanag4586Message2004 geoCmd {};
+    Stanag4586Message2004 geoCmd { };
     geoCmd.stationId = 0U;
     geoCmd.steeringMode = StanagSteeringMode::GeoPointing;
     geoCmd.targetLatitudeDeg = 37.7800;
@@ -268,7 +272,7 @@ TEST(TestStanag4586Bridge, Message2004SteeringCommandAngleAndRate)
 TEST(TestStanag4586Bridge, Message2002OperatingStateTelemetry)
 {
     auto sim = std::make_shared<SimulatedPayload>();
-    StanagBridgeConfig config {};
+    StanagBridgeConfig config { };
     config.stationId = 0U;
     auto bridge = std::make_shared<Stanag4586Bridge>(sim, config);
 
@@ -279,7 +283,7 @@ TEST(TestStanag4586Bridge, Message2002OperatingStateTelemetry)
     sim->setSimulatedSlantRange(2500.0);
     sim->lrf()->triggerSingleMeasurement();
 
-    PlatformNavData nav {};
+    PlatformNavData nav { };
     nav.position = Klv::GeoPoint3D { 38.0, 24.0, 1500.0 };
     nav.headingDeg = 90.0;
 
@@ -313,7 +317,7 @@ TEST(TestStanag4586Bridge, Message2002OperatingStateTelemetry)
 TEST(TestStanag4586Bridge, InboundPacketValidationFailures)
 {
     auto sim = std::make_shared<SimulatedPayload>();
-    StanagBridgeConfig config {};
+    StanagBridgeConfig config { };
     config.stationId = 0U;
     auto bridge = std::make_shared<Stanag4586Bridge>(sim, config);
 
@@ -328,16 +332,16 @@ TEST(TestStanag4586Bridge, InboundPacketValidationFailures)
     EXPECT_EQ(bridge->processInboundBytes(badSync.data(), badSync.size()), StanagParseResult::InvalidSync);
 
     // 3. CRC mismatch
-    auto validPacket = bridge->serializeMessage2000(0U);
+    auto validPacket = bridge->serializeMessage2000(static_cast<std::uint8_t>(0U));
     validPacket[STANAG4586_HEADER_SIZE + 2] ^= 0xFF; // Corrupt payload byte
     EXPECT_EQ(bridge->processInboundBytes(validPacket.data(), validPacket.size()), StanagParseResult::CrcMismatch);
 
     // 4. Station mismatch
-    StanagBridgeConfig cfgOther {};
+    StanagBridgeConfig cfgOther { };
     cfgOther.stationId = 5U; // Expects station 5
     auto bridgeOther = std::make_shared<Stanag4586Bridge>(sim, cfgOther);
 
-    auto pktStation0 = bridge->serializeMessage2000(0U);
+    auto pktStation0 = bridge->serializeMessage2000(static_cast<std::uint8_t>(0U));
     // Send packet targeted to station 0 to a bridge expecting station 5
     EXPECT_EQ(
         bridgeOther->processInboundBytes(pktStation0.data(), pktStation0.size()), StanagParseResult::StationMismatch);
@@ -350,7 +354,7 @@ TEST(TestStanag4586Bridge, InboundPacketValidationFailures)
 TEST(TestStanag4586Bridge, PeriodicTelemetryThreadLifecycle)
 {
     auto sim = std::make_shared<SimulatedPayload>();
-    StanagBridgeConfig config {};
+    StanagBridgeConfig config { };
     config.stationId = 0U;
     config.enablePeriodicTelemetry = false;
     auto bridge = std::make_shared<Stanag4586Bridge>(sim, config);

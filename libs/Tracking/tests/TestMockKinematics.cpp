@@ -10,6 +10,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <gtest/gtest.h>
 #include <iostream>
 #include <memory>
@@ -23,7 +24,7 @@ namespace {
 TEST(MockKinematicsTest, InstantaneousDefault)
 {
     std::cout << "[Test] testInstantaneousDefault...\n";
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
     EXPECT_TRUE(!mock->getKinematicsConfig().enabled);
     EXPECT_TRUE(!mock->getLatencyConfig().enabled);
     EXPECT_TRUE(!mock->isMoving());
@@ -272,7 +273,7 @@ TEST(MockKinematicsTest, PacketDropSimulation)
 TEST(MockKinematicsTest, MockDeviceWithKinematicsAndLatency)
 {
     std::cout << "[Test] testMockDeviceWithKinematicsAndLatency...\n";
-    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(1U);
+    auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
 
     // Initial state: at 90 deg, preset 1 at 30 deg, preset 2 at 90 deg
     PelcoD::MockDeviceState initState;

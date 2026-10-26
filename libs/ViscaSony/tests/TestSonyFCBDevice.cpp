@@ -3,6 +3,10 @@
 
 #include "MockSonyCamera.h"
 #include "SonyFCBDevice.h"
+
+#include <cstdint>
+#include <memory>
+
 #include <gtest/gtest.h>
 
 using namespace Visca;
@@ -12,10 +16,10 @@ using namespace Visca::Sony;
 /// @details Verifies that initialize() queries CAM_VersionInq and sets EV9520L traits.
 TEST(TestSonyFCBDevice, InitializationEV9520L)
 {
-    auto mockCamera = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, 1);
+    auto mockCamera = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, static_cast<std::uint8_t>(1U));
     mockCamera->open();
 
-    SonyFCBDevice camera(mockCamera, 1);
+    SonyFCBDevice camera(mockCamera, static_cast<std::uint8_t>(1U));
     EXPECT_TRUE(camera.initialize());
     EXPECT_EQ(camera.modelType(), SonyCameraModelType::FCB_EV9520L);
     EXPECT_TRUE(camera.capabilities().supportsDistortionCompensation);
@@ -26,10 +30,10 @@ TEST(TestSonyFCBDevice, InitializationEV9520L)
 /// @details Verifies that initialize() queries CAM_VersionInq and sets EW9500H traits.
 TEST(TestSonyFCBDevice, InitializationEW9500H)
 {
-    auto mockCamera = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EW9500H, 1);
+    auto mockCamera = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EW9500H, static_cast<std::uint8_t>(1U));
     mockCamera->open();
 
-    SonyFCBDevice camera(mockCamera, 1);
+    SonyFCBDevice camera(mockCamera, static_cast<std::uint8_t>(1U));
     EXPECT_TRUE(camera.initialize());
     EXPECT_EQ(camera.modelType(), SonyCameraModelType::FCB_EW9500H);
     EXPECT_FALSE(camera.capabilities().supportsDistortionCompensation);
@@ -41,14 +45,14 @@ TEST(TestSonyFCBDevice, InitializationEW9500H)
 /// and 4K Operating Mode is accepted by EW9500H and rejected by EV9520L.
 TEST(TestSonyFCBDevice, CapabilityGating)
 {
-    auto mockEV = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, 1);
+    auto mockEV = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, static_cast<std::uint8_t>(1U));
     mockEV->open();
-    SonyFCBDevice evCamera(mockEV, 1);
+    SonyFCBDevice evCamera(mockEV, static_cast<std::uint8_t>(1U));
     ASSERT_TRUE(evCamera.initialize());
 
-    auto mockEW = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EW9500H, 1);
+    auto mockEW = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EW9500H, static_cast<std::uint8_t>(1U));
     mockEW->open();
-    SonyFCBDevice ewCamera(mockEW, 1);
+    SonyFCBDevice ewCamera(mockEW, static_cast<std::uint8_t>(1U));
     ASSERT_TRUE(ewCamera.initialize());
 
     // Distortion compensation: Supported on EV9520L, forbidden on EW9500H
@@ -76,10 +80,10 @@ TEST(TestSonyFCBDevice, CapabilityGating)
 /// @details Verifies setting zoom, focus, shutter, iris, and stabilizer.
 TEST(TestSonyFCBDevice, HighLevelControls)
 {
-    auto mockCamera = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, 1);
+    auto mockCamera = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, static_cast<std::uint8_t>(1U));
     mockCamera->open();
 
-    SonyFCBDevice camera(mockCamera, 1);
+    SonyFCBDevice camera(mockCamera, static_cast<std::uint8_t>(1U));
     ASSERT_TRUE(camera.initialize());
 
     EXPECT_TRUE(camera.setZoomDirect(0x3000));
@@ -102,13 +106,13 @@ TEST(TestSonyFCBDevice, HighLevelControls)
 /// @details Verifies that pollStatus() queries Block Inquiries 00..04 and populates SonyFCBStatus.
 TEST(TestSonyFCBDevice, BlockInquiryStatusPolling)
 {
-    auto mockCamera = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, 1);
+    auto mockCamera = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, static_cast<std::uint8_t>(1U));
     mockCamera->open();
 
     mockCamera->setZoomPosition(0x2500);
     mockCamera->setFocusPosition(0x4500);
 
-    SonyFCBDevice camera(mockCamera, 1);
+    SonyFCBDevice camera(mockCamera, static_cast<std::uint8_t>(1U));
     ASSERT_TRUE(camera.initialize());
 
     EXPECT_TRUE(camera.pollStatus());
@@ -124,13 +128,13 @@ TEST(TestSonyFCBDevice, BlockInquiryStatusPolling)
 /// @details Verifies that queryZoomPosition(), queryFocusPosition(), etc. update SonyFCBStatus.
 TEST(TestSonyFCBDevice, IndividualFastPathQueries)
 {
-    auto mockCamera = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, 1);
+    auto mockCamera = std::make_shared<MockSonyCamera>(SonyCameraModelType::FCB_EV9520L, static_cast<std::uint8_t>(1U));
     mockCamera->open();
 
     mockCamera->setZoomPosition(0x3210);
     mockCamera->setFocusPosition(0x6543);
 
-    SonyFCBDevice camera(mockCamera, 1);
+    SonyFCBDevice camera(mockCamera, static_cast<std::uint8_t>(1U));
     ASSERT_TRUE(camera.initialize());
 
     const auto zoom = camera.queryZoomPosition();
@@ -175,4 +179,3 @@ TEST(TestSonyFCBDevice, IndividualFastPathQueries)
     EXPECT_EQ(*mem, 0x01);
     EXPECT_EQ(camera.status().lastMemoryChannel, 0x01);
 }
-
