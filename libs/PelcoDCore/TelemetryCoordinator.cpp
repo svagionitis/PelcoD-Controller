@@ -1,7 +1,12 @@
 #include "TelemetryCoordinator.h"
 #include "ProtocolParser.h"
 
+#include <cstdint>
+
 #include <algorithm>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace PelcoD {
 

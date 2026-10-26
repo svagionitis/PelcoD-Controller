@@ -8,6 +8,7 @@
 #include <atomic>
 #include <chrono>
 #include <future>
+#include <mutex>
 #include <vector>
 
 namespace {
@@ -21,9 +22,7 @@ TEST(AsyncWatchdogTest, ScheduleAndFire)
     std::promise<bool> promise;
     auto future = promise.get_future();
 
-    const auto timerId = watchdog.schedule(20ms, [&] {
-        promise.set_value(true);
-    });
+    const auto timerId = watchdog.schedule(20ms, [&] { promise.set_value(true); });
     EXPECT_GT(timerId, 0U);
 
     const auto res = future.wait_for(300ms);
@@ -36,9 +35,7 @@ TEST(AsyncWatchdogTest, CancelBeforeExpiry)
     PelcoD::AsyncWatchdog watchdog;
 
     std::atomic<bool> fired { false };
-    const auto timerId = watchdog.schedule(50ms, [&] {
-        fired.store(true);
-    });
+    const auto timerId = watchdog.schedule(50ms, [&] { fired.store(true); });
     EXPECT_GT(timerId, 0U);
 
     // Cancel immediately
@@ -86,9 +83,7 @@ TEST(AsyncWatchdogTest, ShutdownCleansUpImmediately)
     PelcoD::AsyncWatchdog watchdog;
 
     std::atomic<bool> fired { false };
-    static_cast<void>(watchdog.schedule(500ms, [&] {
-        fired.store(true);
-    }));
+    static_cast<void>(watchdog.schedule(500ms, [&] { fired.store(true); }));
 
     // Immediate shutdown
     watchdog.shutdown();

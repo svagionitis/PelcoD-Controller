@@ -8,6 +8,7 @@
 #include "QFujinonSX800Device.h"
 #include "QPelcoDDevice.h"
 
+#include <cstdint>
 #include <memory>
 
 namespace PelcoDQt {
@@ -64,7 +65,7 @@ protected:
     void onCallbacksInitialized() override;
 
 private:
-    std::shared_ptr<PelcoD::FujinonSX800Device> m_fujinonDevice {};
+    std::shared_ptr<PelcoD::FujinonSX800Device> m_fujinonDevice { };
     QFujinonSX800Device* m_fujinonAdapter { nullptr };
 };
 

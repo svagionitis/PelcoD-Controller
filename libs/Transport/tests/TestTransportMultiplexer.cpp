@@ -12,6 +12,7 @@
 #include <future>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -80,8 +81,8 @@ public:
 private:
     std::atomic<bool> m_open { true };
     std::uint32_t m_baud { 9600U };
-    mutable std::mutex m_txMutex {};
-    std::vector<std::vector<std::uint8_t>> m_sent {};
+    mutable std::mutex m_txMutex { };
+    std::vector<std::vector<std::uint8_t>> m_sent { };
 };
 
 TEST(TransportMultiplexerTest, MultiChannelFanOut)

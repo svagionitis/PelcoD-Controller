@@ -3,7 +3,12 @@
 
 #include "CallbackDispatcher.h"
 
+#include <cstdint>
+
+#include <chrono>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace PelcoD {
 
@@ -27,7 +32,7 @@ Connection CallbackDispatcher::addTrafficCallback(TrafficCallback cb)
 Connection CallbackDispatcher::addTrafficCallback(TrafficCallback cb, bool notifyTx, bool notifyRx)
 {
     if (!cb) {
-        return Connection {};
+        return Connection { };
     }
     return addTrafficCallback(
         [cb = std::move(cb), notifyTx, notifyRx](bool isTx, const std::vector<std::uint8_t>& frame) {
@@ -45,7 +50,7 @@ Connection CallbackDispatcher::addTrafficCallback(
     std::uint8_t addressFilter, TrafficCallback cb, bool notifyTx, bool notifyRx)
 {
     if (!cb) {
-        return Connection {};
+        return Connection { };
     }
     return addTrafficCallback(
         [cb = std::move(cb), addressFilter, notifyTx, notifyRx](bool isTx, const std::vector<std::uint8_t>& frame) {

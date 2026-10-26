@@ -1,9 +1,12 @@
 #include "SdpGenerator.h"
 
+#include <cstdint>
+
 #include <chrono>
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <string_view>
 
 namespace Transport {
 
@@ -30,7 +33,7 @@ bool SdpGenerator::isMulticast(std::string_view ip) noexcept
 
 std::string SdpGenerator::generate(const SdpSessionParams& params)
 {
-    std::ostringstream ss {};
+    std::ostringstream ss { };
 
     // 1. Protocol Version (v=)
     ss << "v=0" << kCrLf;
@@ -39,8 +42,8 @@ std::string SdpGenerator::generate(const SdpSessionParams& params)
     const std::uint64_t sessId = (params.sessionId > 0U)
         ? params.sessionId
         : static_cast<std::uint64_t>(
-            std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch())
-                .count());
+              std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch())
+                  .count());
     const std::string origin = params.originAddress.empty() ? "127.0.0.1" : params.originAddress;
     ss << "o=- " << sessId << " 1 IN IP4 " << origin << kCrLf;
 
@@ -133,7 +136,7 @@ bool SdpGenerator::saveToFile(std::string_view path, const SdpSessionParams& par
 
 SdpSessionParams SdpGenerator::parse(std::string_view sdpContent)
 {
-    SdpSessionParams params {};
+    SdpSessionParams params { };
     std::size_t startPos { 0U };
 
     while (startPos < sdpContent.size()) {
@@ -157,12 +160,12 @@ SdpSessionParams SdpGenerator::parse(std::string_view sdpContent)
                 break;
             case 'o': {
                 std::istringstream oss { std::string(val) };
-                std::string dash {};
-                std::string sessIdStr {};
-                std::string ver {};
-                std::string inStr {};
-                std::string ip4Str {};
-                std::string originStr {};
+                std::string dash { };
+                std::string sessIdStr { };
+                std::string ver { };
+                std::string inStr { };
+                std::string ip4Str { };
+                std::string originStr { };
                 if (oss >> dash >> sessIdStr >> ver >> inStr >> ip4Str >> originStr) {
                     try {
                         params.sessionId = std::stoull(sessIdStr);
@@ -204,9 +207,9 @@ SdpSessionParams SdpGenerator::parse(std::string_view sdpContent)
             }
             case 'm': {
                 std::istringstream mss { std::string(val) };
-                std::string med {};
+                std::string med { };
                 int port { 0 };
-                std::string proto {};
+                std::string proto { };
                 int pt { 0 };
                 if (mss >> med >> port >> proto >> pt) {
                     params.destinationPort = static_cast<std::uint16_t>(port);

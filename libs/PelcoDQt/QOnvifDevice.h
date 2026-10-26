@@ -12,6 +12,8 @@
 #include <QString>
 
 #include <memory>
+#include <optional>
+#include <vector>
 
 namespace PelcoD::Qt {
 
@@ -1117,52 +1119,52 @@ private:
     void pollEvents();
     void pollMetadata();
 
-    std::unique_ptr<Onvif::OnvifClient> m_client {};
+    std::unique_ptr<Onvif::OnvifClient> m_client { };
     bool m_connected { false };
-    QString m_endpoint {};
-    QString m_activeProfileToken {};
-    QString m_activeVideoSourceToken {};
-    QString m_rtspStreamUri {};
-    QString m_snapshotUri {};
-    std::vector<Onvif::MediaProfile> m_profiles {};
-    std::vector<Onvif::PtzPreset> m_presets {};
-    std::vector<Onvif::PresetTour> m_presetTours {};
-    std::vector<Onvif::OsdConfig> m_osds {};
-    std::vector<Onvif::OnvifUser> m_users {};
-    std::vector<Onvif::NetworkInterfaceConfig> m_networkInterfaces {};
-    QString m_networkGateway {};
-    Onvif::DnsConfig m_dnsConfig {};
-    Onvif::NtpConfig m_ntpConfig {};
-    Onvif::DeviceInformation m_deviceInfo {};
-    Onvif::ImagingSettings m_imagingSettings {};
-    Onvif::FocusStatus20 m_focusStatus {};
-    std::vector<Onvif::ImagingPreset> m_imagingPresets {};
-    std::vector<Onvif::RelayOutputConfig> m_relayOutputs {};
-    std::vector<Onvif::DigitalInputConfig> m_digitalInputs {};
-    QString m_eventSubscriptionUrl {};
+    QString m_endpoint { };
+    QString m_activeProfileToken { };
+    QString m_activeVideoSourceToken { };
+    QString m_rtspStreamUri { };
+    QString m_snapshotUri { };
+    std::vector<Onvif::MediaProfile> m_profiles { };
+    std::vector<Onvif::PtzPreset> m_presets { };
+    std::vector<Onvif::PresetTour> m_presetTours { };
+    std::vector<Onvif::OsdConfig> m_osds { };
+    std::vector<Onvif::OnvifUser> m_users { };
+    std::vector<Onvif::NetworkInterfaceConfig> m_networkInterfaces { };
+    QString m_networkGateway { };
+    Onvif::DnsConfig m_dnsConfig { };
+    Onvif::NtpConfig m_ntpConfig { };
+    Onvif::DeviceInformation m_deviceInfo { };
+    Onvif::ImagingSettings m_imagingSettings { };
+    Onvif::FocusStatus20 m_focusStatus { };
+    std::vector<Onvif::ImagingPreset> m_imagingPresets { };
+    std::vector<Onvif::RelayOutputConfig> m_relayOutputs { };
+    std::vector<Onvif::DigitalInputConfig> m_digitalInputs { };
+    QString m_eventSubscriptionUrl { };
     bool m_eventSubActive { false };
-    std::vector<Onvif::MetadataConfiguration> m_metadataConfigs {};
+    std::vector<Onvif::MetadataConfiguration> m_metadataConfigs { };
     bool m_metadataStreamingActive { false };
-    std::vector<Onvif::OnvifCertificate> m_certificates {};
+    std::vector<Onvif::OnvifCertificate> m_certificates { };
     Onvif::ClientCertificateMode m_clientCertMode { Onvif::ClientCertificateMode::Off };
-    std::vector<Onvif::RecordingConfig> m_recordings {};
-    std::vector<Onvif::RecordingJob> m_recordingJobs {};
-    std::optional<Onvif::RecordingSummary> m_recordingSummary {};
-    std::optional<Onvif::ReplayConfiguration> m_replayConfig {};
-    std::vector<Onvif::AnalyticsRule> m_rules {};
-    std::vector<Onvif::AnalyticsRuleDescription> m_supportedRules {};
-    std::vector<Onvif::AnalyticsModule> m_analyticsModules {};
-    std::vector<Onvif::AnalyticsModuleDescription> m_supportedModules {};
-    std::optional<Onvif::LocationEntity> m_geoLocation {};
+    std::vector<Onvif::RecordingConfig> m_recordings { };
+    std::vector<Onvif::RecordingJob> m_recordingJobs { };
+    std::optional<Onvif::RecordingSummary> m_recordingSummary { };
+    std::optional<Onvif::ReplayConfiguration> m_replayConfig { };
+    std::vector<Onvif::AnalyticsRule> m_rules { };
+    std::vector<Onvif::AnalyticsRuleDescription> m_supportedRules { };
+    std::vector<Onvif::AnalyticsModule> m_analyticsModules { };
+    std::vector<Onvif::AnalyticsModuleDescription> m_supportedModules { };
+    std::optional<Onvif::LocationEntity> m_geoLocation { };
 
-    std::vector<Onvif::PrivacyMask> m_masks {};
-    std::optional<Onvif::MaskOptions> m_maskOptions {};
-    std::vector<Onvif::VideoSourceMode> m_videoSourceModes {};
+    std::vector<Onvif::PrivacyMask> m_masks { };
+    std::optional<Onvif::MaskOptions> m_maskOptions { };
+    std::vector<Onvif::VideoSourceMode> m_videoSourceModes { };
 
-    Onvif::RadiometryConfig m_radiometryConfig {};
-    std::vector<Onvif::RadiometrySpot> m_radiometrySpots {};
-    std::vector<Onvif::RadiometryBox> m_radiometryBoxes {};
-    std::vector<Onvif::ColorPalette> m_colorPalettes {};
+    Onvif::RadiometryConfig m_radiometryConfig { };
+    std::vector<Onvif::RadiometrySpot> m_radiometrySpots { };
+    std::vector<Onvif::RadiometryBox> m_radiometryBoxes { };
+    std::vector<Onvif::ColorPalette> m_colorPalettes { };
 };
 
 } // namespace PelcoD::Qt

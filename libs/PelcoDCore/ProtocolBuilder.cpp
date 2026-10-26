@@ -4,8 +4,12 @@
 #include "ProtocolBuilder.h"
 #include "PelcoDFrame.h"
 
+#include <cstdint>
+
 #include <algorithm>
+#include <optional>
 #include <utility>
+#include <vector>
 
 namespace PelcoD {
 

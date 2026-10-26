@@ -6,7 +6,10 @@
 
 #include <QMetaObject>
 #include <algorithm>
+#include <cstdint>
+#include <memory>
 #include <utility>
+#include <vector>
 
 namespace PelcoDQt {
 
@@ -38,9 +41,8 @@ void QPatrolController::setDevice(QPelcoDDevice* device)
     m_device = device;
     if (m_controller) {
         if (m_device != nullptr) {
-            m_controller->setCommandDispatcher([device](std::uint8_t presetId) {
-                device->goToPreset(static_cast<int>(presetId));
-            });
+            m_controller->setCommandDispatcher(
+                [device](std::uint8_t presetId) { device->goToPreset(static_cast<int>(presetId)); });
         } else {
             m_controller->setCommandDispatcher(nullptr);
         }
@@ -50,8 +52,7 @@ void QPatrolController::setDevice(QPelcoDDevice* device)
 void QPatrolController::setupCallbacks()
 {
     m_controller->setStateChangedCallback([this](PelcoD::PatrolState state) {
-        QMetaObject::invokeMethod(
-            this, [this, state] { emit stateChanged(state); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, state] { emit stateChanged(state); }, Qt::QueuedConnection);
     });
 
     m_controller->setStepChangedCallback([this](std::size_t stepIndex, const PelcoD::PatrolStep& step) {
@@ -65,14 +66,11 @@ void QPatrolController::setupCallbacks()
     m_controller->setDwellTickCallback([this](std::size_t stepIndex, std::uint32_t remSec) {
         const int idx = static_cast<int>(stepIndex);
         const int sec = static_cast<int>(remSec);
-        QMetaObject::invokeMethod(
-            this, [this, idx, sec] { emit dwellTick(idx, sec); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, idx, sec] { emit dwellTick(idx, sec); }, Qt::QueuedConnection);
     });
 
-    m_controller->setTourFinishedCallback([this]() {
-        QMetaObject::invokeMethod(
-            this, [this] { emit tourFinished(); }, Qt::QueuedConnection);
-    });
+    m_controller->setTourFinishedCallback(
+        [this]() { QMetaObject::invokeMethod(this, [this] { emit tourFinished(); }, Qt::QueuedConnection); });
 }
 
 bool QPatrolController::start()
@@ -159,7 +157,7 @@ int QPatrolController::remainingDwellSeconds() const
 
 std::vector<PelcoD::PatrolStep> QPatrolController::steps() const
 {
-    return m_controller ? m_controller->getSteps() : std::vector<PelcoD::PatrolStep> {};
+    return m_controller ? m_controller->getSteps() : std::vector<PelcoD::PatrolStep> { };
 }
 
 void QPatrolController::addStep(int presetId, int dwellTimeSeconds, const QString& name, int speed)

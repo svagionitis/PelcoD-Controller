@@ -4,7 +4,12 @@
 #include "PatrolController.h"
 #include "PelcoDDevice.h"
 
+#include <cstdint>
+
 #include <chrono>
+#include <memory>
+#include <mutex>
+#include <vector>
 
 namespace PelcoD {
 

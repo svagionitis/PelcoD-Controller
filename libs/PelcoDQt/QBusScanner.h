@@ -7,6 +7,7 @@
 #include "ITransport.h"
 
 #include <QObject>
+#include <cstdint>
 #include <memory>
 #include <vector>
 

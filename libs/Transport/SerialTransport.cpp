@@ -5,6 +5,7 @@
 
 #ifndef _WIN32
 #include <cerrno>
+#include <cstdint>
 #include <cstring>
 #include <fcntl.h>
 #include <linux/serial.h>
@@ -21,6 +22,8 @@
 #include <chrono>
 #include <filesystem>
 #include <glog/logging.h>
+#include <string>
+#include <vector>
 
 namespace Transport {
 
@@ -195,7 +198,7 @@ bool SerialTransport::configurePort()
     }
 
 #ifdef _WIN32
-    DCB dcbSerialParams {};
+    DCB dcbSerialParams { };
     dcbSerialParams.DCBlength = sizeof(dcbSerialParams);
 
     if (!::GetCommState(handle, &dcbSerialParams)) {
@@ -220,7 +223,7 @@ bool SerialTransport::configurePort()
         return false;
     }
 
-    COMMTIMEOUTS timeouts {};
+    COMMTIMEOUTS timeouts { };
     timeouts.ReadIntervalTimeout = 50;
     timeouts.ReadTotalTimeoutConstant = 100;
     timeouts.ReadTotalTimeoutMultiplier = 10;
@@ -582,7 +585,7 @@ std::vector<std::string> SerialTransport::enumeratePorts()
 
 TransportStatsSnapshot SerialTransport::getStats() const
 {
-    TransportStatsSnapshot snapshot {};
+    TransportStatsSnapshot snapshot { };
     populateGenericStats(snapshot);
     snapshot.serial = queryKernelStats();
     return snapshot;
@@ -601,14 +604,14 @@ void SerialTransport::resetStats() noexcept
 
 SerialKernelStats SerialTransport::queryKernelStats() const noexcept
 {
-    SerialKernelStats stats {};
+    SerialKernelStats stats { };
     const SerialHandle handle = m_handle.load();
     if (handle == INVALID_SERIAL_HANDLE) {
         return stats;
     }
 
 #ifdef _WIN32
-    COMSTAT comStat {};
+    COMSTAT comStat { };
     DWORD errors = 0;
     if (::ClearCommError(handle, &errors, &comStat)) {
         stats.supported = true;

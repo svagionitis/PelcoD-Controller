@@ -3,9 +3,12 @@
 
 #include "RxStreamAccumulator.h"
 
+#include <cstdint>
+
 #include <algorithm>
 #include <chrono>
 #include <glog/logging.h>
+#include <vector>
 
 namespace PelcoD {
 
@@ -24,18 +27,14 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::push(
 std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::push(
     const std::vector<std::uint8_t>& data, bool awaitingQuery)
 {
-    const RxFrameExpectation exp = awaitingQuery
-        ? RxFrameExpectation::AwaitingQuery
-        : RxFrameExpectation::StandardOnly;
+    const RxFrameExpectation exp = awaitingQuery ? RxFrameExpectation::AwaitingQuery : RxFrameExpectation::StandardOnly;
     return push(data.data(), data.size(), exp);
 }
 
 std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::push(
     const std::uint8_t* data, std::size_t size, bool awaitingQuery)
 {
-    const RxFrameExpectation exp = awaitingQuery
-        ? RxFrameExpectation::AwaitingQuery
-        : RxFrameExpectation::StandardOnly;
+    const RxFrameExpectation exp = awaitingQuery ? RxFrameExpectation::AwaitingQuery : RxFrameExpectation::StandardOnly;
     return push(data, size, exp);
 }
 
@@ -43,7 +42,7 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::push(
     const std::uint8_t* data, std::size_t size, RxFrameExpectation expectation)
 {
     if (data == nullptr || size == 0U) {
-        return {};
+        return { };
     }
 
     std::scoped_lock lock(m_mutex);
@@ -78,13 +77,13 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::flushExpired(RxFrame
     std::scoped_lock lock(m_mutex);
     const std::size_t activeBuffered = (m_buffer.size() >= m_readOffset) ? (m_buffer.size() - m_readOffset) : 0U;
     if (activeBuffered == 0U) {
-        return {};
+        return { };
     }
 
     const auto now = std::chrono::steady_clock::now();
     const bool timeoutElapsed = (now - m_lastRxTime) >= m_interByteTimeout;
     if (!timeoutElapsed) {
-        return {};
+        return { };
     }
 
     return extractLocked(expectation, true);
@@ -107,7 +106,8 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::extractLocked(
 
         const auto syncIt = std::find(bufBegin, bufEnd, PelcoDFrame::SyncByte);
         if (syncIt == bufEnd) {
-            m_discardedBytes.fetch_add(static_cast<std::uint64_t>(std::distance(bufBegin, bufEnd)), std::memory_order_relaxed);
+            m_discardedBytes.fetch_add(
+                static_cast<std::uint64_t>(std::distance(bufBegin, bufEnd)), std::memory_order_relaxed);
             m_readOffset = m_buffer.size();
             break;
         }
@@ -139,8 +139,8 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::extractLocked(
         }
 
         // 2. Try 18-byte query response if awaiting query or in AllFrames mode
-        const bool queryAllowed = (expectation == RxFrameExpectation::AwaitingQuery)
-            || (expectation == RxFrameExpectation::AllFrames);
+        const bool queryAllowed
+            = (expectation == RxFrameExpectation::AwaitingQuery) || (expectation == RxFrameExpectation::AllFrames);
         if (queryAllowed && available >= PelcoDFrame::QueryResponseSize) {
             std::vector<std::uint8_t> frame(
                 frameStart, frameStart + static_cast<std::ptrdiff_t>(PelcoDFrame::QueryResponseSize));
@@ -195,9 +195,8 @@ std::vector<std::vector<std::uint8_t>> RxStreamAccumulator::extractLocked(
                 }
             }
 
-            const std::size_t maxExpectedSize = couldBeQuery
-                ? PelcoDFrame::QueryResponseSize
-                : PelcoDFrame::StandardFrameSize;
+            const std::size_t maxExpectedSize
+                = couldBeQuery ? PelcoDFrame::QueryResponseSize : PelcoDFrame::StandardFrameSize;
 
             if (available < maxExpectedSize) {
                 // Not enough bytes to evaluate standard/query frame; retain in buffer

@@ -7,8 +7,10 @@
 
 #include <cstddef>
 #include <cstdint>
+
 #include <memory>
 #include <mutex>
+#include <string>
 #include <vector>
 
 namespace Transport {
@@ -59,11 +61,11 @@ private:
     void registerChannel(const std::shared_ptr<Channel>& channel);
     void unregisterChannel(std::uint64_t channelId);
 
-    std::shared_ptr<ITransport> m_underlying {};
-    mutable std::mutex m_writeMutex {};
+    std::shared_ptr<ITransport> m_underlying { };
+    mutable std::mutex m_writeMutex { };
 
-    mutable std::mutex m_channelsMutex {};
-    std::vector<std::weak_ptr<Channel>> m_channels {};
+    mutable std::mutex m_channelsMutex { };
+    std::vector<std::weak_ptr<Channel>> m_channels { };
     std::uint64_t m_nextChannelId { 1U };
     bool m_initialized { false };
 };

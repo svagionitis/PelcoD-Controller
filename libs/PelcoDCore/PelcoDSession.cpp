@@ -3,13 +3,21 @@
 #include "ProtocolBuilder.h"
 #include "ProtocolParser.h"
 
+#include <cstdint>
+
 #include <algorithm>
+#include <chrono>
 #include <glog/logging.h>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace PelcoD {
 
 PelcoDSession::PelcoDSession(std::shared_ptr<ITransport> transport, std::uint8_t address)
-    : PelcoDSession(std::move(transport), address, SessionHandlers {})
+    : PelcoDSession(std::move(transport), address, SessionHandlers { })
 {
 }
 
@@ -160,12 +168,12 @@ std::uint8_t PelcoDSession::getAddress() const noexcept
 
 SendResult PelcoDSession::sendRawFrame(const StandardFrame& frame)
 {
-    return enqueueCommand(frame, QueryRef {}, CommandPriority::Normal);
+    return enqueueCommand(frame, QueryRef { }, CommandPriority::Normal);
 }
 
 SendResult PelcoDSession::sendRawFrame(const std::vector<std::uint8_t>& frame)
 {
-    return enqueueCommand(frame, QueryRef {}, CommandPriority::Normal);
+    return enqueueCommand(frame, QueryRef { }, CommandPriority::Normal);
 }
 
 SendResult PelcoDSession::sendQueryFrame(const StandardFrame& frame, QueryRef query)
@@ -220,7 +228,7 @@ SendResult PelcoDSession::enqueueCommand(
     const std::vector<std::uint8_t>& frame, QueryRef query, CommandPriority priority)
 {
     if (frame.size() == PelcoDFrame::StandardFrameSize) {
-        StandardFrame stdFrame {};
+        StandardFrame stdFrame { };
         std::copy(frame.begin(), frame.end(), stdFrame.begin());
         return enqueueCommand(stdFrame, std::move(query), priority);
     }
@@ -232,19 +240,19 @@ SendResult PelcoDSession::enqueueCommand(
         return SendResult::InvalidFrame;
     }
 
-    StandardFrame stdFrame {};
+    StandardFrame stdFrame { };
     std::copy(frame.begin(), frame.end(), stdFrame.begin());
     return enqueueCommand(stdFrame, std::move(query), priority);
 }
 
 SendResult PelcoDSession::enqueueCommand(const StandardFrame& frame, CommandPriority priority)
 {
-    return enqueueCommand(frame, QueryRef {}, priority);
+    return enqueueCommand(frame, QueryRef { }, priority);
 }
 
 SendResult PelcoDSession::enqueueCommand(const std::vector<std::uint8_t>& frame, CommandPriority priority)
 {
-    return enqueueCommand(frame, QueryRef {}, priority);
+    return enqueueCommand(frame, QueryRef { }, priority);
 }
 
 std::size_t PelcoDSession::purgeMotionCommands() noexcept
@@ -348,7 +356,7 @@ Transport::TransportStatsSnapshot PelcoDSession::getTransportStats() const
     if (transport) {
         return transport->getStats();
     }
-    return Transport::TransportStatsSnapshot {};
+    return Transport::TransportStatsSnapshot { };
 }
 
 void PelcoDSession::bindTransport(
@@ -495,7 +503,7 @@ void PelcoDSession::notifyCommandDropped(const std::vector<std::uint8_t>& frame,
 
 void PelcoDSession::checkQueryTimeout()
 {
-    std::string timedOutTag {};
+    std::string timedOutTag { };
     std::chrono::microseconds durationUs { 0 };
     {
         std::scoped_lock lock(m_sessionMutex);
@@ -540,9 +548,9 @@ void PelcoDSession::dispatchFrame(const std::vector<std::uint8_t>& frame)
         return;
     }
 
-    std::string satisfiedTag {};
+    std::string satisfiedTag { };
     std::chrono::microseconds durationUs { 0 };
-    std::optional<EverestLimitId> limitId {};
+    std::optional<EverestLimitId> limitId { };
 
     {
         std::scoped_lock lock(m_sessionMutex);
@@ -591,12 +599,12 @@ void PelcoDSession::workerLoop()
         const auto pollDeadline = m_handlers.pollDeadlineHandler ? m_handlers.pollDeadlineHandler()
                                                                  : std::chrono::steady_clock::time_point::max();
 
-        CommandItem item {};
+        CommandItem item { };
         const auto idleWaitTimeout
             = (m_rxAccumulator.size() > 0U) ? m_rxAccumulator.interByteTimeout() : std::chrono::milliseconds(50);
 
-        const bool hasItem = m_queue.popReady(
-            item, [this] { return !m_running.load(); }, pollDeadline, idleWaitTimeout);
+        const bool hasItem
+            = m_queue.popReady(item, [this] { return !m_running.load(); }, pollDeadline, idleWaitTimeout);
 
         if (!m_running.load(std::memory_order_relaxed)) {
             break;
@@ -654,7 +662,7 @@ void PelcoDSession::workerLoop()
 
                 if (isQuery) {
                     bool queryAborted { false };
-                    std::string abortedTag {};
+                    std::string abortedTag { };
                     std::chrono::microseconds abortedDurationUs { 0 };
 
                     {

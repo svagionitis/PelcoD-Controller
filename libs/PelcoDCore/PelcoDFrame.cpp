@@ -4,7 +4,12 @@
 #include "PelcoDFrame.h"
 #include "RxStreamAccumulator.h"
 
+#include <cstdint>
+
 #include <numeric>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace PelcoD {
 
@@ -34,7 +39,7 @@ std::uint8_t PelcoDFrame::calculateChecksum(const StandardFrame& frame) noexcept
 StandardFrame PelcoDFrame::createStandardFrame(
     std::uint8_t address, std::uint8_t cmd1, std::uint8_t cmd2, std::uint8_t data1, std::uint8_t data2) noexcept
 {
-    StandardFrame frame {};
+    StandardFrame frame { };
     frame[0] = SyncByte;
     frame[1] = address;
     frame[2] = cmd1;
@@ -121,7 +126,7 @@ bool PelcoDFrame::isStandardMotion(const std::vector<std::uint8_t>& frame) noexc
     if (frame.size() != StandardFrameSize) {
         return false;
     }
-    StandardFrame stdFrame {};
+    StandardFrame stdFrame { };
     for (std::size_t i { 0U }; i < StandardFrameSize; ++i) {
         stdFrame[i] = frame[i];
     }
@@ -143,7 +148,7 @@ bool PelcoDFrame::isStandardStop(const std::vector<std::uint8_t>& frame) noexcep
     if (frame.size() != StandardFrameSize) {
         return false;
     }
-    StandardFrame stdFrame {};
+    StandardFrame stdFrame { };
     for (std::size_t i { 0U }; i < StandardFrameSize; ++i) {
         stdFrame[i] = frame[i];
     }
@@ -189,7 +194,7 @@ MotionAxis PelcoDFrame::extractMotionAxes(const std::vector<std::uint8_t>& frame
     if (frame.size() != StandardFrameSize) {
         return MotionAxis::None;
     }
-    StandardFrame stdFrame {};
+    StandardFrame stdFrame { };
     for (std::size_t i { 0U }; i < StandardFrameSize; ++i) {
         stdFrame[i] = frame[i];
     }
@@ -202,7 +207,7 @@ std::vector<std::vector<std::uint8_t>> PelcoDFrame::splitStream(const std::vecto
     constexpr std::size_t MaxFrames { 2048U };
 
     if (stream.size() < GeneralResponseSize || stream.size() > MaxStreamSize) {
-        return {};
+        return { };
     }
 
     RxStreamAccumulator accumulator(stream.size() + 64U);
@@ -248,7 +253,7 @@ std::string PelcoDFrame::toHexString(const std::vector<std::uint8_t>& bytes, cha
 std::string PelcoDFrame::toHexString(const std::uint8_t* data, std::size_t length, char delimiter)
 {
     if (data == nullptr || length == 0U) {
-        return {};
+        return { };
     }
 
     std::string result;
@@ -287,7 +292,7 @@ std::vector<std::uint8_t> PelcoDFrame::fromHexString(std::string_view hexStr)
         const std::int32_t val = hexDigitVal(c);
         if (val < 0) {
             // Non-hex, non-delimiter character encountered: reject invalid string (L10)
-            return {};
+            return { };
         }
 
         if (highNibble < 0) {

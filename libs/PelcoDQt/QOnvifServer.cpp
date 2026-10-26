@@ -1,5 +1,8 @@
 #include "QOnvifServer.h"
 
+#include <memory>
+#include <string>
+
 namespace PelcoD::Qt {
 
 QOnvifServer::QOnvifServer(Onvif::OnvifServerConfig config, QObject* parent)

@@ -5,10 +5,14 @@
 #include "PelcoDFrame.h"
 
 #include <cctype>
+#include <cstdint>
+
 #include <chrono>
 #include <iomanip>
 #include <optional>
 #include <sstream>
+#include <string>
+#include <vector>
 
 namespace PelcoD {
 
@@ -462,7 +466,7 @@ bool ProtocolParser::parseQuery(const std::vector<std::uint8_t>& frame, std::str
 
 [[nodiscard]] static bool updateStatusTime(const std::vector<std::uint8_t>& frame, DeviceStatus& status)
 {
-    TimeSubOpcode sub {};
+    TimeSubOpcode sub { };
     std::uint8_t d1 { 0U };
     std::uint8_t d2 { 0U };
     if (ProtocolParser::parseTimeResponse(frame, sub, d1, d2)) {
@@ -492,7 +496,7 @@ bool ProtocolParser::parseQuery(const std::vector<std::uint8_t>& frame, std::str
 [[nodiscard]] static bool updateStatusEverest(
     const std::vector<std::uint8_t>& frame, DeviceStatus& status, std::optional<EverestLimitId> limitId)
 {
-    EverestSubOpcode sub {};
+    EverestSubOpcode sub { };
     std::uint8_t d1 { 0U };
     std::uint8_t d2 { 0U };
     if (ProtocolParser::parseEverestResponse(frame, sub, d1, d2)) {

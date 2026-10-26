@@ -3,7 +3,12 @@
 
 #include "BaseTransport.h"
 
+#include <cstdint>
+
+#include <chrono>
 #include <glog/logging.h>
+#include <string>
+#include <vector>
 
 namespace Transport {
 
@@ -59,7 +64,7 @@ void BaseTransport::stopReadThread()
 
 TransportStatsSnapshot BaseTransport::getStats() const
 {
-    TransportStatsSnapshot snapshot {};
+    TransportStatsSnapshot snapshot { };
     populateGenericStats(snapshot);
     return snapshot;
 }
@@ -75,9 +80,9 @@ void BaseTransport::resetStats() noexcept
     m_reconnectCount.store(0U);
 
     std::scoped_lock lock(m_timeMutex);
-    m_lastTxTime = {};
-    m_lastRxTime = {};
-    m_rateCalcTime = {};
+    m_lastTxTime = { };
+    m_lastRxTime = { };
+    m_rateCalcTime = { };
     m_lastRateBytesSent = 0U;
     m_lastRateBytesReceived = 0U;
     m_txRateBps = 0.0;

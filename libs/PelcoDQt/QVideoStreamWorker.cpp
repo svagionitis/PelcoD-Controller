@@ -3,6 +3,8 @@
 
 #include <QElapsedTimer>
 #include <glog/logging.h>
+#include <memory>
+#include <string>
 
 namespace PelcoDQt {
 

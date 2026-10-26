@@ -6,12 +6,18 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <iomanip>
 #include <iostream>
+#include <memory>
+#include <mutex>
 #include <sstream>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 
@@ -31,7 +37,7 @@ constexpr std::string_view kProbeTagPrefix { "RttProbe:" };
         return std::string { field };
     }
 
-    std::string out {};
+    std::string out { };
     out.reserve(field.size() + 8U);
     out.push_back('"');
     for (const char c : field) {
@@ -50,7 +56,7 @@ constexpr std::string_view kProbeTagPrefix { "RttProbe:" };
 /// @return Escaped string safe for JSON text.
 [[nodiscard]] std::string escapeJsonString(std::string_view input)
 {
-    std::string out {};
+    std::string out { };
     out.reserve(input.size() + 16U);
     for (const char c : input) {
         switch (c) {
@@ -78,7 +84,7 @@ constexpr std::string_view kProbeTagPrefix { "RttProbe:" };
         default: {
             const auto uc = static_cast<unsigned char>(c);
             if (uc < 0x20U) {
-                std::array<char, 7> hexBuf {};
+                std::array<char, 7> hexBuf { };
                 const int written
                     = std::snprintf(hexBuf.data(), hexBuf.size(), "\\u%04x", static_cast<unsigned int>(uc));
                 if (written > 0) {
@@ -136,7 +142,7 @@ bool RttProfiler::joinWorker()
         } else {
             m_worker.join();
             // The OS may reuse the id once the thread is joined; forget it.
-            m_workerId.store(std::thread::id {});
+            m_workerId.store(std::thread::id { });
         }
     }
     return joined;
@@ -173,7 +179,7 @@ bool RttProfiler::start(const RttProfilerConfig& config)
             return false;
         }
 
-        std::shared_ptr<PelcoDDevice> dev {};
+        std::shared_ptr<PelcoDDevice> dev { };
         {
             std::scoped_lock lock { m_mutex };
             dev = m_device;
@@ -203,7 +209,7 @@ bool RttProfiler::start(const RttProfilerConfig& config)
 
     // Notify without any lock so the callback may call stop() or the getters.
     // Firing before the spawn guarantees observers see true before the worker's false.
-    StateChangedCallback stateCb {};
+    StateChangedCallback stateCb { };
     {
         std::scoped_lock lock { m_mutex };
         stateCb = m_stateCb;
@@ -254,7 +260,7 @@ void RttProfiler::stop()
 
     const bool wasRunning { m_running.exchange(false) };
     if (wasRunning) {
-        StateChangedCallback stateCb {};
+        StateChangedCallback stateCb { };
         {
             std::scoped_lock lock { m_mutex };
             stateCb = m_stateCb;
@@ -267,7 +273,7 @@ void RttProfiler::stop()
 
 void RttProfiler::resetStatisticsUnderLock() noexcept
 {
-    m_stats = RttStatistics {};
+    m_stats = RttStatistics { };
     m_history.clear();
     m_nextSeq = 1U;
     m_welfordMean = 0.0;
@@ -496,7 +502,7 @@ void RttProfiler::activeWorkerLoop(RttProfilerConfig config)
 
 void RttProfiler::dispatchProbeCommand(const std::string& tag)
 {
-    std::shared_ptr<PelcoDDevice> dev {};
+    std::shared_ptr<PelcoDDevice> dev { };
     {
         std::scoped_lock lock { m_mutex };
         dev = m_device;
@@ -532,8 +538,8 @@ void RttProfiler::dispatchProbeCommand(const std::string& tag)
 
 void RttProfiler::onDeviceQueryLatency(const std::string& tag, std::chrono::microseconds duration, bool success)
 {
-    ProfilerMode mode {};
-    std::string targetTag {};
+    ProfilerMode mode { };
+    std::string targetTag { };
     {
         std::scoped_lock lock { m_mutex };
         mode = m_config.mode;

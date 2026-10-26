@@ -12,6 +12,7 @@
 #include <QThread>
 #include <QWaitCondition>
 #include <memory>
+#include <vector>
 
 namespace PelcoDQt {
 

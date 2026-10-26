@@ -4,7 +4,9 @@
 #include "KinematicsSimulator.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
 
 namespace PelcoD {
 

@@ -5,6 +5,9 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstdint>
+#include <mutex>
+#include <vector>
 
 namespace PelcoD {
 
@@ -252,7 +255,7 @@ void MacroPlayer::stop()
 
 bool MacroPlayer::stepNext()
 {
-    MacroStep step {};
+    MacroStep step { };
     std::size_t stepIdx { 0U };
     std::size_t totalSteps { 0U };
     std::size_t currentLoop { 0U };
@@ -343,7 +346,7 @@ void MacroPlayer::workerThreadFunc()
 {
     m_workerRunning.store(true);
     while (!m_stopRequested.load()) {
-        MacroStep step {};
+        MacroStep step { };
         std::size_t stepIdx { 0U };
         std::size_t totalSteps { 0U };
         std::size_t currentLoop { 0U };
@@ -355,9 +358,7 @@ void MacroPlayer::workerThreadFunc()
 
         {
             std::unique_lock<std::mutex> lock(m_mutex);
-            m_cv.wait(lock, [this]() {
-                return m_stopRequested.load() || m_state.load() == MacroPlayerState::Playing;
-            });
+            m_cv.wait(lock, [this]() { return m_stopRequested.load() || m_state.load() == MacroPlayerState::Playing; });
 
             if (m_stopRequested.load()) {
                 break;
@@ -423,7 +424,7 @@ void MacroPlayer::workerThreadFunc()
         }
 
         if (step.expectResponse) {
-            std::vector<std::uint8_t> responseData {};
+            std::vector<std::uint8_t> responseData { };
             bool gotResponse { false };
             ResponseCallback respCb { nullptr };
             ResponseTimeoutCallback timeoutCb { nullptr };
@@ -438,15 +439,13 @@ void MacroPlayer::workerThreadFunc()
 
                 if (delayMs > 0U) {
                     m_cv.wait_for(lock, std::chrono::milliseconds(delayMs), [this]() {
-                        return m_stopRequested.load() ||
-                               m_state.load() != MacroPlayerState::Playing ||
-                               m_responseReceived;
+                        return m_stopRequested.load() || m_state.load() != MacroPlayerState::Playing
+                            || m_responseReceived;
                     });
                 } else {
                     m_cv.wait(lock, [this]() {
-                        return m_stopRequested.load() ||
-                               m_state.load() != MacroPlayerState::Playing ||
-                               m_responseReceived;
+                        return m_stopRequested.load() || m_state.load() != MacroPlayerState::Playing
+                            || m_responseReceived;
                     });
                 }
 
@@ -473,9 +472,8 @@ void MacroPlayer::workerThreadFunc()
             // Sleep with interruptible check
             if (delayMs > 0U) {
                 std::unique_lock<std::mutex> lock(m_mutex);
-                m_cv.wait_for(lock, std::chrono::milliseconds(delayMs), [this]() {
-                    return m_stopRequested.load() || m_state.load() != MacroPlayerState::Playing;
-                });
+                m_cv.wait_for(lock, std::chrono::milliseconds(delayMs),
+                    [this]() { return m_stopRequested.load() || m_state.load() != MacroPlayerState::Playing; });
                 if (m_stopRequested.load()) {
                     break;
                 }

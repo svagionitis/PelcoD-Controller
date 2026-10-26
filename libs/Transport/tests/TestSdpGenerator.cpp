@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
+#include <string>
 
 namespace Transport {
 namespace {
@@ -24,7 +25,7 @@ namespace {
 
     TEST(TestSdpGenerator, RtpMpeg2TsMulticastSdpFormatting)
     {
-        SdpSessionParams params {};
+        SdpSessionParams params { };
         params.sessionName = "Sightline SLA Video Stream";
         params.originAddress = "192.168.1.157";
         params.sessionId = 1609459200ULL;
@@ -69,7 +70,7 @@ namespace {
 
     TEST(TestSdpGenerator, RtpH264UnicastSdpFormatting)
     {
-        SdpSessionParams params {};
+        SdpSessionParams params { };
         params.sessionName = "Sightline H264 Feed";
         params.originAddress = "192.168.1.100";
         params.destinationIp = "192.168.1.200";
@@ -96,7 +97,7 @@ namespace {
 
     TEST(TestSdpGenerator, DirectUdpMpegTsSdpFormatting)
     {
-        SdpSessionParams params {};
+        SdpSessionParams params { };
         params.destinationIp = "10.0.0.50";
         params.destinationPort = 15004U;
         params.transportProtocol = SdpProtocol::Udp;
@@ -116,7 +117,7 @@ namespace {
     {
         const std::filesystem::path tempPath = std::filesystem::temp_directory_path() / "test_sightline_stream.sdp";
 
-        SdpSessionParams params {};
+        SdpSessionParams params { };
         params.sessionName = "File Export Test";
         params.destinationIp = "127.0.0.1";
         params.destinationPort = 15004U;

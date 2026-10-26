@@ -10,6 +10,7 @@
 
 #include <QCoreApplication>
 #include <QSignalSpy>
+#include <cstdint>
 
 #include "BaseTransport.h"
 #include <atomic>
@@ -19,6 +20,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
 

@@ -1,7 +1,11 @@
 #include "PtzCommands.h"
 #include "PelcoDFrame.h"
 
+#include <cstdint>
+
+#include <memory>
 #include <utility>
+#include <vector>
 
 namespace PelcoD {
 

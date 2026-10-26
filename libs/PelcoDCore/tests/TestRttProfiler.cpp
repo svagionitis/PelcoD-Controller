@@ -14,6 +14,7 @@
 #include <memory>
 #include <mutex>
 #include <sstream>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -308,7 +309,7 @@ template <typename Pred>
 /// @return Burst configuration with 2 probes, 10 ms interval, and 20 ms settle time.
 [[nodiscard]] PelcoD::RttProfilerConfig shortBurst()
 {
-    PelcoD::RttProfilerConfig cfg {};
+    PelcoD::RttProfilerConfig cfg { };
     cfg.mode = PelcoD::ProfilerMode::ActiveBurst;
     cfg.burstCount = 2U;
     cfg.intervalMs = 10U;
@@ -344,8 +345,8 @@ public:
     }
 
 private:
-    mutable std::mutex m_mutex {};
-    std::vector<bool> m_states {};
+    mutable std::mutex m_mutex { };
+    std::vector<bool> m_states { };
 };
 
 /// @brief C2a: starting a second burst after the first completed must not terminate.
@@ -463,7 +464,7 @@ TEST(RttProfilerTest, StateCbOrderAcrossRestarts)
     ASSERT_NE(device, nullptr);
 
     PelcoD::RttProfiler profiler { device };
-    StateRecorder recorder {};
+    StateRecorder recorder { };
     profiler.setStateChangedCallback([&recorder](bool running) { recorder.record(running); });
 
     ASSERT_TRUE(profiler.start(shortBurst()));
@@ -489,7 +490,7 @@ TEST(RttProfilerTest, StopInStartedCbNoWorker)
     ASSERT_NE(device, nullptr);
 
     PelcoD::RttProfiler profiler { device };
-    StateRecorder recorder {};
+    StateRecorder recorder { };
     std::atomic<std::uint32_t> finishedCount { 0U };
     profiler.setFinishedCallback([&finishedCount](const PelcoD::RttStatistics&) { finishedCount.fetch_add(1U); });
     profiler.setStateChangedCallback([&](bool running) {
@@ -519,7 +520,7 @@ TEST(RttProfilerTest, StopDuringIntervalIsPrompt)
     ASSERT_NE(device, nullptr);
 
     PelcoD::RttProfiler profiler { device };
-    PelcoD::RttProfilerConfig cfg {};
+    PelcoD::RttProfilerConfig cfg { };
     cfg.mode = PelcoD::ProfilerMode::ActiveContinuous;
     cfg.intervalMs = 5000U;
     cfg.timeoutMs = 20U;
@@ -579,7 +580,7 @@ TEST(RttProfilerTest, PassiveActiveCycles)
     std::atomic<std::uint32_t> finishedCount { 0U };
     profiler.setFinishedCallback([&finishedCount](const PelcoD::RttStatistics&) { finishedCount.fetch_add(1U); });
 
-    PelcoD::RttProfilerConfig passive {};
+    PelcoD::RttProfilerConfig passive { };
     passive.mode = PelcoD::ProfilerMode::Passive;
     PelcoD::RttProfilerConfig continuous { shortBurst() };
     continuous.mode = PelcoD::ProfilerMode::ActiveContinuous;
@@ -623,7 +624,7 @@ TEST(RttProfilerTest, ActiveBurstIgnoresConcurrentTelemetryPolling)
     std::atomic<bool> finished { false };
     profiler.setFinishedCallback([&finished](const PelcoD::RttStatistics&) { finished.store(true); });
 
-    PelcoD::RttProfilerConfig cfg {};
+    PelcoD::RttProfilerConfig cfg { };
     cfg.mode = PelcoD::ProfilerMode::ActiveBurst;
     cfg.burstCount = 4U;
     cfg.intervalMs = 40U;
@@ -649,7 +650,7 @@ TEST(RttProfilerTest, ActiveContinuousIgnoresUnrelatedQueries)
     ASSERT_NE(device, nullptr);
 
     PelcoD::RttProfiler profiler { device };
-    PelcoD::RttProfilerConfig cfg {};
+    PelcoD::RttProfilerConfig cfg { };
     cfg.mode = PelcoD::ProfilerMode::ActiveContinuous;
     cfg.intervalMs = 30U;
     cfg.probeQueryTag = "QueryPan";
@@ -686,7 +687,7 @@ TEST(RttProfilerTest, PassiveModeFiltersByConfiguredTag)
     ASSERT_NE(device, nullptr);
 
     PelcoD::RttProfiler profiler { device };
-    PelcoD::RttProfilerConfig cfg {};
+    PelcoD::RttProfilerConfig cfg { };
     cfg.mode = PelcoD::ProfilerMode::Passive;
     cfg.probeQueryTag = "QueryPan";
 
@@ -717,7 +718,7 @@ TEST(RttProfilerTest, PassiveModeObservesAllQueriesWhenWildcard)
     ASSERT_NE(device, nullptr);
 
     PelcoD::RttProfiler profiler { device };
-    PelcoD::RttProfilerConfig cfg {};
+    PelcoD::RttProfilerConfig cfg { };
     cfg.mode = PelcoD::ProfilerMode::Passive;
     cfg.probeQueryTag = "*";
 
@@ -739,8 +740,8 @@ TEST(RttProfilerTest, PassiveModeObservesAllQueriesWhenWildcard)
 /// @brief exportCsv() safely escapes quotes, delimiters, newlines, and formula injection (M9).
 TEST(RttProfilerTest, ExportCsvEscapesDelimitersQuotesAndFormulae)
 {
-    PelcoD::RttProfiler profiler {};
-    PelcoD::RttProfilerConfig cfg {};
+    PelcoD::RttProfiler profiler { };
+    PelcoD::RttProfilerConfig cfg { };
     cfg.mode = PelcoD::ProfilerMode::Passive;
     ASSERT_TRUE(profiler.start(cfg));
 
@@ -750,7 +751,7 @@ TEST(RttProfilerTest, ExportCsvEscapesDelimitersQuotesAndFormulae)
     profiler.recordSampleMs(16.0, "Newline\nTag", true);
     profiler.recordSampleMs(18.0, "=cmd|' /C calc'!A0", true);
 
-    std::ostringstream oss {};
+    std::ostringstream oss { };
     EXPECT_TRUE(profiler.exportCsv(oss));
     const std::string csv { oss.str() };
 
@@ -764,8 +765,8 @@ TEST(RttProfilerTest, ExportCsvEscapesDelimitersQuotesAndFormulae)
 /// @brief exportJson() safely escapes quotes, backslashes, tabs, and newlines (M9).
 TEST(RttProfilerTest, ExportJsonEscapesQuotesBackslashesAndControlCharacters)
 {
-    PelcoD::RttProfiler profiler {};
-    PelcoD::RttProfilerConfig cfg {};
+    PelcoD::RttProfiler profiler { };
+    PelcoD::RttProfilerConfig cfg { };
     cfg.mode = PelcoD::ProfilerMode::Passive;
     ASSERT_TRUE(profiler.start(cfg));
 
@@ -774,7 +775,7 @@ TEST(RttProfilerTest, ExportJsonEscapesQuotesBackslashesAndControlCharacters)
     profiler.recordSampleMs(14.0, "Tag\nNewline", true);
     profiler.recordSampleMs(16.0, "Tag\tTab", true);
 
-    std::ostringstream oss {};
+    std::ostringstream oss { };
     EXPECT_TRUE(profiler.exportJson(oss));
     const std::string json { oss.str() };
 

@@ -3,8 +3,14 @@
 
 #include "BusScanner.h"
 
+#include <cstdint>
+
 #include <algorithm>
+#include <chrono>
+#include <memory>
+#include <mutex>
 #include <utility>
+#include <vector>
 
 namespace PelcoD {
 
@@ -90,10 +96,10 @@ std::shared_ptr<ITransport> BusScanner::getTransport() const
 
 template <typename CallbackT>
 Connection BusScanner::registerHubCallback(
-    CallbackT cb, std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>> CallbackHub::*listMember)
+    CallbackT cb, std::shared_ptr<const std::vector<CallbackEntry<CallbackT>>> CallbackHub::* listMember)
 {
     if (!cb) {
-        return Connection {};
+        return Connection { };
     }
     const auto id = m_hub->nextId.fetch_add(1U, std::memory_order_relaxed);
     auto gate = std::make_shared<CallbackGate>();

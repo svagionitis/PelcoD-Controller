@@ -4,7 +4,10 @@
 #include "QRttProfiler.h"
 
 #include <QMetaObject>
+#include <cstdint>
 #include <fstream>
+#include <memory>
+#include <vector>
 
 namespace PelcoDQt {
 
@@ -39,18 +42,15 @@ void QRttProfiler::wireCallbacks()
     });
 
     m_core->setStatisticsCallback([this](const PelcoD::RttStatistics& stats) {
-        QMetaObject::invokeMethod(
-            this, [this, stats]() { emit statisticsUpdated(stats); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, stats]() { emit statisticsUpdated(stats); }, Qt::QueuedConnection);
     });
 
     m_core->setStateChangedCallback([this](bool isRunning) {
-        QMetaObject::invokeMethod(
-            this, [this, isRunning]() { emit stateChanged(isRunning); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, isRunning]() { emit stateChanged(isRunning); }, Qt::QueuedConnection);
     });
 
     m_core->setFinishedCallback([this](const PelcoD::RttStatistics& stats) {
-        QMetaObject::invokeMethod(
-            this, [this, stats]() { emit profilingFinished(stats); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, stats]() { emit profilingFinished(stats); }, Qt::QueuedConnection);
     });
 }
 
@@ -61,12 +61,12 @@ bool QRttProfiler::isRunning() const
 
 PelcoD::RttStatistics QRttProfiler::statistics() const
 {
-    return m_core ? m_core->getStatistics() : PelcoD::RttStatistics {};
+    return m_core ? m_core->getStatistics() : PelcoD::RttStatistics { };
 }
 
 std::vector<PelcoD::RttSample> QRttProfiler::history() const
 {
-    return m_core ? m_core->getHistory() : std::vector<PelcoD::RttSample> {};
+    return m_core ? m_core->getHistory() : std::vector<PelcoD::RttSample> { };
 }
 
 void QRttProfiler::setDevice(std::shared_ptr<PelcoD::PelcoDDevice> device)

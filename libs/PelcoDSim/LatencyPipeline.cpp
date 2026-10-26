@@ -3,12 +3,17 @@
 
 #include "LatencyPipeline.h"
 
+#include <cstdint>
+
 #include <algorithm>
+#include <chrono>
+#include <mutex>
+#include <vector>
 
 namespace PelcoD {
 
 LatencyPipeline::LatencyPipeline()
-    : m_rng(std::random_device {}())
+    : m_rng(std::random_device { }())
 {
 }
 

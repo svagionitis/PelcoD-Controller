@@ -4,6 +4,8 @@
 #include "QPelcoDFujinonDevice.h"
 
 #include <QMetaObject>
+#include <cstdint>
+#include <memory>
 #include <utility>
 
 namespace PelcoDQt {
@@ -37,7 +39,7 @@ QFujinonSX800Device* QPelcoDFujinonDevice::fujinonDevice() const noexcept
 
 PelcoD::FujinonStatus QPelcoDFujinonDevice::fujinonStatus() const
 {
-    return m_fujinonDevice ? m_fujinonDevice->getFujinonStatus() : PelcoD::FujinonStatus {};
+    return m_fujinonDevice ? m_fujinonDevice->getFujinonStatus() : PelcoD::FujinonStatus { };
 }
 
 void QPelcoDFujinonDevice::setAutoFocus(PelcoD::FujinonAutoFocusMode mode)

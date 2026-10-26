@@ -6,9 +6,14 @@
 #include "PelcoDSession.h"
 #include "ProtocolBuilder.h"
 
+#include <cstdint>
 #include <glog/logging.h>
 
 #include <algorithm>
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <vector>
 
 namespace PelcoD {
 
@@ -131,7 +136,7 @@ SendResult MotionSafetyGuard::dispatch(const StandardFrame& frame, QueryRef quer
 SendResult MotionSafetyGuard::dispatch(const std::vector<std::uint8_t>& frame, QueryRef query, CommandPriority priority)
 {
     if (frame.size() == PelcoDFrame::StandardFrameSize) {
-        StandardFrame stdFrame {};
+        StandardFrame stdFrame { };
         std::copy(frame.begin(), frame.end(), stdFrame.begin());
         return dispatch(stdFrame, std::move(query), priority);
     }
@@ -165,18 +170,18 @@ SendResult MotionSafetyGuard::dispatch(const std::vector<std::uint8_t>& frame, Q
 
 SendResult MotionSafetyGuard::dispatch(const StandardFrame& frame, CommandPriority priority)
 {
-    return dispatch(frame, QueryRef {}, priority);
+    return dispatch(frame, QueryRef { }, priority);
 }
 
 SendResult MotionSafetyGuard::dispatch(const std::vector<std::uint8_t>& frame, CommandPriority priority)
 {
-    return dispatch(frame, QueryRef {}, priority);
+    return dispatch(frame, QueryRef { }, priority);
 }
 
 SendResult MotionSafetyGuard::triggerEmergencyStop(MotionSafetyEvent reason) noexcept
 {
-    std::shared_ptr<PelcoDSession> session {};
-    SafetyEventCallback eventCb {};
+    std::shared_ptr<PelcoDSession> session { };
+    SafetyEventCallback eventCb { };
     MotionAxis previousAxes { MotionAxis::None };
 
     {
@@ -206,7 +211,7 @@ void MotionSafetyGuard::handleDisconnect() noexcept
 {
     bool stopOnDisconnect { false };
     bool purgeQueue { false };
-    std::shared_ptr<PelcoDSession> session {};
+    std::shared_ptr<PelcoDSession> session { };
     {
         std::scoped_lock lock { m_mutex };
         stopOnDisconnect = m_policy.stopOnDisconnect;
@@ -252,7 +257,7 @@ void MotionSafetyGuard::resetMotionLocked() noexcept
     m_activeAxes = MotionAxis::None;
     m_moving = false;
     m_armed = false;
-    m_continuousStart = {};
+    m_continuousStart = { };
     m_cv.notify_all();
 }
 
@@ -274,7 +279,7 @@ void MotionSafetyGuard::updateMotionStateLocked(const MotionAxis axes, bool isSt
     }
 
     if ((m_policy.maxContinuousDuration.count() > 0)
-        && (m_continuousStart == std::chrono::steady_clock::time_point {})) {
+        && (m_continuousStart == std::chrono::steady_clock::time_point { })) {
         m_continuousStart = now;
     }
 
@@ -293,9 +298,9 @@ void MotionSafetyGuard::watchdogLoop()
                 break;
             }
 
-            if (!m_armed && m_continuousStart == std::chrono::steady_clock::time_point {}) {
+            if (!m_armed && m_continuousStart == std::chrono::steady_clock::time_point { }) {
                 m_cv.wait(lock, [this] {
-                    return m_stopRequested || m_armed || m_continuousStart != std::chrono::steady_clock::time_point {};
+                    return m_stopRequested || m_armed || m_continuousStart != std::chrono::steady_clock::time_point { };
                 });
                 continue;
             }
@@ -304,7 +309,7 @@ void MotionSafetyGuard::watchdogLoop()
 
             // Runaway limit check
             if (m_policy.maxContinuousDuration.count() > 0
-                && m_continuousStart != std::chrono::steady_clock::time_point {}) {
+                && m_continuousStart != std::chrono::steady_clock::time_point { }) {
                 if (now >= m_continuousStart + m_policy.maxContinuousDuration) {
                     triggerEvent = MotionSafetyEvent::ContinuousMotionLimit;
                     shouldTrigger = true;
@@ -325,7 +330,7 @@ void MotionSafetyGuard::watchdogLoop()
                     waitDuration = std::min(waitDuration, m_deadline - now);
                 }
                 if (m_policy.maxContinuousDuration.count() > 0
-                    && m_continuousStart != std::chrono::steady_clock::time_point {}) {
+                    && m_continuousStart != std::chrono::steady_clock::time_point { }) {
                     const auto runawayDeadline = m_continuousStart + m_policy.maxContinuousDuration;
                     if (runawayDeadline > now) {
                         waitDuration = std::min(waitDuration, runawayDeadline - now);

@@ -5,7 +5,10 @@
 
 #include <QMetaObject>
 #include <algorithm>
+#include <cstdint>
+#include <memory>
 #include <utility>
+#include <vector>
 
 namespace PelcoDQt {
 
@@ -43,8 +46,7 @@ void QBusScanner::setupCallbacks()
 
     m_scanner->setBaudRateChangedCallback([this](std::uint32_t baud) {
         const auto b = static_cast<quint32>(baud);
-        QMetaObject::invokeMethod(
-            this, [this, b] { emit baudRateChanged(b); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, b] { emit baudRateChanged(b); }, Qt::QueuedConnection);
     });
 
     m_scanner->setScanProgressCallback(
@@ -60,14 +62,12 @@ void QBusScanner::setupCallbacks()
         });
 
     m_scanner->setScanStateChangedCallback([this](PelcoD::ScanState state) {
-        QMetaObject::invokeMethod(
-            this, [this, state] { emit stateChanged(state); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, state] { emit stateChanged(state); }, Qt::QueuedConnection);
     });
 
     m_scanner->setScanFinishedCallback([this](const std::vector<PelcoD::DiscoveredDevice>& devices) {
         const int count = static_cast<int>(devices.size());
-        QMetaObject::invokeMethod(
-            this, [this, count] { emit scanFinished(count); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, count] { emit scanFinished(count); }, Qt::QueuedConnection);
     });
 }
 
@@ -151,7 +151,7 @@ PelcoD::ScanState QBusScanner::getState() const
 
 std::vector<PelcoD::DiscoveredDevice> QBusScanner::discoveredDevices() const
 {
-    return m_scanner ? m_scanner->getDiscoveredDevices() : std::vector<PelcoD::DiscoveredDevice> {};
+    return m_scanner ? m_scanner->getDiscoveredDevices() : std::vector<PelcoD::DiscoveredDevice> { };
 }
 
 } // namespace PelcoDQt

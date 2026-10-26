@@ -3,13 +3,18 @@
 
 #include "TransportMultiplexer.h"
 
+#include <cstdint>
+
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <glog/logging.h>
+#include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <utility>
+#include <vector>
 
 namespace Transport {
 
@@ -270,7 +275,7 @@ public:
 
     [[nodiscard]] TransportStatsSnapshot getStats() const override
     {
-        return m_underlying ? m_underlying->getStats() : TransportStatsSnapshot {};
+        return m_underlying ? m_underlying->getStats() : TransportStatsSnapshot { };
     }
 
     void resetStats() noexcept override
@@ -286,14 +291,14 @@ public:
     }
 
 private:
-    std::weak_ptr<TransportMultiplexer> m_parent {};
-    std::shared_ptr<ITransport> m_underlying {};
+    std::weak_ptr<TransportMultiplexer> m_parent { };
+    std::shared_ptr<ITransport> m_underlying { };
     std::uint64_t m_id { 0U };
     std::atomic<bool> m_closed { false };
 
-    mutable std::mutex m_mutex {};
-    DataReceivedCallback m_dataCallback {};
-    StateChangedCallback m_stateCallback {};
+    mutable std::mutex m_mutex { };
+    DataReceivedCallback m_dataCallback { };
+    StateChangedCallback m_stateCallback { };
     std::shared_ptr<ChannelGate> m_gate { std::make_shared<ChannelGate>() };
 };
 

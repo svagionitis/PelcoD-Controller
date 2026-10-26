@@ -4,6 +4,8 @@
 #include "QFujinonSX800Device.h"
 
 #include <QMetaObject>
+#include <cstdint>
+#include <memory>
 #include <utility>
 
 namespace PelcoDQt {
@@ -42,7 +44,7 @@ QFujinonSX800Device::QFujinonSX800Device(std::shared_ptr<PelcoD::FujinonSX800Dev
 
 PelcoD::FujinonStatus QFujinonSX800Device::currentStatus() const
 {
-    return m_device ? m_device->getFujinonStatus() : PelcoD::FujinonStatus {};
+    return m_device ? m_device->getFujinonStatus() : PelcoD::FujinonStatus { };
 }
 
 std::shared_ptr<PelcoD::FujinonSX800Device> QFujinonSX800Device::coreDevice() const noexcept

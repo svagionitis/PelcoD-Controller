@@ -8,6 +8,7 @@
 #include "MockTransport.h"
 
 #include <atomic>
+#include <cstdint>
 #include <iostream>
 #include <memory>
 #include <mutex>

@@ -8,6 +8,7 @@
 #include "PelcoDDevice.h"
 #include "TestHelpers.h"
 
+#include <cstdint>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
@@ -226,8 +227,8 @@ TEST(ConnectionTest, DisconnectAfterDeviceDestruction)
         auto mock = std::make_shared<PelcoD::MockPelcoDDevice>(static_cast<std::uint8_t>(1U));
         PelcoD::PelcoDDevice device(mock, static_cast<std::uint8_t>(1U));
 
-        orphanedTraffic = device.addTrafficCallback([](bool, const std::vector<std::uint8_t>&) {});
-        orphanedScoped = device.addStatusCallback([](const PelcoD::DeviceStatus&) {});
+        orphanedTraffic = device.addTrafficCallback([](bool, const std::vector<std::uint8_t>&) { });
+        orphanedScoped = device.addStatusCallback([](const PelcoD::DeviceStatus&) { });
 
         EXPECT_TRUE(orphanedTraffic.isConnected());
         EXPECT_TRUE(orphanedScoped.isConnected());
@@ -451,9 +452,9 @@ TEST(ConnectionTest, DisconnectBlocksUntilDone)
     PelcoD::PelcoDDevice device(transport, static_cast<std::uint8_t>(1U));
     ASSERT_TRUE(device.start());
 
-    std::promise<void> enteredPromise {};
+    std::promise<void> enteredPromise { };
     auto entered = enteredPromise.get_future();
-    std::promise<void> releasePromise {};
+    std::promise<void> releasePromise { };
     const std::shared_future<void> release { releasePromise.get_future().share() };
     std::atomic<bool> callbackFinished { false };
 
@@ -530,7 +531,7 @@ TEST(ConnectionTest, ReentrantDisconnectSafe)
     PelcoD::PelcoDDevice device(transport, static_cast<std::uint8_t>(1U));
     ASSERT_TRUE(device.start());
 
-    PelcoD::Connection conn {};
+    PelcoD::Connection conn { };
     std::atomic<bool> reentrantInvoked { false };
 
     conn = device.addTrafficCallback([&conn, &reentrantInvoked](bool, const std::vector<std::uint8_t>&) {
@@ -554,9 +555,9 @@ TEST(ConnectionTest, ClearCallbacksDrainsCb)
     PelcoD::PelcoDDevice device(transport, static_cast<std::uint8_t>(1U));
     ASSERT_TRUE(device.start());
 
-    std::promise<void> enteredPromise {};
+    std::promise<void> enteredPromise { };
     auto entered = enteredPromise.get_future();
-    std::promise<void> releasePromise {};
+    std::promise<void> releasePromise { };
     const std::shared_future<void> release { releasePromise.get_future().share() };
     std::atomic<bool> cbFinished { false };
 
@@ -597,9 +598,9 @@ TEST(ConnectionTest, ScopedConnectionListDestructionDrainsAllGates)
     PelcoD::PelcoDDevice device(transport, static_cast<std::uint8_t>(1U));
     ASSERT_TRUE(device.start());
 
-    std::promise<void> enteredPromise {};
+    std::promise<void> enteredPromise { };
     auto entered = enteredPromise.get_future();
-    std::promise<void> releasePromise {};
+    std::promise<void> releasePromise { };
     const std::shared_future<void> release { releasePromise.get_future().share() };
     std::atomic<bool> cbFinished { false };
 
@@ -636,9 +637,9 @@ TEST(ConnectionTest, AllDispatcherChannelsBlockOnDisconnect)
     auto dispatcher = std::make_shared<PelcoD::CallbackDispatcher>();
 
     auto testChannelBarrier = [dispatcher](auto addCb, auto notifyFn) {
-        std::promise<void> enteredPromise {};
+        std::promise<void> enteredPromise { };
         auto entered = enteredPromise.get_future();
-        std::promise<void> releasePromise {};
+        std::promise<void> releasePromise { };
         const std::shared_future<void> release { releasePromise.get_future().share() };
         std::atomic<bool> cbFinished { false };
 
@@ -670,13 +671,11 @@ TEST(ConnectionTest, AllDispatcherChannelsBlockOnDisconnect)
 
     // 1. Status
     testChannelBarrier([&](auto cb) { return dispatcher->addStatusCallback(cb); },
-        [&]() { dispatcher->notifyStatus(PelcoD::DeviceStatus {}); });
+        [&]() { dispatcher->notifyStatus(PelcoD::DeviceStatus { }); });
 
     // 2. Traffic
     testChannelBarrier([&](auto cb) { return dispatcher->addTrafficCallback(cb); },
-        [&]() {
-            dispatcher->notifyTraffic(true, { 0xFF, 0x01 });
-        });
+        [&]() { dispatcher->notifyTraffic(true, { 0xFF, 0x01 }); });
 
     // 3. Timeout
     testChannelBarrier(
@@ -684,7 +683,7 @@ TEST(ConnectionTest, AllDispatcherChannelsBlockOnDisconnect)
 
     // 4. QueryCompleted
     testChannelBarrier([&](auto cb) { return dispatcher->addQueryCompletedCallback(cb); },
-        [&]() { dispatcher->notifyQueryCompleted("query1", true, PelcoD::DeviceStatus {}); });
+        [&]() { dispatcher->notifyQueryCompleted("query1", true, PelcoD::DeviceStatus { }); });
 
     // 5. Retry
     testChannelBarrier([&](auto cb) { return dispatcher->addRetryCallback(cb); },
@@ -696,9 +695,7 @@ TEST(ConnectionTest, AllDispatcherChannelsBlockOnDisconnect)
 
     // 7. CommandDropped
     testChannelBarrier([&](auto cb) { return dispatcher->addCommandDroppedCallback(cb); },
-        [&]() {
-            dispatcher->notifyCommandDropped({ 0xFF, 0x01 }, PelcoD::SendResult::QueueFull);
-        });
+        [&]() { dispatcher->notifyCommandDropped({ 0xFF, 0x01 }, PelcoD::SendResult::QueueFull); });
 }
 
 } // namespace

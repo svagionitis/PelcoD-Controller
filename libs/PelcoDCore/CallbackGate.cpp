@@ -4,13 +4,14 @@
 #include "CallbackGate.h"
 
 #include <chrono>
+#include <cstdint>
 #include <thread>
 
 namespace PelcoD {
 
 namespace {
 
-thread_local const CallbackGate::Pass* t_topPass { nullptr };
+    thread_local const CallbackGate::Pass* t_topPass { nullptr };
 
 } // namespace
 
@@ -39,7 +40,8 @@ bool CallbackGate::enter() noexcept
         if (((current & kClosedBit) != 0U) || ((current & kCountMask) == kCountMask)) {
             return false;
         }
-    } while (!m_state.compare_exchange_weak(current, current + 1U, std::memory_order_acq_rel, std::memory_order_acquire));
+    } while (
+        !m_state.compare_exchange_weak(current, current + 1U, std::memory_order_acq_rel, std::memory_order_acquire));
     return true;
 }
 

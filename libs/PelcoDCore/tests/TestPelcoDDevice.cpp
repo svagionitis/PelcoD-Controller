@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <future>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <type_traits>
@@ -109,9 +110,9 @@ TEST(PelcoDDeviceLifecycle, DtorWaitsForInFlightRx)
     auto device = std::make_unique<PelcoD::PelcoDDevice>(mock, std::uint8_t { 1U });
     ASSERT_TRUE(device->start());
 
-    std::promise<void> enteredPromise {};
+    std::promise<void> enteredPromise { };
     auto entered = enteredPromise.get_future();
-    std::promise<void> releasePromise {};
+    std::promise<void> releasePromise { };
     const std::shared_future<void> release { releasePromise.get_future().share() };
     std::atomic<bool> first { true };
 
@@ -313,10 +314,10 @@ public:
 
 private:
     std::atomic<bool> m_open { false };
-    mutable std::mutex m_mutex {};
-    DataReceivedCallback m_dataCb {};
-    StateChangedCallback m_stateCb {};
-    std::vector<std::thread> m_threads {};
+    mutable std::mutex m_mutex { };
+    DataReceivedCallback m_dataCb { };
+    StateChangedCallback m_stateCb { };
+    std::vector<std::thread> m_threads { };
 };
 
 /// @brief Concurrently queued queries must not clobber m_querySentTime or cause data races (review finding H1).
@@ -547,7 +548,7 @@ TEST(PelcoDDeviceQueryOutcome, SendFailureReportsQueryCompletedWithZeroRetries)
 
     std::promise<bool> queryCompletedPromise;
     auto queryCompletedFuture = queryCompletedPromise.get_future();
-    std::string completedTag {};
+    std::string completedTag { };
     bool completedSuccess { true };
 
     static_cast<void>(
@@ -580,7 +581,7 @@ TEST(PelcoDDeviceQueryOutcome, UrgentPreemptionReportsQueryCompletedFalse)
 
     std::promise<bool> queryCompletedPromise;
     auto queryCompletedFuture = queryCompletedPromise.get_future();
-    std::string completedTag {};
+    std::string completedTag { };
     bool completedSuccess { true };
 
     static_cast<void>(
@@ -616,7 +617,7 @@ TEST(PelcoDDeviceQueryOutcome, UrgentEnqueuePurgesQueuedQueriesWithNotification)
 
     std::promise<bool> queryCompletedPromise;
     auto queryCompletedFuture = queryCompletedPromise.get_future();
-    std::string completedTag {};
+    std::string completedTag { };
     bool completedSuccess { true };
 
     static_cast<void>(
@@ -648,7 +649,7 @@ TEST(PelcoDDeviceQueryOutcome, DeviceStopNotifiesInFlightAndQueuedQueries)
 
     std::promise<bool> queryCompletedPromise;
     auto queryCompletedFuture = queryCompletedPromise.get_future();
-    std::string completedTag {};
+    std::string completedTag { };
     bool completedSuccess { true };
 
     static_cast<void>(
@@ -1114,25 +1115,21 @@ TEST(PelcoDDeviceStateModel, LimitSettersSynchronizeStatus)
 }
 
 /// @brief Detects a callable setFocusPosition(std::uint16_t) member.
-template <typename T, typename = void> struct HasFocusSetter : std::false_type {
-};
+template <typename T, typename = void> struct HasFocusSetter : std::false_type { };
 template <typename T>
-struct HasFocusSetter<T, std::void_t<decltype(std::declval<T&>().setFocusPosition(std::uint16_t {}))>>
-    : std::true_type {
-};
+struct HasFocusSetter<T, std::void_t<decltype(std::declval<T&>().setFocusPosition(std::uint16_t { }))>>
+    : std::true_type { };
 
 /// @brief Detects a callable setIrisPosition(std::uint16_t) member.
-template <typename T, typename = void> struct HasIrisSetter : std::false_type {
-};
+template <typename T, typename = void> struct HasIrisSetter : std::false_type { };
 template <typename T>
-struct HasIrisSetter<T, std::void_t<decltype(std::declval<T&>().setIrisPosition(std::uint16_t {}))>> : std::true_type {
+struct HasIrisSetter<T, std::void_t<decltype(std::declval<T&>().setIrisPosition(std::uint16_t { }))>> : std::true_type {
 };
 
 /// @brief Detects a callable setSerialNumber(const std::string&) member.
-template <typename T, typename = void> struct HasSerialSetter : std::false_type {
-};
+template <typename T, typename = void> struct HasSerialSetter : std::false_type { };
 template <typename T>
-struct HasSerialSetter<T, std::void_t<decltype(std::declval<T&>().setSerialNumber(std::string {}))>> : std::true_type {
+struct HasSerialSetter<T, std::void_t<decltype(std::declval<T&>().setSerialNumber(std::string { }))>> : std::true_type {
 };
 
 /// @brief PelcoDDevice must not expose command-style setters that transmit nothing (B3, B4).

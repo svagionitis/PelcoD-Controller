@@ -5,8 +5,12 @@
 #include "PelcoDFrame.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
+#include <string>
+#include <vector>
 
 namespace PelcoD {
 

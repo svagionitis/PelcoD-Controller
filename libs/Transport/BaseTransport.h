@@ -5,7 +5,10 @@
 
 #include "ITransport.h"
 
+#include <cstdint>
+
 #include <atomic>
+#include <chrono>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -95,9 +98,9 @@ protected:
     std::atomic<std::uint32_t> m_reconnectCount { 0U };
 
     mutable std::mutex m_timeMutex;
-    std::chrono::steady_clock::time_point m_lastTxTime {};
-    std::chrono::steady_clock::time_point m_lastRxTime {};
-    mutable std::chrono::steady_clock::time_point m_rateCalcTime {};
+    std::chrono::steady_clock::time_point m_lastTxTime { };
+    std::chrono::steady_clock::time_point m_lastRxTime { };
+    mutable std::chrono::steady_clock::time_point m_rateCalcTime { };
     mutable std::uint64_t m_lastRateBytesSent { 0U };
     mutable std::uint64_t m_lastRateBytesReceived { 0U };
     mutable double m_txRateBps { 0.0 };

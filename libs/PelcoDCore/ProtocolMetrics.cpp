@@ -1,6 +1,9 @@
 #include "ProtocolMetrics.h"
 
+#include <cstdint>
+
 #include <algorithm>
+#include <chrono>
 
 namespace PelcoD {
 
@@ -78,7 +81,7 @@ void ProtocolMetrics::recordMotionPurgeOnDisconnect() noexcept
 
 PelcoDProtocolStats ProtocolMetrics::getStats() const noexcept
 {
-    PelcoDProtocolStats stats {};
+    PelcoDProtocolStats stats { };
     stats.queriesSent = m_queriesSent.load(std::memory_order_relaxed);
     stats.queriesCompleted = m_queriesCompleted.load(std::memory_order_relaxed);
     stats.queryTimeouts = m_queryTimeouts.load(std::memory_order_relaxed);

@@ -25,6 +25,7 @@ using TestSocket = SOCKET;
 #else
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <string>
 #include <sys/socket.h>
 #include <unistd.h>
 #define TEST_CLOSE_SOCKET(s) ::close(s)
@@ -95,14 +96,14 @@ TEST(TcpTransportTimeoutTest, DnsFailureFast)
 TEST(TcpTransportTimeoutTest, TcpRemoteClosureReportsClosed)
 {
 #ifdef _WIN32
-    WSADATA wsaData {};
+    WSADATA wsaData { };
     ::WSAStartup(MAKEWORD(2, 2), &wsaData);
 #endif
 
     const TestSocket listenSock = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     ASSERT_NE(listenSock, INVALID_SOCKET);
 
-    sockaddr_in serverAddr {};
+    sockaddr_in serverAddr { };
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     serverAddr.sin_port = htons(0); // Ephemeral port
@@ -113,14 +114,14 @@ TEST(TcpTransportTimeoutTest, TcpRemoteClosureReportsClosed)
     const int listenRet = ::listen(listenSock, 1);
     ASSERT_EQ(listenRet, 0);
 
-    sockaddr_in boundAddr {};
+    sockaddr_in boundAddr { };
     socklen_t addrLen = sizeof(boundAddr);
     ::getsockname(listenSock, reinterpret_cast<sockaddr*>(&boundAddr), &addrLen);
     const std::uint16_t port = ntohs(boundAddr.sin_port);
 
     std::atomic<TestSocket> acceptedClient { INVALID_SOCKET };
     std::thread serverThread([listenSock, &acceptedClient]() {
-        sockaddr_in clientAddr {};
+        sockaddr_in clientAddr { };
         socklen_t clientLen = sizeof(clientAddr);
         const TestSocket client = ::accept(listenSock, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
         acceptedClient.store(client);
@@ -173,14 +174,14 @@ TEST(TcpTransportTimeoutTest, TcpRemoteClosureReportsClosed)
 TEST(TcpTransportTimeoutTest, ConcurrentSendAndClose)
 {
 #ifdef _WIN32
-    WSADATA wsaData {};
+    WSADATA wsaData { };
     ::WSAStartup(MAKEWORD(2, 2), &wsaData);
 #endif
 
     const TestSocket listenSock = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     ASSERT_NE(listenSock, INVALID_SOCKET);
 
-    sockaddr_in serverAddr {};
+    sockaddr_in serverAddr { };
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     serverAddr.sin_port = htons(0);
@@ -189,14 +190,14 @@ TEST(TcpTransportTimeoutTest, ConcurrentSendAndClose)
     ASSERT_EQ(bindRet, 0);
     ASSERT_EQ(::listen(listenSock, 1), 0);
 
-    sockaddr_in boundAddr {};
+    sockaddr_in boundAddr { };
     socklen_t addrLen = sizeof(boundAddr);
     ::getsockname(listenSock, reinterpret_cast<sockaddr*>(&boundAddr), &addrLen);
     const std::uint16_t port = ntohs(boundAddr.sin_port);
 
     std::atomic<TestSocket> acceptedClient { INVALID_SOCKET };
     std::thread serverThread([listenSock, &acceptedClient]() {
-        sockaddr_in clientAddr {};
+        sockaddr_in clientAddr { };
         socklen_t clientLen = sizeof(clientAddr);
         const TestSocket client = ::accept(listenSock, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
         acceptedClient.store(client);
@@ -261,7 +262,7 @@ TEST(TcpTransportTimeoutTest, TelemetryAndKernelStats)
     const TestSocket listenSock = ::socket(AF_INET, SOCK_STREAM, 0);
     ASSERT_NE(listenSock, INVALID_SOCKET);
 
-    sockaddr_in srvAddr {};
+    sockaddr_in srvAddr { };
     srvAddr.sin_family = AF_INET;
     srvAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     srvAddr.sin_port = 0; // ephemeral port
@@ -275,7 +276,7 @@ TEST(TcpTransportTimeoutTest, TelemetryAndKernelStats)
 
     std::atomic<TestSocket> acceptedClient { INVALID_SOCKET };
     std::thread serverThread([listenSock, &acceptedClient]() {
-        sockaddr_in clientAddr {};
+        sockaddr_in clientAddr { };
         socklen_t clientLen = sizeof(clientAddr);
         const TestSocket client = ::accept(listenSock, reinterpret_cast<sockaddr*>(&clientAddr), &clientLen);
         acceptedClient.store(client);

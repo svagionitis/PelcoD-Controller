@@ -3,6 +3,9 @@
 
 #include "Connection.h"
 
+#include <functional>
+#include <memory>
+
 namespace PelcoD {
 
 Connection::Connection(std::function<void()> disconnectFn)
@@ -17,7 +20,7 @@ void Connection::disconnect() noexcept
     if (!m_state) {
         return;
     }
-    std::function<void()> fn {};
+    std::function<void()> fn { };
     {
         std::scoped_lock lock { m_state->mutex };
         if (!m_state->connected.load(std::memory_order_relaxed)) {

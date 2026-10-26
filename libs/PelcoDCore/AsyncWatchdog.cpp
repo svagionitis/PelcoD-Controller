@@ -3,8 +3,14 @@
 
 #include "AsyncWatchdog.h"
 
+#include <cstdint>
+
 #include <algorithm>
+#include <chrono>
 #include <exception>
+#include <functional>
+#include <memory>
+#include <mutex>
 
 namespace PelcoD {
 
@@ -25,7 +31,7 @@ std::uint64_t AsyncWatchdog::schedule(std::chrono::milliseconds timeout, std::fu
     }
 
     const auto expiry = std::chrono::steady_clock::now() + timeout;
-    std::shared_ptr<TimerItem> item {};
+    std::shared_ptr<TimerItem> item { };
     std::uint64_t id { 0U };
 
     {
@@ -98,7 +104,7 @@ void AsyncWatchdog::shutdown() noexcept
 void AsyncWatchdog::watchdogLoop()
 {
     while (!m_stopped.load()) {
-        std::shared_ptr<TimerItem> expiredItem {};
+        std::shared_ptr<TimerItem> expiredItem { };
 
         {
             std::unique_lock<std::mutex> lock(m_mutex);

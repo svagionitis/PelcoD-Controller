@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <future>
 #include <limits>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -441,7 +442,7 @@ TEST(CommandQueueTest, EvictionHandlerInvokedOnUrgentPurge)
 {
     PelcoD::PacedCommandQueue queue;
 
-    std::vector<std::string> evictedTags {};
+    std::vector<std::string> evictedTags { };
     queue.setEvictionHandler([&](const PelcoD::CommandItem& item) { evictedTags.push_back(item.queryTag); });
 
     const std::vector<std::uint8_t> lowFrame1 { 0xFF, 0x01, 0x00, 0x51, 0x00, 0x00, 0x52 };
@@ -465,7 +466,7 @@ TEST(CommandQueueTest, EvictionHandlerInvokedOnCapacityOverflow)
 {
     PelcoD::PacedCommandQueue queue { 2U };
 
-    std::vector<std::string> evictedTags {};
+    std::vector<std::string> evictedTags { };
     queue.setEvictionHandler([&](const PelcoD::CommandItem& item) { evictedTags.push_back(item.queryTag); });
 
     const std::vector<std::uint8_t> frame1 { 0xFF, 0x01, 0x00, 0x51, 0x00, 0x00, 0x52 };
@@ -488,7 +489,7 @@ TEST(CommandQueueTest, EvictionHandlerInvokedOnClear)
 {
     PelcoD::PacedCommandQueue queue;
 
-    std::vector<std::string> evictedTags {};
+    std::vector<std::string> evictedTags { };
     queue.setEvictionHandler([&](const PelcoD::CommandItem& item) { evictedTags.push_back(item.queryTag); });
 
     const std::vector<std::uint8_t> frame1 { 0xFF, 0x01, 0x00, 0x51, 0x00, 0x00, 0x52 };
@@ -516,7 +517,7 @@ TEST(CommandQueueTest, SendResultRejectionAndInvalidFrame)
     EXPECT_EQ(queue.enqueue(frame, "Norm1", PelcoD::CommandPriority::Normal), PelcoD::SendResult::QueueFull);
 
     // Enqueuing empty frame returns InvalidFrame
-    EXPECT_EQ(queue.enqueue(std::vector<std::uint8_t> {}, "Empty", PelcoD::CommandPriority::Normal),
+    EXPECT_EQ(queue.enqueue(std::vector<std::uint8_t> { }, "Empty", PelcoD::CommandPriority::Normal),
         PelcoD::SendResult::InvalidFrame);
 }
 

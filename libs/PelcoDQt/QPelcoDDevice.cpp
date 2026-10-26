@@ -4,8 +4,14 @@
 #include "QPelcoDDevice.h"
 #include "ProtocolParser.h"
 
+#include <cstdint>
+
 #include <QMetaObject>
 #include <QSignalBlocker>
+#include <chrono>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace PelcoDQt {
 
@@ -186,7 +192,7 @@ PelcoD::DeviceStatus QPelcoDDevice::currentStatus() const
     if (m_device) {
         return m_device->getStatus();
     }
-    return {};
+    return { };
 }
 
 PelcoD::DeviceInfo QPelcoDDevice::deviceInfo() const
@@ -194,7 +200,7 @@ PelcoD::DeviceInfo QPelcoDDevice::deviceInfo() const
     if (m_device) {
         return m_device->getInfo();
     }
-    return {};
+    return { };
 }
 
 Transport::TransportStatsSnapshot QPelcoDDevice::transportStats() const
@@ -202,7 +208,7 @@ Transport::TransportStatsSnapshot QPelcoDDevice::transportStats() const
     if (m_device) {
         return m_device->getTransportStats();
     }
-    return {};
+    return { };
 }
 
 PelcoD::PelcoDProtocolStats QPelcoDDevice::protocolStats() const
@@ -210,7 +216,7 @@ PelcoD::PelcoDProtocolStats QPelcoDDevice::protocolStats() const
     if (m_device) {
         return m_device->getProtocolStats();
     }
-    return {};
+    return { };
 }
 
 PelcoD::PelcoDDevice* QPelcoDDevice::coreDevice() const noexcept
@@ -279,7 +285,7 @@ PelcoD::RetryConfig QPelcoDDevice::retryConfig() const
     if (m_device) {
         return m_device->getRetryConfig();
     }
-    return PelcoD::RetryConfig {};
+    return PelcoD::RetryConfig { };
 }
 
 // Motion
@@ -383,7 +389,7 @@ FORWARD_CORE_0(queryAll)
 void QPelcoDDevice::sendRawHex(const QByteArray& hexData)
 {
     if (m_device) {
-        std::vector<std::uint8_t> frame {};
+        std::vector<std::uint8_t> frame { };
         frame.reserve(static_cast<std::size_t>(hexData.size()));
         for (const char ch : hexData) {
             frame.push_back(static_cast<std::uint8_t>(ch));

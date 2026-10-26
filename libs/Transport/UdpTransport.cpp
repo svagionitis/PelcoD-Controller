@@ -5,11 +5,14 @@
 #include "SocketUtils.h"
 
 #include <chrono>
+#include <cstdint>
 #include <glog/logging.h>
 
 #ifndef _WIN32
 #include <linux/sockios.h>
+#include <string>
 #include <sys/ioctl.h>
+#include <vector>
 #endif
 
 namespace Transport {
@@ -234,7 +237,7 @@ void UdpTransport::readWorker()
             break;
         }
 
-        Net::PollFd pfd {};
+        Net::PollFd pfd { };
         pfd.fd = static_cast<decltype(pfd.fd)>(sock);
         pfd.events = POLLIN;
 
@@ -279,7 +282,7 @@ void UdpTransport::readWorker()
 
 TransportStatsSnapshot UdpTransport::getStats() const
 {
-    TransportStatsSnapshot snapshot {};
+    TransportStatsSnapshot snapshot { };
     populateGenericStats(snapshot);
     snapshot.udp = queryKernelStats();
     return snapshot;
@@ -287,7 +290,7 @@ TransportStatsSnapshot UdpTransport::getStats() const
 
 UdpKernelStats UdpTransport::queryKernelStats() const noexcept
 {
-    UdpKernelStats stats {};
+    UdpKernelStats stats { };
     const auto sock = m_sockfd.load();
     if (sock == InvalidSocket) {
         return stats;
