@@ -5,15 +5,16 @@
 
 #include <QAbstractListModel>
 #include <QString>
+#include <cstddef>
 #include <vector>
 
 struct TrafficLogEntry {
-    QString timestamp {};
+    QString timestamp { };
     bool isTx { false };
-    QString messageName {};
+    QString messageName { };
     int length { 0 };
     bool crcOk { false };
-    QString hexPayload {};
+    QString hexPayload { };
 };
 
 class TrafficLogModel : public QAbstractListModel {
@@ -67,5 +68,5 @@ public:
 
 private:
     std::size_t m_maxEntries { 500U };
-    std::vector<TrafficLogEntry> m_entries {};
+    std::vector<TrafficLogEntry> m_entries { };
 };

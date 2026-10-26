@@ -6,6 +6,7 @@
 #include "../QViscaSonyDevice.h"
 #include <SonyCameraModel.h>
 #include <SonyViscaTypes.h>
+#include <cstdint>
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -45,10 +46,10 @@ private slots:
 
 private:
     void setupUi();
-    void updateFocalLengthDisplay(uint16_t zoomPos);
+    void updateFocalLengthDisplay(std::uint16_t zoomPos);
 
     QViscaSonyDevice* m_device { nullptr };
-    Visca::Sony::CameraCapabilities m_capabilities {};
+    Visca::Sony::CameraCapabilities m_capabilities { };
 
     // Zoom UI
     QSlider* sliderZoom { nullptr };

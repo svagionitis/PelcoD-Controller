@@ -1,5 +1,7 @@
 #include "OnvifServerTab.h"
 
+#include <string>
+
 #include <QApplication>
 #include <QClipboard>
 #include <QDateTime>

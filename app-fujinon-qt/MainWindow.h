@@ -15,6 +15,9 @@
 #include "app-fujinon-qt/widgets/ConnectionWidget.h"
 #include "app-fujinon-qt/widgets/TrafficInspectorWidget.h"
 
+#include <cstdint>
+#include <memory>
+
 #include <QDockWidget>
 #include <QMainWindow>
 #include <QTabWidget>

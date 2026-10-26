@@ -3,6 +3,9 @@
 
 #include "MainWindow.h"
 
+#include <cstdint>
+#include <memory>
+
 #include <QStatusBar>
 #include <QToolBar>
 #include <QVBoxLayout>

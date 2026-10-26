@@ -12,6 +12,7 @@
 #include <deque>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace PelcoDTui {
@@ -23,11 +24,11 @@ enum class TrafficFilter : std::uint8_t { All, TxOnly, RxOnly };
 /// @struct PacketRecord
 /// @brief Captured inbound or outbound Pelco-D packet frame with timestamp and decode.
 struct PacketRecord {
-    std::chrono::system_clock::time_point timestamp {};
+    std::chrono::system_clock::time_point timestamp { };
     bool isTx { true };
-    std::vector<std::uint8_t> frame {};
-    std::string hexStr {};
-    std::string decoded {};
+    std::vector<std::uint8_t> frame { };
+    std::string hexStr { };
+    std::string decoded { };
 };
 
 /// @class TrafficView
@@ -76,8 +77,8 @@ private:
     bool m_paused { false };
     int m_scrollOffset { 0 };
     TrafficFilter m_filter { TrafficFilter::All };
-    std::string m_statusMessage {};
-    std::chrono::steady_clock::time_point m_statusTime {};
+    std::string m_statusMessage { };
+    std::chrono::steady_clock::time_point m_statusTime { };
     static constexpr std::size_t kMaxPackets { 250U };
 };
 

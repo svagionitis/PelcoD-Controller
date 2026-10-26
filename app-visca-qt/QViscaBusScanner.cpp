@@ -3,6 +3,12 @@
 
 #include "QViscaBusScanner.h"
 
+#include <cstddef>
+
+#include <memory>
+#include <string_view>
+#include <utility>
+
 #include <QMetaObject>
 #include <QThreadPool>
 
@@ -62,8 +68,7 @@ bool QViscaBusScanner::startScan()
         };
 
         auto foundCb = [this](const Visca::DiscoveredCamera& cam) {
-            QMetaObject::invokeMethod(
-                this, [this, cam]() { emit deviceDiscovered(cam); }, Qt::QueuedConnection);
+            QMetaObject::invokeMethod(this, [this, cam]() { emit deviceDiscovered(cam); }, Qt::QueuedConnection);
         };
 
         bool fatalError = false;
@@ -81,9 +86,7 @@ bool QViscaBusScanner::startScan()
             }
         };
 
-        auto isCancelled = [this]() -> bool {
-            return m_cancelRequested.load();
-        };
+        auto isCancelled = [this]() -> bool { return m_cancelRequested.load(); };
 
         const auto found = scanner.scanBus(progressCb, foundCb, errorCb, isCancelled);
         const int totalCount = static_cast<int>(found.size());

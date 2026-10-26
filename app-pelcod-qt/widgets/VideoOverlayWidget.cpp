@@ -9,6 +9,7 @@
 #include <QWheelEvent>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 namespace PelcoDApp {
 
@@ -82,12 +83,30 @@ void VideoOverlayWidget::setInteractivePtzEnabled(bool enabled)
     }
 }
 
-bool VideoOverlayWidget::isCrosshairVisible() const { return m_showCrosshair; }
-bool VideoOverlayWidget::isCompassVisible() const { return m_showCompass; }
-bool VideoOverlayWidget::isPitchLadderVisible() const { return m_showPitchLadder; }
-bool VideoOverlayWidget::isOpticsHudVisible() const { return m_showOpticsHud; }
-bool VideoOverlayWidget::isDiagnosticsVisible() const { return m_showDiagnostics; }
-bool VideoOverlayWidget::isInteractivePtzEnabled() const { return m_interactivePtzEnabled; }
+bool VideoOverlayWidget::isCrosshairVisible() const
+{
+    return m_showCrosshair;
+}
+bool VideoOverlayWidget::isCompassVisible() const
+{
+    return m_showCompass;
+}
+bool VideoOverlayWidget::isPitchLadderVisible() const
+{
+    return m_showPitchLadder;
+}
+bool VideoOverlayWidget::isOpticsHudVisible() const
+{
+    return m_showOpticsHud;
+}
+bool VideoOverlayWidget::isDiagnosticsVisible() const
+{
+    return m_showDiagnostics;
+}
+bool VideoOverlayWidget::isInteractivePtzEnabled() const
+{
+    return m_interactivePtzEnabled;
+}
 
 void VideoOverlayWidget::updateFrame(const QImage& frame, double pts, double decodeLatencyMs)
 {
@@ -111,8 +130,10 @@ void VideoOverlayWidget::setDeviceStatus(bool connected, std::uint8_t address)
 
 void VideoOverlayWidget::setPanAngle(double degrees)
 {
-    while (degrees < 0.0) degrees += 360.0;
-    while (degrees >= 360.0) degrees -= 360.0;
+    while (degrees < 0.0)
+        degrees += 360.0;
+    while (degrees >= 360.0)
+        degrees -= 360.0;
     m_panDegrees = degrees;
     update();
 }
@@ -131,11 +152,8 @@ void VideoOverlayWidget::setZoomInfo(int rawZoom, double magnification, double f
     update();
 }
 
-void VideoOverlayWidget::setOpticalStatus(const QString& focusMode,
-                                         const QString& irisMode,
-                                         const QString& oisMode,
-                                         const QString& defogMode,
-                                         const QString& dayNightMode)
+void VideoOverlayWidget::setOpticalStatus(const QString& focusMode, const QString& irisMode, const QString& oisMode,
+    const QString& defogMode, const QString& dayNightMode)
 {
     m_focusMode = focusMode;
     m_irisMode = irisMode;
@@ -145,13 +163,8 @@ void VideoOverlayWidget::setOpticalStatus(const QString& focusMode,
     update();
 }
 
-void VideoOverlayWidget::setStreamDiagnostics(const QString& backend,
-                                             int width,
-                                             int height,
-                                             double fps,
-                                             double decodeMs,
-                                             double rttMs,
-                                             double jitterMs)
+void VideoOverlayWidget::setStreamDiagnostics(
+    const QString& backend, int width, int height, double fps, double decodeMs, double rttMs, double jitterMs)
 {
     m_backendName = backend;
     m_videoWidth = width;
@@ -233,7 +246,8 @@ void VideoOverlayWidget::drawVideoFrame(QPainter& painter, const QRect& targetRe
         // No active stream placeholder
         painter.setPen(QColor(100, 110, 120));
         painter.setFont(QFont("Segoe UI", 12, QFont::DemiBold));
-        painter.drawText(targetRect, Qt::AlignCenter, tr("NO VIDEO SIGNAL\nConnect to RTSP Stream or Mock Test Pattern"));
+        painter.drawText(
+            targetRect, Qt::AlignCenter, tr("NO VIDEO SIGNAL\nConnect to RTSP Stream or Mock Test Pattern"));
     }
 }
 
@@ -306,12 +320,14 @@ void VideoOverlayWidget::drawCompassLayer(QPainter& painter, const QRect& target
     const int centerDeg = static_cast<int>(std::round(m_panDegrees));
     for (int deg = centerDeg - 35; deg <= centerDeg + 35; ++deg) {
         int normDeg = deg % 360;
-        if (normDeg < 0) normDeg += 360;
+        if (normDeg < 0)
+            normDeg += 360;
 
         const double offsetDeg = static_cast<double>(deg) - m_panDegrees;
         const int tickX = targetRect.center().x() + static_cast<int>(std::round(offsetDeg * pxPerDeg));
 
-        if (tickX < tapeX || tickX > tapeX + tapeW) continue;
+        if (tickX < tapeX || tickX > tapeX + tapeW)
+            continue;
 
         if (normDeg % 30 == 0) {
             // Major tick mark & Cardinal label
@@ -320,11 +336,21 @@ void VideoOverlayWidget::drawCompassLayer(QPainter& painter, const QRect& target
 
             QString label;
             switch (normDeg) {
-            case 0:   label = "N"; break;
-            case 90:  label = "E"; break;
-            case 180: label = "S"; break;
-            case 270: label = "W"; break;
-            default:  label = QString::number(normDeg); break;
+            case 0:
+                label = "N";
+                break;
+            case 90:
+                label = "E";
+                break;
+            case 180:
+                label = "S";
+                break;
+            case 270:
+                label = "W";
+                break;
+            default:
+                label = QString::number(normDeg);
+                break;
             }
 
             const QRect textRect(tickX - 16, tapeY + 2, 32, 14);
@@ -347,13 +373,11 @@ void VideoOverlayWidget::drawCompassLayer(QPainter& painter, const QRect& target
     painter.drawLine(targetRect.center().x(), tapeY + tapeH - 14, targetRect.center().x(), tapeY + tapeH - 2);
 
     // Heading text badge right below compass tape
-    const QString headingStr = QString("%1° %2")
-        .arg(m_panDegrees, 5, 'f', 1)
-        .arg([](double deg) -> const char* {
-            static const char* kCardinals[] = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
-            const int idx = static_cast<int>(std::floor((deg + 22.5) / 45.0)) % 8;
-            return kCardinals[idx];
-        }(m_panDegrees));
+    const QString headingStr = QString("%1° %2").arg(m_panDegrees, 5, 'f', 1).arg([](double deg) -> const char* {
+        static const char* kCardinals[] = { "N", "NE", "E", "SE", "S", "SW", "W", "NW" };
+        const int idx = static_cast<int>(std::floor((deg + 22.5) / 45.0)) % 8;
+        return kCardinals[idx];
+    }(m_panDegrees));
 
     painter.setPen(Qt::NoPen);
     painter.setBrush(QColor(10, 16, 22, 220));
@@ -386,12 +410,14 @@ void VideoOverlayWidget::drawPitchLadderLayer(QPainter& painter, const QRect& ta
 
     const int centerTiltDeg = static_cast<int>(std::round(m_tiltDegrees));
     for (int deg = centerTiltDeg - 25; deg <= centerTiltDeg + 25; ++deg) {
-        if (deg < -90 || deg > 90) continue;
+        if (deg < -90 || deg > 90)
+            continue;
 
         const double offsetDeg = static_cast<double>(deg) - m_tiltDegrees;
         const int tickY = centerY - static_cast<int>(std::round(offsetDeg * pxPerDeg));
 
-        if (tickY < ladderY || tickY > ladderY + ladderH) continue;
+        if (tickY < ladderY || tickY > ladderY + ladderH)
+            continue;
 
         if (deg % 10 == 0) {
             painter.setPen(QPen(m_hudColor, 1.2));
@@ -433,22 +459,20 @@ void VideoOverlayWidget::drawOpticsHudLayer(QPainter& painter, const QRect& targ
     painter.setPen(Qt::white);
     painter.setFont(QFont("Segoe UI", 8, QFont::DemiBold));
     const QString zoomStr = tr("ZOOM: %1x (%2 mm) | RAW: %3")
-        .arg(m_magnification, 0, 'f', 1)
-        .arg(m_focalLengthMm, 0, 'f', 0)
-        .arg(m_rawZoom);
+                                .arg(m_magnification, 0, 'f', 1)
+                                .arg(m_focalLengthMm, 0, 'f', 0)
+                                .arg(m_rawZoom);
     painter.drawText(hudX + 8, hudY + 34, zoomStr);
 
     // Focus & Iris Modes
     painter.setPen(m_hudColor);
     painter.setFont(QFont("Segoe UI", 7, QFont::Normal));
-    const QString opticalModes = tr("FOCUS: %1 | IRIS: %2 | OIS: %3")
-        .arg(m_focusMode).arg(m_irisMode).arg(m_oisMode);
+    const QString opticalModes = tr("FOCUS: %1 | IRIS: %2 | OIS: %3").arg(m_focusMode).arg(m_irisMode).arg(m_oisMode);
     painter.drawText(hudX + 8, hudY + 50, opticalModes);
 
     // Enhancements / Defog
     painter.setPen(QColor(180, 195, 210));
-    const QString fxStr = tr("DEFOG: %1 | D/N: %2")
-        .arg(m_defogMode).arg(m_dayNightMode);
+    const QString fxStr = tr("DEFOG: %1 | D/N: %2").arg(m_defogMode).arg(m_dayNightMode);
     painter.drawText(hudX + 8, hudY + 66, fxStr);
 }
 
@@ -469,12 +493,12 @@ void VideoOverlayWidget::drawDiagnosticsLayer(QPainter& painter, const QRect& ta
 
     painter.setPen(Qt::white);
     painter.setFont(QFont("Segoe UI", 7, QFont::Normal));
-    painter.drawText(hudX + 8, hudY + 32, tr("%1x%2 @ %3 FPS")
-        .arg(m_videoWidth).arg(m_videoHeight).arg(m_fps, 0, 'f', 1));
+    painter.drawText(
+        hudX + 8, hudY + 32, tr("%1x%2 @ %3 FPS").arg(m_videoWidth).arg(m_videoHeight).arg(m_fps, 0, 'f', 1));
 
     painter.setPen(QColor(180, 195, 210));
-    painter.drawText(hudX + 8, hudY + 48, tr("DEC: %1 ms | RTT: %2 ms")
-        .arg(m_avgDecodeMs, 0, 'f', 1).arg(m_rttMs, 0, 'f', 1));
+    painter.drawText(
+        hudX + 8, hudY + 48, tr("DEC: %1 ms | RTT: %2 ms").arg(m_avgDecodeMs, 0, 'f', 1).arg(m_rttMs, 0, 'f', 1));
 }
 
 void VideoOverlayWidget::drawVirtualJoystickLayer(QPainter& painter) const
@@ -580,7 +604,7 @@ QImage VideoOverlayWidget::captureSnapshot(bool includeOverlay) const
 {
     QMutexLocker locker(&m_frameMutex);
     if (m_currentFrame.isNull()) {
-        return {};
+        return { };
     }
 
     if (!includeOverlay) {
@@ -596,11 +620,16 @@ QImage VideoOverlayWidget::captureSnapshot(bool includeOverlay) const
     const QRect fullRect(0, 0, result.width(), result.height());
     painter.drawImage(fullRect, m_currentFrame);
 
-    if (m_showCrosshair) drawCrosshairLayer(painter, fullRect);
-    if (m_showCompass) drawCompassLayer(painter, fullRect);
-    if (m_showPitchLadder) drawPitchLadderLayer(painter, fullRect);
-    if (m_showOpticsHud) drawOpticsHudLayer(painter, fullRect);
-    if (m_showDiagnostics) drawDiagnosticsLayer(painter, fullRect);
+    if (m_showCrosshair)
+        drawCrosshairLayer(painter, fullRect);
+    if (m_showCompass)
+        drawCompassLayer(painter, fullRect);
+    if (m_showPitchLadder)
+        drawPitchLadderLayer(painter, fullRect);
+    if (m_showOpticsHud)
+        drawOpticsHudLayer(painter, fullRect);
+    if (m_showDiagnostics)
+        drawDiagnosticsLayer(painter, fullRect);
 
     return result;
 }

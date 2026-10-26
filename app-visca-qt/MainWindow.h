@@ -11,6 +11,9 @@
 #include "widgets/ViscaConnectionWidget.h"
 #include "widgets/ViscaTrafficInspectorWidget.h"
 
+#include <cstdint>
+#include <memory>
+
 #include <QDockWidget>
 #include <QMainWindow>
 #include <QTabWidget>
@@ -27,7 +30,7 @@ public:
     ~MainWindow() override = default;
 
 private slots:
-    void handleConnect(std::shared_ptr<::Transport::ITransport> transport, uint8_t address);
+    void handleConnect(std::shared_ptr<::Transport::ITransport> transport, std::uint8_t address);
     void handleDisconnect();
     void handleModelDiscovered(Visca::Sony::SonyCameraModelType modelType, const Visca::Sony::CameraCapabilities& caps);
     void handleCommandFailed(const QString& reason);

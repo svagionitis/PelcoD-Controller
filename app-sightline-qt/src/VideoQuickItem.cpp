@@ -6,6 +6,7 @@
 #include <QQuickWindow>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 namespace SightlineApp {
 
@@ -403,7 +404,7 @@ void VideoQuickItem::bindWindow(QQuickWindow* window)
 {
     if (m_swapConnection) {
         static_cast<void>(disconnect(m_swapConnection));
-        m_swapConnection = QMetaObject::Connection {};
+        m_swapConnection = QMetaObject::Connection { };
     }
     if (window != nullptr) {
         // Direct: frameSwapped is emitted on the render thread right after the swap.
@@ -416,7 +417,7 @@ void VideoQuickItem::clearFrame()
 {
     {
         QMutexLocker locker(&m_mutex);
-        m_currentFrame = QImage {};
+        m_currentFrame = QImage { };
         m_pendingStampNs = 0;
         m_hasFrame = false;
         m_videoWidth = 0;
@@ -443,7 +444,7 @@ void VideoQuickItem::paint(QPainter* painter)
     // Paint tactical canvas background
     painter->fillRect(bounds, QColor(8, 10, 15));
 
-    QImage frameCopy {};
+    QImage frameCopy { };
     bool valid { false };
 
     {
@@ -610,8 +611,8 @@ void VideoQuickItem::renderLasso(QPainter* painter)
     // Dimension banner
     const QRectF vRect { mapToVideoRect(m_lassoRect) };
     const QString dimText { QStringLiteral("%1 x %2")
-                                .arg(static_cast<int>(std::round(vRect.width())))
-                                .arg(static_cast<int>(std::round(vRect.height()))) };
+            .arg(static_cast<int>(std::round(vRect.width())))
+            .arg(static_cast<int>(std::round(vRect.height()))) };
 
     QFont font { painter->font() };
     font.setPixelSize(10);

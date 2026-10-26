@@ -3,8 +3,10 @@
 #include "UtfSymbols.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <iomanip>
 #include <sstream>
+#include <string>
 
 namespace PelcoDTui {
 

@@ -7,6 +7,7 @@
 #include <Video/DecoderFactory.h>
 #include <Video/DecoderTypes.h>
 #include <Video/IVideoDecoder.h>
+#include <cstddef>
 
 #include <QByteArray>
 #include <QImage>
@@ -192,7 +193,7 @@ public:
     /// @struct TimestampedFrame
     /// @brief Buffered decoded video frame paired with MISB microsecond timestamp.
     struct TimestampedFrame {
-        QImage frame {};
+        QImage frame { };
         quint64 ptsUs { 0U };
     };
 
@@ -295,7 +296,7 @@ public slots:
     /// @brief Capture high-resolution snapshot of current video frame.
     /// @param[in] filePath Target file path, or empty for automatic timestamp.
     /// @return Absolute path where image was saved, or empty on failure.
-    QString takeSnapshot(const QString& filePath = QString {});
+    QString takeSnapshot(const QString& filePath = QString { });
 
     /// @brief Export SDP file for current stream configuration.
     /// @param[in] destinationPath Target path to save the SDP file.
@@ -437,7 +438,7 @@ private:
         int brightness { 0 };
         int contrast { 0 };
         int paletteIndex { 0 };
-        QRect roi {};
+        QRect roi { };
     };
 
     void workerLoop();
@@ -452,18 +453,18 @@ private:
     void generatePaletteTables();
 
     static constexpr std::size_t MaxRingBufferSize { 90U };
-    std::deque<TimestampedFrame> m_frameRingBuffer {};
-    mutable QMutex m_bufferMutex {};
+    std::deque<TimestampedFrame> m_frameRingBuffer { };
+    mutable QMutex m_bufferMutex { };
     int m_scrubOffset { 0 };
     quint64 m_currentFramePts { 0U };
 
-    mutable QMutex m_decoderMutex {};
-    mutable QMutex m_snapshotMutex {};
-    mutable QMutex m_enhancementMutex {};
-    mutable QMutex m_workerMutex {};
-    QWaitCondition m_workerCondition {};
-    std::unique_ptr<Video::IVideoDecoder> m_decoder {};
-    std::unique_ptr<QThread> m_thread {};
+    mutable QMutex m_decoderMutex { };
+    mutable QMutex m_snapshotMutex { };
+    mutable QMutex m_enhancementMutex { };
+    mutable QMutex m_workerMutex { };
+    QWaitCondition m_workerCondition { };
+    std::unique_ptr<Video::IVideoDecoder> m_decoder { };
+    std::unique_ptr<QThread> m_thread { };
 
     std::atomic<bool> m_running { false };
     std::atomic<bool> m_paused { false };
@@ -471,10 +472,10 @@ private:
     PlaybackState m_state { PlaybackState::Idle };
     NetworkChannel m_networkChannel { NetworkChannel::Net0 };
     RtspTransport m_transportMode { RtspTransport::Auto };
-    QString m_rtspUsername {};
-    QString m_rtspPassword {};
+    QString m_rtspUsername { };
+    QString m_rtspPassword { };
     bool m_authEnabled { false };
-    QString m_sourceUri {};
+    QString m_sourceUri { };
     QString m_hostAddress { QStringLiteral("127.0.0.1") };
     int m_activeCamera { 0 };
     bool m_isSynthetic { true };
@@ -488,11 +489,11 @@ private:
     double m_bitrateKbps { 0.0 };
     QString m_statusMessage { QStringLiteral("Idle") };
 
-    QImage m_lastFrameCopy {};
+    QImage m_lastFrameCopy { };
 
-    std::array<EnhancementConfig, 4> m_enhancementConfigs {};
-    std::array<QByteArray, 4> m_userPalettes {};
-    std::array<std::array<QRgb, 256>, 4> m_presetPalettes {};
+    std::array<EnhancementConfig, 4> m_enhancementConfigs { };
+    std::array<QByteArray, 4> m_userPalettes { };
+    std::array<std::array<QRgb, 256>, 4> m_presetPalettes { };
 };
 
 } // namespace SightlineApp

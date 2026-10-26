@@ -19,6 +19,8 @@
 #include "app-pelcod-qt/widgets/SpectrogramWidget.h"
 #include "app-pelcod-qt/widgets/VideoOverlayWidget.h"
 
+#include <memory>
+
 #include <QCheckBox>
 #include <QComboBox>
 #include <QHBoxLayout>

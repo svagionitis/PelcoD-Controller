@@ -4,9 +4,11 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <string>
 
 namespace PelcoDTui {
 
@@ -315,7 +317,7 @@ bool FujinonView::handleInput(const InputEvent& event, PelcoD::FujinonSX800Devic
     case 19: { // Sync RTC
         const auto now = std::chrono::system_clock::now();
         const std::time_t tt = std::chrono::system_clock::to_time_t(now);
-        std::tm localTm {};
+        std::tm localTm { };
 #if defined(_WIN32)
         localtime_s(&localTm, &tt);
 #else

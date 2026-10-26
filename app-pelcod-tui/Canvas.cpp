@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <string>
+#include <string_view>
 
 namespace PelcoDTui {
 
@@ -10,8 +13,8 @@ Canvas::Canvas(int width, int height)
     , m_height(std::max(1, height))
 {
     const std::size_t total = static_cast<std::size_t>(m_width * m_height);
-    m_front.assign(total, Cell {});
-    m_back.assign(total, Cell {});
+    m_front.assign(total, Cell { });
+    m_back.assign(total, Cell { });
 }
 
 void Canvas::resize(int width, int height)
@@ -19,8 +22,8 @@ void Canvas::resize(int width, int height)
     m_width = std::max(1, width);
     m_height = std::max(1, height);
     const std::size_t total = static_cast<std::size_t>(m_width * m_height);
-    m_front.assign(total, Cell {});
-    m_back.assign(total, Cell {});
+    m_front.assign(total, Cell { });
+    m_back.assign(total, Cell { });
     m_forceFullRedraw = true;
 }
 
@@ -179,7 +182,7 @@ void Canvas::renderDelta(Terminal& term)
     std::string out;
     out.reserve(8192);
 
-    Style curStyle {};
+    Style curStyle { };
     bool styleInitialized = false;
     int lastCursorX = -1;
     int lastCursorY = -1;
@@ -202,7 +205,7 @@ void Canvas::renderDelta(Terminal& term)
 
                 // Apply style transition
                 if (!styleInitialized) {
-                    out.append(toAnsiTransition(Style {}, backCell.style));
+                    out.append(toAnsiTransition(Style { }, backCell.style));
                     curStyle = backCell.style;
                     styleInitialized = true;
                 } else if (curStyle != backCell.style) {

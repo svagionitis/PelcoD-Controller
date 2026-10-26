@@ -3,6 +3,7 @@
 
 #include "OsdScreenTab.h"
 #include "ProtocolBuilder.h"
+#include <cstdint>
 
 namespace PelcoDApp {
 

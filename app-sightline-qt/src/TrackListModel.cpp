@@ -4,6 +4,8 @@
 #include "TrackListModel.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <vector>
 
 TrackListModel::TrackListModel(QObject* parent)
     : QAbstractListModel(parent)
@@ -21,7 +23,7 @@ int TrackListModel::rowCount(const QModelIndex& parent) const
 QVariant TrackListModel::data(const QModelIndex& index, int role) const
 {
     if (!index.isValid() || index.row() < 0 || static_cast<std::size_t>(index.row()) >= m_tracks.size()) {
-        return {};
+        return { };
     }
 
     const auto& track = m_tracks[static_cast<std::size_t>(index.row())];
@@ -47,7 +49,7 @@ QVariant TrackListModel::data(const QModelIndex& index, int role) const
     case IsCoastingRole:
         return track.isCoasting;
     default:
-        return {};
+        return { };
     }
 }
 
@@ -78,7 +80,7 @@ void TrackListModel::addOrUpdateTrack(const Sightline::TrackCoordinate& track)
         emit dataChanged(idx, idx);
     } else {
         const auto newRow = static_cast<int>(m_tracks.size());
-        beginInsertRows(QModelIndex {}, newRow, newRow);
+        beginInsertRows(QModelIndex { }, newRow, newRow);
         m_tracks.push_back(track);
         endInsertRows();
     }
@@ -92,7 +94,7 @@ void TrackListModel::removeTrack(int trackId)
 
     if (it != m_tracks.end()) {
         const auto row = static_cast<int>(std::distance(m_tracks.begin(), it));
-        beginRemoveRows(QModelIndex {}, row, row);
+        beginRemoveRows(QModelIndex { }, row, row);
         m_tracks.erase(it);
         endRemoveRows();
     }

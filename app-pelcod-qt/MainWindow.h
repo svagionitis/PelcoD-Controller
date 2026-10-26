@@ -15,6 +15,9 @@
 #include "app-pelcod-qt/widgets/ConnectionWidget.h"
 #include "app-pelcod-qt/widgets/TrafficInspectorWidget.h"
 
+#include <cstdint>
+#include <memory>
+
 #include <QDockWidget>
 #include <QMainWindow>
 #include <QTabWidget>

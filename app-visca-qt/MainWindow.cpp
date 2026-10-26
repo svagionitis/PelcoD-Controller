@@ -3,6 +3,9 @@
 
 #include "MainWindow.h"
 
+#include <cstdint>
+#include <memory>
+
 #include <QStatusBar>
 #include <QToolBar>
 #include <QVBoxLayout>
@@ -91,7 +94,7 @@ void MainWindow::setupConnections()
         m_inspectorWidget, &ViscaTrafficInspectorWidget::sendRawHexRequested, m_device, &QViscaSonyDevice::sendRawHex);
 }
 
-void MainWindow::handleConnect(std::shared_ptr<::Transport::ITransport> transport, uint8_t address)
+void MainWindow::handleConnect(std::shared_ptr<::Transport::ITransport> transport, std::uint8_t address)
 {
     m_device->setTransport(transport, address);
     m_device->connectDeviceAsync();

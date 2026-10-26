@@ -21,8 +21,10 @@
 #include <QStackedWidget>
 #include <QStyle>
 #include <QTimer>
+#include <cstdint>
 
 #include <algorithm>
+#include <memory>
 #include <string>
 
 namespace FujinonApp {

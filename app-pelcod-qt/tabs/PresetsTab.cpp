@@ -2,6 +2,7 @@
 /// @brief Implementation of presets management and automated patrol sequence tour tab.
 
 #include "PresetsTab.h"
+#include <cstddef>
 
 namespace PelcoDApp {
 
@@ -327,11 +328,11 @@ void PresetsTab::onPatrolDwellTick(int stepIndex, int remainingSeconds)
         const int pct = totalDwell > 0 ? ((totalDwell - remainingSeconds) * 100 / totalDwell) : 100;
         progressDwell->setValue(pct);
         lblPatrolStatus->setText(tr("Touring: Step %1/%2 — %3 (Preset %4) | Dwell: %5s remaining")
-                                     .arg(stepIndex + 1)
-                                     .arg(steps.size())
-                                     .arg(QString::fromStdString(steps[static_cast<std::size_t>(stepIndex)].name))
-                                     .arg(steps[static_cast<std::size_t>(stepIndex)].presetId)
-                                     .arg(remainingSeconds));
+                .arg(stepIndex + 1)
+                .arg(steps.size())
+                .arg(QString::fromStdString(steps[static_cast<std::size_t>(stepIndex)].name))
+                .arg(steps[static_cast<std::size_t>(stepIndex)].presetId)
+                .arg(remainingSeconds));
     }
 }
 

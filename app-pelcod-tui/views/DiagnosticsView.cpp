@@ -1,9 +1,13 @@
 #include "DiagnosticsView.h"
+#include <chrono>
+#include <cstddef>
 
 #include "UtfSymbols.h"
 
 #include <iomanip>
 #include <sstream>
+#include <string>
+#include <vector>
 
 namespace PelcoDTui {
 
@@ -40,7 +44,7 @@ DiagnosticsView::DiagnosticsView()
     // Passive mode with a valid config and no device always succeeds.
     static_cast<void>(m_profiler.start(cfg));
 
-    Math::StftConfig stftCfg {};
+    Math::StftConfig stftCfg { };
     stftCfg.windowSize = 32U;
     stftCfg.hopSize = 8U;
     stftCfg.sampleRateHz = 20.0;

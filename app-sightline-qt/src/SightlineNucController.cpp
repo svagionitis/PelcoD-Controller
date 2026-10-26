@@ -4,6 +4,7 @@
 #include "SightlineNucController.h"
 
 #include <SightlineCore/modules/SightlineNucCaps.h>
+#include <cstdint>
 
 #include <algorithm>
 #include <limits>
@@ -135,7 +136,7 @@ QString SightlineNucController::firmware() const
 {
     const Sightline::FwVersion fw { m_flow.firmware() };
     if (fw.major == 0U) {
-        return QString {};
+        return QString { };
     }
     return QStringLiteral("%1.%2").arg(static_cast<int>(fw.major)).arg(static_cast<int>(fw.minor));
 }
@@ -144,7 +145,7 @@ QVariantMap SightlineNucController::caps() const
 {
     using Sightline::SightlineNucCaps;
     const Sightline::FwVersion fw { m_flow.firmware() };
-    QVariantMap m {};
+    QVariantMap m { };
     m.insert(QStringLiteral("dpr"), SightlineNucCaps::atLeast(fw, 3U, 3U));
     m.insert(QStringLiteral("noise"), SightlineNucCaps::atLeast(fw, 3U, 4U));
     m.insert(QStringLiteral("destripe"), SightlineNucCaps::atLeast(fw, 3U, 9U));
@@ -202,7 +203,7 @@ QString SightlineNucController::start(int recipe, int frames, const QString& sav
     if (stabilizationOn()) {
         return fail(tr("Turn stabilization off before running a NUC (EAN-NUC-and-DPR)."));
     }
-    Sightline::NucOptions opts {};
+    Sightline::NucOptions opts { };
     opts.numFrames = static_cast<std::uint8_t>(frames);
     opts.saveName = saveName.toStdString();
     return report(m_flow.start(static_cast<Sightline::NucRecipe>(recipe), opts));
@@ -216,7 +217,7 @@ QString SightlineNucController::startMulti(int frames, const QStringList& names)
     if (stabilizationOn()) {
         return fail(tr("Turn stabilization off before running a NUC (EAN-NUC-and-DPR)."));
     }
-    Sightline::NucOptions opts {};
+    Sightline::NucOptions opts { };
     opts.numFrames = static_cast<std::uint8_t>(frames);
     for (const QString& raw : names) {
         const QString name { raw.trimmed() };
@@ -248,8 +249,8 @@ QString SightlineNucController::setShow(int show)
 
 QVariantMap SightlineNucController::dprDefaults() const
 {
-    const Sightline::DprLimits d {};
-    QVariantMap m {};
+    const Sightline::DprLimits d { };
+    QVariantMap m { };
     m.insert(QStringLiteral("minGain"), static_cast<int>(d.minGain));
     m.insert(QStringLiteral("maxGain"), static_cast<int>(d.maxGain));
     m.insert(QStringLiteral("minVal"), static_cast<int>(d.minVal));
@@ -264,7 +265,7 @@ QVariantMap SightlineNucController::dprDefaults() const
 QString SightlineNucController::calcDead(const QVariantMap& limits)
 {
     using Sightline::NucError;
-    const Sightline::DprLimits d {};
+    const Sightline::DprLimits d { };
     const qint64 minGain { limitOf(limits, "minGain", d.minGain) };
     const qint64 maxGain { limitOf(limits, "maxGain", d.maxGain) };
     const qint64 minVal { limitOf(limits, "minVal", d.minVal) };
@@ -290,7 +291,7 @@ QString SightlineNucController::calcDead(const QVariantMap& limits)
         return fail(errText(NucError::StdDevRange));
     }
 
-    Sightline::DprLimits lim {};
+    Sightline::DprLimits lim { };
     lim.minGain = static_cast<std::uint16_t>(minGain);
     lim.maxGain = static_cast<std::uint16_t>(maxGain);
     lim.minVal = static_cast<std::uint16_t>(minVal);
@@ -328,7 +329,7 @@ QString SightlineNucController::setReplace(int method, int numReplace, int filte
     if (!inRange(threshold, 0, kU8Max)) {
         return fail(errText(NucError::FilterThresh));
     }
-    Sightline::DprReplace rep {};
+    Sightline::DprReplace rep { };
     rep.method = static_cast<Sightline::DeadReplace>(method);
     rep.numReplace = static_cast<std::uint8_t>(numReplace);
     rep.filter = static_cast<Sightline::DeadFilter>(filter);
@@ -350,7 +351,7 @@ QString SightlineNucController::tableOp(
     if (!inRange(fileOp, 0, kMaxFileOp) || !inRange(defaultOp, 0, kMaxDefaultOp) || !inRange(ratio, 0, kU8Max)) {
         return fail(errText(Sightline::NucError::ReservedSet));
     }
-    Sightline::MsgReadWriteNuc msg {};
+    Sightline::MsgReadWriteNuc msg { };
     msg.fileOp = static_cast<Sightline::NucFileOp>(fileOp);
     msg.defaultOp = static_cast<Sightline::NucDefaultOp>(defaultOp);
     msg.fileName = name.toStdString();
@@ -515,7 +516,7 @@ void SightlineNucController::reset()
 
 QString SightlineNucController::report(Sightline::NucError err)
 {
-    m_error = (err == Sightline::NucError::Ok) ? QString {} : errText(err);
+    m_error = (err == Sightline::NucError::Ok) ? QString { } : errText(err);
     emit stateChanged();
     return m_error;
 }

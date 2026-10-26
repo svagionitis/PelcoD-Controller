@@ -5,10 +5,15 @@
 #include "UtfSymbols.h"
 
 #include <algorithm>
+#include <chrono>
+#include <cstdint>
 #include <ctime>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace PelcoDTui {
 
@@ -54,7 +59,7 @@ std::string TrafficView::decodeFrame(bool isTx, const std::vector<std::uint8_t>&
 
 void TrafficView::addPacket(bool isTx, const std::vector<std::uint8_t>& frame)
 {
-    PacketRecord rec {};
+    PacketRecord rec { };
     rec.timestamp = std::chrono::system_clock::now();
     rec.isTx = isTx;
     rec.frame = frame;
@@ -107,7 +112,7 @@ bool TrafficView::exportToFile(const std::string& filename) const
 
     const auto now = std::chrono::system_clock::now();
     const std::time_t nowT = std::chrono::system_clock::to_time_t(now);
-    std::tm tmBuf {};
+    std::tm tmBuf { };
     safeLocalTime(&nowT, &tmBuf);
 
     char dateBuf[32];
@@ -129,7 +134,7 @@ bool TrafficView::exportToFile(const std::string& filename) const
         }
 
         const std::time_t pktT = std::chrono::system_clock::to_time_t(pkt.timestamp);
-        std::tm pktTm {};
+        std::tm pktTm { };
         safeLocalTime(&pktT, &pktTm);
 
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(pkt.timestamp.time_since_epoch()) % 1000;
@@ -194,7 +199,7 @@ void TrafficView::render(Canvas& canvas, int startY, int width, int height)
 
         // Timestamp
         const std::time_t t = std::chrono::system_clock::to_time_t(pkt->timestamp);
-        std::tm tmBuf {};
+        std::tm tmBuf { };
         safeLocalTime(&t, &tmBuf);
 
         char timeBuf[16];
@@ -258,7 +263,7 @@ bool TrafficView::handleInput(const InputEvent& event, [[maybe_unused]] PelcoD::
     if (event.ch == 'e' || event.ch == 'E') {
         const auto now = std::chrono::system_clock::now();
         const std::time_t nowT = std::chrono::system_clock::to_time_t(now);
-        std::tm tmBuf {};
+        std::tm tmBuf { };
         safeLocalTime(&nowT, &tmBuf);
 
         char fnBuf[64];

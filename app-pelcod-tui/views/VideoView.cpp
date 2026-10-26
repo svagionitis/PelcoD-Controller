@@ -4,8 +4,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <iomanip>
+#include <memory>
 #include <sstream>
+#include <string>
+#include <vector>
 
 namespace PelcoDTui {
 
@@ -445,7 +449,7 @@ void VideoView::render(Canvas& canvas, int startY, int width, int height, const 
             const int screenX = offsetX + cx;
             const auto& cell = m_renderedCells[static_cast<std::size_t>(cy * targetCols + cx)];
 
-            Style cellStyle {};
+            Style cellStyle { };
             cellStyle.fg = Color::fromRgb(cell.fgR, cell.fgG, cell.fgB);
             if (cell.hasBg) {
                 cellStyle.bg = Color::fromRgb(cell.bgR, cell.bgG, cell.bgB);

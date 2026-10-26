@@ -2,8 +2,11 @@
 /// @brief Implementation of RecordingFileListModel.
 
 #include "RecordingFileListModel.h"
+#include <cstddef>
 
 #include <algorithm>
+#include <string>
+#include <vector>
 
 RecordingFileListModel::RecordingFileListModel(QObject* parent)
     : QAbstractListModel(parent)
@@ -21,12 +24,12 @@ int RecordingFileListModel::rowCount(const QModelIndex& parent) const
 QVariant RecordingFileListModel::data(const QModelIndex& index, int role) const
 {
     if (!index.isValid()) {
-        return {};
+        return { };
     }
 
     const int row = index.row();
     if (row < 0 || row >= static_cast<int>(m_entries.size())) {
-        return {};
+        return { };
     }
 
     const auto& entry = m_entries[static_cast<std::size_t>(row)];
@@ -52,7 +55,7 @@ QVariant RecordingFileListModel::data(const QModelIndex& index, int role) const
         break;
     }
 
-    return {};
+    return { };
 }
 
 QHash<int, QByteArray> RecordingFileListModel::roleNames() const

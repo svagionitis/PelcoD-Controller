@@ -5,6 +5,11 @@
 
 #include "PelcoDFrame.h"
 
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include <QColor>
 #include <QFile>
 #include <QFileDialog>

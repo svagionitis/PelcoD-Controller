@@ -2,8 +2,10 @@
 
 #include "UtfSymbols.h"
 
+#include <cstdint>
 #include <iomanip>
 #include <sstream>
+#include <string>
 
 namespace PelcoDTui {
 
@@ -42,7 +44,7 @@ void HeaderView::render(
 
     // Connection badge
     std::string connBadge;
-    Style connStyle {};
+    Style connStyle { };
     if (connected) {
         connBadge = std::string(Symbols::CircleFilled) + " CONNECTED [" + transportName + "]";
         connStyle = Style { Colors::Green, Colors::HeaderBg, true, false, false, false, false };
@@ -69,7 +71,7 @@ void HeaderView::render(
         const std::string tabText = std::string(" ") + kTabs[i] + " ";
         const int tabLen = static_cast<int>(tabText.size());
 
-        Style tabStyle {};
+        Style tabStyle { };
         if (i == activeTab) {
             tabStyle = Style { Colors::Black, Colors::Cyan, true, false, false, false, false };
         } else {

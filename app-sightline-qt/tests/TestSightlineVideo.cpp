@@ -6,8 +6,11 @@
 #include "SightlineVideoController.h"
 #include "TrackListModel.h"
 #include "VideoQuickItem.h"
+#include <chrono>
 
 #include <LatencyTracker.h>
+
+#include <vector>
 
 #include <QCoreApplication>
 #include <QDir>
@@ -45,7 +48,7 @@ protected:
 
 TEST_F(SightlineVideoTest, ControllerLifecycleAndDefaultState)
 {
-    SightlineApp::SightlineVideoController controller {};
+    SightlineApp::SightlineVideoController controller { };
 
     EXPECT_TRUE(controller.isSynthetic());
     EXPECT_EQ(controller.activeCamera(), 0);
@@ -64,7 +67,7 @@ TEST_F(SightlineVideoTest, ControllerLifecycleAndDefaultState)
 
 TEST_F(SightlineVideoTest, CameraSelectionAndSwitching)
 {
-    SightlineApp::SightlineVideoController controller {};
+    SightlineApp::SightlineVideoController controller { };
     QSignalSpy camSpy(&controller, &SightlineApp::SightlineVideoController::activeCameraChanged);
 
     controller.selectCamera(1);
@@ -88,7 +91,7 @@ TEST_F(SightlineVideoTest, CameraSelectionAndSwitching)
 
 TEST_F(SightlineVideoTest, CameraSwitchDoesNotMutateStreamUri)
 {
-    SightlineApp::SightlineVideoController controller {};
+    SightlineApp::SightlineVideoController controller { };
     controller.setSyntheticMode(false);
 
     // Initial default should be Net0 mount
@@ -107,7 +110,7 @@ TEST_F(SightlineVideoTest, CameraSwitchDoesNotMutateStreamUri)
 
 TEST_F(SightlineVideoTest, NetworkChannelMountResolution)
 {
-    SightlineApp::SightlineVideoController controller {};
+    SightlineApp::SightlineVideoController controller { };
     controller.setSyntheticMode(false);
 
     QSignalSpy channelSpy(&controller, &SightlineApp::SightlineVideoController::networkChannelChanged);
@@ -136,7 +139,7 @@ TEST_F(SightlineVideoTest, NetworkChannelMountResolution)
 
 TEST_F(SightlineVideoTest, CustomUriPreservationAcrossCameraSwitches)
 {
-    SightlineApp::SightlineVideoController controller {};
+    SightlineApp::SightlineVideoController controller { };
     controller.setSyntheticMode(false);
 
     const QString customUri { QStringLiteral("udp://@:15004") };
@@ -156,7 +159,7 @@ TEST_F(SightlineVideoTest, CustomUriPreservationAcrossCameraSwitches)
 
 TEST_F(SightlineVideoTest, TransportModeConfiguration)
 {
-    SightlineApp::SightlineVideoController controller {};
+    SightlineApp::SightlineVideoController controller { };
     QSignalSpy transportSpy(&controller, &SightlineApp::SightlineVideoController::transportModeChanged);
 
     // Initial default should be Auto
@@ -199,7 +202,7 @@ TEST_F(SightlineVideoTest, TransportModeConfiguration)
 
 TEST_F(SightlineVideoTest, RtspDigestAuthenticationConfiguration)
 {
-    SightlineApp::SightlineVideoController controller {};
+    SightlineApp::SightlineVideoController controller { };
     QSignalSpy authSpy(&controller, &SightlineApp::SightlineVideoController::rtspAuthChanged);
 
     EXPECT_FALSE(controller.authEnabled());
@@ -227,7 +230,7 @@ TEST_F(SightlineVideoTest, RtspDigestAuthenticationConfiguration)
 
 TEST_F(SightlineVideoTest, SyntheticModeToggle)
 {
-    SightlineApp::SightlineVideoController controller {};
+    SightlineApp::SightlineVideoController controller { };
     QSignalSpy synthSpy(&controller, &SightlineApp::SightlineVideoController::syntheticChanged);
 
     controller.setSyntheticMode(false);
@@ -241,7 +244,7 @@ TEST_F(SightlineVideoTest, SyntheticModeToggle)
 
 TEST_F(SightlineVideoTest, VideoQuickItemPropertiesAndFrameIngestion)
 {
-    SightlineApp::VideoQuickItem item {};
+    SightlineApp::VideoQuickItem item { };
 
     EXPECT_EQ(item.fillMode(), SightlineApp::VideoQuickItem::FillMode::PreserveAspectFit);
     EXPECT_FALSE(item.hasFrame());
@@ -290,7 +293,7 @@ namespace {
 
 TEST_F(SightlineVideoTest, VideoQuickItemMeasuresDisplayLatency)
 {
-    SightlineApp::VideoQuickItem item {};
+    SightlineApp::VideoQuickItem item { };
     item.setSize(QSizeF(320.0, 240.0));
     EXPECT_DOUBLE_EQ(item.displayLatencyMs(), 0.0);
     EXPECT_EQ(item.presentedFrames(), 0U);
@@ -327,8 +330,8 @@ TEST_F(SightlineVideoTest, VideoQuickItemMeasuresDisplayLatency)
 
 TEST_F(SightlineVideoTest, ControllerFeedsDisplayLatency)
 {
-    SightlineApp::SightlineVideoController controller {};
-    SightlineApp::VideoQuickItem item {};
+    SightlineApp::SightlineVideoController controller { };
+    SightlineApp::VideoQuickItem item { };
     item.setSize(QSizeF(320.0, 240.0));
     controller.attachVideoItem(&item);
 
@@ -343,8 +346,8 @@ TEST_F(SightlineVideoTest, ControllerFeedsDisplayLatency)
 
 TEST_F(SightlineVideoTest, ControllerAttachVideoItemIntegration)
 {
-    SightlineApp::SightlineVideoController controller {};
-    SightlineApp::VideoQuickItem item {};
+    SightlineApp::SightlineVideoController controller { };
+    SightlineApp::VideoQuickItem item { };
 
     controller.attachVideoItem(&item);
 
@@ -360,10 +363,10 @@ TEST_F(SightlineVideoTest, ControllerAttachVideoItemIntegration)
 
 TEST_F(SightlineVideoTest, SnapshotCapture)
 {
-    QTemporaryDir tempDir {};
+    QTemporaryDir tempDir { };
     ASSERT_TRUE(tempDir.isValid());
 
-    SightlineApp::SightlineVideoController controller {};
+    SightlineApp::SightlineVideoController controller { };
 
     // Wait for at least one frame to decode
     for (int i = 0; i < 20; ++i) {
@@ -389,7 +392,7 @@ TEST_F(SightlineVideoTest, SnapshotCapture)
 
 TEST_F(SightlineVideoTest, PipModeAndStreamSwapping)
 {
-    SightlineApp::SightlineVideoController controller {};
+    SightlineApp::SightlineVideoController controller { };
 
     EXPECT_FALSE(controller.pipEnabled());
     EXPECT_EQ(controller.pipCamera(), 1);
@@ -410,7 +413,7 @@ TEST_F(SightlineVideoTest, PipModeAndStreamSwapping)
     EXPECT_EQ(pipCamSpy.count(), 1);
 
     // Attach PIP item and verify reception
-    SightlineApp::VideoQuickItem pipItem {};
+    SightlineApp::VideoQuickItem pipItem { };
     controller.attachPipVideoItem(&pipItem);
 
     for (int i = 0; i < 20 && !pipItem.hasFrame(); ++i) {
@@ -424,10 +427,10 @@ TEST_F(SightlineVideoTest, PipModeAndStreamSwapping)
 
 TEST_F(SightlineVideoTest, TrackListModelLifecycle)
 {
-    TrackListModel model {};
+    TrackListModel model { };
     EXPECT_EQ(model.rowCount(), 0);
 
-    Sightline::TrackCoordinate t0 {};
+    Sightline::TrackCoordinate t0 { };
     t0.trackId = 0U;
     t0.centerCol = 640.0;
     t0.centerRow = 360.0;
@@ -441,7 +444,7 @@ TEST_F(SightlineVideoTest, TrackListModelLifecycle)
     EXPECT_TRUE(model.data(model.index(0, 0), TrackListModel::IsPrimaryRole).toBool());
     EXPECT_DOUBLE_EQ(model.data(model.index(0, 0), TrackListModel::CenterColRole).toDouble(), 640.0);
 
-    Sightline::TrackCoordinate t1 {};
+    Sightline::TrackCoordinate t1 { };
     t1.trackId = 1U;
     t1.centerCol = 800.0;
     t1.centerRow = 450.0;
@@ -477,7 +480,7 @@ TEST_F(SightlineVideoTest, TrackListModelLifecycle)
 
 TEST_F(SightlineVideoTest, EnhancementModeUpdatesAndSignals)
 {
-    SightlineApp::SightlineVideoController controller {};
+    SightlineApp::SightlineVideoController controller { };
     QSignalSpy spy(&controller, &SightlineApp::SightlineVideoController::contrastModeChanged);
 
     EXPECT_EQ(controller.contrastMode(), 0);
@@ -498,7 +501,7 @@ TEST_F(SightlineVideoTest, EnhancementModeUpdatesAndSignals)
 
 TEST_F(SightlineVideoTest, FalseColorPaletteSelectionAndUserPalette)
 {
-    SightlineApp::SightlineVideoController controller {};
+    SightlineApp::SightlineVideoController controller { };
     QSignalSpy palSpy(&controller, &SightlineApp::SightlineVideoController::activePaletteChanged);
 
     EXPECT_EQ(controller.activePalette(), 0);
@@ -520,7 +523,7 @@ TEST_F(SightlineVideoTest, FalseColorPaletteSelectionAndUserPalette)
 
 TEST_F(SightlineVideoTest, EnhancementRoiConfiguration)
 {
-    SightlineApp::SightlineVideoController controller {};
+    SightlineApp::SightlineVideoController controller { };
     QSignalSpy roiSpy(&controller, &SightlineApp::SightlineVideoController::enhancementRoiChanged);
 
     EXPECT_TRUE(controller.enhancementRoi().isNull());
@@ -532,7 +535,7 @@ TEST_F(SightlineVideoTest, EnhancementRoiConfiguration)
 
 TEST_F(SightlineVideoTest, BridgeEnhancementMethodsAndPresets)
 {
-    SightlineQmlBridge bridge {};
+    SightlineQmlBridge bridge { };
 
     QSignalSpy modeSpy(&bridge, &SightlineQmlBridge::enhancementModeChanged);
     QSignalSpy palSpy(&bridge, &SightlineQmlBridge::falseColorPaletteChanged);
@@ -576,7 +579,7 @@ TEST_F(SightlineVideoTest, BridgeEnhancementMethodsAndPresets)
     EXPECT_EQ(loadedPreset.value(QStringLiteral("mode")).toInt(), 1);
 
     // 7. User palette file load and save
-    QTemporaryDir tempDir {};
+    QTemporaryDir tempDir { };
     ASSERT_TRUE(tempDir.isValid());
     const QString palFile { tempDir.filePath(QStringLiteral("test_palette.bin")) };
     const QByteArray sampleYuv(768, static_cast<char>(0x7F));
@@ -588,8 +591,8 @@ TEST_F(SightlineVideoTest, BridgeEnhancementMethodsAndPresets)
 
 TEST_F(SightlineVideoTest, BridgeVideoControllerSignalWiring)
 {
-    SightlineQmlBridge bridge {};
-    SightlineApp::SightlineVideoController controller {};
+    SightlineQmlBridge bridge { };
+    SightlineApp::SightlineVideoController controller { };
 
     QObject::connect(&bridge, &SightlineQmlBridge::enhancementModeChanged, &controller,
         &SightlineApp::SightlineVideoController::updateEnhancementMode);
@@ -634,7 +637,7 @@ TEST_F(SightlineVideoTest, BridgeDetectionAndClassifierMethods)
 
 TEST_F(SightlineVideoTest, ControllerPauseAndScrubbing)
 {
-    SightlineApp::SightlineVideoController controller {};
+    SightlineApp::SightlineVideoController controller { };
 
     // Allow worker loop to ingest frames into ring buffer
     for (int i = 0; i < 30 && controller.bufferedFrameCount() < 5; ++i) {
@@ -665,7 +668,7 @@ TEST_F(SightlineVideoTest, ControllerPauseAndScrubbing)
 
 TEST_F(SightlineVideoTest, VideoQuickItemCoordinateMappingAndLasso)
 {
-    TestableVideoQuickItem item {};
+    TestableVideoQuickItem item { };
     item.setSize(QSizeF(800.0, 600.0));
 
     QImage testFrame(640, 480, QImage::Format_RGB888);
@@ -742,14 +745,14 @@ TEST_F(SightlineVideoTest, VideoQuickItemCoordinateMappingAndLasso)
 
 TEST_F(SightlineVideoTest, BridgeTrackingParameters)
 {
-    SightlineQmlBridge bridge {};
+    SightlineQmlBridge bridge { };
     EXPECT_FALSE(bridge.setTrackingParameters(0, 0, 0, 15, 0, 0, 0, 0, 0));
     EXPECT_FALSE(bridge.queryTrackingParameters(0));
 }
 
 TEST_F(SightlineVideoTest, RecordingFileListModelLifecycle)
 {
-    RecordingFileListModel model {};
+    RecordingFileListModel model { };
     EXPECT_EQ(model.rowCount(), 0);
 
     // Formatter helpers
@@ -766,15 +769,15 @@ TEST_F(SightlineVideoTest, RecordingFileListModelLifecycle)
     EXPECT_NE(RecordingFileListModel::formatTimestamp(1609459200000000ULL), QStringLiteral("---"));
 
     // Populate entries
-    std::vector<Sightline::DirListEntry> entries {};
-    Sightline::DirListEntry e1 {};
+    std::vector<Sightline::DirListEntry> entries { };
+    Sightline::DirListEntry e1 { };
     e1.filename = "flight_0001.ts";
     e1.fileSizeBytes = 104857600ULL;
     e1.timestampUs = 1609459200000000ULL;
     e1.isPinned = false;
     e1.formatType = 0U;
 
-    Sightline::DirListEntry e2 {};
+    Sightline::DirListEntry e2 { };
     e2.filename = "snap_0001.jpg";
     e2.fileSizeBytes = 204800ULL;
     e2.timestampUs = 1609459300000000ULL;
@@ -814,7 +817,7 @@ TEST_F(SightlineVideoTest, RecordingFileListModelLifecycle)
 
 TEST_F(SightlineVideoTest, BridgeRecordingPropertiesAndValidation)
 {
-    SightlineQmlBridge bridge {};
+    SightlineQmlBridge bridge { };
     EXPECT_FALSE(bridge.isRecordingActive());
     EXPECT_EQ(bridge.freeStorageMB(), 0);
     EXPECT_EQ(bridge.usedStorageMB(), 0);
@@ -848,7 +851,7 @@ TEST_F(SightlineVideoTest, BridgeRecordingPropertiesAndValidation)
 
 TEST_F(SightlineVideoTest, CooperativeStopStreamRapidCycling)
 {
-    SightlineApp::SightlineVideoController controller {};
+    SightlineApp::SightlineVideoController controller { };
 
     // Rapid start/stop cycling to ensure no thread leaks, deadlocks, or termination crashes
     for (int i = 0; i < 10; ++i) {
@@ -861,7 +864,7 @@ TEST_F(SightlineVideoTest, CooperativeStopStreamRapidCycling)
 
 TEST_F(SightlineVideoTest, StopStreamResponsiveDuringActiveStream)
 {
-    SightlineApp::SightlineVideoController controller {};
+    SightlineApp::SightlineVideoController controller { };
     QTest::qWait(100);
     EXPECT_EQ(controller.playbackState(), SightlineApp::SightlineVideoController::PlaybackState::Playing);
 

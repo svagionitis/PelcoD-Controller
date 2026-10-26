@@ -5,6 +5,7 @@
 
 #include <QHBoxLayout>
 #include <QVBoxLayout>
+#include <cstdint>
 
 namespace ViscaApp {
 
@@ -179,10 +180,10 @@ void RegistersHardwareTab::applyGatingUI()
     lblModelName->setText(QString::fromStdString(m_capabilities.modelName));
     lblSensorDesc->setText(QString::fromStdString(m_capabilities.sensorDescription));
     lblOpticalRange->setText(tr("Focal Range: %1 mm – %2 mm (%3x Optical, %4x Digital)")
-                                 .arg(m_capabilities.minFocalLengthMm, 0, 'f', 1)
-                                 .arg(m_capabilities.maxFocalLengthMm, 0, 'f', 1)
-                                 .arg(m_capabilities.maxOpticalZoomRatio, 0, 'f', 0)
-                                 .arg(m_capabilities.maxDigitalZoomRatio, 0, 'f', 0));
+            .arg(m_capabilities.minFocalLengthMm, 0, 'f', 1)
+            .arg(m_capabilities.maxFocalLengthMm, 0, 'f', 1)
+            .arg(m_capabilities.maxOpticalZoomRatio, 0, 'f', 0)
+            .arg(m_capabilities.maxDigitalZoomRatio, 0, 'f', 0));
 
     // 4K Operating Mode Gating
     if (!m_capabilities.supports4K) {
@@ -208,7 +209,7 @@ void RegistersHardwareTab::applyGatingUI()
 
 void RegistersHardwareTab::handleOperatingModeChanged(int index)
 {
-    const uint8_t mode = static_cast<uint8_t>(cmbOperatingMode->itemData(index).toUInt());
+    const std::uint8_t mode = static_cast<std::uint8_t>(cmbOperatingMode->itemData(index).toUInt());
     if (m_device) {
         m_device->setOperatingMode(mode);
     }
@@ -230,7 +231,7 @@ void RegistersHardwareTab::handleOpticalAxisGapToggled(bool checked)
 
 void RegistersHardwareTab::handleLvdsModeChanged(int index)
 {
-    const uint8_t mode = static_cast<uint8_t>(cmbLvdsMode->itemData(index).toUInt());
+    const std::uint8_t mode = static_cast<std::uint8_t>(cmbLvdsMode->itemData(index).toUInt());
     if (m_device) {
         m_device->setLvdsMode(mode);
     }
@@ -238,7 +239,7 @@ void RegistersHardwareTab::handleLvdsModeChanged(int index)
 
 void RegistersHardwareTab::handleTmdsModeChanged(int index)
 {
-    const uint8_t mode = static_cast<uint8_t>(cmbTmdsMode->itemData(index).toUInt());
+    const std::uint8_t mode = static_cast<std::uint8_t>(cmbTmdsMode->itemData(index).toUInt());
     if (m_device) {
         m_device->setDigitalOutputMode(mode);
     }
@@ -246,7 +247,7 @@ void RegistersHardwareTab::handleTmdsModeChanged(int index)
 
 void RegistersHardwareTab::handleReadRegisterClicked()
 {
-    const uint8_t reg = static_cast<uint8_t>(spinRegAddress->value());
+    const std::uint8_t reg = static_cast<std::uint8_t>(spinRegAddress->value());
     lblRegResult->setText(tr("Querying register 0x%1...").arg(reg, 2, 16, QLatin1Char('0')));
     if (m_device) {
         m_device->readRegister(reg);
@@ -255,8 +256,8 @@ void RegistersHardwareTab::handleReadRegisterClicked()
 
 void RegistersHardwareTab::handleWriteRegisterClicked()
 {
-    const uint8_t reg = static_cast<uint8_t>(spinRegAddress->value());
-    const uint8_t val = static_cast<uint8_t>(spinRegValue->value());
+    const std::uint8_t reg = static_cast<std::uint8_t>(spinRegAddress->value());
+    const std::uint8_t val = static_cast<std::uint8_t>(spinRegValue->value());
     lblRegResult->setText(
         tr("Writing 0x%1 to register 0x%2...").arg(val, 2, 16, QLatin1Char('0')).arg(reg, 2, 16, QLatin1Char('0')));
     if (m_device) {

@@ -8,8 +8,12 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cstdint>
 #include <iomanip>
+#include <memory>
 #include <sstream>
+#include <string>
+#include <string_view>
 
 namespace PelcoDTui {
 
@@ -127,7 +131,7 @@ bool ConnectionModal::validateAndApply()
         const char* first = m_tcpPortStr.data();
         const char* last = m_tcpPortStr.data() + m_tcpPortStr.size();
         auto [ptr, ec] = std::from_chars(first, last, portVal);
-        if (ec != std::errc {} || ptr != last || portVal == 0U) {
+        if (ec != std::errc { } || ptr != last || portVal == 0U) {
             m_errorMessage = "Error: TCP Port must be between 1 and 65535";
             return false;
         }
@@ -146,7 +150,7 @@ bool ConnectionModal::validateAndApply()
         const char* first = m_udpPortStr.data();
         const char* last = m_udpPortStr.data() + m_udpPortStr.size();
         auto [ptr, ec] = std::from_chars(first, last, portVal);
-        if (ec != std::errc {} || ptr != last || portVal == 0U) {
+        if (ec != std::errc { } || ptr != last || portVal == 0U) {
             m_errorMessage = "Error: UDP Port must be between 1 and 65535";
             return false;
         }

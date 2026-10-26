@@ -1,4 +1,5 @@
 #include "FooterView.h"
+#include <string>
 
 #include "UtfSymbols.h"
 

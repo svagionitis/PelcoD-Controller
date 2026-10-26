@@ -5,6 +5,8 @@
 
 #include "QOnvifDevice.h"
 
+#include <vector>
+
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDoubleSpinBox>
@@ -269,7 +271,7 @@ private:
     [[nodiscard]] static Onvif::OsdPositionType osdPositionFromIndex(int index) noexcept;
 
     PelcoD::Qt::QOnvifDevice* m_onvifDevice { nullptr };
-    QList<Onvif::DiscoveredDevice> m_discoveredList {};
+    QList<Onvif::DiscoveredDevice> m_discoveredList { };
 
     QList<QWidget*> m_connectionWidgets;
 

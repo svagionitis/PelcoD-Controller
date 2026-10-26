@@ -23,6 +23,7 @@
 #include <QVariantList>
 #include <QVariantMap>
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -313,7 +314,7 @@ public:
     /// @brief Associates presentation timestamp with demuxed MISB ST 0601 telemetry.
     struct TimedKlv {
         double timeSeconds { 0.0 };
-        Klv::UasDatalinkMessage message {};
+        Klv::UasDatalinkMessage message { };
     };
 
     /// @brief Loads KLV metadata track from MPEG-TS file into timeline.
@@ -433,7 +434,7 @@ private:
     bool m_isLoopPlayback { true };
     QString m_statusMessage { tr("Ready") };
 
-    QVariantList m_devicesList {};
+    QVariantList m_devicesList { };
 
     double m_positionSeconds { 0.0 };
     double m_durationSeconds { 0.0 };
@@ -514,13 +515,13 @@ private:
     int m_tacticalHudMode { 3 }; // 0: Minimal, 1: Standard, 2: FullTactical, 3: Misb1909
     int m_tacticalHudPalette { 0 }; // 0: TacticalGreen, 1: Amber, 2: ElectricCyan, 3: CombatRed, 4: White
 
-    std::vector<TimedKlv> m_klvTimeline {};
+    std::vector<TimedKlv> m_klvTimeline { };
     std::size_t m_lastKlvIndex { 0 };
-    std::optional<Klv::UasDatalinkMessage> m_lastKlvMsg {};
-    Klv::StanagScrubController m_stanagScrubController {};
-    Klv::StanagStreamIndexer m_stanagStreamIndexer {};
-    Klv::KlvStreamScanner m_liveKlvScanner {};
-    Klv::MpegTsKlvExtractor m_liveTsExtractor {};
+    std::optional<Klv::UasDatalinkMessage> m_lastKlvMsg { };
+    Klv::StanagScrubController m_stanagScrubController { };
+    Klv::StanagStreamIndexer m_stanagStreamIndexer { };
+    Klv::KlvStreamScanner m_liveKlvScanner { };
+    Klv::MpegTsKlvExtractor m_liveTsExtractor { };
 
     void handleLiveMetadata(const std::uint8_t* data, std::size_t size);
     void handleLiveKlvMessage(const Klv::UasDatalinkMessage& msg);
@@ -541,11 +542,11 @@ private:
     std::atomic<double> m_seekRequested { -1.0 };
 
     std::unique_ptr<QThread> m_thread { nullptr };
-    mutable QMutex m_decoderMutex {};
+    mutable QMutex m_decoderMutex { };
     std::unique_ptr<Video::IVideoDecoder> m_decoder { nullptr };
 
-    mutable QMutex m_snapshotMutex {};
-    QImage m_lastFrameCopy {};
+    mutable QMutex m_snapshotMutex { };
+    QImage m_lastFrameCopy { };
 };
 
 } // namespace VideoApp

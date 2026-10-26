@@ -2,8 +2,10 @@
 
 #include "UtfSymbols.h"
 
+#include <cstdint>
 #include <iomanip>
 #include <sstream>
+#include <string>
 
 namespace PelcoDTui {
 
@@ -51,7 +53,7 @@ void SettingsView::render(Canvas& canvas, int startY, int width, int height)
 
     for (int i = 0; i < kNumSettings; ++i) {
         const bool isSelected = (i == m_selectedIndex);
-        Style rowStyle {};
+        Style rowStyle { };
         if (isSelected) {
             rowStyle = Style { Colors::Black, Colors::Cyan, true, false, false, false, false };
         } else {

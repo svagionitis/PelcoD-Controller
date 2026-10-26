@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 
 namespace PelcoD {
 
@@ -64,7 +65,7 @@ void BodePlotWidget::setIdentificationResult(const Tracking::PlantIdentification
 
 void BodePlotWidget::clear()
 {
-    m_result = Tracking::PlantIdentificationResult {};
+    m_result = Tracking::PlantIdentificationResult { };
     m_hasData = false;
     m_cursorActive = false;
     update();

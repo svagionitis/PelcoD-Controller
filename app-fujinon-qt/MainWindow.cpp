@@ -4,6 +4,9 @@
 #include "MainWindow.h"
 #include "app-fujinon-qt/dialogs/RttProfilerDialog.h"
 
+#include <cstdint>
+#include <memory>
+
 #include <QStatusBar>
 #include <QToolBar>
 #include <QVBoxLayout>

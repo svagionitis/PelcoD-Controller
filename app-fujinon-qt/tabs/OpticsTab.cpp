@@ -9,6 +9,7 @@
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QVBoxLayout>
+#include <cstdint>
 
 namespace {
 

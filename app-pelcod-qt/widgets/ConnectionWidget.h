@@ -17,6 +17,7 @@
 #include <QStackedWidget>
 #include <QTimer>
 #include <QWidget>
+#include <cstdint>
 #include <memory>
 
 namespace PelcoDApp {
@@ -105,8 +106,8 @@ private:
     // Mock widgets
     QWidget* pageMock { nullptr };
     QPushButton* btnMockDynamics { nullptr };
-    PelcoD::KinematicsConfig m_mockKinematicsConfig {};
-    PelcoD::LatencyConfig m_mockLatencyConfig {};
+    PelcoD::KinematicsConfig m_mockKinematicsConfig { };
+    PelcoD::LatencyConfig m_mockLatencyConfig { };
 
     // Common
     QSpinBox* spinAddress { nullptr };

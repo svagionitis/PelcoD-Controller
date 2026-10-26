@@ -10,6 +10,9 @@
 #include <QTimer>
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <memory>
+#include <vector>
 
 namespace FujinonApp {
 

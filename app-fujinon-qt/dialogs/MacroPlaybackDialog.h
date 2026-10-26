@@ -5,6 +5,10 @@
 
 #include "MacroPlayer.h"
 #include "MacroScript.h"
+#include <cstddef>
+
+#include <memory>
+#include <string>
 
 #include <QDialog>
 #include <QDoubleSpinBox>

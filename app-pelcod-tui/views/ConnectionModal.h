@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace PelcoDTui {
@@ -36,8 +37,8 @@ struct ConnectionConfig {
 #endif
     std::uint32_t serialBaud { 9600U };
     std::uint8_t address { 1U };
-    PelcoD::KinematicsConfig kinematicsConfig {};
-    PelcoD::LatencyConfig latencyConfig {};
+    PelcoD::KinematicsConfig kinematicsConfig { };
+    PelcoD::LatencyConfig latencyConfig { };
 };
 
 /// @class ConnectionModal
@@ -92,9 +93,9 @@ private:
     int m_cursorPos { 0 };
     std::string m_tcpPortStr { "9000" };
     std::string m_udpPortStr { "9000" };
-    std::string m_errorMessage {};
-    ConnectionConfig m_config {};
-    std::vector<std::string> m_detectedPorts {};
+    std::string m_errorMessage { };
+    ConnectionConfig m_config { };
+    std::vector<std::string> m_detectedPorts { };
 };
 
 } // namespace PelcoDTui

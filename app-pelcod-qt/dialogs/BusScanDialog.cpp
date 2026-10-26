@@ -3,6 +3,8 @@
 
 #include "BusScanDialog.h"
 
+#include <memory>
+
 #include <QCheckBox>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -222,17 +224,17 @@ void BusScanDialog::onProgressUpdated(int currentAddress, int scannedCount, int 
     progressBar->setValue(percent);
     if (m_currentBaudRate > 0U && chkMultiBaud && chkMultiBaud->isChecked()) {
         lblStatus->setText(tr("Scanning address %1 at %2 bps... (%3 of %4 completed | Found %5 device(s))")
-                               .arg(currentAddress)
-                               .arg(m_currentBaudRate)
-                               .arg(scannedCount)
-                               .arg(totalCount)
-                               .arg(tableResults->rowCount()));
+                .arg(currentAddress)
+                .arg(m_currentBaudRate)
+                .arg(scannedCount)
+                .arg(totalCount)
+                .arg(tableResults->rowCount()));
     } else {
         lblStatus->setText(tr("Scanning address %1... (%2 of %3 completed | Found %4 device(s))")
-                               .arg(currentAddress)
-                               .arg(scannedCount)
-                               .arg(totalCount)
-                               .arg(tableResults->rowCount()));
+                .arg(currentAddress)
+                .arg(scannedCount)
+                .arg(totalCount)
+                .arg(tableResults->rowCount()));
     }
 }
 

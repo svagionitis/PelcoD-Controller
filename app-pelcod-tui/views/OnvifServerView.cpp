@@ -4,9 +4,12 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <ctime>
 #include <iomanip>
+#include <memory>
 #include <sstream>
+#include <string>
 
 namespace PelcoDTui {
 
@@ -27,7 +30,7 @@ void OnvifServerView::bindDevice(PelcoD::PelcoDDevice* device, PelcoD::PatrolCon
     m_device = device;
     m_patrol = patrol;
     if (m_device != nullptr && m_ptzBridgeEnabled) {
-        auto nonOwning = std::shared_ptr<PelcoD::PelcoDDevice>(m_device, [](PelcoD::PelcoDDevice*) {});
+        auto nonOwning = std::shared_ptr<PelcoD::PelcoDDevice>(m_device, [](PelcoD::PelcoDDevice*) { });
         m_ptzAdapter = std::make_shared<Onvif::PelcoDPtzAdapter>(nonOwning);
         if (m_patrol != nullptr) {
             m_ptzAdapter->setPatrolController(m_patrol);
@@ -50,7 +53,7 @@ bool OnvifServerView::startServer()
     }
 
     if (m_ptzBridgeEnabled && m_device != nullptr && m_ptzAdapter == nullptr) {
-        auto nonOwning = std::shared_ptr<PelcoD::PelcoDDevice>(m_device, [](PelcoD::PelcoDDevice*) {});
+        auto nonOwning = std::shared_ptr<PelcoD::PelcoDDevice>(m_device, [](PelcoD::PelcoDDevice*) { });
         m_ptzAdapter = std::make_shared<Onvif::PelcoDPtzAdapter>(nonOwning);
         if (m_patrol != nullptr) {
             m_ptzAdapter->setPatrolController(m_patrol);
@@ -63,7 +66,7 @@ bool OnvifServerView::startServer()
             [this](const std::string& service, const std::string& action, const std::string& clientIp) {
                 const auto now = std::chrono::system_clock::now();
                 const std::time_t t = std::chrono::system_clock::to_time_t(now);
-                std::tm tmBuf {};
+                std::tm tmBuf { };
 #ifdef _WIN32
                 localtime_s(&tmBuf, &t);
 #else

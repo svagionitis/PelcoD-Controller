@@ -5,6 +5,7 @@
 
 #include <QHBoxLayout>
 #include <QVBoxLayout>
+#include <cstdint>
 
 namespace ViscaApp {
 
@@ -49,7 +50,7 @@ void ExposureImagingTab::setupUi()
     cmbShutter = new QComboBox(grpExp);
     const struct {
         const char* name;
-        uint8_t code;
+        std::uint8_t code;
     } shutters[] = {
         { "1/1s", 0x01 },
         { "1/2s", 0x02 },
@@ -80,7 +81,7 @@ void ExposureImagingTab::setupUi()
     cmbIris = new QComboBox(grpExp);
     const struct {
         const char* name;
-        uint8_t code;
+        std::uint8_t code;
     } irises[] = {
         { "CLOSE", 0x00 },
         { "F28", 0x01 },
@@ -249,7 +250,7 @@ void ExposureImagingTab::handleExposureModeChanged(int index)
 
 void ExposureImagingTab::handleShutterChanged(int index)
 {
-    const uint8_t code = static_cast<uint8_t>(cmbShutter->itemData(index).toUInt());
+    const std::uint8_t code = static_cast<std::uint8_t>(cmbShutter->itemData(index).toUInt());
     if (!m_updatingFromTelemetry && m_device) {
         m_device->setShutter(code);
     }
@@ -257,7 +258,7 @@ void ExposureImagingTab::handleShutterChanged(int index)
 
 void ExposureImagingTab::handleIrisChanged(int index)
 {
-    const uint8_t code = static_cast<uint8_t>(cmbIris->itemData(index).toUInt());
+    const std::uint8_t code = static_cast<std::uint8_t>(cmbIris->itemData(index).toUInt());
     if (!m_updatingFromTelemetry && m_device) {
         m_device->setIris(code);
     }
@@ -267,7 +268,7 @@ void ExposureImagingTab::handleGainChanged(int value)
 {
     lblGainVal->setText(tr("+%1 dB").arg(value * 3));
     if (!m_updatingFromTelemetry && m_device) {
-        m_device->setGain(static_cast<uint8_t>(value));
+        m_device->setGain(static_cast<std::uint8_t>(value));
     }
 }
 
@@ -275,7 +276,7 @@ void ExposureImagingTab::handleExpCompToggled(bool checked)
 {
     sliderExpComp->setEnabled(checked);
     if (!m_updatingFromTelemetry && m_device) {
-        m_device->setExposureCompensation(checked, static_cast<uint8_t>(sliderExpComp->value()));
+        m_device->setExposureCompensation(checked, static_cast<std::uint8_t>(sliderExpComp->value()));
     }
 }
 
@@ -302,7 +303,7 @@ void ExposureImagingTab::handleRgainChanged(int value)
 {
     lblRgainVal->setText(QString::number(value));
     if (!m_updatingFromTelemetry && m_device) {
-        m_device->setRgainDirect(static_cast<uint8_t>(value));
+        m_device->setRgainDirect(static_cast<std::uint8_t>(value));
     }
 }
 
@@ -310,7 +311,7 @@ void ExposureImagingTab::handleBgainChanged(int value)
 {
     lblBgainVal->setText(QString::number(value));
     if (!m_updatingFromTelemetry && m_device) {
-        m_device->setBgainDirect(static_cast<uint8_t>(value));
+        m_device->setBgainDirect(static_cast<std::uint8_t>(value));
     }
 }
 

@@ -1,5 +1,8 @@
 #include "Terminal.h"
+#include <atomic>
+#include <string>
 
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 
@@ -16,8 +19,8 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#include <windows.h>
 #include <io.h>
+#include <windows.h>
 #endif
 
 namespace PelcoDTui {
@@ -25,8 +28,7 @@ namespace PelcoDTui {
 std::atomic<bool> Terminal::s_resized { false };
 
 #ifndef _WIN32
-static struct termios s_origTermios {
-};
+static struct termios s_origTermios { };
 static bool s_hasOrigTermios { false };
 
 static void handleSigwinch([[maybe_unused]] int sig)
@@ -164,7 +166,7 @@ TerminalSize Terminal::getSize() const noexcept
         return TerminalSize { static_cast<int>(ws.ws_col), static_cast<int>(ws.ws_row) };
     }
 #else
-    CONSOLE_SCREEN_BUFFER_INFO csbi {};
+    CONSOLE_SCREEN_BUFFER_INFO csbi { };
     if (::GetConsoleScreenBufferInfo(::GetStdHandle(STD_OUTPUT_HANDLE), &csbi)) {
         const int w = csbi.srWindow.Right - csbi.srWindow.Left + 1;
         const int h = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
@@ -206,22 +208,22 @@ InputEvent Terminal::pollEvent(int timeoutMs)
 #ifdef _WIN32
     const HANDLE hIn = ::GetStdHandle(STD_INPUT_HANDLE);
     if (hIn == INVALID_HANDLE_VALUE || hIn == nullptr) {
-        return InputEvent { Key::None, '\0', {} };
+        return InputEvent { Key::None, '\0', { } };
     }
 
     if (timeoutMs > 0) {
         const DWORD waitRes = ::WaitForSingleObject(hIn, static_cast<DWORD>(timeoutMs));
         if (waitRes != WAIT_OBJECT_0) {
-            return InputEvent { Key::None, '\0', {} };
+            return InputEvent { Key::None, '\0', { } };
         }
     }
 
     DWORD numEvents = 0;
     while (::GetNumberOfConsoleInputEvents(hIn, &numEvents) != 0 && numEvents > 0) {
-        INPUT_RECORD record {};
+        INPUT_RECORD record { };
         DWORD eventsRead = 0;
         if (::ReadConsoleInputW(hIn, &record, 1, &eventsRead) == 0 || eventsRead == 0) {
-            return InputEvent { Key::None, '\0', {} };
+            return InputEvent { Key::None, '\0', { } };
         }
 
         if (record.EventType == WINDOW_BUFFER_SIZE_EVENT) {
@@ -231,7 +233,7 @@ InputEvent Terminal::pollEvent(int timeoutMs)
 
         if (record.EventType == MOUSE_EVENT) {
             const auto& me = record.Event.MouseEvent;
-            MouseEvent mouse {};
+            MouseEvent mouse { };
             mouse.x = me.dwMousePosition.X;
             mouse.y = me.dwMousePosition.Y;
             if (me.dwEventFlags == 0) {
@@ -273,33 +275,33 @@ InputEvent Terminal::pollEvent(int timeoutMs)
 
         switch (vk) {
         case VK_UP:
-            return InputEvent { Key::Up, '\0', {} };
+            return InputEvent { Key::Up, '\0', { } };
         case VK_DOWN:
-            return InputEvent { Key::Down, '\0', {} };
+            return InputEvent { Key::Down, '\0', { } };
         case VK_LEFT:
-            return InputEvent { Key::Left, '\0', {} };
+            return InputEvent { Key::Left, '\0', { } };
         case VK_RIGHT:
-            return InputEvent { Key::Right, '\0', {} };
+            return InputEvent { Key::Right, '\0', { } };
         case VK_HOME:
-            return InputEvent { Key::Home, '\0', {} };
+            return InputEvent { Key::Home, '\0', { } };
         case VK_END:
-            return InputEvent { Key::End, '\0', {} };
+            return InputEvent { Key::End, '\0', { } };
         case VK_PRIOR:
-            return InputEvent { Key::PageUp, '\0', {} };
+            return InputEvent { Key::PageUp, '\0', { } };
         case VK_NEXT:
-            return InputEvent { Key::PageDown, '\0', {} };
+            return InputEvent { Key::PageDown, '\0', { } };
         case VK_DELETE:
-            return InputEvent { Key::Delete, '\0', {} };
+            return InputEvent { Key::Delete, '\0', { } };
         case VK_RETURN:
-            return InputEvent { Key::Enter, '\0', {} };
+            return InputEvent { Key::Enter, '\0', { } };
         case VK_ESCAPE:
-            return InputEvent { Key::Escape, '\0', {} };
+            return InputEvent { Key::Escape, '\0', { } };
         case VK_BACK:
-            return InputEvent { Key::Backspace, '\0', {} };
+            return InputEvent { Key::Backspace, '\0', { } };
         case VK_TAB:
-            return InputEvent { shift ? Key::Backtab : Key::Tab, '\0', {} };
+            return InputEvent { shift ? Key::Backtab : Key::Tab, '\0', { } };
         case VK_SPACE:
-            return InputEvent { Key::Space, ' ', {} };
+            return InputEvent { Key::Space, ' ', { } };
         default:
             break;
         }
@@ -307,29 +309,29 @@ InputEvent Terminal::pollEvent(int timeoutMs)
         // Function keys F1 - F12
         if (vk >= VK_F1 && vk <= VK_F12) {
             const auto fKey = static_cast<Key>(static_cast<std::uint16_t>(Key::F1) + (vk - VK_F1));
-            return InputEvent { fKey, '\0', {} };
+            return InputEvent { fKey, '\0', { } };
         }
 
         // Standard Unicode/ASCII character input
         const wchar_t wch = ke.uChar.UnicodeChar;
         if (wch >= 32 && wch <= 126) {
-            return InputEvent { Key::Character, static_cast<char>(wch), {} };
+            return InputEvent { Key::Character, static_cast<char>(wch), { } };
         }
 
         const char ach = ke.uChar.AsciiChar;
         if (ach >= 32 && ach <= 126) {
-            return InputEvent { Key::Character, ach, {} };
+            return InputEvent { Key::Character, ach, { } };
         }
 
         if (vk >= '0' && vk <= '9') {
-            return InputEvent { Key::Character, static_cast<char>('0' + (vk - '0')), {} };
+            return InputEvent { Key::Character, static_cast<char>('0' + (vk - '0')), { } };
         }
         if (vk >= 'A' && vk <= 'Z') {
-            return InputEvent { Key::Character, static_cast<char>((shift ? 'A' : 'a') + (vk - 'A')), {} };
+            return InputEvent { Key::Character, static_cast<char>((shift ? 'A' : 'a') + (vk - 'A')), { } };
         }
     }
 
-    return InputEvent { Key::None, '\0', {} };
+    return InputEvent { Key::None, '\0', { } };
 #else
     struct pollfd pfd { };
     pfd.fd = STDIN_FILENO;
@@ -337,13 +339,13 @@ InputEvent Terminal::pollEvent(int timeoutMs)
 
     const int pollRet = ::poll(&pfd, 1, timeoutMs);
     if (pollRet <= 0 || !(pfd.revents & POLLIN)) {
-        return InputEvent { Key::None, '\0', {} };
+        return InputEvent { Key::None, '\0', { } };
     }
 
     char c = '\0';
     const ssize_t bytesRead = ::read(STDIN_FILENO, &c, 1);
     if (bytesRead <= 0) {
-        return InputEvent { Key::None, '\0', {} };
+        return InputEvent { Key::None, '\0', { } };
     }
 
     // Normal ASCII / control keys
@@ -353,13 +355,13 @@ InputEvent Terminal::pollEvent(int timeoutMs)
         escPfd.fd = STDIN_FILENO;
         escPfd.events = POLLIN;
         if (::poll(&escPfd, 1, 15) <= 0) {
-            return InputEvent { Key::Escape, '\0', {} };
+            return InputEvent { Key::Escape, '\0', { } };
         }
 
-        char seq[64] = {};
+        char seq[64] = { };
         ssize_t seqLen = ::read(STDIN_FILENO, seq, sizeof(seq) - 1);
         if (seqLen <= 0) {
-            return InputEvent { Key::Escape, '\0', {} };
+            return InputEvent { Key::Escape, '\0', { } };
         }
         seq[seqLen] = '\0';
 
@@ -371,7 +373,7 @@ InputEvent Terminal::pollEvent(int timeoutMs)
                 int my = 0;
                 char termChar = 'M';
                 if (std::sscanf(seq + 2, "%d;%d;%d%c", &btn, &mx, &my, &termChar) >= 3) {
-                    MouseEvent me {};
+                    MouseEvent me { };
                     me.x = mx;
                     me.y = my;
                     me.button = btn;
@@ -381,19 +383,19 @@ InputEvent Terminal::pollEvent(int timeoutMs)
             }
             switch (seq[1]) {
             case 'A':
-                return InputEvent { Key::Up, '\0', {} };
+                return InputEvent { Key::Up, '\0', { } };
             case 'B':
-                return InputEvent { Key::Down, '\0', {} };
+                return InputEvent { Key::Down, '\0', { } };
             case 'C':
-                return InputEvent { Key::Right, '\0', {} };
+                return InputEvent { Key::Right, '\0', { } };
             case 'D':
-                return InputEvent { Key::Left, '\0', {} };
+                return InputEvent { Key::Left, '\0', { } };
             case 'H':
-                return InputEvent { Key::Home, '\0', {} };
+                return InputEvent { Key::Home, '\0', { } };
             case 'F':
-                return InputEvent { Key::End, '\0', {} };
+                return InputEvent { Key::End, '\0', { } };
             case 'Z':
-                return InputEvent { Key::Backtab, '\0', {} };
+                return InputEvent { Key::Backtab, '\0', { } };
             case '1':
             case '2':
             case '3':
@@ -402,41 +404,41 @@ InputEvent Terminal::pollEvent(int timeoutMs)
             case '6': {
                 if (seq[2] == '~') {
                     if (seq[1] == '1')
-                        return InputEvent { Key::Home, '\0', {} };
+                        return InputEvent { Key::Home, '\0', { } };
                     if (seq[1] == '3')
-                        return InputEvent { Key::Delete, '\0', {} };
+                        return InputEvent { Key::Delete, '\0', { } };
                     if (seq[1] == '4')
-                        return InputEvent { Key::End, '\0', {} };
+                        return InputEvent { Key::End, '\0', { } };
                     if (seq[1] == '5')
-                        return InputEvent { Key::PageUp, '\0', {} };
+                        return InputEvent { Key::PageUp, '\0', { } };
                     if (seq[1] == '6')
-                        return InputEvent { Key::PageDown, '\0', {} };
+                        return InputEvent { Key::PageDown, '\0', { } };
                 }
                 // F keys: 11~ to 24~
                 if (seq[1] == '1' && seq[2] == '1')
-                    return InputEvent { Key::F1, '\0', {} };
+                    return InputEvent { Key::F1, '\0', { } };
                 if (seq[1] == '1' && seq[2] == '2')
-                    return InputEvent { Key::F2, '\0', {} };
+                    return InputEvent { Key::F2, '\0', { } };
                 if (seq[1] == '1' && seq[2] == '3')
-                    return InputEvent { Key::F3, '\0', {} };
+                    return InputEvent { Key::F3, '\0', { } };
                 if (seq[1] == '1' && seq[2] == '4')
-                    return InputEvent { Key::F4, '\0', {} };
+                    return InputEvent { Key::F4, '\0', { } };
                 if (seq[1] == '1' && seq[2] == '5')
-                    return InputEvent { Key::F5, '\0', {} };
+                    return InputEvent { Key::F5, '\0', { } };
                 if (seq[1] == '1' && seq[2] == '7')
-                    return InputEvent { Key::F6, '\0', {} };
+                    return InputEvent { Key::F6, '\0', { } };
                 if (seq[1] == '1' && seq[2] == '8')
-                    return InputEvent { Key::F7, '\0', {} };
+                    return InputEvent { Key::F7, '\0', { } };
                 if (seq[1] == '1' && seq[2] == '9')
-                    return InputEvent { Key::F8, '\0', {} };
+                    return InputEvent { Key::F8, '\0', { } };
                 if (seq[1] == '2' && seq[2] == '0')
-                    return InputEvent { Key::F9, '\0', {} };
+                    return InputEvent { Key::F9, '\0', { } };
                 if (seq[1] == '2' && seq[2] == '1')
-                    return InputEvent { Key::F10, '\0', {} };
+                    return InputEvent { Key::F10, '\0', { } };
                 if (seq[1] == '2' && seq[2] == '3')
-                    return InputEvent { Key::F11, '\0', {} };
+                    return InputEvent { Key::F11, '\0', { } };
                 if (seq[1] == '2' && seq[2] == '4')
-                    return InputEvent { Key::F12, '\0', {} };
+                    return InputEvent { Key::F12, '\0', { } };
                 break;
             }
             default:
@@ -445,34 +447,34 @@ InputEvent Terminal::pollEvent(int timeoutMs)
         } else if (seq[0] == 'O') {
             switch (seq[1]) {
             case 'P':
-                return InputEvent { Key::F1, '\0', {} };
+                return InputEvent { Key::F1, '\0', { } };
             case 'Q':
-                return InputEvent { Key::F2, '\0', {} };
+                return InputEvent { Key::F2, '\0', { } };
             case 'R':
-                return InputEvent { Key::F3, '\0', {} };
+                return InputEvent { Key::F3, '\0', { } };
             case 'S':
-                return InputEvent { Key::F4, '\0', {} };
+                return InputEvent { Key::F4, '\0', { } };
             default:
                 break;
             }
         }
-        return InputEvent { Key::Escape, '\0', {} };
+        return InputEvent { Key::Escape, '\0', { } };
     }
 
     if (c == '\r' || c == '\n') {
-        return InputEvent { Key::Enter, '\0', {} };
+        return InputEvent { Key::Enter, '\0', { } };
     }
     if (c == '\t') {
-        return InputEvent { Key::Tab, '\0', {} };
+        return InputEvent { Key::Tab, '\0', { } };
     }
     if (c == 127 || c == '\b') {
-        return InputEvent { Key::Backspace, '\0', {} };
+        return InputEvent { Key::Backspace, '\0', { } };
     }
     if (c == ' ') {
-        return InputEvent { Key::Space, ' ', {} };
+        return InputEvent { Key::Space, ' ', { } };
     }
 
-    return InputEvent { Key::Character, c, {} };
+    return InputEvent { Key::Character, c, { } };
 #endif
 }
 

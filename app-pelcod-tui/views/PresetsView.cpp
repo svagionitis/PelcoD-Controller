@@ -4,7 +4,9 @@
 #include "PresetsView.h"
 #include "UtfSymbols.h"
 
+#include <cstdint>
 #include <iomanip>
+#include <memory>
 #include <sstream>
 
 namespace PelcoDTui {
@@ -40,7 +42,7 @@ void PresetsView::render(Canvas& canvas, int startY, int width, int height)
         const int y = startRow + row;
 
         const bool isSelected = (i == m_selectedIndex);
-        Style itemStyle {};
+        Style itemStyle { };
         if (isSelected) {
             itemStyle = Style { Colors::Black, Colors::Cyan, true, false, false, false, false };
         } else {

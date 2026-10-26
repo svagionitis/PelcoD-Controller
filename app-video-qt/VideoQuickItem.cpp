@@ -8,6 +8,7 @@
 #include <QQuickWindow>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 namespace VideoApp {
 
@@ -169,7 +170,7 @@ void VideoQuickItem::bindWindow(QQuickWindow* window)
 {
     if (m_swapConnection) {
         static_cast<void>(disconnect(m_swapConnection));
-        m_swapConnection = QMetaObject::Connection {};
+        m_swapConnection = QMetaObject::Connection { };
     }
     if (window != nullptr) {
         // Direct: frameSwapped is emitted on the render thread right after the swap.

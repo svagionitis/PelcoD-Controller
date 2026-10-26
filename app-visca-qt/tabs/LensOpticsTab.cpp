@@ -6,6 +6,7 @@
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
+#include <cstdint>
 
 namespace ViscaApp {
 
@@ -192,39 +193,39 @@ void LensOpticsTab::updateModelCapabilities(
     Visca::Sony::SonyCameraModelType /*modelType*/, const Visca::Sony::CameraCapabilities& caps)
 {
     m_capabilities = caps;
-    updateFocalLengthDisplay(static_cast<uint16_t>(sliderZoom->value()));
+    updateFocalLengthDisplay(static_cast<std::uint16_t>(sliderZoom->value()));
 }
 
-void LensOpticsTab::updateFocalLengthDisplay(uint16_t zoomPos)
+void LensOpticsTab::updateFocalLengthDisplay(std::uint16_t zoomPos)
 {
     const double focalMm = m_capabilities.calculateFocalLength(zoomPos);
     const double zoomRatio = 1.0 + (static_cast<double>(zoomPos) / 0x4000) * (m_capabilities.maxOpticalZoomRatio - 1.0);
 
     lblFocalLength->setText(tr("Focal Length: %1 mm  |  Optical Zoom: %2x\n(%3)")
-                                .arg(focalMm, 0, 'f', 1)
-                                .arg(zoomRatio, 0, 'f', 1)
-                                .arg(QString::fromStdString(m_capabilities.modelName)));
+            .arg(focalMm, 0, 'f', 1)
+            .arg(zoomRatio, 0, 'f', 1)
+            .arg(QString::fromStdString(m_capabilities.modelName)));
 }
 
 void LensOpticsTab::handleDirectZoomChanged(int value)
 {
-    updateFocalLengthDisplay(static_cast<uint16_t>(value));
+    updateFocalLengthDisplay(static_cast<std::uint16_t>(value));
     if (!m_updatingFromTelemetry && m_device) {
-        m_device->setZoomDirect(static_cast<uint16_t>(value));
+        m_device->setZoomDirect(static_cast<std::uint16_t>(value));
     }
 }
 
 void LensOpticsTab::handleZoomTelePressed()
 {
     if (m_device) {
-        m_device->zoomTele(static_cast<uint8_t>(sliderZoomSpeed->value()));
+        m_device->zoomTele(static_cast<std::uint8_t>(sliderZoomSpeed->value()));
     }
 }
 
 void LensOpticsTab::handleZoomWidePressed()
 {
     if (m_device) {
-        m_device->zoomWide(static_cast<uint8_t>(sliderZoomSpeed->value()));
+        m_device->zoomWide(static_cast<std::uint8_t>(sliderZoomSpeed->value()));
     }
 }
 
@@ -251,13 +252,13 @@ void LensOpticsTab::handleFocusAutoToggled(bool checked)
 void LensOpticsTab::handleDirectFocusChanged(int value)
 {
     if (!m_updatingFromTelemetry && m_device && !chkAutoFocus->isChecked()) {
-        m_device->setFocusDirect(static_cast<uint16_t>(value));
+        m_device->setFocusDirect(static_cast<std::uint16_t>(value));
     }
 }
 
 void LensOpticsTab::handleFocusNearLimitChanged(int index)
 {
-    const uint16_t limit = static_cast<uint16_t>(cmbNearLimit->itemData(index).toUInt());
+    const std::uint16_t limit = static_cast<std::uint16_t>(cmbNearLimit->itemData(index).toUInt());
     if (m_device) {
         m_device->setFocusNearLimit(limit);
     }

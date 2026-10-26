@@ -7,6 +7,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QVBoxLayout>
+#include <cstdint>
 
 namespace PelcoDApp {
 
@@ -123,10 +124,10 @@ void MockDynamicsDialog::setupUi()
     mainLayout->addLayout(btnLayout);
 
     // Connections
-    connect(cmbKinematicsPreset, QOverload<int>::of(&QComboBox::currentIndexChanged),
-        this, &MockDynamicsDialog::onKinematicsPresetChanged);
-    connect(cmbLatencyPreset, QOverload<int>::of(&QComboBox::currentIndexChanged),
-        this, &MockDynamicsDialog::onLatencyPresetChanged);
+    connect(cmbKinematicsPreset, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        &MockDynamicsDialog::onKinematicsPresetChanged);
+    connect(cmbLatencyPreset, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+        &MockDynamicsDialog::onLatencyPresetChanged);
     connect(btnResetIdeal, &QPushButton::clicked, this, &MockDynamicsDialog::onResetToIdeal);
     connect(btnApply, &QPushButton::clicked, this, &QDialog::accept);
     connect(btnCancel, &QPushButton::clicked, this, &QDialog::reject);

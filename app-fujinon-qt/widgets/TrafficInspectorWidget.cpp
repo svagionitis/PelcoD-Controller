@@ -14,8 +14,11 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QTimer>
+#include <cstdint>
 
 #include <limits>
+#include <string>
+#include <vector>
 
 namespace FujinonApp {
 

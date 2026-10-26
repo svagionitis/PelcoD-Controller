@@ -2,6 +2,7 @@
 /// @brief Implementation of TrafficLogModel for QML views.
 
 #include "TrafficLogModel.h"
+#include <cstddef>
 
 TrafficLogModel::TrafficLogModel(QObject* parent, std::size_t maxEntries)
     : QAbstractListModel(parent)
@@ -20,7 +21,7 @@ int TrafficLogModel::rowCount(const QModelIndex& parent) const
 QVariant TrafficLogModel::data(const QModelIndex& index, int role) const
 {
     if (!index.isValid() || index.row() < 0 || static_cast<std::size_t>(index.row()) >= m_entries.size()) {
-        return {};
+        return { };
     }
 
     const auto& entry = m_entries[static_cast<std::size_t>(index.row())];
@@ -38,7 +39,7 @@ QVariant TrafficLogModel::data(const QModelIndex& index, int role) const
     case HexPayloadRole:
         return entry.hexPayload;
     default:
-        return {};
+        return { };
     }
 }
 
