@@ -23,6 +23,9 @@ namespace Onvif {
 
 namespace {
 
+    constexpr std::string_view kPtz1Ns { "http://www.onvif.org/ver10/ptz/wsdl" };
+    constexpr std::string_view kPtz2Ns { "http://www.onvif.org/ver20/ptz/wsdl" };
+
     [[nodiscard]] bool isProfValid(std::string_view prof) noexcept
     {
         return !prof.empty() && prof.rfind("Profile", 0) == 0 && prof.find("Invalid") == std::string_view::npos
@@ -53,7 +56,7 @@ std::string_view PtzService::serviceName() const noexcept
 
 void PtzService::registerRoutes(SoapRouter& router)
 {
-    for (const std::string& ns : { "http://www.onvif.org/ver20/ptz/wsdl", "http://www.onvif.org/ver10/ptz/wsdl" }) {
+    for (const auto& ns : { std::string(kPtz2Ns), std::string(kPtz1Ns) }) {
         router.registerRoute(
             ns, "GetNodes", AccessClass::ReadMedia, [this](const SoapContext& ctx) { return handleGetNodes(ctx); });
         router.registerRoute(
