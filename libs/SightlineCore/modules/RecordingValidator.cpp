@@ -1,13 +1,14 @@
 /// @file RecordingValidator.cpp
 /// @brief Implementation of pre-flight recording and snapshot parameter validation.
 
+#include <cstdint>
+
 #include "RecordingValidator.h"
+#include <string_view>
 
 namespace Sightline {
 
-RecordingStatusCode RecordingValidator::checkFilename(
-    std::string_view filename,
-    std::uint8_t flags) noexcept
+RecordingStatusCode RecordingValidator::checkFilename(std::string_view filename, std::uint8_t flags) noexcept
 {
     if (filename.empty() || filename.size() > MaxFilenameLength) {
         return RecordingStatusCode::ErrInvalidCharacters;
@@ -20,9 +21,7 @@ RecordingStatusCode RecordingValidator::checkFilename(
 
     const char lastChar { filename.back() };
     const bool isDigit { lastChar >= '0' && lastChar <= '9' };
-    const bool allowNumeric {
-        (flags & static_cast<std::uint8_t>(RecordingFlags::AllowNumericOverwrite)) != 0U
-    };
+    const bool allowNumeric { (flags & static_cast<std::uint8_t>(RecordingFlags::AllowNumericOverwrite)) != 0U };
 
     if (isDigit && !allowNumeric) {
         return RecordingStatusCode::ErrNumericFilename;
@@ -31,9 +30,7 @@ RecordingStatusCode RecordingValidator::checkFilename(
     return RecordingStatusCode::Success;
 }
 
-RecordingStatusCode RecordingValidator::checkCamera(
-    std::uint8_t cameraIndex,
-    bool allowAllCameras) noexcept
+RecordingStatusCode RecordingValidator::checkCamera(std::uint8_t cameraIndex, bool allowAllCameras) noexcept
 {
     if (allowAllCameras && cameraIndex == 0xFFU) {
         return RecordingStatusCode::Success;
@@ -46,8 +43,7 @@ RecordingStatusCode RecordingValidator::checkCamera(
     return RecordingStatusCode::Success;
 }
 
-RecordingStatusCode RecordingValidator::checkSnapshot(
-    const MsgDoSnapShotV2& msg) noexcept
+RecordingStatusCode RecordingValidator::checkSnapshot(const MsgDoSnapShotV2& msg) noexcept
 {
     const auto camStatus { checkCamera(msg.cameraIndex, true) };
     if (camStatus != RecordingStatusCode::Success) {
@@ -73,10 +69,7 @@ RecordingStatusCode RecordingValidator::checkSnapshot(
 }
 
 RecordingStatusCode RecordingValidator::checkStorage(
-    StorageDestination destination,
-    std::uint64_t availableBytes,
-    bool isMounted,
-    std::uint32_t& outFreeMB) noexcept
+    StorageDestination destination, std::uint64_t availableBytes, bool isMounted, std::uint32_t& outFreeMB) noexcept
 {
     outFreeMB = static_cast<std::uint32_t>(availableBytes / (1024ULL * 1024ULL));
 

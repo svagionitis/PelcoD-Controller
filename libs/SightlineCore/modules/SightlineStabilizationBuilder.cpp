@@ -1,8 +1,11 @@
 /// @file SightlineStabilizationBuilder.cpp
 /// @brief Implementation of Sightline video stabilization command serializers.
 
-#include "SightlineStabilizationBuilder.h"
+#include <cstdint>
+
 #include "SightlineBlendingBuilder.h"
+#include "SightlineStabilizationBuilder.h"
+#include <vector>
 
 namespace Sightline {
 
@@ -22,7 +25,7 @@ std::vector<std::uint8_t> SightlineStabilizationBuilder::buildResetStabilization
 
 std::vector<std::uint8_t> SightlineStabilizationBuilder::buildSetStabilizationBias(const MsgSetStabilizationBias& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(7U);
     payload.push_back(msg.cameraIndex);
     SightlineFraming::appendS16Le(payload, msg.biasCol);
@@ -34,7 +37,7 @@ std::vector<std::uint8_t> SightlineStabilizationBuilder::buildSetStabilizationBi
 
 std::vector<std::uint8_t> SightlineStabilizationBuilder::buildSetRegistration(const MsgSetRegistrationParameters& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(15U);
     payload.push_back(msg.cameraIndex);
     SightlineFraming::appendU16Le(payload, msg.maxTranslation);
@@ -77,7 +80,7 @@ MsgSetStabilizationBias SightlineStabilizationBuilder::calcGimbalBias(double pan
     std::uint16_t vRes, double hFov, double vFov, double fps, std::uint8_t cameraIndex, std::uint8_t autoBias,
     std::uint8_t updateRate)
 {
-    MsgSetStabilizationBias out {};
+    MsgSetStabilizationBias out { };
     out.cameraIndex = cameraIndex;
     out.autoBias = autoBias;
     out.updateRate = updateRate;
@@ -96,7 +99,7 @@ MsgSetStabilizationBias SightlineStabilizationBuilder::calcGimbalBias(double pan
 MsgSetRegistrationParameters SightlineStabilizationBuilder::makeRegistrationPreset(
     StabilizationPreset preset, std::uint8_t cameraIndex)
 {
-    MsgSetRegistrationParameters params {};
+    MsgSetRegistrationParameters params { };
     params.cameraIndex = cameraIndex;
 
     switch (preset) {
@@ -140,7 +143,7 @@ MsgSetRegistrationParameters SightlineStabilizationBuilder::makeRegistrationPres
 MsgSetStabilizationParameters SightlineStabilizationBuilder::makeStabilizationPreset(
     StabilizationPreset preset, std::uint8_t cameraIndex)
 {
-    MsgSetStabilizationParameters params {};
+    MsgSetStabilizationParameters params { };
     params.cameraIndex = cameraIndex;
     params.mode = 1U; // Stabilization ON
 
@@ -170,7 +173,7 @@ MsgSetStabilizationParameters SightlineStabilizationBuilder::makeStabilizationPr
 MsgSetStabilizationBias SightlineStabilizationBuilder::makeBiasPreset(
     StabilizationPreset preset, std::uint8_t cameraIndex)
 {
-    MsgSetStabilizationBias bias {};
+    MsgSetStabilizationBias bias { };
     bias.cameraIndex = cameraIndex;
     bias.biasCol = 0;
     bias.biasRow = 0;

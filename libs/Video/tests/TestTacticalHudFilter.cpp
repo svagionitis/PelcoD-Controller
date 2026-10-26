@@ -5,18 +5,20 @@
 
 #include <gtest/gtest.h>
 
-#include "TacticalHudFilter.h"
 #include "DecoderTypes.h"
 #include "KlvTypes.h"
+#include "TacticalHudFilter.h"
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
 using namespace Video::Filters;
 
-TEST(TestTacticalHud, AngleFmt) {
+TEST(TestTacticalHud, AngleFmt)
+{
     // Standard ST 1909.1 angle test: 5 digits before, 4 digits after
     const std::string az1 = TacticalHudFilter::formatSt1909Angle(160.7191, 5, 4);
     EXPECT_EQ(az1, "  160.7191*");
@@ -43,7 +45,8 @@ TEST(TestTacticalHud, AngleFmt) {
     EXPECT_EQ(na, "N/A");
 }
 
-TEST(TestTacticalHud, MeterFmt) {
+TEST(TestTacticalHud, MeterFmt)
+{
     // 7 digits for Slant Range / Target Width
     const std::string sr1 = TacticalHudFilter::formatSt1909Meters(14265.0, 7);
     EXPECT_EQ(sr1, "  14265m");
@@ -63,7 +66,8 @@ TEST(TestTacticalHud, MeterFmt) {
     EXPECT_EQ(na, "N/A");
 }
 
-TEST(TestTacticalHud, TimeFmt) {
+TEST(TestTacticalHud, TimeFmt)
+{
     // 2019-06-30T13:45:29.8Z = 1561902329800000 microseconds
     const std::uint64_t epochUs = 1561902329800000ULL;
     const std::string timeStr = TacticalHudFilter::formatSt1909IsoTime(epochUs);
@@ -74,12 +78,13 @@ TEST(TestTacticalHud, TimeFmt) {
     EXPECT_EQ(TacticalHudFilter::formatSt1909IsoTime(std::nullopt), "N/A");
 }
 
-TEST(TestTacticalHud, MisbRender) {
+TEST(TestTacticalHud, MisbRender)
+{
     TacticalHudFilter hud(TacticalHudFilter::HudMode::Misb1909);
     EXPECT_EQ(hud.getMode(), TacticalHudFilter::HudMode::Misb1909);
 
     // Populate platform and target data
-    TacticalHudFilter::PlatformData plat {};
+    TacticalHudFilter::PlatformData plat { };
     plat.designation = "MQ-9";
     plat.tailNumber = "AF02-014";
     plat.latitudeDeg = 34.2500;
@@ -93,7 +98,7 @@ TEST(TestTacticalHud, MisbRender) {
     plat.timestampUs = 1561902329800000ULL;
     hud.setPlatformData(plat);
 
-    TacticalHudFilter::TargetData tgt {};
+    TacticalHudFilter::TargetData tgt { };
     tgt.latitudeDeg = 34.2600;
     tgt.longitudeDeg = -116.1100;
     tgt.elevationM = 500.0;
@@ -129,10 +134,11 @@ TEST(TestTacticalHud, MisbRender) {
     EXPECT_GT(modifiedAfter, 1000U);
 }
 
-TEST(TestTacticalHud, TargetTrueLoc) {
+TEST(TestTacticalHud, TargetTrueLoc)
+{
     TacticalHudFilter hud(TacticalHudFilter::HudMode::Misb1909);
 
-    TacticalHudFilter::TargetData tgt {};
+    TacticalHudFilter::TargetData tgt { };
     tgt.latitudeDeg = 36.1234;
     tgt.longitudeDeg = -115.5678;
     tgt.elevationM = 620.0;
@@ -147,10 +153,11 @@ TEST(TestTacticalHud, TargetTrueLoc) {
     EXPECT_DOUBLE_EQ(*retrieved.latitudeDeg, 36.1234);
 }
 
-TEST(TestTacticalHud, LaserPrf) {
+TEST(TestTacticalHud, LaserPrf)
+{
     TacticalHudFilter hud(TacticalHudFilter::HudMode::Misb1909);
 
-    TacticalHudFilter::LaserData laser {};
+    TacticalHudFilter::LaserData laser { };
     laser.name = "LTD-500";
     laser.active = true;
     laser.prfCode = 1688U;
@@ -163,10 +170,11 @@ TEST(TestTacticalHud, LaserPrf) {
     EXPECT_EQ(*retrieved.prfCode, 1688U);
 }
 
-TEST(TestTacticalHud, IngestKlv) {
+TEST(TestTacticalHud, IngestKlv)
+{
     TacticalHudFilter hud(TacticalHudFilter::HudMode::Misb1909);
 
-    Klv::UasDatalinkMessage msg {};
+    Klv::UasDatalinkMessage msg { };
     msg.platformDesignation = "ScanEagle";
     msg.platformTailNumber = "N123SE";
     msg.sensorLatitudeDeg = 32.5555;

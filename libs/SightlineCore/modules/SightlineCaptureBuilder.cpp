@@ -1,7 +1,10 @@
 /// @file SightlineCaptureBuilder.cpp
 /// @brief Implementation of Sightline capture command serializers.
 
+#include <cstdint>
+
 #include "SightlineCaptureBuilder.h"
+#include <vector>
 
 namespace Sightline {
 
@@ -26,7 +29,7 @@ std::vector<std::uint8_t> SightlineCaptureBuilder::buildGetVideoParameters(std::
 
 std::vector<std::uint8_t> SightlineCaptureBuilder::buildGetVideoMode()
 {
-    return SightlineFraming::buildPacket(MessageId::GetVideoMode, {});
+    return SightlineFraming::buildPacket(MessageId::GetVideoMode, { });
 }
 
 std::vector<std::uint8_t> SightlineCaptureBuilder::buildCameraSwitch(const MsgCameraSwitch& msg)
@@ -37,7 +40,7 @@ std::vector<std::uint8_t> SightlineCaptureBuilder::buildCameraSwitch(const MsgCa
 
 std::vector<std::uint8_t> SightlineCaptureBuilder::buildSetAdvCaptureParams(const MsgAdvancedCaptureParameters& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(8U);
     payload.push_back(msg.cameraIndex);
     payload.push_back(msg.bitDepth);
@@ -74,10 +77,9 @@ std::vector<std::uint8_t> SightlineCaptureBuilder::buildGetCameraCapabilities(st
     return SightlineFraming::buildPacket(MessageId::GetParameters, payload);
 }
 
-std::vector<std::uint8_t> SightlineCaptureBuilder::buildSetDigitalCameraParams(
-    const MsgDigitalCameraParameters& msg)
+std::vector<std::uint8_t> SightlineCaptureBuilder::buildSetDigitalCameraParams(const MsgDigitalCameraParameters& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(22U);
     payload.push_back(msg.cameraIndex);
     payload.push_back(static_cast<std::uint8_t>(msg.mode));
@@ -101,9 +103,8 @@ std::vector<std::uint8_t> SightlineCaptureBuilder::buildSetDigitalCameraParams(
 
 std::vector<std::uint8_t> SightlineCaptureBuilder::buildGetDigitalCameraParams(std::uint8_t cameraIndex)
 {
-    const std::vector<std::uint8_t> payload {
-        static_cast<std::uint8_t>(MessageId::SetDigitalCameraParameters), cameraIndex
-    };
+    const std::vector<std::uint8_t> payload { static_cast<std::uint8_t>(MessageId::SetDigitalCameraParameters),
+        cameraIndex };
     return SightlineFraming::buildPacket(MessageId::GetParameters, payload);
 }
 

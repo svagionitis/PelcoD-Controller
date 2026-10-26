@@ -7,11 +7,13 @@
 #include <SightlineCore/modules/SightlineNucBuilder.h>
 #include <SightlineCore/modules/SightlineOverlayBuilder.h>
 #include <Transport/BaseTransport.h>
+#include <cstdint>
 
 #include <gtest/gtest.h>
 
 #include <QCoreApplication>
 #include <QSignalSpy>
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -65,7 +67,7 @@ public:
 private:
     mutable std::mutex m_mutex;
     bool m_isOpen { false };
-    std::vector<std::vector<std::uint8_t>> m_sent {};
+    std::vector<std::vector<std::uint8_t>> m_sent { };
 };
 
 int g_argc = 1;
@@ -152,7 +154,7 @@ TEST_F(QSightlineDeviceTest, OverlayCommandSlots)
     QSightlineDevice qDevice(transport);
     ASSERT_TRUE(qDevice.start());
 
-    Sightline::MsgSetOverlayMode modeMsg {};
+    Sightline::MsgSetOverlayMode modeMsg { };
     modeMsg.cameraIndex = 0U;
     EXPECT_TRUE(qDevice.setOverlayMode(modeMsg));
     EXPECT_TRUE(qDevice.getOverlayMode(0U));
@@ -165,7 +167,7 @@ TEST_F(QSightlineDeviceTest, OverlayCommandSlots)
     EXPECT_TRUE(qDevice.destroyOverlay(0U, 1U));
     EXPECT_TRUE(qDevice.destroyAllOverlays(0U));
 
-    Sightline::MsgLogoParameters logoMsg {};
+    Sightline::MsgLogoParameters logoMsg { };
     logoMsg.cameraIndex = 0U;
     EXPECT_TRUE(qDevice.setLogoParameters(logoMsg));
     EXPECT_TRUE(qDevice.getLogoParameters(0U));
@@ -190,14 +192,14 @@ TEST_F(QSightlineDeviceTest, OverlaySignalsAndCache)
     QSignalSpy logoSpy(&qDevice, &QSightlineDevice::logoParametersReceived);
 
     // Inject SetOverlayMode packet (0x06)
-    Sightline::MsgSetOverlayMode modeMsg {};
+    Sightline::MsgSetOverlayMode modeMsg { };
     modeMsg.cameraIndex = 1U;
     modeMsg.graphics = 0x1010U;
     const auto modePkt = Sightline::SightlineOverlayBuilder::buildSetOverlayMode(modeMsg);
     transport->injectData(modePkt);
 
     // Inject LogoParameters packet (0x9B)
-    Sightline::MsgLogoParameters logoMsg {};
+    Sightline::MsgLogoParameters logoMsg { };
     logoMsg.cameraIndex = 1U;
     logoMsg.logoOpacity = 128U;
     logoMsg.offsetX = 50U;
@@ -227,30 +229,30 @@ TEST_F(QSightlineDeviceTest, DetectionCommandSlots)
     QSightlineDevice qDevice(transport);
     ASSERT_TRUE(qDevice.start());
 
-    Sightline::MsgSetDetectionParameters detMsg {};
+    Sightline::MsgSetDetectionParameters detMsg { };
     detMsg.cameraIndex = 0U;
     detMsg.mode = Sightline::DetectionMode::Maritime;
     EXPECT_TRUE(qDevice.setDetection(detMsg));
 
-    Sightline::MsgAdvancedDetectionParameters advMsg {};
+    Sightline::MsgAdvancedDetectionParameters advMsg { };
     advMsg.cameraIndex = 0U;
     EXPECT_TRUE(qDevice.setAdvancedDetection(advMsg));
 
-    Sightline::MsgDetectionROI roiMsg {};
+    Sightline::MsgDetectionROI roiMsg { };
     roiMsg.cameraIndex = 0U;
     EXPECT_TRUE(qDevice.setDetectionROI(roiMsg));
 
-    Sightline::MsgSetVMTI vmtiMsg {};
+    Sightline::MsgSetVMTI vmtiMsg { };
     vmtiMsg.cameraIndex = 0U;
     EXPECT_TRUE(qDevice.setVMTI(vmtiMsg));
 
     EXPECT_TRUE(qDevice.triggerDetectionSnapshot(0U, 1U));
 
-    Sightline::MsgKlvMetricFilters metricMsg {};
+    Sightline::MsgKlvMetricFilters metricMsg { };
     metricMsg.cameraIndex = 0U;
     EXPECT_TRUE(qDevice.setKlvMetricFilters(metricMsg));
 
-    Sightline::MsgClassifierConfig classMsg {};
+    Sightline::MsgClassifierConfig classMsg { };
     classMsg.cameraIndex = 0U;
     EXPECT_TRUE(qDevice.setClassifierConfig(classMsg));
 
@@ -283,7 +285,7 @@ TEST_F(QSightlineDeviceTest, DetectionSignalsAndCache)
     QSignalSpy metricSpy(&qDevice, &QSightlineDevice::klvMetricFiltersReceived);
 
     // 1. Inject CurrentDetectionParameters (0x54)
-    Sightline::MsgSetDetectionParameters detMsg {};
+    Sightline::MsgSetDetectionParameters detMsg { };
     detMsg.cameraIndex = 0U;
     detMsg.mode = Sightline::DetectionMode::Maritime;
     const auto detPkt = Sightline::SightlineProtocolBuilder::buildSetDetectionParams(detMsg);
@@ -293,7 +295,7 @@ TEST_F(QSightlineDeviceTest, DetectionSignalsAndCache)
     transport->injectData(curDetPkt);
 
     // 2. Inject CurrentAdvancedDetectionParameters (0x77)
-    Sightline::MsgAdvancedDetectionParameters advMsg {};
+    Sightline::MsgAdvancedDetectionParameters advMsg { };
     advMsg.cameraIndex = 0U;
     advMsg.updateRate = 42U;
     const auto advPkt = Sightline::SightlineProtocolBuilder::buildSetAdvDetectionParams(advMsg);
@@ -303,7 +305,7 @@ TEST_F(QSightlineDeviceTest, DetectionSignalsAndCache)
     transport->injectData(curAdvPkt);
 
     // 3. Inject CurrentDetectionRegionOfInterestParameters (0x7D)
-    Sightline::MsgDetectionROI roiMsg {};
+    Sightline::MsgDetectionROI roiMsg { };
     roiMsg.cameraIndex = 0U;
     roiMsg.lineLeftX = 140U;
     const auto roiPkt = Sightline::SightlineProtocolBuilder::buildSetDetectionROI(roiMsg);
@@ -313,7 +315,7 @@ TEST_F(QSightlineDeviceTest, DetectionSignalsAndCache)
     transport->injectData(curRoiPkt);
 
     // 4. Inject KlvClassFilters (0xC1)
-    Sightline::MsgKlvMetricFilters metricMsg {};
+    Sightline::MsgKlvMetricFilters metricMsg { };
     metricMsg.cameraIndex = 1U;
     metricMsg.minTargetWidthM = 2.4F;
     const auto klvPkt = Sightline::SightlineProtocolBuilder::buildSetKlvMetricFilters(metricMsg);
@@ -352,29 +354,41 @@ TEST_F(QSightlineDeviceTest, Phase3TrackingAndCoastingSignals)
     QSignalSpy primaryChangeSpy(&qDevice, &QSightlineDevice::primaryTrackChanged);
 
     // Frame 1: Track 0 is primary and tracking; Track 1 is coasting
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.push_back(0U); // cameraIndex = 0
     payload.push_back(2U); // numTracks = 2
     // Track 0
     payload.push_back(0U); // trackId = 0
-    payload.push_back(0x40); payload.push_back(0x01); // col = 320
-    payload.push_back(0xF0); payload.push_back(0x00); // row = 240
-    payload.push_back(0x40); payload.push_back(0x00); // w = 64
-    payload.push_back(0x30); payload.push_back(0x00); // h = 48
-    payload.push_back(0x00); payload.push_back(0x00); // velCol = 0
-    payload.push_back(0x00); payload.push_back(0x00); // velRow = 0
-    payload.push_back(95U);   // byte 13: conf = 95 (bit 7 = 0, not coasting)
+    payload.push_back(0x40);
+    payload.push_back(0x01); // col = 320
+    payload.push_back(0xF0);
+    payload.push_back(0x00); // row = 240
+    payload.push_back(0x40);
+    payload.push_back(0x00); // w = 64
+    payload.push_back(0x30);
+    payload.push_back(0x00); // h = 48
+    payload.push_back(0x00);
+    payload.push_back(0x00); // velCol = 0
+    payload.push_back(0x00);
+    payload.push_back(0x00); // velRow = 0
+    payload.push_back(95U); // byte 13: conf = 95 (bit 7 = 0, not coasting)
     payload.push_back(0x01U); // byte 14: flags = primary (bit 0)
     // Track 1
     payload.push_back(1U); // trackId = 1
-    payload.push_back(0x50); payload.push_back(0x01); // col = 336
-    payload.push_back(0xFA); payload.push_back(0x00); // row = 250
-    payload.push_back(0x20); payload.push_back(0x00); // w = 32
-    payload.push_back(0x20); payload.push_back(0x00); // h = 32
-    payload.push_back(0x00); payload.push_back(0x00); // velCol = 0
-    payload.push_back(0x00); payload.push_back(0x00); // velRow = 0
+    payload.push_back(0x50);
+    payload.push_back(0x01); // col = 336
+    payload.push_back(0xFA);
+    payload.push_back(0x00); // row = 250
+    payload.push_back(0x20);
+    payload.push_back(0x00); // w = 32
+    payload.push_back(0x20);
+    payload.push_back(0x00); // h = 32
+    payload.push_back(0x00);
+    payload.push_back(0x00); // velCol = 0
+    payload.push_back(0x00);
+    payload.push_back(0x00); // velRow = 0
     payload.push_back(0x80U | 50U); // byte 13: conf = coasting (bit 7 set)
-    payload.push_back(0x00U);       // byte 14: flags = non-primary
+    payload.push_back(0x00U); // byte 14: flags = non-primary
 
     const auto pkt1 = Sightline::SightlineFraming::buildPacket(Sightline::MessageId::TrackingPositions, payload);
     transport->injectData(pkt1);
@@ -468,7 +482,7 @@ TEST_F(QSightlineDeviceTest, SetTrackingParametersSlotAndSignal)
     ASSERT_TRUE(qDevice.start());
 
     // 1. Dispatch setTrackingParameters slot
-    Sightline::MsgSetTrackingParameters params {};
+    Sightline::MsgSetTrackingParameters params { };
     params.cameraIndex = 1U;
     params.mode = 5U; // Drone
     params.flags = 0x05U; // AcqAssist | Color
@@ -503,22 +517,23 @@ TEST_F(QSightlineDeviceTest, SetTrackingParametersSlotAndSignal)
     QSignalSpy paramSpy(&qDevice, &QSightlineDevice::trackingParametersReceived);
 
     std::vector<std::uint8_t> payload {
-        32U,   // 0: objectSize
-        6U,    // 1: mode (Person)
-        0U,    // 2: mode2
-        30U,   // 3: maxMisses
+        32U, // 0: objectSize
+        6U, // 1: mode (Person)
+        0U, // 2: mode2
+        30U, // 3: maxMisses
         0x00U, 0x00U, // 4-5: nearVal
-        32U,   // 6: objectHeight
-        2U,    // 7: cameraIndex
-        15U,   // 8: zoomSmoothing
-        8U,    // 9: rollSmoothing
-        10U,   // 10: maxTracks
+        32U, // 6: objectHeight
+        2U, // 7: cameraIndex
+        15U, // 8: zoomSmoothing
+        8U, // 9: rollSmoothing
+        10U, // 10: maxTracks
         0x80U, 0x01U, // 11-12: acquisitionSearchCol (384)
         0x20U, 0x01U, // 13-14: acquisitionSearchRow (288)
         0x12U, // 15: flags (IntelAssist | Unique)
-        5U     // 16: maxPauseTime
+        5U // 16: maxPauseTime
     };
-    const auto packet = Sightline::SightlineFraming::buildPacket(Sightline::MessageId::CurrentTrackingParameters, payload);
+    const auto packet
+        = Sightline::SightlineFraming::buildPacket(Sightline::MessageId::CurrentTrackingParameters, payload);
     transport->injectData(packet);
 
     QCoreApplication::processEvents();
@@ -546,7 +561,7 @@ TEST_F(QSightlineDeviceTest, BlendingCommandSlots)
     QSightlineDevice qDevice(transport);
     ASSERT_TRUE(qDevice.start());
 
-    Sightline::MsgSetBlendParameters blendMsg {};
+    Sightline::MsgSetBlendParameters blendMsg { };
     blendMsg.warpIndex = 1U;
     blendMsg.fixedIndex = 0U;
     blendMsg.mode = Sightline::BlendMode::FrameBlendWarpEo;
@@ -554,18 +569,18 @@ TEST_F(QSightlineDeviceTest, BlendingCommandSlots)
     EXPECT_TRUE(qDevice.setBlend(blendMsg));
     EXPECT_TRUE(qDevice.getBlendParameters());
 
-    Sightline::MsgFourAlignPoints ptsMsg {};
+    Sightline::MsgFourAlignPoints ptsMsg { };
     ptsMsg.index = 2U;
     EXPECT_TRUE(qDevice.setFourAlignPoints(ptsMsg));
     EXPECT_TRUE(qDevice.getFourAlignPoints(2U));
 
-    Sightline::MsgBlendAlign alignMsg {};
+    Sightline::MsgBlendAlign alignMsg { };
     alignMsg.index = 1U;
     alignMsg.zoom = 4096U;
     EXPECT_TRUE(qDevice.setBlendAlign(alignMsg));
     EXPECT_TRUE(qDevice.getBlendAlign(1U));
 
-    Sightline::MsgSetMultipleAlignment multiMsg {};
+    Sightline::MsgSetMultipleAlignment multiMsg { };
     EXPECT_TRUE(qDevice.setMultipleAlignment(multiMsg));
     EXPECT_TRUE(qDevice.getMultipleAlignment());
 
@@ -589,7 +604,7 @@ TEST_F(QSightlineDeviceTest, BlendingSignalsAndCache)
     QSignalSpy multiSpy(&qDevice, &QSightlineDevice::multipleAlignmentReceived);
 
     // 1. Inject MsgSetBlendParameters (0x2F)
-    Sightline::MsgSetBlendParameters blendMsg {};
+    Sightline::MsgSetBlendParameters blendMsg { };
     blendMsg.warpIndex = 1U;
     blendMsg.fixedIndex = 0U;
     blendMsg.mode = Sightline::BlendMode::ThermalBlendWarpEo;
@@ -597,29 +612,28 @@ TEST_F(QSightlineDeviceTest, BlendingSignalsAndCache)
     transport->injectData(Sightline::SightlineBlendingBuilder::buildSetBlendParameters(blendMsg));
 
     // 2. Inject MsgCurrentBlendParameters (0x4D)
-    const std::vector<std::uint8_t> curBlendPayload {
-        0x01U, 10U, 25U, 2U, 5U, 0U, 128U,
-        static_cast<std::uint8_t>(Sightline::BlendMode::FrameBlendWarpEo),
-        180U, 0U, 0x01U, 0U, 0U, 1U, 1U, 0U, 128U, 10U, 50U
-    };
-    transport->injectData(Sightline::SightlineFraming::buildPacket(Sightline::MessageId::CurrentBlendParameters, curBlendPayload));
+    const std::vector<std::uint8_t> curBlendPayload { 0x01U, 10U, 25U, 2U, 5U, 0U, 128U,
+        static_cast<std::uint8_t>(Sightline::BlendMode::FrameBlendWarpEo), 180U, 0U, 0x01U, 0U, 0U, 1U, 1U, 0U, 128U,
+        10U, 50U };
+    transport->injectData(
+        Sightline::SightlineFraming::buildPacket(Sightline::MessageId::CurrentBlendParameters, curBlendPayload));
 
     // 3. Inject MsgFourAlignPoints (0x95)
-    Sightline::MsgFourAlignPoints ptsMsg {};
+    Sightline::MsgFourAlignPoints ptsMsg { };
     ptsMsg.index = 1U;
     ptsMsg.points[0].leftCol = 10;
     ptsMsg.points[0].leftRow = 20;
     transport->injectData(Sightline::SightlineBlendingBuilder::buildFourAlignPoints(ptsMsg));
 
     // 4. Inject MsgBlendAlign (0xB9)
-    Sightline::MsgBlendAlign alignMsg {};
+    Sightline::MsgBlendAlign alignMsg { };
     alignMsg.index = 1U;
     alignMsg.rotate = 45U * 128U;
     alignMsg.zoom = 4096U;
     transport->injectData(Sightline::SightlineBlendingBuilder::buildSetBlendAlign(alignMsg));
 
     // 5. Inject MsgSetMultipleAlignment (0x74)
-    Sightline::MsgSetMultipleAlignment multiMsg {};
+    Sightline::MsgSetMultipleAlignment multiMsg { };
     multiMsg.nAlignments = 1U;
     multiMsg.alignment[0].horizontal = 5U;
     multiMsg.alignment[0].vertical = 10U;
@@ -666,15 +680,15 @@ TEST_F(QSightlineDeviceTest, NucSignalsAndFramedSend)
     QSignalSpy statsSpy(&qDevice, &QSightlineDevice::deadStatsReceived);
     QSignalSpy noiseSpy(&qDevice, &QSightlineDevice::noiseStatsReceived);
 
-    transport->injectData(Sightline::SightlineNucBuilder::buildNucParameters(Sightline::MsgNucParameters {}));
-    Sightline::MsgReadWriteNuc table {};
+    transport->injectData(Sightline::SightlineNucBuilder::buildNucParameters(Sightline::MsgNucParameters { }));
+    Sightline::MsgReadWriteNuc table { };
     table.fileOp = Sightline::NucFileOp::LoadNuc;
     table.fileName = "zoom1";
     transport->injectData(Sightline::SightlineNucBuilder::buildReadWriteNuc(table));
     transport->injectData(Sightline::SightlineFraming::buildPacket(
         Sightline::MessageId::DeadPixelStats, std::vector<std::uint8_t>(33U, 0U)));
-    transport->injectData(Sightline::SightlineFraming::buildPacket(
-        Sightline::MessageId::Noise3D, std::vector<std::uint8_t>(17U, 0U)));
+    transport->injectData(
+        Sightline::SightlineFraming::buildPacket(Sightline::MessageId::Noise3D, std::vector<std::uint8_t>(17U, 0U)));
 
     QCoreApplication::processEvents();
 

@@ -3,6 +3,7 @@
 
 #include "TransactionalStorageWriter.h"
 
+#include <cstdint>
 #include <filesystem>
 #include <utility>
 
@@ -13,28 +14,31 @@
 #endif
 #include <windows.h>
 #else
+#include <string>
+#include <string_view>
 #include <unistd.h>
+#include <vector>
 #endif
 
 namespace Sightline {
 
 namespace {
 
-void writeUint32Be(std::vector<std::uint8_t>& buf, std::uint32_t val)
-{
-    buf.push_back(static_cast<std::uint8_t>((val >> 24U) & 0xFFU));
-    buf.push_back(static_cast<std::uint8_t>((val >> 16U) & 0xFFU));
-    buf.push_back(static_cast<std::uint8_t>((val >> 8U) & 0xFFU));
-    buf.push_back(static_cast<std::uint8_t>(val & 0xFFU));
-}
+    void writeUint32Be(std::vector<std::uint8_t>& buf, std::uint32_t val)
+    {
+        buf.push_back(static_cast<std::uint8_t>((val >> 24U) & 0xFFU));
+        buf.push_back(static_cast<std::uint8_t>((val >> 16U) & 0xFFU));
+        buf.push_back(static_cast<std::uint8_t>((val >> 8U) & 0xFFU));
+        buf.push_back(static_cast<std::uint8_t>(val & 0xFFU));
+    }
 
-void writeFourCC(std::vector<std::uint8_t>& buf, const char code[4])
-{
-    buf.push_back(static_cast<std::uint8_t>(code[0]));
-    buf.push_back(static_cast<std::uint8_t>(code[1]));
-    buf.push_back(static_cast<std::uint8_t>(code[2]));
-    buf.push_back(static_cast<std::uint8_t>(code[3]));
-}
+    void writeFourCC(std::vector<std::uint8_t>& buf, const char code[4])
+    {
+        buf.push_back(static_cast<std::uint8_t>(code[0]));
+        buf.push_back(static_cast<std::uint8_t>(code[1]));
+        buf.push_back(static_cast<std::uint8_t>(code[2]));
+        buf.push_back(static_cast<std::uint8_t>(code[3]));
+    }
 
 } // namespace
 
@@ -82,7 +86,7 @@ bool TransactionalStorageWriter::startTransaction(std::string_view destinationPa
     m_stagingPath = m_destinationPath + ".tmp";
 
     // Ensure parent directories exist
-    std::error_code ec {};
+    std::error_code ec { };
     const std::filesystem::path p(m_stagingPath);
     if (p.has_parent_path()) {
         std::filesystem::create_directories(p.parent_path(), ec);
@@ -170,13 +174,11 @@ bool TransactionalStorageWriter::commit()
     m_fileHandle = nullptr;
 
     // Atomically rename staging file to final destination
-    std::error_code ec {};
+    std::error_code ec { };
 #ifdef _WIN32
     if (MoveFileExA(
-            m_stagingPath.c_str(),
-            m_destinationPath.c_str(),
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) == FALSE)
-    {
+            m_stagingPath.c_str(), m_destinationPath.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)
+        == FALSE) {
         // Fallback using std::filesystem
         std::filesystem::remove(m_destinationPath, ec);
         std::filesystem::rename(m_stagingPath, m_destinationPath, ec);
@@ -207,7 +209,7 @@ void TransactionalStorageWriter::abort()
     }
 
     if (!m_stagingPath.empty()) {
-        std::error_code ec {};
+        std::error_code ec { };
         std::filesystem::remove(m_stagingPath, ec);
         m_stagingPath.clear();
     }
@@ -238,7 +240,7 @@ std::uint64_t TransactionalStorageWriter::bytesWritten() const noexcept
 
 std::vector<std::uint8_t> TransactionalStorageWriter::buildFtypBox()
 {
-    std::vector<std::uint8_t> box {};
+    std::vector<std::uint8_t> box { };
     box.reserve(32U);
 
     writeUint32Be(box, 32U); // Box total length
@@ -258,7 +260,7 @@ std::vector<std::uint8_t> TransactionalStorageWriter::buildMoovHeader(
     std::uint32_t width, std::uint32_t height, std::uint32_t timescale)
 {
     // Minimal valid moov declaring fragmented movie (mvex + trex)
-    std::vector<std::uint8_t> box {};
+    std::vector<std::uint8_t> box { };
     box.reserve(160U);
 
     // Placeholder for moov box size
@@ -270,7 +272,9 @@ std::vector<std::uint8_t> TransactionalStorageWriter::buildMoovHeader(
     writeUint32Be(box, 108U);
     writeFourCC(box, "mvhd");
     box.push_back(0U); // version 0
-    box.push_back(0U); box.push_back(0U); box.push_back(0U); // flags
+    box.push_back(0U);
+    box.push_back(0U);
+    box.push_back(0U); // flags
     writeUint32Be(box, 0U); // creation time
     writeUint32Be(box, 0U); // modification time
     writeUint32Be(box, timescale); // timescale
@@ -281,9 +285,15 @@ std::vector<std::uint8_t> TransactionalStorageWriter::buildMoovHeader(
         box.push_back(0U); // reserved
     }
     // Unity matrix (3x3 fixed point 16.16)
-    writeUint32Be(box, 0x00010000U); writeUint32Be(box, 0U); writeUint32Be(box, 0U);
-    writeUint32Be(box, 0U); writeUint32Be(box, 0x00010000U); writeUint32Be(box, 0U);
-    writeUint32Be(box, 0U); writeUint32Be(box, 0U); writeUint32Be(box, 0x40000000U);
+    writeUint32Be(box, 0x00010000U);
+    writeUint32Be(box, 0U);
+    writeUint32Be(box, 0U);
+    writeUint32Be(box, 0U);
+    writeUint32Be(box, 0x00010000U);
+    writeUint32Be(box, 0U);
+    writeUint32Be(box, 0U);
+    writeUint32Be(box, 0U);
+    writeUint32Be(box, 0x40000000U);
     for (std::size_t i = 0; i < 24; ++i) {
         box.push_back(0U); // pre-defined
     }
@@ -297,7 +307,9 @@ std::vector<std::uint8_t> TransactionalStorageWriter::buildMoovHeader(
     writeUint32Be(box, 32U);
     writeFourCC(box, "trex");
     box.push_back(0U); // version
-    box.push_back(0U); box.push_back(0U); box.push_back(0U); // flags
+    box.push_back(0U);
+    box.push_back(0U);
+    box.push_back(0U); // flags
     writeUint32Be(box, 1U); // track_ID = 1
     writeUint32Be(box, 1U); // default_sample_description_index = 1
     writeUint32Be(box, 3000U); // default_sample_duration
@@ -320,7 +332,7 @@ std::vector<std::uint8_t> TransactionalStorageWriter::buildMoovHeader(
 std::vector<std::uint8_t> TransactionalStorageWriter::buildFragment(
     std::uint32_t seq, const std::vector<std::uint8_t>& payload, std::uint32_t durationTicks)
 {
-    std::vector<std::uint8_t> fragment {};
+    std::vector<std::uint8_t> fragment { };
     fragment.reserve(128U + payload.size());
 
     // --- moof (Movie Fragment Box) ---
@@ -332,7 +344,9 @@ std::vector<std::uint8_t> TransactionalStorageWriter::buildFragment(
     writeUint32Be(fragment, 16U);
     writeFourCC(fragment, "mfhd");
     fragment.push_back(0U); // version
-    fragment.push_back(0U); fragment.push_back(0U); fragment.push_back(0U); // flags
+    fragment.push_back(0U);
+    fragment.push_back(0U);
+    fragment.push_back(0U); // flags
     writeUint32Be(fragment, seq); // sequence_number
 
     // traf (Track Fragment Box)
@@ -344,7 +358,9 @@ std::vector<std::uint8_t> TransactionalStorageWriter::buildFragment(
     writeUint32Be(fragment, 16U);
     writeFourCC(fragment, "tfhd");
     fragment.push_back(0U); // version
-    fragment.push_back(0U); fragment.push_back(0U); fragment.push_back(0x02U); // flags (default_sample_duration_present)
+    fragment.push_back(0U);
+    fragment.push_back(0U);
+    fragment.push_back(0x02U); // flags (default_sample_duration_present)
     writeUint32Be(fragment, 1U); // track_ID = 1
     writeUint32Be(fragment, durationTicks); // default sample duration
 
@@ -352,7 +368,9 @@ std::vector<std::uint8_t> TransactionalStorageWriter::buildFragment(
     writeUint32Be(fragment, 24U);
     writeFourCC(fragment, "trun");
     fragment.push_back(0U); // version
-    fragment.push_back(0U); fragment.push_back(0x02U); fragment.push_back(0x01U); // data_offset_present | first_sample_flags_present
+    fragment.push_back(0U);
+    fragment.push_back(0x02U);
+    fragment.push_back(0x01U); // data_offset_present | first_sample_flags_present
     writeUint32Be(fragment, 1U); // sample_count = 1
     // data_offset placeholder: computed after moof size is known
     const std::size_t dataOffsetPos = fragment.size();

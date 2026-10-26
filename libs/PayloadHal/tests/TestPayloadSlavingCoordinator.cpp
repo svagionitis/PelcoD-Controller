@@ -1,12 +1,14 @@
 #include <gtest/gtest.h>
 
+#include "GimbalSectorBlanking.h"
 #include "PayloadHal.h"
 #include "PayloadSlavingCoordinator.h"
-#include "GimbalSectorBlanking.h"
 #include "sim/SimulatedPayload.h"
 
 #include <cmath>
+
 #include <memory>
+#include <string>
 
 using namespace PayloadHal;
 
@@ -259,8 +261,8 @@ TEST(TestPayloadSlavingCoordinator, CandidateSlaveSelectionAndAutonomousHandover
     // Coordinator should cue Turret 2
     EXPECT_TRUE(callbackFired);
     EXPECT_EQ(coord.statusReport().candidateSlaveId, "Turret2");
-    EXPECT_TRUE(coord.handoverState() == HandoverState::CueingSlave ||
-                coord.handoverState() == HandoverState::SlaveConverging);
+    EXPECT_TRUE(
+        coord.handoverState() == HandoverState::CueingSlave || coord.handoverState() == HandoverState::SlaveConverging);
 
     // Simulate Turret 2 PTU arriving at the slaved angle (38 deg)
     p2->panTilt()->setAbsoluteAngles(38.0, 0.0);

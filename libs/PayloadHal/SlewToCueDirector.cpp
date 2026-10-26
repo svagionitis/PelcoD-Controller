@@ -1,6 +1,12 @@
 #include "SlewToCueDirector.h"
 
+#include <cstdint>
+
 #include <algorithm>
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <optional>
 
 namespace PayloadHal {
 
@@ -16,8 +22,7 @@ SlewToCueDirector::SlewToCueDirector(std::shared_ptr<TargetThreatEvaluator> thre
 SlewToCueDirector::SlewToCueDirector(std::shared_ptr<TargetThreatEvaluator> threatEvaluator,
     std::shared_ptr<NmeaSlavingBridge> slavingBridge, std::shared_ptr<AutoFramingController> autoFraming,
     std::shared_ptr<PayloadAutoTrackerBridge> autoTracker, std::shared_ptr<ICameraPayload> camera,
-    std::shared_ptr<GeoLockController> geoLock, std::shared_ptr<TourEngine> tourEngine,
-    const SlewToCueConfig& config)
+    std::shared_ptr<GeoLockController> geoLock, std::shared_ptr<TourEngine> tourEngine, const SlewToCueConfig& config)
     : m_threatEvaluator(std::move(threatEvaluator))
     , m_slavingBridge(std::move(slavingBridge))
     , m_autoFraming(std::move(autoFraming))
@@ -128,7 +133,7 @@ void SlewToCueDirector::transitionTo(CueingState newState)
         m_dwellStartTime = m_stateEntryTime;
     }
 
-    StateChangeCallback cbCopy {};
+    StateChangeCallback cbCopy { };
     {
         cbCopy = m_stateChangeCb;
     }
@@ -164,7 +169,7 @@ bool SlewToCueDirector::cueTarget(const EvaluatedTarget& target)
     m_activeDwellDuration = m_config.inspectionDwellDuration;
 
     if (m_autoFraming) {
-        Nmea::AisDimensions dims {};
+        Nmea::AisDimensions dims { };
         const auto env = m_autoFraming->estimateTargetEnvelope(dims);
         m_activeTargetLengthMeters = env.lengthMeters;
         m_activeTargetBeamMeters = env.beamMeters;
@@ -264,8 +269,7 @@ void SlewToCueDirector::handleTargetFinished()
 {
     // 1. Mark target inspected to enforce dwell cooldown
     if (m_threatEvaluator && m_activeTargetId != 0U) {
-        m_threatEvaluator->markTargetInspected(
-            m_activeTargetId, m_activeTargetSource, m_config.targetCooldownDuration);
+        m_threatEvaluator->markTargetInspected(m_activeTargetId, m_activeTargetSource, m_config.targetCooldownDuration);
     }
 
     // 2. Disengage optical tracker
@@ -354,7 +358,7 @@ bool SlewToCueDirector::checkGimbalConvergence() const noexcept
 void SlewToCueDirector::executeAutoFraming(double rangeMeters, double targetLengthMeters)
 {
     if (m_config.autoFraming && m_autoFraming && m_camera) {
-        TargetPhysicalEnvelope env {};
+        TargetPhysicalEnvelope env { };
         env.lengthMeters = targetLengthMeters;
         env.beamMeters = m_activeTargetBeamMeters;
         env.heightMeters = m_activeTargetHeightMeters;

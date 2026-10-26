@@ -8,6 +8,7 @@
 #include "NmeaSentenceParser.h"
 
 #include <chrono>
+#include <cstdint>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -75,15 +76,15 @@ private:
     struct MultiPartFragment {
         std::uint8_t totalParts { 0U };
         std::uint8_t lastPart { 0U };
-        std::string combinedPayload {};
+        std::string combinedPayload { };
         std::size_t fillBits { 0U };
         std::chrono::steady_clock::time_point lastSeen { std::chrono::steady_clock::now() };
     };
 
     void pruneStaleFragmentsLocked(std::chrono::steady_clock::time_point now);
 
-    mutable std::mutex m_mutex {};
-    std::map<std::pair<char, std::uint8_t>, MultiPartFragment> m_fragments {};
+    mutable std::mutex m_mutex { };
+    std::map<std::pair<char, std::uint8_t>, MultiPartFragment> m_fragments { };
     std::chrono::milliseconds m_fragmentTtl { 5000 };
 };
 

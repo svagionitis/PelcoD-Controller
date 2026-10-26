@@ -3,61 +3,66 @@
 #include "Misb1201.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
+#include <vector>
 
 namespace Klv {
 
 namespace {
 
-[[nodiscard]] double readFloat64(const std::uint8_t* p) noexcept {
-    std::uint64_t bits { 0ULL };
-    for (std::size_t i = 0U; i < 8U; ++i) {
-        bits = (bits << 8U) | static_cast<std::uint64_t>(p[i]);
+    [[nodiscard]] double readFloat64(const std::uint8_t* p) noexcept
+    {
+        std::uint64_t bits { 0ULL };
+        for (std::size_t i = 0U; i < 8U; ++i) {
+            bits = (bits << 8U) | static_cast<std::uint64_t>(p[i]);
+        }
+        double val { 0.0 };
+        std::memcpy(&val, &bits, sizeof(double));
+        return val;
     }
-    double val { 0.0 };
-    std::memcpy(&val, &bits, sizeof(double));
-    return val;
-}
 
-void writeFloat64(double val, std::vector<std::uint8_t>& out) {
-    std::uint64_t bits { 0ULL };
-    std::memcpy(&bits, &val, sizeof(double));
-    for (int i = 7; i >= 0; --i) {
-        out.push_back(static_cast<std::uint8_t>((bits >> (i * 8)) & 0xFFU));
+    void writeFloat64(double val, std::vector<std::uint8_t>& out)
+    {
+        std::uint64_t bits { 0ULL };
+        std::memcpy(&bits, &val, sizeof(double));
+        for (int i = 7; i >= 0; --i) {
+            out.push_back(static_cast<std::uint8_t>((bits >> (i * 8)) & 0xFFU));
+        }
     }
-}
 
-[[nodiscard]] double readFloat32(const std::uint8_t* p) noexcept {
-    std::uint32_t bits { 0U };
-    for (std::size_t i = 0U; i < 4U; ++i) {
-        bits = (bits << 8U) | static_cast<std::uint32_t>(p[i]);
+    [[nodiscard]] double readFloat32(const std::uint8_t* p) noexcept
+    {
+        std::uint32_t bits { 0U };
+        for (std::size_t i = 0U; i < 4U; ++i) {
+            bits = (bits << 8U) | static_cast<std::uint32_t>(p[i]);
+        }
+        float val { 0.0f };
+        std::memcpy(&val, &bits, sizeof(float));
+        return static_cast<double>(val);
     }
-    float val { 0.0f };
-    std::memcpy(&val, &bits, sizeof(float));
-    return static_cast<double>(val);
-}
 
-[[nodiscard]] std::uint32_t readUInt(const std::uint8_t* p, std::size_t bytes) noexcept {
-    std::uint32_t val { 0U };
-    for (std::size_t i = 0U; i < bytes; ++i) {
-        val = (val << 8U) | static_cast<std::uint32_t>(p[i]);
+    [[nodiscard]] std::uint32_t readUInt(const std::uint8_t* p, std::size_t bytes) noexcept
+    {
+        std::uint32_t val { 0U };
+        for (std::size_t i = 0U; i < bytes; ++i) {
+            val = (val << 8U) | static_cast<std::uint32_t>(p[i]);
+        }
+        return val;
     }
-    return val;
-}
 
-void writeUInt(std::uint32_t val, std::size_t bytes, std::vector<std::uint8_t>& out) {
-    for (int i = static_cast<int>(bytes) - 1; i >= 0; --i) {
-        out.push_back(static_cast<std::uint8_t>((val >> (i * 8)) & 0xFFU));
+    void writeUInt(std::uint32_t val, std::size_t bytes, std::vector<std::uint8_t>& out)
+    {
+        for (int i = static_cast<int>(bytes) - 1; i >= 0; --i) {
+            out.push_back(static_cast<std::uint8_t>((val >> (i * 8)) & 0xFFU));
+        }
     }
-}
 
 } // namespace
 
-bool MdArray::encodeFloat2D(const std::vector<std::vector<double>>& matrix,
-                            double minVal,
-                            double maxVal,
-                            std::size_t ebytes,
-                            std::vector<std::uint8_t>& out) {
+bool MdArray::encodeFloat2D(const std::vector<std::vector<double>>& matrix, double minVal, double maxVal,
+    std::size_t ebytes, std::vector<std::uint8_t>& out)
+{
     if (matrix.empty() || matrix[0].empty() || minVal >= maxVal || ebytes == 0U || ebytes > 8U) {
         return false;
     }
@@ -87,11 +92,9 @@ bool MdArray::encodeFloat2D(const std::vector<std::vector<double>>& matrix,
     return true;
 }
 
-bool MdArray::encodeFloat1D(const std::vector<double>& vec,
-                            double minVal,
-                            double maxVal,
-                            std::size_t ebytes,
-                            std::vector<std::uint8_t>& out) {
+bool MdArray::encodeFloat1D(
+    const std::vector<double>& vec, double minVal, double maxVal, std::size_t ebytes, std::vector<std::uint8_t>& out)
+{
     if (vec.empty() || minVal >= maxVal || ebytes == 0U || ebytes > 8U) {
         return false;
     }
@@ -110,9 +113,9 @@ bool MdArray::encodeFloat1D(const std::vector<double>& vec,
     return true;
 }
 
-bool MdArray::encodeUInt2D(const std::vector<std::vector<std::uint32_t>>& matrix,
-                           std::size_t ebytes,
-                           std::vector<std::uint8_t>& out) {
+bool MdArray::encodeUInt2D(
+    const std::vector<std::vector<std::uint32_t>>& matrix, std::size_t ebytes, std::vector<std::uint8_t>& out)
+{
     if (matrix.empty() || matrix[0].empty() || (ebytes != 1U && ebytes != 2U && ebytes != 4U)) {
         return false;
     }
@@ -138,9 +141,8 @@ bool MdArray::encodeUInt2D(const std::vector<std::vector<std::uint32_t>>& matrix
     return true;
 }
 
-bool MdArray::encodeUInt1D(const std::vector<std::uint32_t>& vec,
-                           std::size_t ebytes,
-                           std::vector<std::uint8_t>& out) {
+bool MdArray::encodeUInt1D(const std::vector<std::uint32_t>& vec, std::size_t ebytes, std::vector<std::uint8_t>& out)
+{
     if (vec.empty() || (ebytes != 1U && ebytes != 2U && ebytes != 4U)) {
         return false;
     }
@@ -156,9 +158,8 @@ bool MdArray::encodeUInt1D(const std::vector<std::uint32_t>& vec,
     return true;
 }
 
-bool MdArray::decodeFloat2D(const std::uint8_t* data,
-                            std::size_t size,
-                            std::vector<std::vector<double>>& outMatrix) {
+bool MdArray::decodeFloat2D(const std::uint8_t* data, std::size_t size, std::vector<std::vector<double>>& outMatrix)
+{
     outMatrix.clear();
     if (data == nullptr || size == 0U) {
         return false;
@@ -259,9 +260,8 @@ bool MdArray::decodeFloat2D(const std::uint8_t* data,
     return false;
 }
 
-bool MdArray::decodeFloat1D(const std::uint8_t* data,
-                            std::size_t size,
-                            std::vector<double>& outVec) {
+bool MdArray::decodeFloat1D(const std::uint8_t* data, std::size_t size, std::vector<double>& outVec)
+{
     outVec.clear();
     if (data == nullptr || size == 0U) {
         return false;
@@ -350,9 +350,9 @@ bool MdArray::decodeFloat1D(const std::uint8_t* data,
     return false;
 }
 
-bool MdArray::decodeUInt2D(const std::uint8_t* data,
-                           std::size_t size,
-                           std::vector<std::vector<std::uint32_t>>& outMatrix) {
+bool MdArray::decodeUInt2D(
+    const std::uint8_t* data, std::size_t size, std::vector<std::vector<std::uint32_t>>& outMatrix)
+{
     outMatrix.clear();
     if (data == nullptr || size == 0U) {
         return false;
@@ -432,9 +432,8 @@ bool MdArray::decodeUInt2D(const std::uint8_t* data,
     return false;
 }
 
-bool MdArray::decodeUInt1D(const std::uint8_t* data,
-                           std::size_t size,
-                           std::vector<std::uint32_t>& outVec) {
+bool MdArray::decodeUInt1D(const std::uint8_t* data, std::size_t size, std::vector<std::uint32_t>& outVec)
+{
     outVec.clear();
     if (data == nullptr || size == 0U) {
         return false;

@@ -2,6 +2,7 @@
 
 #include <future>
 #include <gtest/gtest.h>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -10,7 +11,7 @@ namespace {
 
     TEST(TestNmeaStreamAccumulator, SingleCompleteSentence)
     {
-        NmeaStreamAccumulator acc {};
+        NmeaStreamAccumulator acc { };
         const std::string input = "$HEHDT,341.8,T*21\r\n";
         const auto result = acc.push(input, true);
 
@@ -21,7 +22,7 @@ namespace {
 
     TEST(TestNmeaStreamAccumulator, FragmentedIngest)
     {
-        NmeaStreamAccumulator acc {};
+        NmeaStreamAccumulator acc { };
         EXPECT_TRUE(acc.push("$HEHD", true).empty());
         EXPECT_TRUE(acc.push("T,341.", true).empty());
         const auto res = acc.push("8,T*21\r\n", true);
@@ -33,7 +34,7 @@ namespace {
 
     TEST(TestNmeaStreamAccumulator, MultipleSentencesInSingleChunk)
     {
-        NmeaStreamAccumulator acc {};
+        NmeaStreamAccumulator acc { };
         const std::string multi = "$HEHDT,341.8,T*21\r\n!AIVDM,1,1,,B,177KQJ001p5nk70GwLF85jww0+RA,0*67\r\n";
         const auto res = acc.push(multi, true);
 
@@ -45,7 +46,7 @@ namespace {
 
     TEST(TestNmeaStreamAccumulator, DiscardGarbagePrefix)
     {
-        NmeaStreamAccumulator acc {};
+        NmeaStreamAccumulator acc { };
         const std::string noisy = "GARBAGE_NOISE_12345$HEHDT,341.8,T*21\r\n";
         const auto res = acc.push(noisy, true);
 
@@ -56,7 +57,7 @@ namespace {
 
     TEST(TestNmeaStreamAccumulator, FilterInvalidChecksum)
     {
-        NmeaStreamAccumulator acc {};
+        NmeaStreamAccumulator acc { };
         const std::string invalid = "$HEHDT,341.8,T*99\r\n"; // 99 is wrong checksum
         const auto resFiltered = acc.push(invalid, true);
         EXPECT_TRUE(resFiltered.empty());
@@ -83,7 +84,7 @@ namespace {
 
     TEST(TestNmeaStreamAccumulator, MultiThreadedIngest)
     {
-        NmeaStreamAccumulator acc {};
+        NmeaStreamAccumulator acc { };
         constexpr int kIterations = 50;
 
         auto producer = [&acc]() {
@@ -106,7 +107,7 @@ namespace {
     /// @details Pushes noise and corrupt sentence, verifying accumulator statistics.
     TEST(TestNmeaStreamAccumulator, DiscardAndChecksumStats)
     {
-        NmeaStreamAccumulator acc {};
+        NmeaStreamAccumulator acc { };
         EXPECT_EQ(acc.discardedBytes(), 0U);
         EXPECT_EQ(acc.checksumErrors(), 0U);
 

@@ -4,7 +4,10 @@
 #include "DjiSt0601Mapper.h"
 
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
+
+#include <optional>
 
 namespace Dji {
 
@@ -105,7 +108,7 @@ std::optional<std::int32_t> deriveUtcOffset(std::int64_t localUs, std::uint64_t 
 
 Klv::UasDatalinkMessage mapToSt0601(const DjiTelemetrySample& sample, const DjiMapConfig& cfg)
 {
-    Klv::UasDatalinkMessage msg {};
+    Klv::UasDatalinkMessage msg { };
 
     if (sample.localTimeUs.has_value()) {
         const std::int64_t utc { *sample.localTimeUs - (static_cast<std::int64_t>(cfg.utcOffsetMin) * kUsPerMinute) };

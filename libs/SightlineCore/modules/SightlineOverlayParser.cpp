@@ -4,6 +4,7 @@
 #include "SightlineOverlayParser.h"
 
 #include <algorithm>
+#include <cstdint>
 
 namespace Sightline {
 
@@ -205,7 +206,7 @@ bool SightlineOverlayParser::parseOverlayObjectsIds(ByteView packet, MsgCurrentO
         return false;
     }
 
-    std::uint8_t buf[32U] {};
+    std::uint8_t buf[32U] { };
     const auto copyLen = std::min<std::size_t>(payload.size(), 32U);
     std::copy_n(payload.data(), copyLen, buf);
 

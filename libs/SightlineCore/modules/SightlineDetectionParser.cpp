@@ -2,6 +2,7 @@
 /// @brief Implementation of Sightline detection frame deserializers.
 
 #include "SightlineDetectionParser.h"
+#include <cstdint>
 
 namespace Sightline {
 

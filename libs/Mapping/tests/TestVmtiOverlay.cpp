@@ -3,11 +3,15 @@
 
 #include "MapViewport.h"
 #include "VmtiOverlay.h"
+#include <cstdint>
+
 #include <gtest/gtest.h>
+#include <optional>
 
 using namespace Mapping;
 
-TEST(TestVmtiOverlay, ProjectTargetFromLocationAndCe90) {
+TEST(TestVmtiOverlay, ProjectTargetFromLocationAndCe90)
+{
     const Klv::GeoPoint2D center { 37.7749, -122.4194 };
     MapViewport viewport(center, 15.0, 800.0, 600.0);
 
@@ -37,7 +41,8 @@ TEST(TestVmtiOverlay, ProjectTargetFromLocationAndCe90) {
     EXPECT_TRUE(VmtiOverlay::isTargetVisible(st, viewportRect));
 }
 
-TEST(TestVmtiOverlay, ProjectTargetFromFrameCenterOffset) {
+TEST(TestVmtiOverlay, ProjectTargetFromFrameCenterOffset)
+{
     const Klv::GeoPoint2D center { 37.7749, -122.4194 };
     MapViewport viewport(center, 15.0, 800.0, 600.0);
 
@@ -59,7 +64,8 @@ TEST(TestVmtiOverlay, ProjectTargetFromFrameCenterOffset) {
     EXPECT_LT(st.screenPos.y, 300.0);
 }
 
-TEST(TestVmtiOverlay, ProjectTargetSeriesAndVisibility) {
+TEST(TestVmtiOverlay, ProjectTargetSeriesAndVisibility)
+{
     const Klv::GeoPoint2D center { 37.7749, -122.4194 };
     MapViewport viewport(center, 15.0, 800.0, 600.0);
     const ScreenRect viewportRect { 0.0, 0.0, 800.0, 600.0 };

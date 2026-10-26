@@ -1,7 +1,11 @@
 /// @file SightlineNucBuilder.cpp
 /// @brief Implementation of Sightline NUC and dead pixel command serializers (IDD v3.11).
 
+#include <cstdint>
+
 #include "SightlineNucBuilder.h"
+#include <string>
+#include <vector>
 
 namespace Sightline {
 
@@ -52,8 +56,7 @@ namespace {
     /// @tparam E Enumeration with std::uint8_t underlying type.
     /// @param[in] value Enumerator.
     /// @return Underlying byte value.
-    template <typename E>
-    [[nodiscard]] constexpr std::uint8_t toByte(E value) noexcept
+    template <typename E> [[nodiscard]] constexpr std::uint8_t toByte(E value) noexcept
     {
         return static_cast<std::uint8_t>(value);
     }
@@ -74,10 +77,10 @@ namespace {
     /// @param[in] row Pixel row (y).
     /// @param[in] deferUpdate True if more pixels follow.
     /// @return Framed packet.
-    [[nodiscard]] std::vector<std::uint8_t> buildPixelOp(std::uint8_t cameraIndex, DeadPixelMode mode,
-        std::uint16_t column, std::uint16_t row, bool deferUpdate)
+    [[nodiscard]] std::vector<std::uint8_t> buildPixelOp(
+        std::uint8_t cameraIndex, DeadPixelMode mode, std::uint16_t column, std::uint16_t row, bool deferUpdate)
     {
-        MsgDeadPixel msg {};
+        MsgDeadPixel msg { };
         msg.cameraIndex = cameraIndex;
         msg.mode = mode;
         msg.a = column;
@@ -119,9 +122,8 @@ namespace {
     /// @return True if bytes 8..31 would not be all zero.
     [[nodiscard]] bool hasDprFields(const MsgNucParameters& msg) noexcept
     {
-        return (msg.minDeadGain != 0U) || (msg.maxDeadGain != 0U) || (msg.minDeadVal != 0U)
-            || (msg.maxDeadVal != 0U) || (msg.minDeadOff != 0) || (msg.maxDeadOff != 0)
-            || (msg.maxStdDevDead != 0U) || (msg.maxNumDead != 0);
+        return (msg.minDeadGain != 0U) || (msg.maxDeadGain != 0U) || (msg.minDeadVal != 0U) || (msg.maxDeadVal != 0U)
+            || (msg.minDeadOff != 0) || (msg.maxDeadOff != 0) || (msg.maxStdDevDead != 0U) || (msg.maxNumDead != 0);
     }
 
     /// @brief Returns true if an offset limit is within the IDD range.
@@ -156,9 +158,9 @@ namespace {
     [[nodiscard]] std::vector<std::uint8_t> encodeNuc(const MsgNucParameters& msg, NucTail tail)
     {
         if ((tail != NucTail::Named) && !msg.nucName.empty()) {
-            return {};
+            return { };
         }
-        std::vector<std::uint8_t> payload {};
+        std::vector<std::uint8_t> payload { };
         payload.reserve(kNucParamsFixed + 1U + msg.nucName.size());
         payload.push_back(msg.cameraIndex);
         payload.push_back(toByte(msg.nucShow));
@@ -190,11 +192,11 @@ namespace {
             break;
         case NucTail::Named:
             if (!SightlineFraming::appendLenString(payload, msg.nucName)) {
-                return {};
+                return { };
             }
             break;
         default:
-            return {};
+            return { };
         }
         return SightlineFraming::buildPacket(MessageId::NucParameters, payload);
     }
@@ -297,7 +299,7 @@ NucError SightlineNucBuilder::checkDeadPixel(const MsgDeadPixel& msg, FwVersion 
 
 std::vector<std::uint8_t> SightlineNucBuilder::buildDeadPixel(const MsgDeadPixel& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(kDeadPixelSize);
     payload.push_back(msg.cameraIndex);
     payload.push_back(toByte(msg.mode));
@@ -323,7 +325,7 @@ std::vector<std::uint8_t> SightlineNucBuilder::buildRemoveDeadPixel(
 std::vector<std::uint8_t> SightlineNucBuilder::buildDynamicDead(
     std::uint8_t cameraIndex, std::uint8_t kernelSize, std::uint8_t maxPixelDiff)
 {
-    MsgDeadPixel msg {};
+    MsgDeadPixel msg { };
     msg.cameraIndex = cameraIndex;
     msg.mode = DeadPixelMode::DynamicDetect;
     msg.a = kernelSize;
@@ -340,20 +342,20 @@ std::vector<std::uint8_t> SightlineNucBuilder::buildGetNucParameters(std::uint8_
 std::vector<std::uint8_t> SightlineNucBuilder::buildReadWriteNuc(const MsgReadWriteNuc& msg)
 {
     if (msg.fileName.empty() && !allowsBlankName(msg)) {
-        return {};
+        return { };
     }
 
     const auto mode { static_cast<std::uint8_t>(
         static_cast<std::uint8_t>(toByte(msg.defaultOp) << kDefaultOpShift) | toByte(msg.fileOp)) };
 
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(6U + msg.fileName.size() + msg.secondaryFileName.size());
     payload.push_back(msg.cameraIndex);
     payload.push_back(0x00U); // reserved
     payload.push_back(mode);
     if (!SightlineFraming::appendLenString(payload, msg.fileName)
         || !SightlineFraming::appendLenString(payload, msg.secondaryFileName)) {
-        return {};
+        return { };
     }
     payload.push_back(msg.interpolationRatio);
     return SightlineFraming::buildPacket(MessageId::ReadWriteNuc, payload);
@@ -361,9 +363,8 @@ std::vector<std::uint8_t> SightlineNucBuilder::buildReadWriteNuc(const MsgReadWr
 
 std::vector<std::uint8_t> SightlineNucBuilder::buildGetReadWriteNuc(NucTableQuery query, std::uint8_t cameraIndex)
 {
-    const std::vector<std::uint8_t> payload {
-        static_cast<std::uint8_t>(MessageId::ReadWriteNuc), toByte(query), cameraIndex
-    };
+    const std::vector<std::uint8_t> payload { static_cast<std::uint8_t>(MessageId::ReadWriteNuc), toByte(query),
+        cameraIndex };
     return SightlineFraming::buildPacket(MessageId::GetParameters, payload);
 }
 

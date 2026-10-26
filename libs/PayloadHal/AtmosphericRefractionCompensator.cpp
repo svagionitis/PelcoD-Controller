@@ -2,48 +2,66 @@
 
 #include <algorithm>
 #include <cmath>
+#include <mutex>
 
 namespace PayloadHal {
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
-constexpr double kDegToRad = kPi / 180.0;
-constexpr double kRadToDeg = 180.0 / kPi;
-constexpr double kEpsilon = 1e-9;
+    constexpr double kPi = 3.14159265358979323846;
+    constexpr double kDegToRad = kPi / 180.0;
+    constexpr double kRadToDeg = 180.0 / kPi;
+    constexpr double kEpsilon = 1e-9;
 
-template <typename T>
-T clampVal(T val, T minVal, T maxVal) {
-    return std::max(minVal, std::min(val, maxVal));
-}
+    template <typename T> T clampVal(T val, T minVal, T maxVal)
+    {
+        return std::max(minVal, std::min(val, maxVal));
+    }
 
 } // namespace
 
 AtmosphericRefractionCompensator::AtmosphericRefractionCompensator(AtmosphericEnvironment env)
-    : m_env(env) {}
+    : m_env(env)
+{
+}
 
-void AtmosphericRefractionCompensator::setEnvironment(const AtmosphericEnvironment& env) {
+void AtmosphericRefractionCompensator::setEnvironment(const AtmosphericEnvironment& env)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     if (env.isValid()) {
         m_env = env;
     }
 }
 
-AtmosphericEnvironment AtmosphericRefractionCompensator::environment() const {
+AtmosphericEnvironment AtmosphericRefractionCompensator::environment() const
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_env;
 }
 
-double AtmosphericRefractionCompensator::computeWavelengthDispersion(OpticalBand band) const noexcept {
+double AtmosphericRefractionCompensator::computeWavelengthDispersion(OpticalBand band) const noexcept
+{
     // Central wavelength lambda in micrometers
     double lambdaUm = 0.55;
     switch (band) {
-        case OpticalBand::Visible:   lambdaUm = 0.55; break;
-        case OpticalBand::Swir:      lambdaUm = 1.30; break;
-        case OpticalBand::Mwir:      lambdaUm = 4.00; break;
-        case OpticalBand::Lwir:      lambdaUm = 10.00; break;
-        case OpticalBand::Lrf1064nm: lambdaUm = 1.064; break;
-        case OpticalBand::Lrf1550nm: lambdaUm = 1.55; break;
+    case OpticalBand::Visible:
+        lambdaUm = 0.55;
+        break;
+    case OpticalBand::Swir:
+        lambdaUm = 1.30;
+        break;
+    case OpticalBand::Mwir:
+        lambdaUm = 4.00;
+        break;
+    case OpticalBand::Lwir:
+        lambdaUm = 10.00;
+        break;
+    case OpticalBand::Lrf1064nm:
+        lambdaUm = 1.064;
+        break;
+    case OpticalBand::Lrf1550nm:
+        lambdaUm = 1.55;
+        break;
     }
 
     // Edlén / Ciddor dispersion function: sigma = 1 / lambda (in um^-1)
@@ -58,7 +76,8 @@ double AtmosphericRefractionCompensator::computeWavelengthDispersion(OpticalBand
     return nDisp / kNDispRef;
 }
 
-double AtmosphericRefractionCompensator::computeBaseRefractivity() const noexcept {
+double AtmosphericRefractionCompensator::computeBaseRefractivity() const noexcept
+{
     const double tk = m_env.temperatureCelsius + 273.15;
     const double p = m_env.pressureHpa;
     const double h = m_env.relativeHumidityPercent;
@@ -81,18 +100,21 @@ double AtmosphericRefractionCompensator::computeBaseRefractivity() const noexcep
     return nDry + nWet;
 }
 
-double AtmosphericRefractionCompensator::refractivity(OpticalBand band) const noexcept {
+double AtmosphericRefractionCompensator::refractivity(OpticalBand band) const noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     const double baseN = computeBaseRefractivity();
     const double dispersion = computeWavelengthDispersion(band);
     return baseN * dispersion;
 }
 
-double AtmosphericRefractionCompensator::refractiveIndex(OpticalBand band) const noexcept {
+double AtmosphericRefractionCompensator::refractiveIndex(OpticalBand band) const noexcept
+{
     return 1.0 + refractivity(band) * 1e-6;
 }
 
-double AtmosphericRefractionCompensator::effectiveKFactor(OpticalBand band) const noexcept {
+double AtmosphericRefractionCompensator::effectiveKFactor(OpticalBand band) const noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     const double dispersion = computeWavelengthDispersion(band);
 
@@ -119,9 +141,8 @@ double AtmosphericRefractionCompensator::effectiveKFactor(OpticalBand band) cons
 }
 
 double AtmosphericRefractionCompensator::refractionAngle(
-    double slantRangeMeters,
-    double elevationDeg,
-    OpticalBand band) const noexcept {
+    double slantRangeMeters, double elevationDeg, OpticalBand band) const noexcept
+{
 
     if (slantRangeMeters <= kEpsilon) {
         return 0.0;
@@ -141,18 +162,16 @@ double AtmosphericRefractionCompensator::refractionAngle(
 }
 
 double AtmosphericRefractionCompensator::apparentToTrueElevation(
-    double apparentElevationDeg,
-    double slantRangeMeters,
-    OpticalBand band) const noexcept {
+    double apparentElevationDeg, double slantRangeMeters, OpticalBand band) const noexcept
+{
 
     const double deltaEl = refractionAngle(slantRangeMeters, apparentElevationDeg, band);
     return apparentElevationDeg - deltaEl;
 }
 
 double AtmosphericRefractionCompensator::trueToApparentElevation(
-    double trueElevationDeg,
-    double slantRangeMeters,
-    OpticalBand band) const noexcept {
+    double trueElevationDeg, double slantRangeMeters, OpticalBand band) const noexcept
+{
 
     double appEl = trueElevationDeg;
     for (int i = 0; i < 2; ++i) {
@@ -161,7 +180,8 @@ double AtmosphericRefractionCompensator::trueToApparentElevation(
     return appEl;
 }
 
-double AtmosphericRefractionCompensator::geometricEarthDrop(double groundDistanceMeters) noexcept {
+double AtmosphericRefractionCompensator::geometricEarthDrop(double groundDistanceMeters) noexcept
+{
     if (groundDistanceMeters <= 0.0) {
         return 0.0;
     }
@@ -170,8 +190,8 @@ double AtmosphericRefractionCompensator::geometricEarthDrop(double groundDistanc
 }
 
 double AtmosphericRefractionCompensator::effectiveEarthDrop(
-    double groundDistanceMeters,
-    OpticalBand band) const noexcept {
+    double groundDistanceMeters, OpticalBand band) const noexcept
+{
 
     if (groundDistanceMeters <= 0.0) {
         return 0.0;
@@ -181,9 +201,8 @@ double AtmosphericRefractionCompensator::effectiveEarthDrop(
 }
 
 double AtmosphericRefractionCompensator::opticalHorizonDistance(
-    double observerAltitudeMsl,
-    double targetAltitudeMsl,
-    OpticalBand band) const noexcept {
+    double observerAltitudeMsl, double targetAltitudeMsl, OpticalBand band) const noexcept
+{
 
     const double hObs = std::max(0.0, observerAltitudeMsl);
     const double hTgt = std::max(0.0, targetAltitudeMsl);
@@ -194,20 +213,16 @@ double AtmosphericRefractionCompensator::opticalHorizonDistance(
 }
 
 bool AtmosphericRefractionCompensator::isTargetVisibleOverHorizon(
-    double observerAltitudeMsl,
-    double targetAltitudeMsl,
-    double groundDistanceMeters,
-    OpticalBand band) const noexcept {
+    double observerAltitudeMsl, double targetAltitudeMsl, double groundDistanceMeters, OpticalBand band) const noexcept
+{
 
     const double horizonDist = opticalHorizonDistance(observerAltitudeMsl, targetAltitudeMsl, band);
     return groundDistanceMeters <= horizonDist;
 }
 
 RefractionCorrectionResult AtmosphericRefractionCompensator::evaluateRefraction(
-    double observerAltitudeMsl,
-    double apparentElevationDeg,
-    double slantRangeMeters,
-    OpticalBand band) const noexcept {
+    double observerAltitudeMsl, double apparentElevationDeg, double slantRangeMeters, OpticalBand band) const noexcept
+{
 
     RefractionCorrectionResult res;
     res.apparentElevationDeg = apparentElevationDeg;

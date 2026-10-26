@@ -1,8 +1,14 @@
 #include "LweChannelManager.h"
 #include "NmeaTagBlockParser.h"
 
+#include <cstdint>
+
 #include <atomic>
+#include <memory>
 #include <mutex>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace Nmea::Lwe {
 
@@ -169,8 +175,8 @@ void LweChannelManager::handleIncomingChannelData(const std::vector<std::uint8_t
         std::lock_guard<std::mutex> lock(m_mutex);
         if (m_useSourceFilter) {
             const std::string_view raw(reinterpret_cast<const char*>(data.data()), data.size());
-            NmeaTagBlock block {};
-            std::string_view remainder {};
+            NmeaTagBlock block { };
+            std::string_view remainder { };
             if (NmeaTagBlockParser::parse(raw, block, remainder)) {
                 if (m_sourceWhitelist.find(block.sourceId) == m_sourceWhitelist.end()) {
                     allow = false;

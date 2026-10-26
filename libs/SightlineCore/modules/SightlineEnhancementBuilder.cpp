@@ -1,27 +1,23 @@
 /// @file SightlineEnhancementBuilder.cpp
 /// @brief Implementation of Sightline enhancement command serializers.
 
+#include <cstdint>
+
 #include "SightlineEnhancementBuilder.h"
+#include <vector>
 
 namespace Sightline {
 
-std::vector<std::uint8_t> SightlineEnhancementBuilder::buildSetVideoEnhance(
-    const MsgSetVideoEnhancement& msg)
+std::vector<std::uint8_t> SightlineEnhancementBuilder::buildSetVideoEnhance(const MsgSetVideoEnhancement& msg)
 {
-    const std::vector<std::uint8_t> payload {
-        msg.cameraIndex,
-        msg.contrast,
-        msg.brightness,
-        msg.sharpening,
-        msg.claheEnable
-    };
+    const std::vector<std::uint8_t> payload { msg.cameraIndex, msg.contrast, msg.brightness, msg.sharpening,
+        msg.claheEnable };
     return SightlineFraming::buildPacket(MessageId::SetVideoEnhancementParameters, payload);
 }
 
-std::vector<std::uint8_t> SightlineEnhancementBuilder::buildSetVideoEnhanceFull(
-    const MsgSetVideoEnhancementFull& msg)
+std::vector<std::uint8_t> SightlineEnhancementBuilder::buildSetVideoEnhanceFull(const MsgSetVideoEnhancementFull& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(28U + msg.customKernel.size() + 1U);
 
     // Byte 0: Bits 0-3 ContrastMode, Bits 4-7 Sharpening (0-15)
@@ -79,8 +75,8 @@ std::vector<std::uint8_t> SightlineEnhancementBuilder::buildSetVideoEnhanceFull(
     payload.push_back(static_cast<std::uint8_t>(msg.scintillation));
 
     // Byte 23: Sharpen radius (1, 2, or 3)
-    const auto radius = static_cast<std::uint8_t>(
-        (msg.sharpenRadius >= 1U && msg.sharpenRadius <= 3U) ? msg.sharpenRadius : 1U);
+    const auto radius
+        = static_cast<std::uint8_t>((msg.sharpenRadius >= 1U && msg.sharpenRadius <= 3U) ? msg.sharpenRadius : 1U);
     payload.push_back(radius);
 
     // Bytes 24+: Custom convolution kernel & normalization
@@ -99,7 +95,7 @@ std::vector<std::uint8_t> SightlineEnhancementBuilder::buildSetVideoEnhanceFull(
 std::vector<std::uint8_t> SightlineEnhancementBuilder::buildSetFalseColor(
     std::uint8_t cameraIndex, FalseColorPalette palette)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(17U);
     SightlineFraming::appendU16Le(payload, 0U); // rotationDegrees = 0
     SightlineFraming::appendU16Le(payload, 256U); // rotationLimit = 256
@@ -115,19 +111,15 @@ std::vector<std::uint8_t> SightlineEnhancementBuilder::buildSetFalseColor(
     return SightlineFraming::buildPacket(MessageId::SetDisplayParameters, payload);
 }
 
-std::vector<std::uint8_t> SightlineEnhancementBuilder::buildGetVideoEnhance(
-    std::uint8_t cameraIndex)
+std::vector<std::uint8_t> SightlineEnhancementBuilder::buildGetVideoEnhance(std::uint8_t cameraIndex)
 {
     const std::vector<std::uint8_t> payload { cameraIndex };
     return SightlineFraming::buildPacket(MessageId::GetVideoEnhancementParameters, payload);
 }
 
-std::vector<std::uint8_t> SightlineEnhancementBuilder::buildGetNoise3D(
-    std::uint8_t cameraIndex)
+std::vector<std::uint8_t> SightlineEnhancementBuilder::buildGetNoise3D(std::uint8_t cameraIndex)
 {
-    const std::vector<std::uint8_t> payload {
-        static_cast<std::uint8_t>(MessageId::Noise3D), cameraIndex
-    };
+    const std::vector<std::uint8_t> payload { static_cast<std::uint8_t>(MessageId::Noise3D), cameraIndex };
     return SightlineFraming::buildPacket(MessageId::GetParameters, payload);
 }
 

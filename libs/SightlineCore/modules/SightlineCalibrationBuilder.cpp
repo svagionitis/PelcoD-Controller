@@ -1,7 +1,10 @@
 /// @file SightlineCalibrationBuilder.cpp
 /// @brief Implementation of the Sightline camera calibration serializer.
 
+#include <cstdint>
+
 #include "SightlineCalibrationBuilder.h"
+#include <vector>
 
 namespace Sightline {
 
@@ -12,7 +15,7 @@ namespace {
 
 std::vector<std::uint8_t> SightlineCalibrationBuilder::buildCameraCalibration(const MsgCameraCalibration& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(1U + (kCalibFloats * sizeof(float)));
     payload.push_back(msg.cameraIndex);
     SightlineFraming::appendFloat32Le(payload, msg.focalLengthX);
@@ -34,7 +37,7 @@ std::vector<std::uint8_t> SightlineCalibrationBuilder::buildGetCameraCalibration
 
 std::vector<std::uint8_t> SightlineCalibrationBuilder::buildCameraParameterFile(const MsgCameraParameterFile& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(2U + msg.filename.size() + 1U);
     payload.push_back(msg.cameraIndex);
     payload.push_back(msg.action);

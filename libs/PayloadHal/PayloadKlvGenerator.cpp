@@ -5,7 +5,14 @@
 #include "GeoreferenceUtils.h"
 
 #include <cmath>
+#include <cstdint>
+
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <optional>
 #include <utility>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -22,8 +29,7 @@ namespace {
     }
 } // namespace
 
-PayloadKlvGenerator::PayloadKlvGenerator(std::shared_ptr<IPayload> payload,
-                                         PayloadKlvConfig config) noexcept
+PayloadKlvGenerator::PayloadKlvGenerator(std::shared_ptr<IPayload> payload, PayloadKlvConfig config) noexcept
     : m_payload(std::move(payload))
     , m_config(std::move(config))
 {
@@ -78,8 +84,7 @@ std::shared_ptr<IDemProvider> PayloadKlvGenerator::demProvider() const
 }
 
 Klv::UasDatalinkMessage PayloadKlvGenerator::buildMessage(
-    const PlatformNavData& nav,
-    std::optional<std::uint64_t> timestampUs) const
+    const PlatformNavData& nav, std::optional<std::uint64_t> timestampUs) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -178,7 +183,8 @@ Klv::UasDatalinkMessage PayloadKlvGenerator::buildMessage(
             const auto groundTarget = GeoreferenceUtils::computeTargetFromGroundIntersection(
                 nav.position, nav.headingDeg, panDeg, tiltDeg, m_config.fallbackGroundElevationM);
             if (groundTarget) {
-                const auto look = GeoreferenceUtils::computeLookAnglesToTarget(nav.position, nav.headingDeg, *groundTarget);
+                const auto look
+                    = GeoreferenceUtils::computeLookAnglesToTarget(nav.position, nav.headingDeg, *groundTarget);
                 if (look.slantRangeMeters > 0.0) {
                     slantRangeM = look.slantRangeMeters;
                 }
@@ -241,8 +247,7 @@ Klv::UasDatalinkMessage PayloadKlvGenerator::buildMessage(
 }
 
 std::vector<std::uint8_t> PayloadKlvGenerator::generatePacket(
-    const PlatformNavData& nav,
-    std::optional<std::uint64_t> timestampUs) const
+    const PlatformNavData& nav, std::optional<std::uint64_t> timestampUs) const
 {
     const auto message = buildMessage(nav, timestampUs);
     return Klv::KlvEncoder::encode(message);

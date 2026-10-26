@@ -4,10 +4,12 @@
 #include "MockViscaTransport.h"
 #include "ViscaBuilder.h"
 #include "ViscaDevice.h"
+#include <cstdint>
 #include <gtest/gtest.h>
 
 #include <chrono>
 #include <memory>
+#include <mutex>
 #include <vector>
 
 using namespace Visca;
@@ -17,7 +19,7 @@ using namespace Visca::Testing;
 /// @details Verifies that a zoom direct command is sent, acknowledged, completed, and returns success.
 TEST(TestViscaDevice, SingleCommandSync)
 {
-    auto mockCamera = std::make_shared<MockViscaTransport>(uint8_t { 1U });
+    auto mockCamera = std::make_shared<MockViscaTransport>(std::uint8_t { 1U });
     mockCamera->open();
 
     ViscaDevice device(mockCamera, 1);
@@ -35,7 +37,7 @@ TEST(TestViscaDevice, SingleCommandSync)
 /// execute concurrently and subsequent commands are queued until a socket frees up.
 TEST(TestViscaDevice, TwoSocketConcurrencyAndQueuePacing)
 {
-    auto mockCamera = std::make_shared<MockViscaTransport>(uint8_t { 1U });
+    auto mockCamera = std::make_shared<MockViscaTransport>(std::uint8_t { 1U });
     mockCamera->open();
 
     ViscaDevice device(mockCamera, 1);
@@ -71,7 +73,7 @@ TEST(TestViscaDevice, TwoSocketConcurrencyAndQueuePacing)
 /// @details Verifies that Version Inquiry returns the complete payload without tying up command sockets.
 TEST(TestViscaDevice, InquiryExecution)
 {
-    auto mockCamera = std::make_shared<MockViscaTransport>(uint8_t { 1U });
+    auto mockCamera = std::make_shared<MockViscaTransport>(std::uint8_t { 1U });
     mockCamera->open();
 
     ViscaDevice device(mockCamera, 1);
@@ -88,7 +90,7 @@ TEST(TestViscaDevice, InquiryExecution)
 /// @details Verifies that waiting on a non-responsive target returns a failure result.
 TEST(TestViscaDevice, TimeoutDetection)
 {
-    auto mockCamera = std::make_shared<MockViscaTransport>(uint8_t { 1U });
+    auto mockCamera = std::make_shared<MockViscaTransport>(std::uint8_t { 1U });
     mockCamera->open();
 
     // Send command to address 3 when mock is configured for address 1 (will be ignored)
@@ -103,7 +105,7 @@ TEST(TestViscaDevice, TimeoutDetection)
 /// @brief Tests Pan/Tilt drive commands and position inquiry tracking through ViscaDevice.
 TEST(TestViscaDevice, PanTiltDriveAndInquiries)
 {
-    auto mockCamera = std::make_shared<MockViscaTransport>(uint8_t { 1U });
+    auto mockCamera = std::make_shared<MockViscaTransport>(std::uint8_t { 1U });
     mockCamera->open();
 
     ViscaDevice device(mockCamera, 1);
@@ -145,7 +147,7 @@ TEST(TestViscaDevice, PanTiltDriveAndInquiries)
 /// @brief Tests VISCA protocol state machine and telemetry counters.
 TEST(TestViscaDevice, ProtocolStatisticsTracking)
 {
-    auto mockCamera = std::make_shared<MockViscaTransport>(uint8_t { 1U });
+    auto mockCamera = std::make_shared<MockViscaTransport>(std::uint8_t { 1U });
     mockCamera->open();
 
     ViscaDevice device(mockCamera, 1);

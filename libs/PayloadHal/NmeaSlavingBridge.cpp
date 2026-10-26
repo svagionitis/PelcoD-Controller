@@ -1,6 +1,13 @@
 #include "NmeaSlavingBridge.h"
 
 #include <cmath>
+#include <cstdint>
+
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -24,8 +31,8 @@ NmeaSlavingBridge::NmeaSlavingBridge(std::shared_ptr<Nmea::NmeaDevice> nmeaDevic
             = m_nmeaDevice->addAisCallback([this](const Nmea::AisVesselTarget& target) { handleAisUpdate(target); });
         m_emergencySubId = m_nmeaDevice->addEmergencyBeaconCallback(
             [this](const Nmea::AisEmergencyAlert& alert) { handleEmergencyBeacon(alert); });
-        m_attitudeSubId = m_nmeaDevice->addAttitudeCallback(
-            [this](const Nmea::AttitudeData& att) { handleAttitudeUpdate(att); });
+        m_attitudeSubId
+            = m_nmeaDevice->addAttitudeCallback([this](const Nmea::AttitudeData& att) { handleAttitudeUpdate(att); });
 
         // Query initial nav snapshot if available
         const auto snap = m_nmeaDevice->navSnapshot();
@@ -182,7 +189,7 @@ bool NmeaSlavingBridge::slaveToWaypoint(const Nmea::BwcData& bwc)
     }
 
     std::lock_guard<std::mutex> lock(m_stateMutex);
-    Klv::GeoPoint3D targetPos {};
+    Klv::GeoPoint3D targetPos { };
     targetPos.latitudeDeg = bwc.waypointCoordinates.latitudeDeg;
     targetPos.longitudeDeg = bwc.waypointCoordinates.longitudeDeg;
     targetPos.altitudeM = 0.0;
@@ -211,7 +218,7 @@ bool NmeaSlavingBridge::slaveToRouteLeg(const Nmea::RmbData& rmb, double lookAhe
     m_activeRmbData = rmb;
     m_routeLookAheadMeters = lookAheadMeters;
 
-    Klv::GeoPoint3D targetPos {};
+    Klv::GeoPoint3D targetPos { };
     targetPos.latitudeDeg = rmb.destCoordinates.latitudeDeg;
     targetPos.longitudeDeg = rmb.destCoordinates.longitudeDeg;
     targetPos.altitudeM = 0.0;
@@ -252,13 +259,13 @@ bool NmeaSlavingBridge::slaveToSarSweep(
     m_sarSweepPeriodSec = (sweepPeriodSec > 0.0) ? sweepPeriodSec : 8.0;
     m_sarSweepStartTime = std::chrono::steady_clock::now();
 
-    Klv::GeoPoint3D initialPos {};
+    Klv::GeoPoint3D initialPos { };
     initialPos.latitudeDeg = rmb.destCoordinates.latitudeDeg;
     initialPos.longitudeDeg = rmb.destCoordinates.longitudeDeg;
     initialPos.altitudeM = 0.0;
 
     if (m_hasPlatformNav && m_nmeaDevice && m_nmeaDevice->routeManager()) {
-        Nmea::NmeaCoordinates ownShipPos {};
+        Nmea::NmeaCoordinates ownShipPos { };
         ownShipPos.latitudeDeg = m_platformPos.latitudeDeg;
         ownShipPos.longitudeDeg = m_platformPos.longitudeDeg;
 
@@ -304,7 +311,7 @@ bool NmeaSlavingBridge::slaveToEmergencyBeacon(std::uint32_t mmsi)
     std::lock_guard<std::mutex> lock(m_stateMutex);
     if (!m_preemptedTarget.has_value() && m_targetType != MarineTargetType::None
         && m_targetType != MarineTargetType::EmergencyBeacon) {
-        PreemptedTargetState prev {};
+        PreemptedTargetState prev { };
         prev.type = m_targetType;
         prev.id = m_targetId;
         prev.name = m_targetName;
@@ -426,7 +433,7 @@ MarineSlavingStatus NmeaSlavingBridge::status() const
 
 MarineSlavingStatus NmeaSlavingBridge::statusLocked() const
 {
-    MarineSlavingStatus st {};
+    MarineSlavingStatus st { };
     st.active = (m_targetType != MarineTargetType::None);
     st.targetType = m_targetType;
     st.targetId = m_targetId;
@@ -474,7 +481,7 @@ double NmeaSlavingBridge::lockToleranceDeg() const noexcept
 SlavingLockStatus NmeaSlavingBridge::lockStatus() const
 {
     std::lock_guard<std::mutex> lock(m_stateMutex);
-    SlavingLockStatus st {};
+    SlavingLockStatus st { };
     st.isSlaved = (m_targetType != MarineTargetType::None);
 
     if (st.isSlaved && m_geoLockController) {
@@ -548,7 +555,7 @@ void NmeaSlavingBridge::removeTargetLockCallback(std::size_t id)
 
 void NmeaSlavingBridge::update()
 {
-    MarineSlavingStatus currentStatus {};
+    MarineSlavingStatus currentStatus { };
     bool notifyStatus { false };
     bool targetLost { false };
     bool notifyLockChange { false };
@@ -588,7 +595,7 @@ void NmeaSlavingBridge::update()
             }
         } else if (m_targetType == MarineTargetType::SarSweep) {
             if (m_hasPlatformNav && m_nmeaDevice && m_nmeaDevice->routeManager()) {
-                Nmea::NmeaCoordinates ownShipPos {};
+                Nmea::NmeaCoordinates ownShipPos { };
                 ownShipPos.latitudeDeg = m_platformPos.latitudeDeg;
                 ownShipPos.longitudeDeg = m_platformPos.longitudeDeg;
 
@@ -746,7 +753,7 @@ Klv::GeoPoint3D NmeaSlavingBridge::projectTargetFromRadar(
         + std::atan2(
             std::sin(brng) * std::sin(dist) * std::cos(lat1), std::cos(dist) - std::sin(lat1) * std::sin(lat2));
 
-    Klv::GeoPoint3D target {};
+    Klv::GeoPoint3D target { };
     target.latitudeDeg = lat2 * kRadToDeg;
     target.longitudeDeg = lon2 * kRadToDeg;
     target.altitudeM = 0.0;
@@ -871,7 +878,7 @@ void NmeaSlavingBridge::handleEmergencyBeacon(const Nmea::AisEmergencyAlert& ale
         if (m_autoSlewEmergency.load()) {
             // Save current target if not already saved
             if (!m_preemptedTarget.has_value() && m_targetType != MarineTargetType::None) {
-                PreemptedTargetState prev {};
+                PreemptedTargetState prev { };
                 prev.type = m_targetType;
                 prev.id = m_targetId;
                 prev.name = m_targetName;

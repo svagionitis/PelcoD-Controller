@@ -1,12 +1,15 @@
 /// @file SightlineKlvParser.cpp
 /// @brief Implementation of Sightline KLV Metadata response deserializer.
 
+#include <cstdint>
+
 #include "SightlineKlvParser.h"
+#include <string>
+#include <vector>
 
 namespace Sightline {
 
-bool SightlineKlvParser::parseMetadataValues(
-    const std::vector<std::uint8_t>& packet, MsgSetMetadataValues& out)
+bool SightlineKlvParser::parseMetadataValues(const std::vector<std::uint8_t>& packet, MsgSetMetadataValues& out)
 {
     const auto msgId { SightlineFraming::identifyMessage(packet) };
     const auto payload { SightlineFraming::extractPayload(packet) };
@@ -56,8 +59,7 @@ bool SightlineKlvParser::parseMetadataValues(
     return false;
 }
 
-bool SightlineKlvParser::parseCurrentValues(
-    const std::vector<std::uint8_t>& packet, MsgCurrentMetadataValues& out)
+bool SightlineKlvParser::parseCurrentValues(const std::vector<std::uint8_t>& packet, MsgCurrentMetadataValues& out)
 {
     const auto msgId { SightlineFraming::identifyMessage(packet) };
     const auto payload { SightlineFraming::extractPayload(packet) };
@@ -120,8 +122,7 @@ bool SightlineKlvParser::parseMetadataStaticValues(
     return true;
 }
 
-bool SightlineKlvParser::parseFrameValues(
-    const std::vector<std::uint8_t>& packet, MsgSetMetadataFrameValues& out)
+bool SightlineKlvParser::parseFrameValues(const std::vector<std::uint8_t>& packet, MsgSetMetadataFrameValues& out)
 {
     const auto msgId { SightlineFraming::identifyMessage(packet) };
     const auto payload { SightlineFraming::extractPayload(packet) };
@@ -229,8 +230,7 @@ bool SightlineKlvParser::parseCurrentFrameValues(
     return true;
 }
 
-bool SightlineKlvParser::parseMetadataRate(
-    const std::vector<std::uint8_t>& packet, MsgSetMetadataRate& out)
+bool SightlineKlvParser::parseMetadataRate(const std::vector<std::uint8_t>& packet, MsgSetMetadataRate& out)
 {
     const auto msgId { SightlineFraming::identifyMessage(packet) };
     if (msgId != MessageId::SetMetadataRate) {
@@ -252,8 +252,7 @@ bool SightlineKlvParser::parseMetadataRate(
     return true;
 }
 
-bool SightlineKlvParser::parseCurrentRate(
-    const std::vector<std::uint8_t>& packet, MsgCurrentMetadataRate& out)
+bool SightlineKlvParser::parseCurrentRate(const std::vector<std::uint8_t>& packet, MsgCurrentMetadataRate& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::CurrentMetadataRate) {
         return false;
@@ -270,8 +269,7 @@ bool SightlineKlvParser::parseCurrentRate(
     return true;
 }
 
-bool SightlineKlvParser::parseTagData(
-    const std::vector<std::uint8_t>& packet, MsgTagData& out)
+bool SightlineKlvParser::parseTagData(const std::vector<std::uint8_t>& packet, MsgTagData& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::TagData) {
         return false;
@@ -297,8 +295,7 @@ bool SightlineKlvParser::parseTagData(
     return true;
 }
 
-bool SightlineKlvParser::parseTagDataRate(
-    const std::vector<std::uint8_t>& packet, MsgTagDataRate& out)
+bool SightlineKlvParser::parseTagDataRate(const std::vector<std::uint8_t>& packet, MsgTagDataRate& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::TagDataRate) {
         return false;
@@ -319,8 +316,7 @@ bool SightlineKlvParser::parseTagDataRate(
     return true;
 }
 
-bool SightlineKlvParser::parseTagSourceSelector(
-    const std::vector<std::uint8_t>& packet, MsgTagSourceSelector& out)
+bool SightlineKlvParser::parseTagSourceSelector(const std::vector<std::uint8_t>& packet, MsgTagSourceSelector& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::TagSourceSelector) {
         return false;
@@ -341,8 +337,7 @@ bool SightlineKlvParser::parseTagSourceSelector(
     return true;
 }
 
-bool SightlineKlvParser::parseCursorOnTarget(
-    const std::vector<std::uint8_t>& packet, MsgCursorOnTarget& out)
+bool SightlineKlvParser::parseCursorOnTarget(const std::vector<std::uint8_t>& packet, MsgCursorOnTarget& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::CursorOnTarget) {
         return false;
@@ -354,19 +349,16 @@ bool SightlineKlvParser::parseCursorOnTarget(
     }
 
     out.mode = SightlineFraming::readU16Le(payload.data());
-    out.ipAddress = (static_cast<std::uint32_t>(payload[2U]) << 24U) |
-                    (static_cast<std::uint32_t>(payload[3U]) << 16U) |
-                    (static_cast<std::uint32_t>(payload[4U]) << 8U) |
-                    static_cast<std::uint32_t>(payload[5U]);
-    out.port = static_cast<std::uint16_t>((static_cast<std::uint16_t>(payload[6U]) << 8U) |
-                                          static_cast<std::uint16_t>(payload[7U]));
+    out.ipAddress = (static_cast<std::uint32_t>(payload[2U]) << 24U) | (static_cast<std::uint32_t>(payload[3U]) << 16U)
+        | (static_cast<std::uint32_t>(payload[4U]) << 8U) | static_cast<std::uint32_t>(payload[5U]);
+    out.port = static_cast<std::uint16_t>(
+        (static_cast<std::uint16_t>(payload[6U]) << 8U) | static_cast<std::uint16_t>(payload[7U]));
     out.rate = SightlineFraming::readU16Le(payload.data() + 8U);
     out.displayId = SightlineFraming::readU16Le(payload.data() + 10U);
     return true;
 }
 
-bool SightlineKlvParser::parseVmtiChips(
-    const std::vector<std::uint8_t>& packet, MsgVmtiChips& out)
+bool SightlineKlvParser::parseVmtiChips(const std::vector<std::uint8_t>& packet, MsgVmtiChips& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::VMTIChips) {
         return false;
@@ -392,8 +384,7 @@ bool SightlineKlvParser::parseVmtiChips(
     return true;
 }
 
-bool SightlineKlvParser::parseVmtiFields(
-    const std::vector<std::uint8_t>& packet, MsgVmtiFields& out)
+bool SightlineKlvParser::parseVmtiFields(const std::vector<std::uint8_t>& packet, MsgVmtiFields& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::VMTIFields) {
         return false;
@@ -410,8 +401,7 @@ bool SightlineKlvParser::parseVmtiFields(
     return true;
 }
 
-bool SightlineKlvParser::parseAncillaryText(
-    const std::vector<std::uint8_t>& packet, MsgAncillaryTextMetadata& out)
+bool SightlineKlvParser::parseAncillaryText(const std::vector<std::uint8_t>& packet, MsgAncillaryTextMetadata& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::AncillaryTextMetadata) {
         return false;
@@ -441,9 +431,7 @@ bool SightlineKlvParser::parseAncillaryText(
         return true;
     };
 
-    if (!readLenString(out.source) ||
-        !readLenString(out.originator) ||
-        !readLenString(out.messageBody)) {
+    if (!readLenString(out.source) || !readLenString(out.originator) || !readLenString(out.messageBody)) {
         return false;
     }
 
@@ -455,8 +443,7 @@ bool SightlineKlvParser::parseAncillaryText(
     return true;
 }
 
-bool SightlineKlvParser::parseAppendedMetadata(
-    const std::vector<std::uint8_t>& packet, MsgAppendedMetadata& out)
+bool SightlineKlvParser::parseAppendedMetadata(const std::vector<std::uint8_t>& packet, MsgAppendedMetadata& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::AppendedMetadata) {
         return false;

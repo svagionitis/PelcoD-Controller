@@ -4,14 +4,18 @@
 #include "NmeaTagBlockBuilder.h"
 #include "NmeaChecksum.h"
 
+#include <cstdint>
+
 #include <iomanip>
 #include <sstream>
+#include <string>
+#include <string_view>
 
 namespace Nmea {
 
 std::string NmeaTagBlockBuilder::build(const NmeaTagBlock& block)
 {
-    std::string payload {};
+    std::string payload { };
     payload.reserve(64U);
 
     bool first = true;
@@ -48,7 +52,7 @@ std::string NmeaTagBlockBuilder::build(const NmeaTagBlock& block)
     }
 
     if (payload.empty()) {
-        return {};
+        return { };
     }
 
     std::uint8_t crc { 0U };
@@ -56,7 +60,7 @@ std::string NmeaTagBlockBuilder::build(const NmeaTagBlock& block)
         crc ^= static_cast<std::uint8_t>(c);
     }
 
-    std::string result {};
+    std::string result { };
     result.reserve(payload.size() + 6U);
     result.push_back('\\');
     result.append(payload);

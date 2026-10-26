@@ -1,28 +1,35 @@
 #include "SimulatedPayload.h"
-#include "GeoreferenceUtils.h"
-#include "LocalPresetManager.h"
-#include "TourEngine.h"
-#include "TacticalSearchEngine.h"
-#include "SensorParallaxCompensator.h"
-#include "PlatformLeverArmCompensator.h"
-#include "GimbalSectorBlanking.h"
-#include "PayloadHealthMonitor.h"
-#include "GimbalMotionProfiler.h"
-#include "TargetKinematicsFilter.h"
 #include "AtmosphericRefractionCompensator.h"
+#include "GeoSurveyGridEngine.h"
+#include "GeoreferenceUtils.h"
+#include "GimbalMotionProfiler.h"
+#include "GimbalSectorBlanking.h"
+#include "LaserDesignatorCoordinator.h"
+#include "LocalPresetManager.h"
+#include "PayloadHealthMonitor.h"
 #include "PayloadSlavingCoordinator.h"
-#include "SensorFusionManager.h"
 #include "PayloadStowController.h"
-#include "TacticalHudRenderer.h"
+#include "PlatformLeverArmCompensator.h"
+#include "SensorFusionManager.h"
+#include "SensorParallaxCompensator.h"
 #include "StadiametricRanger.h"
 #include "Stanag4586Bridge.h"
-#include "LaserDesignatorCoordinator.h"
-#include "GeoSurveyGridEngine.h"
+#include "TacticalHudRenderer.h"
+#include "TacticalSearchEngine.h"
+#include "TargetKinematicsFilter.h"
+#include "TourEngine.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <map>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -53,7 +60,7 @@ public:
     }
     DeviceInfo info() const noexcept override
     {
-        DeviceInfo d {};
+        DeviceInfo d { };
         d.manufacturer = "Simulated";
         d.model = "Virtual Gyro-Stabilized Gimbal";
         d.firmwareVersion = "1.0.0-sim";
@@ -160,9 +167,8 @@ public:
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_telemetry.rollRateDegPerSec = std::clamp(rollDegPerSec, -30.0, 30.0);
-        m_telemetry.isMoving = (std::abs(m_telemetry.panRateDegPerSec) > 0.01 ||
-                                std::abs(m_telemetry.tiltRateDegPerSec) > 0.01 ||
-                                std::abs(m_telemetry.rollRateDegPerSec) > 0.01);
+        m_telemetry.isMoving = (std::abs(m_telemetry.panRateDegPerSec) > 0.01
+            || std::abs(m_telemetry.tiltRateDegPerSec) > 0.01 || std::abs(m_telemetry.rollRateDegPerSec) > 0.01);
         dispatchTelemetry();
         return true;
     }
@@ -187,9 +193,8 @@ public:
         m_telemetry.panRateDegPerSec = panDegPerSec;
         m_telemetry.tiltRateDegPerSec = tiltDegPerSec;
         m_telemetry.rollRateDegPerSec = std::clamp(rollDegPerSec, -30.0, 30.0);
-        m_telemetry.isMoving = (std::abs(panDegPerSec) > 0.01 ||
-                                std::abs(tiltDegPerSec) > 0.01 ||
-                                std::abs(rollDegPerSec) > 0.01);
+        m_telemetry.isMoving
+            = (std::abs(panDegPerSec) > 0.01 || std::abs(tiltDegPerSec) > 0.01 || std::abs(rollDegPerSec) > 0.01);
         dispatchTelemetry();
         return true;
     }
@@ -270,16 +275,16 @@ public:
         return true;
     }
 
-    bool savePreset(uint8_t presetId, const std::string& /*name*/) override
+    bool savePreset(std::uint8_t presetId, const std::string& /*name*/) override
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_presets[presetId] = { m_telemetry.panAngleDeg, m_telemetry.tiltAngleDeg };
         return true;
     }
 
-    bool recallPreset(uint8_t presetId) override
+    bool recallPreset(std::uint8_t presetId) override
     {
-        std::pair<double, double> targetAngles {};
+        std::pair<double, double> targetAngles { };
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             auto it = m_presets.find(presetId);
@@ -315,11 +320,11 @@ private:
     bool m_connected { true };
     StabilizationMode m_stabMode { StabilizationMode::RateStabilized };
     bool m_horizonLevelingActive { false };
-    GimbalTelemetry m_telemetry {};
-    TelemetryCallback m_telemetryCb {};
-    StateCallback m_stateCb {};
-    std::unordered_map<uint8_t, std::pair<double, double>> m_presets {};
-    std::shared_ptr<GimbalSectorBlanking> m_sectorBlanking {};
+    GimbalTelemetry m_telemetry { };
+    TelemetryCallback m_telemetryCb { };
+    StateCallback m_stateCb { };
+    std::unordered_map<std::uint8_t, std::pair<double, double>> m_presets { };
+    std::shared_ptr<GimbalSectorBlanking> m_sectorBlanking { };
 };
 
 // =============================================================================
@@ -361,7 +366,7 @@ public:
     }
     DeviceInfo info() const noexcept override
     {
-        DeviceInfo d {};
+        DeviceInfo d { };
         d.manufacturer = "Simulated";
         d.model = (m_spectrum == CameraSpectrum::DaylightVisible) ? "Virtual EO Camera" : "Virtual Thermal LWIR";
         d.firmwareVersion = "1.0.0-sim";
@@ -537,7 +542,7 @@ public:
                 return primIt->second;
             }
         }
-        return {};
+        return { };
     }
 
     bool setVideoStreamUri(const std::string& uri, VideoStreamProfile profile = VideoStreamProfile::Primary) override
@@ -613,10 +618,10 @@ private:
     bool m_defog { false };
     bool m_ois { false };
     ThermalPolarity m_polarity { ThermalPolarity::WhiteHot };
-    CameraTelemetry m_telemetry {};
-    TelemetryCallback m_telemetryCb {};
-    StateCallback m_stateCb {};
-    std::map<VideoStreamProfile, std::string> m_streamUris {};
+    CameraTelemetry m_telemetry { };
+    TelemetryCallback m_telemetryCb { };
+    StateCallback m_stateCb { };
+    std::map<VideoStreamProfile, std::string> m_streamUris { };
 };
 
 // =============================================================================
@@ -647,7 +652,7 @@ public:
     }
     DeviceInfo info() const noexcept override
     {
-        DeviceInfo d {};
+        DeviceInfo d { };
         d.manufacturer = "Simulated";
         d.model = "Virtual Eye-Safe 1550nm Tactical LRF";
         d.firmwareVersion = "1.0.0-sim";
@@ -763,7 +768,7 @@ public:
 private:
     void emitMeasurement(double range)
     {
-        LrfTargetMeasurement m {};
+        LrfTargetMeasurement m { };
         m.valid = (range >= m_gateMin && range <= m_gateMax);
         m.slantRangeMeters = m.valid ? range : 0.0;
         m.signalQualityRatio = m.valid ? 0.98 : 0.1;
@@ -785,13 +790,13 @@ private:
     double m_simRangeMeters { 1250.0 };
     double m_gateMin { 50.0 };
     double m_gateMax { 10000.0 };
-    uint32_t m_pulseCount { 0U };
+    std::uint32_t m_pulseCount { 0U };
     bool m_hasMeasurement { false };
-    LrfTargetMeasurement m_lastMeasurement {};
-    MeasurementCallback m_measurementCb {};
-    StateCallback m_stateCb {};
-    std::shared_ptr<GimbalSectorBlanking> m_sectorBlanking {};
-    std::shared_ptr<SimPtu> m_ptu {};
+    LrfTargetMeasurement m_lastMeasurement { };
+    MeasurementCallback m_measurementCb { };
+    StateCallback m_stateCb { };
+    std::shared_ptr<GimbalSectorBlanking> m_sectorBlanking { };
+    std::shared_ptr<SimPtu> m_ptu { };
 };
 
 // =============================================================================
@@ -834,7 +839,7 @@ public:
 
     DeviceInfo info() const noexcept override
     {
-        DeviceInfo d {};
+        DeviceInfo d { };
         d.manufacturer = "Simulated";
         d.model = "Virtual Tactical 850nm NIR Illuminator / Pointer";
         d.firmwareVersion = "1.0.0-sim";
@@ -991,11 +996,11 @@ private:
     bool m_armed { false };
     bool m_emitting { false };
     IlluminatorMode m_mode { IlluminatorMode::Standby };
-    IlluminatorTelemetry m_telemetry {};
-    TelemetryCallback m_telemetryCb {};
-    StateCallback m_stateCb {};
-    std::shared_ptr<GimbalSectorBlanking> m_sectorBlanking {};
-    std::shared_ptr<SimPtu> m_ptu {};
+    IlluminatorTelemetry m_telemetry { };
+    TelemetryCallback m_telemetryCb { };
+    StateCallback m_stateCb { };
+    std::shared_ptr<GimbalSectorBlanking> m_sectorBlanking { };
+    std::shared_ptr<SimPtu> m_ptu { };
 };
 
 // =============================================================================
@@ -1013,8 +1018,8 @@ SimulatedPayload::SimulatedPayload()
     , m_tacticalEngine(std::make_shared<TacticalSearchEngine>(m_ptu, m_daylightCamera, m_lrf))
     , m_parallaxCompensator(std::make_shared<SensorParallaxCompensator>(
           SensorOffset3D { 0.15, 0.0, 0.0 }, BoresightCalibration { 0.0, 0.0, 0.0 }))
-    , m_leverArmCompensator(std::make_shared<PlatformLeverArmCompensator>(
-          PlatformLeverArmConfig { Vector3D { 0.0, 0.0, 5.0 }, Vector3D { 0.0, 0.0, 0.0 }, GimbalMountingType::Upright, {} }))
+    , m_leverArmCompensator(std::make_shared<PlatformLeverArmCompensator>(PlatformLeverArmConfig {
+          Vector3D { 0.0, 0.0, 5.0 }, Vector3D { 0.0, 0.0, 0.0 }, GimbalMountingType::Upright, { } }))
     , m_sectorBlanking(std::make_shared<GimbalSectorBlanking>())
     , m_healthMonitor(std::make_shared<PayloadHealthMonitor>())
     , m_motionProfiler(std::make_shared<GimbalMotionProfiler>())
@@ -1104,7 +1109,7 @@ DeviceState SimulatedPayload::state() const noexcept
 
 DeviceInfo SimulatedPayload::info() const noexcept
 {
-    DeviceInfo d {};
+    DeviceInfo d { };
     d.manufacturer = "Simulated Systems";
     d.model = "Multi-Sensor EO/IR/LRF Payload";
     d.firmwareVersion = "1.0.0-sim";

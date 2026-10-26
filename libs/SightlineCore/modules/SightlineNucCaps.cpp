@@ -2,6 +2,7 @@
 /// @brief Implementation of firmware-gated NUC/DPR capability queries.
 
 #include "SightlineNucCaps.h"
+#include <cstdint>
 
 namespace Sightline {
 

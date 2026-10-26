@@ -4,7 +4,9 @@
 #include "UnscentedKalmanFilter.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstddef>
 
 namespace Tracking {
 
@@ -102,8 +104,7 @@ void UnscentedKalmanFilter::predict(double dt)
     m_P = F * m_P * F.transpose() + Q;
 }
 
-void UnscentedKalmanFilter::update(const Math::Vector<2>& z, const MeasurementFn& h,
-    const Math::Matrix<2, 2>& R)
+void UnscentedKalmanFilter::update(const Math::Vector<2>& z, const MeasurementFn& h, const Math::Matrix<2, 2>& R)
 {
     if (!m_initialized) {
         return;

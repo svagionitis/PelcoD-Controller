@@ -6,6 +6,7 @@
 #include "UnscentedKalmanFilter.h"
 
 #include <cmath>
+#include <cstddef>
 #include <gtest/gtest.h>
 #include <iostream>
 
@@ -41,8 +42,8 @@ TEST(UnscentedKalmanFilterTest, InitMarksInitialized)
 {
     std::cout << "[Test] testInitMarksInitialized\n";
     UnscentedKalmanFilter ukf;
-    Vector<6> x0 {};
-    Matrix<6, 6> P0 {};
+    Vector<6> x0 { };
+    Matrix<6, 6> P0 { };
     for (std::size_t i = 0U; i < 6U; ++i) {
         P0(i, i) = 1.0;
     }
@@ -60,10 +61,10 @@ TEST(UnscentedKalmanFilterTest, PredictAdvancesPosition)
 {
     std::cout << "[Test] testPredictAdvancesPosition\n";
     UnscentedKalmanFilter ukf;
-    Vector<6> x0 {};
+    Vector<6> x0 { };
     x0[0] = 1.0; // position x
     x0[2] = 0.5; // velocity x
-    Matrix<6, 6> P0 {};
+    Matrix<6, 6> P0 { };
     for (std::size_t i = 0U; i < 6U; ++i) {
         P0(i, i) = 0.1;
     }
@@ -82,8 +83,8 @@ TEST(UnscentedKalmanFilterTest, UpdateReducesCovariance)
 {
     std::cout << "[Test] testUpdateReducesCovariance\n";
     UnscentedKalmanFilter ukf;
-    Vector<6> x0 {};
-    Matrix<6, 6> P0 {};
+    Vector<6> x0 { };
+    Matrix<6, 6> P0 { };
     for (std::size_t i = 0U; i < 6U; ++i) {
         P0(i, i) = 1.0;
     }
@@ -95,7 +96,7 @@ TEST(UnscentedKalmanFilterTest, UpdateReducesCovariance)
     }
 
     Vector<2> z { 0.0, 0.0 };
-    Matrix<2, 2> R {};
+    Matrix<2, 2> R { };
     R(0, 0) = 0.01;
     R(1, 1) = 0.01;
     ukf.update(z, identityH, R);
@@ -113,17 +114,17 @@ TEST(UnscentedKalmanFilterTest, InnovationAfterUpdate)
 {
     std::cout << "[Test] testInnovationAfterUpdate\n";
     UnscentedKalmanFilter ukf;
-    Vector<6> x0 {};
+    Vector<6> x0 { };
     x0[0] = 2.0;
     x0[1] = 3.0;
-    Matrix<6, 6> P0 {};
+    Matrix<6, 6> P0 { };
     for (std::size_t i = 0U; i < 6U; ++i) {
         P0(i, i) = 0.5;
     }
     ukf.init(x0, P0);
 
     Vector<2> z { 2.5, 3.5 };
-    Matrix<2, 2> R {};
+    Matrix<2, 2> R { };
     R(0, 0) = 0.1;
     R(1, 1) = 0.1;
     ukf.update(z, identityH, R);
@@ -138,15 +139,15 @@ TEST(UnscentedKalmanFilterTest, MahalanobisDistanceNonNegative)
 {
     std::cout << "[Test] testMahalanobisDistanceNonNegative\n";
     UnscentedKalmanFilter ukf;
-    Vector<6> x0 {};
-    Matrix<6, 6> P0 {};
+    Vector<6> x0 { };
+    Matrix<6, 6> P0 { };
     for (std::size_t i = 0U; i < 6U; ++i) {
         P0(i, i) = 1.0;
     }
     ukf.init(x0, P0);
 
     Vector<2> z { 1.0, 1.0 };
-    Matrix<2, 2> R {};
+    Matrix<2, 2> R { };
     R(0, 0) = 0.1;
     R(1, 1) = 0.1;
     ukf.update(z, identityH, R);
@@ -159,8 +160,8 @@ TEST(UnscentedKalmanFilterTest, SetScalingParameters)
 {
     std::cout << "[Test] testSetScalingParameters\n";
     UnscentedKalmanFilter ukf;
-    Vector<6> x0 {};
-    Matrix<6, 6> P0 {};
+    Vector<6> x0 { };
+    Matrix<6, 6> P0 { };
     for (std::size_t i = 0U; i < 6U; ++i) {
         P0(i, i) = 0.5;
     }
@@ -179,9 +180,9 @@ TEST(UnscentedKalmanFilterTest, ResetClearsState)
 {
     std::cout << "[Test] testResetClearsState\n";
     UnscentedKalmanFilter ukf;
-    Vector<6> x0 {};
+    Vector<6> x0 { };
     x0[0] = 5.0;
-    Matrix<6, 6> P0 {};
+    Matrix<6, 6> P0 { };
     for (std::size_t i = 0U; i < 6U; ++i) {
         P0(i, i) = 1.0;
     }
@@ -197,15 +198,15 @@ TEST(UnscentedKalmanFilterTest, PredictUpdateCycleConverges)
 {
     std::cout << "[Test] testPredictUpdateCycleConverges\n";
     UnscentedKalmanFilter ukf;
-    Vector<6> x0 {};
-    Matrix<6, 6> P0 {};
+    Vector<6> x0 { };
+    Matrix<6, 6> P0 { };
     for (std::size_t i = 0U; i < 6U; ++i) {
         P0(i, i) = 1.0;
     }
     ukf.init(x0, P0);
     ukf.setProcessNoise(1e-4, 1e-3, 1e-2);
 
-    Matrix<2, 2> R {};
+    Matrix<2, 2> R { };
     R(0, 0) = 0.01;
     R(1, 1) = 0.01;
 

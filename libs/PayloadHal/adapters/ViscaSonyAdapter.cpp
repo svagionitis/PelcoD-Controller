@@ -1,7 +1,13 @@
 #include "ViscaSonyAdapter.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -56,7 +62,7 @@ DeviceState ViscaSonyAdapter::state() const noexcept
 
 DeviceInfo ViscaSonyAdapter::info() const noexcept
 {
-    DeviceInfo d {};
+    DeviceInfo d { };
     d.manufacturer = "Sony";
     if (m_device) {
         const auto model = m_device->modelType();
@@ -283,7 +289,7 @@ void ViscaSonyAdapter::updateTelemetry()
     m_device->pollStatus();
     const auto st = m_device->status();
 
-    CameraTelemetry telem {};
+    CameraTelemetry telem { };
     // Sony zoom 0x0000 - 0x4000
     const double normZoom = std::clamp(static_cast<double>(st.zoomPosition) / static_cast<double>(0x4000), 0.0, 1.0);
     telem.normalizedZoom = normZoom;
@@ -303,7 +309,7 @@ void ViscaSonyAdapter::updateTelemetry()
     telem.verticalFovDeg = currentVfovRad * (180.0 / 3.14159265358979323846);
     telem.timestamp = std::chrono::system_clock::now();
 
-    TelemetryCallback cbCopy {};
+    TelemetryCallback cbCopy { };
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_telemetry = telem;
@@ -327,7 +333,7 @@ std::string ViscaSonyAdapter::videoStreamUri(VideoStreamProfile profile) const
             return primIt->second;
         }
     }
-    return {};
+    return { };
 }
 
 bool ViscaSonyAdapter::setVideoStreamUri(const std::string& uri, VideoStreamProfile profile)

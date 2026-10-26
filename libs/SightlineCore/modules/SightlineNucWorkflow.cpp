@@ -6,7 +6,11 @@
 #include "SightlineEnhancementBuilder.h"
 #include "SightlineNucBuilder.h"
 
+#include <cstdint>
+
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace Sightline {
 
@@ -68,7 +72,7 @@ void NucWorkflow::setCamera(std::uint8_t cameraIndex) noexcept
 {
     if (cameraIndex != m_camera) {
         m_camera = cameraIndex;
-        m_state = MsgNucParameters {};
+        m_state = MsgNucParameters { };
         m_hasState = false;
     }
 }
@@ -230,12 +234,12 @@ NucError NucWorkflow::calcDead(const DprLimits& limits)
 
 NucError NucWorkflow::calcReplace()
 {
-    return sendRun(NucRunMode::CalcReplace, 0U, std::string {});
+    return sendRun(NucRunMode::CalcReplace, 0U, std::string { });
 }
 
 NucError NucWorkflow::autoDead()
 {
-    return sendRun(NucRunMode::AutoDead, 0U, std::string {});
+    return sendRun(NucRunMode::AutoDead, 0U, std::string { });
 }
 
 NucError NucWorkflow::setReplace(const DprReplace& rep)
@@ -284,7 +288,7 @@ NucError NucWorkflow::tableOp(MsgReadWriteNuc msg)
 
 NucError NucWorkflow::addDeadPixel(std::uint16_t column, std::uint16_t row, bool deferUpdate)
 {
-    MsgDeadPixel msg {};
+    MsgDeadPixel msg { };
     msg.mode = DeadPixelMode::Add;
     msg.a = column;
     msg.b = row;
@@ -294,7 +298,7 @@ NucError NucWorkflow::addDeadPixel(std::uint16_t column, std::uint16_t row, bool
 
 NucError NucWorkflow::removeDeadPixel(std::uint16_t column, std::uint16_t row, bool deferUpdate)
 {
-    MsgDeadPixel msg {};
+    MsgDeadPixel msg { };
     msg.mode = DeadPixelMode::Remove;
     msg.a = column;
     msg.b = row;
@@ -304,7 +308,7 @@ NucError NucWorkflow::removeDeadPixel(std::uint16_t column, std::uint16_t row, b
 
 NucError NucWorkflow::dynamicDead(std::uint8_t kernelSize, std::uint8_t maxPixelDiff)
 {
-    MsgDeadPixel msg {};
+    MsgDeadPixel msg { };
     msg.mode = DeadPixelMode::DynamicDetect;
     msg.a = kernelSize;
     msg.b = maxPixelDiff;
@@ -329,7 +333,7 @@ bool NucWorkflow::queryNoise()
 
 NucError NucWorkflow::planSteps(NucRecipe recipe, const NucOptions& options)
 {
-    std::vector<Step> steps {};
+    std::vector<Step> steps { };
     switch (recipe) {
     case NucRecipe::TwoPoint:
         steps = {
@@ -350,17 +354,18 @@ NucError NucWorkflow::planSteps(NucRecipe recipe, const NucOptions& options)
         if (!SightlineNucCaps::supportsRun(m_fw, NucRunMode::ShutterFlatten)) {
             return NucError::Unsupported;
         }
-        steps = { { StepAction::Flatten, "Defocus the lens until no features are visible, then run shutter flatten." } };
+        steps
+            = { { StepAction::Flatten, "Defocus the lens until no features are visible, then run shutter flatten." } };
         if (!options.saveName.empty()) {
-            MsgReadWriteNuc save {};
+            MsgReadWriteNuc save { };
             save.fileOp = NucFileOp::SaveShutterFlatten;
             save.fileName = options.saveName;
             const NucError err { SightlineNucBuilder::checkReadWriteNuc(save, m_fw) };
             if (err != NucError::Ok) {
                 return err;
             }
-            steps.push_back({ StepAction::SaveFlatten,
-                "Save the shutter flatten table now (do not save the NUC table)." });
+            steps.push_back(
+                { StepAction::SaveFlatten, "Save the shutter flatten table now (do not save the NUC table)." });
         }
         break;
     case NucRecipe::NoiseStats:
@@ -369,7 +374,8 @@ NucError NucWorkflow::planSteps(NucRecipe recipe, const NucOptions& options)
         }
         steps = {
             { StepAction::NoiseCalc, "Choose raw or NUC/DPR video, then calculate the noise statistics." },
-            { StepAction::NoiseRead, "Waiting for 'Noise stats calculation complete'; retrieve results manually if needed." },
+            { StepAction::NoiseRead,
+                "Waiting for 'Noise stats calculation complete'; retrieve results manually if needed." },
         };
         break;
     case NucRecipe::MultiNuc: {
@@ -404,7 +410,7 @@ NucError NucWorkflow::planMulti(const std::vector<std::string>& names, std::vect
         if (names[i].empty()) {
             return NucError::FileNameBlank;
         }
-        MsgNucParameters probe {};
+        MsgNucParameters probe { };
         probe.nucRunMode = NucRunMode::AddFrames;
         probe.nucName = names[i];
         const NucError err { SightlineNucBuilder::checkNucParams(probe, m_fw) };
@@ -418,7 +424,7 @@ NucError NucWorkflow::planMulti(const std::vector<std::string>& names, std::vect
         }
     }
 
-    std::vector<Step> out {};
+    std::vector<Step> out { };
     out.reserve(names.size() * 3U);
     for (const std::string& name : names) {
         out.push_back({ StepAction::AddFrames,
@@ -461,7 +467,7 @@ NucError NucWorkflow::runStep(const Step& step)
         err = sendRun(NucRunMode::ShutterFlatten, m_options.numFrames, step.name);
         break;
     case StepAction::SaveFlatten: {
-        MsgReadWriteNuc save {};
+        MsgReadWriteNuc save { };
         save.fileOp = NucFileOp::SaveShutterFlatten;
         save.fileName = m_options.saveName;
         err = tableOp(save);

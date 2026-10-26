@@ -1,7 +1,12 @@
 #include "CameraStreamBinder.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstddef>
+#include <memory>
+#include <mutex>
+#include <optional>
 
 namespace PayloadHal {
 
@@ -83,9 +88,8 @@ CameraStreamBinder::CameraStreamBinder(std::shared_ptr<IPayload> payload, VideoS
     }
 }
 
-CameraStreamBinder::CameraStreamBinder(std::shared_ptr<ICameraPayload> camera,
-    std::shared_ptr<IPanTiltUnit> ptu,
-    VideoStreamDescriptor descriptor)
+CameraStreamBinder::CameraStreamBinder(
+    std::shared_ptr<ICameraPayload> camera, std::shared_ptr<IPanTiltUnit> ptu, VideoStreamDescriptor descriptor)
     : m_camera(std::move(camera))
     , m_ptu(std::move(ptu))
     , m_descriptor(std::move(descriptor))
@@ -164,20 +168,16 @@ SynchronizedVideoFrame CameraStreamBinder::bindFrame(RawVideoFrame frame) const
     if (platformPos.has_value()) {
         std::shared_ptr<IDemProvider> dem = m_payload ? m_payload->demProvider() : nullptr;
         if (dem) {
-            syncd.targetGroundIntersection = GeoreferenceUtils::computeTargetFromDem(
-                *dem, *platformPos, platformHeading,
-                syncd.gimbalTelemetry.panAngleDeg, syncd.gimbalTelemetry.tiltAngleDeg);
-            syncd.frustumCorners = GeoreferenceUtils::computeFrustumCorners(
-                *dem, *platformPos, platformHeading,
+            syncd.targetGroundIntersection = GeoreferenceUtils::computeTargetFromDem(*dem, *platformPos,
+                platformHeading, syncd.gimbalTelemetry.panAngleDeg, syncd.gimbalTelemetry.tiltAngleDeg);
+            syncd.frustumCorners = GeoreferenceUtils::computeFrustumCorners(*dem, *platformPos, platformHeading,
                 syncd.gimbalTelemetry.panAngleDeg, syncd.gimbalTelemetry.tiltAngleDeg,
                 syncd.cameraTelemetry.horizontalFovDeg, syncd.cameraTelemetry.verticalFovDeg,
                 syncd.gimbalTelemetry.rollAngleDeg);
         } else {
-            syncd.targetGroundIntersection = GeoreferenceUtils::computeTargetFromGroundIntersection(
-                *platformPos, platformHeading,
-                syncd.gimbalTelemetry.panAngleDeg, syncd.gimbalTelemetry.tiltAngleDeg, 0.0);
-            syncd.frustumCorners = GeoreferenceUtils::computeFrustumCorners(
-                *platformPos, platformHeading,
+            syncd.targetGroundIntersection = GeoreferenceUtils::computeTargetFromGroundIntersection(*platformPos,
+                platformHeading, syncd.gimbalTelemetry.panAngleDeg, syncd.gimbalTelemetry.tiltAngleDeg, 0.0);
+            syncd.frustumCorners = GeoreferenceUtils::computeFrustumCorners(*platformPos, platformHeading,
                 syncd.gimbalTelemetry.panAngleDeg, syncd.gimbalTelemetry.tiltAngleDeg,
                 syncd.cameraTelemetry.horizontalFovDeg, syncd.cameraTelemetry.verticalFovDeg, 0.0,
                 syncd.gimbalTelemetry.rollAngleDeg);
@@ -221,16 +221,15 @@ void CameraStreamBinder::recordGimbalTelemetry(const GimbalTelemetry& telem)
     }
 }
 
-CameraTelemetry CameraStreamBinder::findMatchingCameraTelemetry(
-    std::chrono::system_clock::time_point timestamp) const
+CameraTelemetry CameraStreamBinder::findMatchingCameraTelemetry(std::chrono::system_clock::time_point timestamp) const
 {
     if (!m_buffer) {
-        return m_camera ? m_camera->currentTelemetry() : CameraTelemetry {};
+        return m_camera ? m_camera->currentTelemetry() : CameraTelemetry { };
     }
 
     std::lock_guard<std::mutex> lock(m_buffer->mutex);
     if (m_buffer->cameraHistory.empty()) {
-        return m_camera ? m_camera->currentTelemetry() : CameraTelemetry {};
+        return m_camera ? m_camera->currentTelemetry() : CameraTelemetry { };
     }
 
     const auto& hist = m_buffer->cameraHistory;
@@ -267,16 +266,15 @@ CameraTelemetry CameraStreamBinder::findMatchingCameraTelemetry(
     return result;
 }
 
-GimbalTelemetry CameraStreamBinder::findMatchingGimbalTelemetry(
-    std::chrono::system_clock::time_point timestamp) const
+GimbalTelemetry CameraStreamBinder::findMatchingGimbalTelemetry(std::chrono::system_clock::time_point timestamp) const
 {
     if (!m_buffer) {
-        return m_ptu ? m_ptu->currentTelemetry() : GimbalTelemetry {};
+        return m_ptu ? m_ptu->currentTelemetry() : GimbalTelemetry { };
     }
 
     std::lock_guard<std::mutex> lock(m_buffer->mutex);
     if (m_buffer->gimbalHistory.empty()) {
-        return m_ptu ? m_ptu->currentTelemetry() : GimbalTelemetry {};
+        return m_ptu ? m_ptu->currentTelemetry() : GimbalTelemetry { };
     }
 
     const auto& hist = m_buffer->gimbalHistory;

@@ -1,6 +1,10 @@
 #include "AisBitReader.h"
 
+#include <cstdint>
+
 #include <gtest/gtest.h>
+#include <string>
+#include <vector>
 
 namespace Nmea {
 namespace {

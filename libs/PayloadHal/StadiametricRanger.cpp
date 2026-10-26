@@ -7,76 +7,79 @@
 #include "IPayload.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <limits>
+#include <mutex>
+#include <optional>
 
 namespace PayloadHal {
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
-constexpr double kDegToRad = kPi / 180.0;
-constexpr double kRadToDeg = 180.0 / kPi;
-constexpr double kDefaultAngularNoiseRad = 0.0015; // ~1.5 mrad pointing/tracking jitter
+    constexpr double kPi = 3.14159265358979323846;
+    constexpr double kDegToRad = kPi / 180.0;
+    constexpr double kRadToDeg = 180.0 / kPi;
+    constexpr double kDefaultAngularNoiseRad = 0.0015; // ~1.5 mrad pointing/tracking jitter
 
-inline double clampVal(double val, double minVal, double maxVal) noexcept
-{
-    return std::max(minVal, std::min(maxVal, val));
-}
-
-inline Vector3D vecSub(const Vector3D& a, const Vector3D& b) noexcept
-{
-    return { a.x - b.x, a.y - b.y, a.z - b.z };
-}
-
-inline Vector3D vecAdd(const Vector3D& a, const Vector3D& b) noexcept
-{
-    return { a.x + b.x, a.y + b.y, a.z + b.z };
-}
-
-inline Vector3D vecScale(const Vector3D& a, double s) noexcept
-{
-    return { a.x * s, a.y * s, a.z * s };
-}
-
-inline double vecDot(const Vector3D& a, const Vector3D& b) noexcept
-{
-    return a.x * b.x + a.y * b.y + a.z * b.z;
-}
-
-inline double vecNorm(const Vector3D& a) noexcept
-{
-    return std::sqrt(vecDot(a, a));
-}
-
-/// @brief Inverts a 3x3 symmetric matrix via adjugate matrix.
-/// @return true if matrix was non-singular and inverted, false otherwise.
-bool invert3x3(const double A[3][3], double inv[3][3]) noexcept
-{
-    const double det = A[0][0] * (A[1][1] * A[2][2] - A[1][2] * A[2][1])
-                     - A[0][1] * (A[1][0] * A[2][2] - A[1][2] * A[2][0])
-                     + A[0][2] * (A[1][0] * A[2][1] - A[1][1] * A[2][0]);
-
-    if (std::abs(det) < 1e-11) {
-        return false;
+    inline double clampVal(double val, double minVal, double maxVal) noexcept
+    {
+        return std::max(minVal, std::min(maxVal, val));
     }
 
-    const double invDet = 1.0 / det;
+    inline Vector3D vecSub(const Vector3D& a, const Vector3D& b) noexcept
+    {
+        return { a.x - b.x, a.y - b.y, a.z - b.z };
+    }
 
-    inv[0][0] =  (A[1][1] * A[2][2] - A[1][2] * A[2][1]) * invDet;
-    inv[0][1] = -(A[0][1] * A[2][2] - A[0][2] * A[2][1]) * invDet;
-    inv[0][2] =  (A[0][1] * A[1][2] - A[0][2] * A[1][1]) * invDet;
+    inline Vector3D vecAdd(const Vector3D& a, const Vector3D& b) noexcept
+    {
+        return { a.x + b.x, a.y + b.y, a.z + b.z };
+    }
 
-    inv[1][0] = -(A[1][0] * A[2][2] - A[1][2] * A[2][0]) * invDet;
-    inv[1][1] =  (A[0][0] * A[2][2] - A[0][2] * A[2][0]) * invDet;
-    inv[1][2] = -(A[0][0] * A[1][2] - A[0][2] * A[1][0]) * invDet;
+    inline Vector3D vecScale(const Vector3D& a, double s) noexcept
+    {
+        return { a.x * s, a.y * s, a.z * s };
+    }
 
-    inv[2][0] =  (A[1][0] * A[2][1] - A[1][1] * A[2][0]) * invDet;
-    inv[2][1] = -(A[0][0] * A[2][1] - A[0][1] * A[2][0]) * invDet;
-    inv[2][2] =  (A[0][0] * A[1][1] - A[0][1] * A[1][0]) * invDet;
+    inline double vecDot(const Vector3D& a, const Vector3D& b) noexcept
+    {
+        return a.x * b.x + a.y * b.y + a.z * b.z;
+    }
 
-    return true;
-}
+    inline double vecNorm(const Vector3D& a) noexcept
+    {
+        return std::sqrt(vecDot(a, a));
+    }
+
+    /// @brief Inverts a 3x3 symmetric matrix via adjugate matrix.
+    /// @return true if matrix was non-singular and inverted, false otherwise.
+    bool invert3x3(const double A[3][3], double inv[3][3]) noexcept
+    {
+        const double det = A[0][0] * (A[1][1] * A[2][2] - A[1][2] * A[2][1])
+            - A[0][1] * (A[1][0] * A[2][2] - A[1][2] * A[2][0]) + A[0][2] * (A[1][0] * A[2][1] - A[1][1] * A[2][0]);
+
+        if (std::abs(det) < 1e-11) {
+            return false;
+        }
+
+        const double invDet = 1.0 / det;
+
+        inv[0][0] = (A[1][1] * A[2][2] - A[1][2] * A[2][1]) * invDet;
+        inv[0][1] = -(A[0][1] * A[2][2] - A[0][2] * A[2][1]) * invDet;
+        inv[0][2] = (A[0][1] * A[1][2] - A[0][2] * A[1][1]) * invDet;
+
+        inv[1][0] = -(A[1][0] * A[2][2] - A[1][2] * A[2][0]) * invDet;
+        inv[1][1] = (A[0][0] * A[2][2] - A[0][2] * A[2][0]) * invDet;
+        inv[1][2] = -(A[0][0] * A[1][2] - A[0][2] * A[1][0]) * invDet;
+
+        inv[2][0] = (A[1][0] * A[2][1] - A[1][1] * A[2][0]) * invDet;
+        inv[2][1] = -(A[0][0] * A[2][1] - A[0][1] * A[2][0]) * invDet;
+        inv[2][2] = (A[0][0] * A[1][1] - A[0][1] * A[1][0]) * invDet;
+
+        return true;
+    }
 
 } // namespace
 
@@ -171,20 +174,14 @@ Vector3D StadiametricRanger::anglesToUnitVectorNed(double azDeg, double elDeg) n
     const double cosEl = std::cos(elRad);
 
     // North = +X, East = +Y, Down = +Z (el positive up -> Z is -sin(el))
-    return {
-        cosEl * std::cos(azRad),
-        cosEl * std::sin(azRad),
-        -std::sin(elRad)
-    };
+    return { cosEl * std::cos(azRad), cosEl * std::sin(azRad), -std::sin(elRad) };
 }
 
 StadiametricEstimate StadiametricRanger::estimateStadiametricRange(
-    const BoundingBoxDetection& bbox,
-    StadiametricDimensionMode mode,
-    double aspectAngleDeg) const
+    const BoundingBoxDetection& bbox, StadiametricDimensionMode mode, double aspectAngleDeg) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    StadiametricEstimate est {};
+    StadiametricEstimate est { };
 
     if (bbox.normWidth <= 1e-4 || bbox.normHeight <= 1e-4) {
         return est;
@@ -193,9 +190,7 @@ StadiametricEstimate StadiametricRanger::estimateStadiametricRange(
         return est;
     }
 
-    const auto dims = (m_profile == TargetClassProfile::Custom)
-                          ? m_customDims
-                          : defaultDimensionsForProfile(m_profile);
+    const auto dims = (m_profile == TargetClassProfile::Custom) ? m_customDims : defaultDimensionsForProfile(m_profile);
 
     // Decide active dimension mode
     auto activeMode = mode;
@@ -227,8 +222,8 @@ StadiametricEstimate StadiametricRanger::estimateStadiametricRange(
     } else {
         // Width / Length with aspect angle projection
         const double aspectRad = aspectAngleDeg * kDegToRad;
-        const double projWidth = std::abs(dims.widthMeters * std::cos(aspectRad))
-                               + std::abs(dims.lengthMeters * std::sin(aspectRad));
+        const double projWidth
+            = std::abs(dims.widthMeters * std::cos(aspectRad)) + std::abs(dims.lengthMeters * std::sin(aspectRad));
 
         const double halfHfovRad = (m_calib.horizontalFovDeg * 0.5) * kDegToRad;
         const double tanHalfHfov = std::tan(halfHfovRad);
@@ -262,12 +257,10 @@ void StadiametricRanger::addBearingObservation(const BearingObservation& obs)
     }
 }
 
-void StadiametricRanger::addBearingObservation(
-    double azimuthDeg, double elevationDeg,
-    const Vector3D& platformPositionNed,
-    std::chrono::steady_clock::time_point timestamp)
+void StadiametricRanger::addBearingObservation(double azimuthDeg, double elevationDeg,
+    const Vector3D& platformPositionNed, std::chrono::steady_clock::time_point timestamp)
 {
-    BearingObservation obs {};
+    BearingObservation obs { };
     obs.platformPositionNedMeters = platformPositionNed;
     obs.losUnitVectorNed = anglesToUnitVectorNed(azimuthDeg, elevationDeg);
     obs.azimuthDeg = azimuthDeg;
@@ -279,7 +272,7 @@ void StadiametricRanger::addBearingObservation(
 TriangulationEstimate StadiametricRanger::computeTwoPointTriangulation() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    TriangulationEstimate est {};
+    TriangulationEstimate est { };
 
     if (m_history.size() < 2) {
         est.quality = TriangulationQuality::InsufficientBaseline;
@@ -356,7 +349,7 @@ TriangulationEstimate StadiametricRanger::computeTwoPointTriangulation() const
 TriangulationEstimate StadiametricRanger::computeBatchTriangulation() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    TriangulationEstimate est {};
+    TriangulationEstimate est { };
 
     const std::size_t N = m_history.size();
     if (N < 2) {
@@ -367,11 +360,12 @@ TriangulationEstimate StadiametricRanger::computeBatchTriangulation() const
     // Compute baseline traversed from first to last observation
     const auto& obsFirst = m_history.front();
     const auto& obsLast = m_history.back();
-    est.baselineTraversedMeters = vecNorm(vecSub(obsLast.platformPositionNedMeters, obsFirst.platformPositionNedMeters));
+    est.baselineTraversedMeters
+        = vecNorm(vecSub(obsLast.platformPositionNedMeters, obsFirst.platformPositionNedMeters));
 
     // Form normal equations: A * P_T = b
     // where A = sum(I - u_k * u_k^T), b = sum((I - u_k * u_k^T) * P_k)
-    double A[3][3] = { {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0, 0.0} };
+    double A[3][3] = { { 0.0, 0.0, 0.0 }, { 0.0, 0.0, 0.0 }, { 0.0, 0.0, 0.0 } };
     double bVec[3] = { 0.0, 0.0, 0.0 };
 
     for (const auto& obs : m_history) {
@@ -380,11 +374,8 @@ TriangulationEstimate StadiametricRanger::computeBatchTriangulation() const
         const double uz = obs.losUnitVectorNed.z;
 
         // M_k = I - u * u^T
-        const double M[3][3] = {
-            { 1.0 - ux * ux,      -ux * uy,      -ux * uz },
-            {     -uy * ux,  1.0 - uy * uy,      -uy * uz },
-            {     -uz * ux,      -uz * uy,  1.0 - uz * uz }
-        };
+        const double M[3][3] = { { 1.0 - ux * ux, -ux * uy, -ux * uz }, { -uy * ux, 1.0 - uy * uy, -uy * uz },
+            { -uz * ux, -uz * uy, 1.0 - uz * uz } };
 
         for (int r = 0; r < 3; ++r) {
             for (int c = 0; c < 3; ++c) {
@@ -447,7 +438,9 @@ TriangulationEstimate StadiametricRanger::computeBatchTriangulation() const
     if (quadForm > 0.0) {
         est.rangeUncertaintyMeters = std::sqrt(quadForm) * kDefaultAngularNoiseRad * est.slantRangeFromLatestMeters;
     } else {
-        est.rangeUncertaintyMeters = (est.slantRangeFromLatestMeters / std::max(0.01, std::sin(est.convergenceAngleDeg * kDegToRad))) * kDefaultAngularNoiseRad;
+        est.rangeUncertaintyMeters
+            = (est.slantRangeFromLatestMeters / std::max(0.01, std::sin(est.convergenceAngleDeg * kDegToRad)))
+            * kDefaultAngularNoiseRad;
     }
 
     est.valid = (est.slantRangeFromLatestMeters > 0.0);
@@ -476,10 +469,9 @@ std::size_t StadiametricRanger::observationCount() const noexcept
 }
 
 PassiveRangeSolution StadiametricRanger::computeFusedRange(
-    const std::optional<BoundingBoxDetection>& bbox,
-    double aspectAngleDeg) const
+    const std::optional<BoundingBoxDetection>& bbox, double aspectAngleDeg) const
 {
-    PassiveRangeSolution sol {};
+    PassiveRangeSolution sol { };
 
     if (bbox.has_value()) {
         sol.stadiametric = estimateStadiametricRange(*bbox, StadiametricDimensionMode::AutomaticBest, aspectAngleDeg);
@@ -491,14 +483,17 @@ PassiveRangeSolution StadiametricRanger::computeFusedRange(
 
     if (sol.stadiametricAvailable && sol.triangulationAvailable) {
         // Optimal inverse-variance fusion
-        const double varStad = std::max(1.0, sol.stadiametric.rangeUncertaintyMeters * sol.stadiametric.rangeUncertaintyMeters);
-        const double varTri = std::max(1.0, sol.triangulation.rangeUncertaintyMeters * sol.triangulation.rangeUncertaintyMeters);
+        const double varStad
+            = std::max(1.0, sol.stadiametric.rangeUncertaintyMeters * sol.stadiametric.rangeUncertaintyMeters);
+        const double varTri
+            = std::max(1.0, sol.triangulation.rangeUncertaintyMeters * sol.triangulation.rangeUncertaintyMeters);
 
         const double wStad = 1.0 / varStad;
         const double wTri = 1.0 / varTri;
         const double sumW = wStad + wTri;
 
-        sol.estimatedRangeMeters = (wStad * sol.stadiametric.slantRangeMeters + wTri * sol.triangulation.slantRangeFromLatestMeters) / sumW;
+        sol.estimatedRangeMeters
+            = (wStad * sol.stadiametric.slantRangeMeters + wTri * sol.triangulation.slantRangeFromLatestMeters) / sumW;
         sol.rangeUncertaintyMeters = std::sqrt(1.0 / sumW);
         sol.confidence01 = clampVal(1.0 - (sol.rangeUncertaintyMeters / sol.estimatedRangeMeters), 0.1, 0.99);
         sol.valid = true;
@@ -524,14 +519,12 @@ PassiveRangeSolution StadiametricRanger::computeFusedRange(
 }
 
 void StadiametricRanger::updateFromPayload(
-    const IPayload& payload,
-    const Vector3D& platformPositionNed,
-    const std::optional<BoundingBoxDetection>& bbox)
+    const IPayload& payload, const Vector3D& platformPositionNed, const std::optional<BoundingBoxDetection>& bbox)
 {
     // Update camera calibration if daylight or active camera is available
     if (auto cam = payload.primaryCamera()) {
         const auto camTelem = cam->currentTelemetry();
-        OpticalFrameCalibration calib {};
+        OpticalFrameCalibration calib { };
         calib.horizontalFovDeg = camTelem.horizontalFovDeg;
         calib.verticalFovDeg = camTelem.verticalFovDeg;
         calib.frameWidthPx = 1920;

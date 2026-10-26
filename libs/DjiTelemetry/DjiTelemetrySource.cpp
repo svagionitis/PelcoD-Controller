@@ -3,6 +3,8 @@
 
 #include "DjiTelemetrySource.h"
 
+#include <cstddef>
+
 #include "DjiSt0601Mapper.h"
 #include "DjiSubtitleParser.h"
 #include "Mp4TextTrackReader.h"
@@ -11,7 +13,9 @@
 #include <array>
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 namespace Dji {
 
@@ -21,7 +25,7 @@ bool isMp4File(std::string_view path)
     if (!f.is_open()) {
         return false;
     }
-    std::array<char, 8U> hdr {};
+    std::array<char, 8U> hdr { };
     f.read(hdr.data(), static_cast<std::streamsize>(hdr.size()));
     if (f.gcount() != static_cast<std::streamsize>(hdr.size())) {
         return false;
@@ -32,12 +36,12 @@ bool isMp4File(std::string_view path)
 bool loadDjiTrack(std::string_view path, std::vector<TimedTelemetry>& out, const DjiLoadOptions& opts)
 {
     out.clear();
-    Mp4TextTrackReader reader {};
+    Mp4TextTrackReader reader { };
     if (!reader.open(path)) {
         return false;
     }
 
-    std::vector<std::pair<double, DjiTelemetrySample>> parsed {};
+    std::vector<std::pair<double, DjiTelemetrySample>> parsed { };
     parsed.reserve(reader.sampleCount());
     for (std::size_t i { 0U }; i < reader.sampleCount(); ++i) {
         const auto text { reader.readText(i) };
@@ -53,7 +57,7 @@ bool loadDjiTrack(std::string_view path, std::vector<TimedTelemetry>& out, const
         return false;
     }
 
-    DjiMapConfig cfg {};
+    DjiMapConfig cfg { };
     cfg.absAltIsHae = opts.absAltIsHae;
     cfg.deriveFov = opts.deriveFov && reader.videoAspect().has_value();
     cfg.sensorAspect = reader.videoAspect().value_or(0.0);

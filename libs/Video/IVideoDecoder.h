@@ -5,8 +5,11 @@
 
 #include "DecoderTypes.h"
 
+#include <cstdint>
+
 #include <functional>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -26,8 +29,7 @@ public:
     /// @param[in] device Hardware acceleration device type (defaults to CPU).
     /// @return True if initialized successfully and ready to decode.
     virtual bool initialize(std::string_view source, PixelFormat format = PixelFormat::RGB24, int threadCount = 0,
-        DeviceType device = DeviceType::CPU)
-        = 0;
+        DeviceType device = DeviceType::CPU) = 0;
 
     /// @brief Decodes the next available frame in the video stream.
     /// @return True if a new frame was successfully decoded and cached.

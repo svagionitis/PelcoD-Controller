@@ -1,7 +1,11 @@
 /// @file SightlineRecordingParser.cpp
 /// @brief Implementation of Sightline Recording module response deserializer.
 
+#include <cstdint>
+
 #include "SightlineRecordingParser.h"
+#include <string>
+#include <vector>
 
 namespace Sightline {
 
@@ -20,8 +24,7 @@ bool SightlineRecordingParser::parseSDRecording(
     out.recordingState = payload[0U];
     out.cameraIndex = payload[1U];
     if (payload.size() > 2U) {
-        out.filenamePrefix = std::string(
-            reinterpret_cast<const char*>(payload.data() + 2U), payload.size() - 2U);
+        out.filenamePrefix = std::string(reinterpret_cast<const char*>(payload.data() + 2U), payload.size() - 2U);
         while (!out.filenamePrefix.empty() && out.filenamePrefix.back() == '\0') {
             out.filenamePrefix.pop_back();
         }
@@ -31,14 +34,11 @@ bool SightlineRecordingParser::parseSDRecording(
     return true;
 }
 
-bool SightlineRecordingParser::parseSnapShot(
-    const std::vector<std::uint8_t>& packet, MsgCurrentSnapShot& out)
+bool SightlineRecordingParser::parseSnapShot(const std::vector<std::uint8_t>& packet, MsgCurrentSnapShot& out)
 {
     const auto msgId { SightlineFraming::identifyMessage(packet) };
-    if (msgId != MessageId::GetSnapShot &&
-        msgId != MessageId::CurrentSnapShot &&
-        msgId != MessageId::SetSnapShot &&
-        msgId != MessageId::DoSnapShot) {
+    if (msgId != MessageId::GetSnapShot && msgId != MessageId::CurrentSnapShot && msgId != MessageId::SetSnapShot
+        && msgId != MessageId::DoSnapShot) {
         return false;
     }
 
@@ -50,8 +50,7 @@ bool SightlineRecordingParser::parseSnapShot(
     out.cameraIndex = payload[0U];
     out.status = (payload.size() > 1U) ? payload[1U] : 0U;
     if (payload.size() > 2U) {
-        out.fileName = std::string(
-            reinterpret_cast<const char*>(payload.data() + 2U), payload.size() - 2U);
+        out.fileName = std::string(reinterpret_cast<const char*>(payload.data() + 2U), payload.size() - 2U);
         while (!out.fileName.empty() && out.fileName.back() == '\0') {
             out.fileName.pop_back();
         }
@@ -61,8 +60,7 @@ bool SightlineRecordingParser::parseSnapShot(
     return true;
 }
 
-bool SightlineRecordingParser::parseCmdAck(
-    const std::vector<std::uint8_t>& packet, MsgCommandAck& out)
+bool SightlineRecordingParser::parseCmdAck(const std::vector<std::uint8_t>& packet, MsgCommandAck& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::CommandAck) {
         return false;
@@ -101,8 +99,7 @@ bool SightlineRecordingParser::parseSetFileRecordingV2(
     out.maxSplitSizeBytes = SightlineFraming::readU32Le(payload.data() + 6U);
     out.maxSplitFrames = SightlineFraming::readU16Le(payload.data() + 10U);
     if (payload.size() > 12U) {
-        out.baseFilename = std::string(
-            reinterpret_cast<const char*>(payload.data() + 12U), payload.size() - 12U);
+        out.baseFilename = std::string(reinterpret_cast<const char*>(payload.data() + 12U), payload.size() - 12U);
         while (!out.baseFilename.empty() && out.baseFilename.back() == '\0') {
             out.baseFilename.pop_back();
         }
@@ -112,8 +109,7 @@ bool SightlineRecordingParser::parseSetFileRecordingV2(
     return true;
 }
 
-bool SightlineRecordingParser::parseDoSnapShotV2(
-    const std::vector<std::uint8_t>& packet, MsgDoSnapShotV2& out)
+bool SightlineRecordingParser::parseDoSnapShotV2(const std::vector<std::uint8_t>& packet, MsgDoSnapShotV2& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::DoSnapShotV2) {
         return false;
@@ -131,8 +127,7 @@ bool SightlineRecordingParser::parseDoSnapShotV2(
     out.qualityLevel = payload[5U];
     out.burstCount = payload[6U];
     if (payload.size() > 7U) {
-        out.customFilename = std::string(
-            reinterpret_cast<const char*>(payload.data() + 7U), payload.size() - 7U);
+        out.customFilename = std::string(reinterpret_cast<const char*>(payload.data() + 7U), payload.size() - 7U);
         while (!out.customFilename.empty() && out.customFilename.back() == '\0') {
             out.customFilename.pop_back();
         }
@@ -142,8 +137,7 @@ bool SightlineRecordingParser::parseDoSnapShotV2(
     return true;
 }
 
-bool SightlineRecordingParser::parseRecordingEvent(
-    const std::vector<std::uint8_t>& packet, MsgFileRecordingEvent& out)
+bool SightlineRecordingParser::parseRecordingEvent(const std::vector<std::uint8_t>& packet, MsgFileRecordingEvent& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::FileRecordingEvent) {
         return false;
@@ -161,8 +155,7 @@ bool SightlineRecordingParser::parseRecordingEvent(
     out.freeStorageMB = SightlineFraming::readU32Le(payload.data() + 14U);
     out.queueFullPercent = payload[18U];
     if (payload.size() > 19U) {
-        out.eventPayload = std::string(
-            reinterpret_cast<const char*>(payload.data() + 19U), payload.size() - 19U);
+        out.eventPayload = std::string(reinterpret_cast<const char*>(payload.data() + 19U), payload.size() - 19U);
         while (!out.eventPayload.empty() && out.eventPayload.back() == '\0') {
             out.eventPayload.pop_back();
         }
@@ -195,8 +188,7 @@ bool SightlineRecordingParser::parseRecordingStatusV2(
     out.droppedFrames = SightlineFraming::readU16Le(payload.data() + 23U);
     out.activeFileFrameCount = SightlineFraming::readU16Le(payload.data() + 25U);
     if (payload.size() > 27U) {
-        out.activeFilename = std::string(
-            reinterpret_cast<const char*>(payload.data() + 27U), payload.size() - 27U);
+        out.activeFilename = std::string(reinterpret_cast<const char*>(payload.data() + 27U), payload.size() - 27U);
         while (!out.activeFilename.empty() && out.activeFilename.back() == '\0') {
             out.activeFilename.pop_back();
         }
@@ -206,8 +198,7 @@ bool SightlineRecordingParser::parseRecordingStatusV2(
     return true;
 }
 
-bool SightlineRecordingParser::parseGetDirListing(
-    const std::vector<std::uint8_t>& packet, MsgGetDirectoryListing& out)
+bool SightlineRecordingParser::parseGetDirListing(const std::vector<std::uint8_t>& packet, MsgGetDirectoryListing& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::GetDirectoryListing) {
         return false;
@@ -223,8 +214,7 @@ bool SightlineRecordingParser::parseGetDirListing(
     out.startIndex = SightlineFraming::readU16Le(payload.data() + 3U);
     out.maxEntries = payload[5U];
     if (payload.size() > 6U) {
-        out.pathFilter = std::string(
-            reinterpret_cast<const char*>(payload.data() + 6U), payload.size() - 6U);
+        out.pathFilter = std::string(reinterpret_cast<const char*>(payload.data() + 6U), payload.size() - 6U);
         while (!out.pathFilter.empty() && out.pathFilter.back() == '\0') {
             out.pathFilter.pop_back();
         }
@@ -256,7 +246,7 @@ bool SightlineRecordingParser::parseDirListingReply(
 
     std::size_t offset { 7U };
     for (std::size_t i = 0U; i < entryCount && (offset + 18U <= payload.size()); ++i) {
-        DirListEntry entry {};
+        DirListEntry entry { };
         entry.fileSizeBytes = SightlineFraming::readU64Le(payload.data() + offset);
         entry.timestampUs = SightlineFraming::readU64Le(payload.data() + offset + 8U);
         entry.isPinned = (payload[offset + 16U] != 0U);
@@ -267,8 +257,7 @@ bool SightlineRecordingParser::parseDirListingReply(
         while (strEnd < payload.size() && payload[strEnd] != 0U) {
             ++strEnd;
         }
-        entry.filename = std::string(
-            reinterpret_cast<const char*>(payload.data() + offset), strEnd - offset);
+        entry.filename = std::string(reinterpret_cast<const char*>(payload.data() + offset), strEnd - offset);
         offset = (strEnd < payload.size()) ? (strEnd + 1U) : strEnd;
 
         out.entries.push_back(std::move(entry));
@@ -293,8 +282,7 @@ bool SightlineRecordingParser::parseFileStorageMgmt(
     out.operation = static_cast<FileStorageOp>(payload[2U]);
     out.destination = static_cast<StorageDestination>(payload[3U]);
     if (payload.size() > 4U) {
-        out.targetFilename = std::string(
-            reinterpret_cast<const char*>(payload.data() + 4U), payload.size() - 4U);
+        out.targetFilename = std::string(reinterpret_cast<const char*>(payload.data() + 4U), payload.size() - 4U);
         while (!out.targetFilename.empty() && out.targetFilename.back() == '\0') {
             out.targetFilename.pop_back();
         }

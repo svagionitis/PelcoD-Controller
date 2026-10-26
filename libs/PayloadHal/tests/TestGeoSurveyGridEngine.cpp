@@ -2,11 +2,15 @@
 #include "GeoSurveyGridTypes.h"
 #include "sim/SimulatedPayload.h"
 
+#include <cstdint>
 #include <gtest/gtest.h>
 
 #include <cmath>
+
 #include <iomanip>
 #include <memory>
+#include <optional>
+#include <string>
 #include <vector>
 
 using namespace PayloadHal;
@@ -16,37 +20,97 @@ class MockPtu : public IPanTiltUnit {
 public:
     MockPtu() = default;
 
-    bool connect() override { return true; }
-    void disconnect() override {}
-    [[nodiscard]] bool isConnected() const noexcept override { return true; }
-    [[nodiscard]] DeviceState state() const noexcept override { return DeviceState::Ready; }
-    [[nodiscard]] DeviceInfo info() const noexcept override { return DeviceInfo{"Mock", "PTU", "1.0"}; }
-    void registerStateCallback(StateCallback) override {}
+    bool connect() override
+    {
+        return true;
+    }
+    void disconnect() override
+    {
+    }
+    [[nodiscard]] bool isConnected() const noexcept override
+    {
+        return true;
+    }
+    [[nodiscard]] DeviceState state() const noexcept override
+    {
+        return DeviceState::Ready;
+    }
+    [[nodiscard]] DeviceInfo info() const noexcept override
+    {
+        return DeviceInfo { "Mock", "PTU", "1.0" };
+    }
+    void registerStateCallback(StateCallback) override
+    {
+    }
 
-    bool setRate(double pan, double tilt) override { m_panRate = pan; m_tiltRate = tilt; return true; }
-    bool setNormalizedVelocity(float, float) override { return true; }
-    bool setAbsoluteAngles(double pan, double tilt) override { m_pan = pan; m_tilt = tilt; return true; }
-    bool setRelativeNudge(double, double) override { return true; }
-    bool stopMotion() override { m_panRate = 0.0; m_tiltRate = 0.0; return true; }
+    bool setRate(double pan, double tilt) override
+    {
+        m_panRate = pan;
+        m_tiltRate = tilt;
+        return true;
+    }
+    bool setNormalizedVelocity(float, float) override
+    {
+        return true;
+    }
+    bool setAbsoluteAngles(double pan, double tilt) override
+    {
+        m_pan = pan;
+        m_tilt = tilt;
+        return true;
+    }
+    bool setRelativeNudge(double, double) override
+    {
+        return true;
+    }
+    bool stopMotion() override
+    {
+        m_panRate = 0.0;
+        m_tiltRate = 0.0;
+        return true;
+    }
 
-    [[nodiscard]] bool supportsStabilization() const noexcept override { return false; }
-    bool setStabilizationMode(StabilizationMode) override { return false; }
-    [[nodiscard]] StabilizationMode stabilizationMode() const noexcept override { return StabilizationMode::Disabled; }
-    bool zeroGyroDrift() override { return false; }
+    [[nodiscard]] bool supportsStabilization() const noexcept override
+    {
+        return false;
+    }
+    bool setStabilizationMode(StabilizationMode) override
+    {
+        return false;
+    }
+    [[nodiscard]] StabilizationMode stabilizationMode() const noexcept override
+    {
+        return StabilizationMode::Disabled;
+    }
+    bool zeroGyroDrift() override
+    {
+        return false;
+    }
 
     bool getLimits(double& minPan, double& maxPan, double& minTilt, double& maxTilt) const override
     {
-        minPan = -180.0; maxPan = 180.0; minTilt = -90.0; maxTilt = 45.0;
+        minPan = -180.0;
+        maxPan = 180.0;
+        minTilt = -90.0;
+        maxTilt = 45.0;
         return true;
     }
-    bool savePreset(std::uint8_t, const std::string&) override { return false; }
-    bool recallPreset(std::uint8_t) override { return false; }
+    bool savePreset(std::uint8_t, const std::string&) override
+    {
+        return false;
+    }
+    bool recallPreset(std::uint8_t) override
+    {
+        return false;
+    }
 
-    void registerTelemetryCallback(TelemetryCallback) override {}
+    void registerTelemetryCallback(TelemetryCallback) override
+    {
+    }
 
     [[nodiscard]] GimbalTelemetry currentTelemetry() const override
     {
-        GimbalTelemetry t {};
+        GimbalTelemetry t { };
         t.panAngleDeg = m_pan;
         t.tiltAngleDeg = m_tilt;
         t.panRateDegPerSec = m_panRate;
@@ -63,7 +127,10 @@ public:
 // Mock DEM
 class MockDem : public IDemProvider {
 public:
-    [[nodiscard]] bool hasCoverage(double, double) const noexcept override { return true; }
+    [[nodiscard]] bool hasCoverage(double, double) const noexcept override
+    {
+        return true;
+    }
     [[nodiscard]] std::optional<double> getElevationM(double, double lon) const noexcept override
     {
         // Simple ridge at lon > -122.418
@@ -72,19 +139,22 @@ public:
         }
         return 20.0;
     }
-    [[nodiscard]] double minElevationM() const noexcept override { return 20.0; }
-    [[nodiscard]] double maxElevationM() const noexcept override { return 150.0; }
+    [[nodiscard]] double minElevationM() const noexcept override
+    {
+        return 20.0;
+    }
+    [[nodiscard]] double maxElevationM() const noexcept override
+    {
+        return 150.0;
+    }
 };
 
 // Helper creating a simple rectangular survey polygon (~1 km x 1 km)
-std::vector<Klv::GeoPoint2D> makeSquarePolygon(double centerLat, double centerLon, double deltaLat = 0.01, double deltaLon = 0.01)
+std::vector<Klv::GeoPoint2D> makeSquarePolygon(
+    double centerLat, double centerLon, double deltaLat = 0.01, double deltaLon = 0.01)
 {
-    return {
-        { centerLat - deltaLat, centerLon - deltaLon },
-        { centerLat - deltaLat, centerLon + deltaLon },
-        { centerLat + deltaLat, centerLon + deltaLon },
-        { centerLat + deltaLat, centerLon - deltaLon }
-    };
+    return { { centerLat - deltaLat, centerLon - deltaLon }, { centerLat - deltaLat, centerLon + deltaLon },
+        { centerLat + deltaLat, centerLon + deltaLon }, { centerLat + deltaLat, centerLon - deltaLon } };
 }
 
 // =============================================================================
@@ -130,7 +200,7 @@ TEST(TestGeoSurveyGridEngine, OmbbPrincipalAxisCalculation)
 TEST(TestGeoSurveyGridEngine, ConvexPolygonSlicing)
 {
     GeoSurveyGridEngine engine;
-    SurveyPlanConfig cfg {};
+    SurveyPlanConfig cfg { };
     cfg.boundaryPolygon = makeSquarePolygon(37.7749, -122.4194, 0.005, 0.005);
     cfg.surveyAltitudeAglMeters = 200.0;
     cfg.sweepAngleDeg = 0.0; // North-South sweep
@@ -162,16 +232,10 @@ TEST(TestGeoSurveyGridEngine, ConcavePolygonMultiIntersection)
 {
     GeoSurveyGridEngine engine;
     // L-shaped concave polygon
-    std::vector<Klv::GeoPoint2D> lPoly = {
-        { 37.770, -122.420 },
-        { 37.770, -122.410 },
-        { 37.775, -122.410 },
-        { 37.775, -122.415 },
-        { 37.780, -122.415 },
-        { 37.780, -122.420 }
-    };
+    std::vector<Klv::GeoPoint2D> lPoly = { { 37.770, -122.420 }, { 37.770, -122.410 }, { 37.775, -122.410 },
+        { 37.775, -122.415 }, { 37.780, -122.415 }, { 37.780, -122.420 } };
 
-    SurveyPlanConfig cfg {};
+    SurveyPlanConfig cfg { };
     cfg.boundaryPolygon = lPoly;
     cfg.surveyAltitudeAglMeters = 150.0;
     cfg.gridResolutionMeters = 15.0;
@@ -200,7 +264,7 @@ TEST(TestGeoSurveyGridEngine, AdaptiveGsdTerrainModeling)
     auto mockDem = std::make_shared<MockDem>();
     GeoSurveyGridEngine engine(nullptr, nullptr, mockDem);
 
-    SurveyPlanConfig cfg {};
+    SurveyPlanConfig cfg { };
     cfg.boundaryPolygon = makeSquarePolygon(37.7749, -122.4194, 0.005, 0.005);
     cfg.surveyAltitudeAglMeters = 300.0;
     cfg.sensorWidthPixels = 3840;
@@ -228,7 +292,7 @@ TEST(TestGeoSurveyGridEngine, AdaptiveGsdTerrainModeling)
 TEST(TestGeoSurveyGridEngine, BoustrophedonSweepAlternation)
 {
     GeoSurveyGridEngine engine;
-    SurveyPlanConfig cfg {};
+    SurveyPlanConfig cfg { };
     cfg.boundaryPolygon = makeSquarePolygon(37.7749, -122.4194, 0.005, 0.005);
     cfg.sweepAngleDeg = 0.0; // North
     cfg.patternType = SweepPatternType::Boustrophedon;
@@ -251,7 +315,7 @@ TEST(TestGeoSurveyGridEngine, BoustrophedonSweepAlternation)
 TEST(TestGeoSurveyGridEngine, OccupancyGridDiscretization)
 {
     GeoSurveyGridEngine engine;
-    SurveyPlanConfig cfg {};
+    SurveyPlanConfig cfg { };
     cfg.boundaryPolygon = makeSquarePolygon(37.7749, -122.4194, 0.004, 0.004);
     cfg.gridResolutionMeters = 10.0;
     engine.setPlanConfig(cfg);
@@ -290,7 +354,7 @@ TEST(TestGeoSurveyGridEngine, FootprintStampingAndShadowOcclusion)
     auto mockDem = std::make_shared<MockDem>();
     GeoSurveyGridEngine engine(nullptr, nullptr, mockDem);
 
-    SurveyPlanConfig cfg {};
+    SurveyPlanConfig cfg { };
     cfg.boundaryPolygon = makeSquarePolygon(37.7749, -122.4194, 0.004, 0.004);
     cfg.gridResolutionMeters = 10.0;
     engine.setPlanConfig(cfg);
@@ -302,7 +366,7 @@ TEST(TestGeoSurveyGridEngine, FootprintStampingAndShadowOcclusion)
     EXPECT_DOUBLE_EQ(initialMetrics.surveyedAreaM2, 0.0);
 
     // Create a frustum stamp inside the polygon
-    Klv::FrustumCorners frustum {};
+    Klv::FrustumCorners frustum { };
     frustum.topLeft = { 37.776, -122.421 };
     frustum.topRight = { 37.776, -122.418 };
     frustum.bottomRight = { 37.774, -122.418 };
@@ -325,7 +389,7 @@ TEST(TestGeoSurveyGridEngine, StateMachineLifecycleAndControls)
     auto ptu = std::make_shared<MockPtu>();
     GeoSurveyGridEngine engine(ptu, nullptr, nullptr);
 
-    SurveyPlanConfig cfg {};
+    SurveyPlanConfig cfg { };
     cfg.boundaryPolygon = makeSquarePolygon(37.7749, -122.4194, 0.002, 0.002);
     cfg.surveyAltitudeAglMeters = 100.0;
     cfg.forwardOverlapRatio = 0.20;
@@ -383,7 +447,7 @@ TEST(TestGeoSurveyGridEngine, SimulatedPayloadIntegration)
 
     EXPECT_EQ(surveyEngine->surveyState(), SurveyState::Idle);
 
-    SurveyPlanConfig cfg {};
+    SurveyPlanConfig cfg { };
     cfg.boundaryPolygon = makeSquarePolygon(37.7749, -122.4194, 0.003, 0.003);
     cfg.surveyAltitudeAglMeters = 200.0;
     surveyEngine->setPlanConfig(cfg);

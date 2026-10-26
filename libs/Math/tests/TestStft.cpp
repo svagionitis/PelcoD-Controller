@@ -5,9 +5,11 @@
 #include "Stft.h"
 
 #include <cmath>
+#include <cstddef>
 #include <gtest/gtest.h>
 #include <iostream>
 #include <random>
+#include <string>
 #include <vector>
 
 namespace {
@@ -29,7 +31,7 @@ TEST(StftTest, SingleStationaryTone)
 {
     std::cout << "[Test] Single stationary tone tracking (5 Hz tone at 50 Hz sample rate)..." << std::endl;
 
-    StftConfig config {};
+    StftConfig config { };
     config.windowSize = 128U;
     config.hopSize = 32U;
     config.sampleRateHz = 50.0;
@@ -70,7 +72,7 @@ TEST(StftTest, LinearFrequencyChirp)
 {
     std::cout << "[Test] Linear frequency chirp sweep (2 Hz to 18 Hz)..." << std::endl;
 
-    StftConfig config {};
+    StftConfig config { };
     config.windowSize = 64U;
     config.hopSize = 16U;
     config.sampleRateHz = 50.0;
@@ -111,7 +113,7 @@ TEST(StftTest, TwoToneResolution)
 {
     std::cout << "[Test] Two-tone simultaneous frequency resolution..." << std::endl;
 
-    StftConfig config {};
+    StftConfig config { };
     config.windowSize = 128U;
     config.hopSize = 64U;
     config.sampleRateHz = 50.0;
@@ -157,7 +159,7 @@ TEST(StftTest, HopSizeAndOverlap)
 {
     std::cout << "[Test] Hop size and overlap frame count verification..." << std::endl;
 
-    StftConfig config {};
+    StftConfig config { };
     config.windowSize = 64U;
     config.hopSize = 32U; // 50% overlap
     config.sampleRateHz = 100.0;
@@ -192,7 +194,7 @@ TEST(StftTest, SpectralFlatness)
 {
     std::cout << "[Test] Spectral flatness (Wiener entropy) discrimination..." << std::endl;
 
-    StftConfig config {};
+    StftConfig config { };
     config.windowSize = 128U;
     config.hopSize = 64U;
     config.sampleRateHz = 100.0;
@@ -260,7 +262,7 @@ TEST(StftTest, HistoryCap)
 {
     std::cout << "[Test] Rolling history capacity cap enforcement..." << std::endl;
 
-    StftConfig config {};
+    StftConfig config { };
     config.windowSize = 32U;
     config.hopSize = 16U;
     config.maxHistoryFrames = 10U;

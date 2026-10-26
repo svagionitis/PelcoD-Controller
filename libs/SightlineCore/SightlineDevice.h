@@ -10,11 +10,14 @@
 #include "SightlineTypes.h"
 #include "Transport/ITransport.h"
 
+#include <cstdint>
+
 #include <atomic>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace Sightline {
@@ -126,18 +129,15 @@ public:
     /// @param[in] framePtsUs Microsecond MISB Precision Time Stamp.
     /// @param[in] flags Acquisition flags (default 0x01 primary).
     /// @return True if command was successfully transmitted.
-    [[nodiscard]] bool startPrecisionTrack(
-        std::uint8_t cameraIndex, std::uint16_t col, std::uint16_t row,
-        std::uint16_t width, std::uint16_t height, std::uint64_t framePtsUs,
-        std::uint8_t flags = 0x01U);
+    [[nodiscard]] bool startPrecisionTrack(std::uint8_t cameraIndex, std::uint16_t col, std::uint16_t row,
+        std::uint16_t width, std::uint16_t height, std::uint64_t framePtsUs, std::uint8_t flags = 0x01U);
 
     /// @brief Sets forced coasting override mode for a target track.
     /// @param[in] cameraIndex Zero-based camera index.
     /// @param[in] trackId Target track identifier.
     /// @param[in] mode Forced coasting mode (None, FreezeUpdates, FreezeSearch, FreezePropagation).
     /// @return True if command was successfully transmitted.
-    [[nodiscard]] bool setForcedCoast(
-        std::uint8_t cameraIndex, std::uint8_t trackId, ForcedCoastingMode mode);
+    [[nodiscard]] bool setForcedCoast(std::uint8_t cameraIndex, std::uint8_t trackId, ForcedCoastingMode mode);
 
     /// @brief Re-acquires target model at current centroid position.
     /// @param[in] cameraIndex Zero-based camera index.
@@ -152,9 +152,8 @@ public:
     /// @param[in] height New track box height.
     /// @param[in] acqAssist Enable acquisition assist search optimization.
     /// @return True if command was successfully transmitted.
-    [[nodiscard]] bool resizeTrack(
-        std::uint8_t cameraIndex, std::uint8_t trackId,
-        std::uint16_t width, std::uint16_t height, bool acqAssist = false);
+    [[nodiscard]] bool resizeTrack(std::uint8_t cameraIndex, std::uint8_t trackId, std::uint16_t width,
+        std::uint16_t height, bool acqAssist = false);
 
     /// @brief Modifies track using target cueing operation and NearVal radius.
     /// @param[in] cameraIndex Zero-based camera index.
@@ -164,8 +163,7 @@ public:
     /// @param[in] trackId Optional target track identifier (default 0).
     /// @return True if command was successfully transmitted.
     [[nodiscard]] bool cueTrackAt(
-        std::uint8_t cameraIndex, std::uint16_t col, std::uint16_t row,
-        ModifyMode mode, std::uint8_t trackId = 0U);
+        std::uint8_t cameraIndex, std::uint16_t col, std::uint16_t row, ModifyMode mode, std::uint8_t trackId = 0U);
 
     /// @brief Applies fine sub-pixel nudge offsets to the primary track.
     /// @param[in] cameraIndex Zero-based camera index.
@@ -179,8 +177,7 @@ public:
     /// @param[in] deltaCol Pixel column offset to nudge.
     /// @param[in] deltaRow Pixel row offset to nudge.
     /// @return True if command was successfully transmitted.
-    [[nodiscard]] bool nudgeDisplayTrack(
-        std::uint8_t cameraIndex, std::int16_t deltaCol, std::int16_t deltaRow);
+    [[nodiscard]] bool nudgeDisplayTrack(std::uint8_t cameraIndex, std::int16_t deltaCol, std::int16_t deltaRow);
 
     /// @brief Configures coordinate telemetry update rate and reporting mode.
     /// @param[in] cameraIndex Zero-based camera index.
@@ -443,8 +440,7 @@ public:
     /// @param[in] builder Configured isotherm LUT builder.
     /// @param[in] paletteIndex Palette slot index (0..3).
     /// @return True if command was successfully transmitted.
-    [[nodiscard]] bool setIsothermPalette(
-        const SightlineIsothermBuilder& builder, std::uint8_t paletteIndex = 0U);
+    [[nodiscard]] bool setIsothermPalette(const SightlineIsothermBuilder& builder, std::uint8_t paletteIndex = 0U);
 
     /// @brief Configures display output placement and scaling.
     /// @param[in] msg Display parameters.

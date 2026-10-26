@@ -5,6 +5,9 @@
 
 #include "ITileProvider.h"
 
+#include <optional>
+#include <string>
+
 namespace Mapping {
 
 /// @class ProceduralGridTileProvider
@@ -19,12 +22,14 @@ public:
     [[nodiscard]] std::optional<TileData> getTile(const TileCoord& coord) override;
 
     /// @brief Always returns true as procedural tiles can be generated for any coordinate.
-    [[nodiscard]] bool hasTile(const TileCoord& /*coord*/) const noexcept override {
+    [[nodiscard]] bool hasTile(const TileCoord& /*coord*/) const noexcept override
+    {
         return true;
     }
 
     /// @brief Returns provider name.
-    [[nodiscard]] std::string providerName() const override {
+    [[nodiscard]] std::string providerName() const override
+    {
         return "ProceduralGridTileProvider";
     }
 

@@ -2,6 +2,7 @@
 /// @brief Implementation of Sightline AI classification frame deserializers.
 
 #include "SightlineClassificationParser.h"
+#include <cstdint>
 
 namespace Sightline {
 

@@ -3,7 +3,13 @@
 
 #include "QSightlineDevice.h"
 
+#include <cstdint>
+
 #include <QMetaObject>
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace {
 [[nodiscard]] std::string toSafeStdString(const QString& str)
@@ -279,7 +285,7 @@ Transport::TransportStatsSnapshot QSightlineDevice::getTransportStats() const
     if (m_device) {
         return m_device->getTransportStats();
     }
-    return {};
+    return { };
 }
 
 void QSightlineDevice::wireCallbacks()
@@ -314,43 +320,35 @@ void QSightlineDevice::wireCallbacks()
     });
 
     m_device->setWarningCallback([this](const Sightline::MsgUserWarningMessage& warn) {
-        QMetaObject::invokeMethod(
-            this, [this, warn]() { emit userWarningReceived(warn); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, warn]() { emit userWarningReceived(warn); }, Qt::QueuedConnection);
     });
 
     m_device->setVersionCallback([this](const Sightline::MsgVersionNumber& ver) {
-        QMetaObject::invokeMethod(
-            this, [this, ver]() { emit versionReceived(ver); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, ver]() { emit versionReceived(ver); }, Qt::QueuedConnection);
     });
 
     m_device->setSystemStatusCallback([this](const Sightline::MsgSystemStatusMessage& stat) {
-        QMetaObject::invokeMethod(
-            this, [this, stat]() { emit systemStatusReceived(stat); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, stat]() { emit systemStatusReceived(stat); }, Qt::QueuedConnection);
     });
 
     m_device->setStabilizationCallback([this](const Sightline::MsgSetStabilizationParameters& params) {
-        QMetaObject::invokeMethod(
-            this, [this, params]() { emit stabilizationReceived(params); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, params]() { emit stabilizationReceived(params); }, Qt::QueuedConnection);
     });
 
     m_device->setRegistrationCallback([this](const Sightline::MsgSetRegistrationParameters& params) {
-        QMetaObject::invokeMethod(
-            this, [this, params]() { emit registrationReceived(params); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, params]() { emit registrationReceived(params); }, Qt::QueuedConnection);
     });
 
     m_device->setStabilizationBiasCallback([this](const Sightline::MsgSetStabilizationBias& bias) {
-        QMetaObject::invokeMethod(
-            this, [this, bias]() { emit stabilizationBiasReceived(bias); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, bias]() { emit stabilizationBiasReceived(bias); }, Qt::QueuedConnection);
     });
 
     m_device->setOverlayCallback([this](const Sightline::MsgSetOverlayMode& mode) {
-        QMetaObject::invokeMethod(
-            this, [this, mode]() { emit overlayModeReceived(mode); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, mode]() { emit overlayModeReceived(mode); }, Qt::QueuedConnection);
     });
 
     m_device->setObjectsIdsCallback([this](const Sightline::MsgCurrentOverlayObjectsIds& ids) {
-        QMetaObject::invokeMethod(
-            this, [this, ids]() { emit overlayObjectsIdsReceived(ids); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, ids]() { emit overlayObjectsIdsReceived(ids); }, Qt::QueuedConnection);
     });
 
     m_device->setObjectParamsCallback([this](const Sightline::MsgCurrentOverlayObjectParameters& params) {
@@ -359,23 +357,19 @@ void QSightlineDevice::wireCallbacks()
     });
 
     m_device->setLogoCallback([this](const Sightline::MsgLogoParameters& logo) {
-        QMetaObject::invokeMethod(
-            this, [this, logo]() { emit logoParametersReceived(logo); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, logo]() { emit logoParametersReceived(logo); }, Qt::QueuedConnection);
     });
 
     m_device->setDetectionCallback([this](const Sightline::MsgSetDetectionParameters& det) {
-        QMetaObject::invokeMethod(
-            this, [this, det]() { emit detectionReceived(det); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, det]() { emit detectionReceived(det); }, Qt::QueuedConnection);
     });
 
     m_device->setAdvDetectionCallback([this](const Sightline::MsgAdvancedDetectionParameters& adv) {
-        QMetaObject::invokeMethod(
-            this, [this, adv]() { emit advDetectionReceived(adv); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, adv]() { emit advDetectionReceived(adv); }, Qt::QueuedConnection);
     });
 
     m_device->setDetectionRoiCallback([this](const Sightline::MsgDetectionROI& roi) {
-        QMetaObject::invokeMethod(
-            this, [this, roi]() { emit detectionRoiReceived(roi); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, roi]() { emit detectionRoiReceived(roi); }, Qt::QueuedConnection);
     });
 
     m_device->setKlvMetricFiltersCb([this](const Sightline::MsgKlvMetricFilters& filters) {
@@ -384,28 +378,23 @@ void QSightlineDevice::wireCallbacks()
     });
 
     m_device->setCommandAckCallback([this](const Sightline::MsgCommandAck& ack) {
-        QMetaObject::invokeMethod(
-            this, [this, ack]() { emit commandAckReceived(ack); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, ack]() { emit commandAckReceived(ack); }, Qt::QueuedConnection);
     });
 
     m_device->setRecordingEventCb([this](const Sightline::MsgFileRecordingEvent& ev) {
-        QMetaObject::invokeMethod(
-            this, [this, ev]() { emit recordingEventReceived(ev); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, ev]() { emit recordingEventReceived(ev); }, Qt::QueuedConnection);
     });
 
     m_device->setRecordingStatusCb([this](const Sightline::MsgCurrentRecordingStatusV2& stat) {
-        QMetaObject::invokeMethod(
-            this, [this, stat]() { emit recordingStatusReceived(stat); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, stat]() { emit recordingStatusReceived(stat); }, Qt::QueuedConnection);
     });
 
     m_device->setDirListingReplyCb([this](const Sightline::MsgDirectoryListingReply& rep) {
-        QMetaObject::invokeMethod(
-            this, [this, rep]() { emit dirListingReplyReceived(rep); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, rep]() { emit dirListingReplyReceived(rep); }, Qt::QueuedConnection);
     });
 
     m_device->setH264ParamsCallback([this](const Sightline::MsgSetH264Parameters& params) {
-        QMetaObject::invokeMethod(
-            this, [this, params]() { emit h264ParamsReceived(params); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, params]() { emit h264ParamsReceived(params); }, Qt::QueuedConnection);
     });
 
     m_device->setEthernetDisplayCb([this](const Sightline::MsgSetEthernetDisplayParameters& params) {
@@ -414,23 +403,19 @@ void QSightlineDevice::wireCallbacks()
     });
 
     m_device->setEthernetVideoCb([this](const Sightline::MsgSetEthernetVideoParameters& params) {
-        QMetaObject::invokeMethod(
-            this, [this, params]() { emit ethernetVideoReceived(params); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, params]() { emit ethernetVideoReceived(params); }, Qt::QueuedConnection);
     });
 
     m_device->setNetworkParamsCb([this](const Sightline::MsgSetNetworkParameters& params) {
-        QMetaObject::invokeMethod(
-            this, [this, params]() { emit networkParamsReceived(params); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, params]() { emit networkParamsReceived(params); }, Qt::QueuedConnection);
     });
 
     m_device->setNetworkListCb([this](const Sightline::MsgCurrentNetworkList& list) {
-        QMetaObject::invokeMethod(
-            this, [this, list]() { emit networkListReceived(list); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, list]() { emit networkListReceived(list); }, Qt::QueuedConnection);
     });
 
     m_device->setSystemValueCallback([this](const Sightline::MsgSystemValue& val) {
-        QMetaObject::invokeMethod(
-            this, [this, val]() { emit systemValueReceived(val); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, val]() { emit systemValueReceived(val); }, Qt::QueuedConnection);
     });
 
     m_device->setBlendParamsCb([this](const Sightline::MsgSetBlendParameters& params) {
@@ -449,8 +434,7 @@ void QSightlineDevice::wireCallbacks()
     });
 
     m_device->setBlendAlignCb([this](const Sightline::MsgBlendAlign& align) {
-        QMetaObject::invokeMethod(
-            this, [this, align]() { emit blendAlignReceived(align); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, align]() { emit blendAlignReceived(align); }, Qt::QueuedConnection);
     });
 
     m_device->setMultipleAlignmentCb([this](const Sightline::MsgSetMultipleAlignment& params) {
@@ -459,23 +443,19 @@ void QSightlineDevice::wireCallbacks()
     });
 
     m_device->setNucParamsCallback([this](const Sightline::MsgNucParameters& params) {
-        QMetaObject::invokeMethod(
-            this, [this, params]() { emit nucParamsReceived(params); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, params]() { emit nucParamsReceived(params); }, Qt::QueuedConnection);
     });
 
     m_device->setNucTableCallback([this](const Sightline::MsgReadWriteNuc& table) {
-        QMetaObject::invokeMethod(
-            this, [this, table]() { emit nucTableReceived(table); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, table]() { emit nucTableReceived(table); }, Qt::QueuedConnection);
     });
 
     m_device->setDeadStatsCallback([this](const Sightline::MsgDeadPixelStats& stats) {
-        QMetaObject::invokeMethod(
-            this, [this, stats]() { emit deadStatsReceived(stats); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, stats]() { emit deadStatsReceived(stats); }, Qt::QueuedConnection);
     });
 
     m_device->setNoise3DCallback([this](const Sightline::MsgNoise3D& stats) {
-        QMetaObject::invokeMethod(
-            this, [this, stats]() { emit noiseStatsReceived(stats); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this, stats]() { emit noiseStatsReceived(stats); }, Qt::QueuedConnection);
     });
 
     m_device->setRawTrafficCallback([this](bool isTx, const std::vector<std::uint8_t>& frame) {
@@ -505,8 +485,7 @@ void QSightlineDevice::stop()
     emit connectionStateChanged(false);
 }
 
-void QSightlineDevice::processTrackTelemetry(
-    quint8 cameraIndex, const std::vector<Sightline::TrackCoordinate>& tracks)
+void QSightlineDevice::processTrackTelemetry(quint8 cameraIndex, const std::vector<Sightline::TrackCoordinate>& tracks)
 {
     for (const auto& trk : tracks) {
         const auto key = std::make_pair(cameraIndex, trk.trackId);
@@ -593,8 +572,7 @@ bool QSightlineDevice::reinitTrack(quint8 cameraIndex, quint8 trackId)
     return m_device->reinitTrack(cameraIndex, trackId);
 }
 
-bool QSightlineDevice::resizeTrack(
-    quint8 cameraIndex, quint8 trackId, quint16 width, quint16 height, bool assist)
+bool QSightlineDevice::resizeTrack(quint8 cameraIndex, quint8 trackId, quint16 width, quint16 height, bool assist)
 {
     if (!m_device) {
         return false;
@@ -915,8 +893,8 @@ bool QSightlineDevice::drawRectangle(quint8 cameraIndex, quint8 objectId, qint16
     quint16 height, bool filled, Sightline::OverlayPaletteColor fgColor, Sightline::OverlayPaletteColor bgColor,
     quint8 alpha, quint16 thickness, bool originUpperLeft)
 {
-    return m_device ? m_device->drawRectangle(
-               cameraIndex, objectId, x, y, width, height, filled, fgColor, bgColor, alpha, thickness, originUpperLeft)
+    return m_device ? m_device->drawRectangle(cameraIndex, objectId, x, y, width, height, filled, fgColor, bgColor,
+                          alpha, thickness, originUpperLeft)
                     : false;
 }
 
@@ -925,7 +903,7 @@ bool QSightlineDevice::drawText(quint8 cameraIndex, quint8 objectId, qint16 x, q
     quint8 hScale, quint8 vScale, bool originUpperLeft)
 {
     return m_device ? m_device->drawText(cameraIndex, objectId, x, y, toSafeStdString(text), fontId, fgColor, bgColor,
-               hScale, vScale, originUpperLeft)
+                          hScale, vScale, originUpperLeft)
                     : false;
 }
 
@@ -934,7 +912,7 @@ bool QSightlineDevice::drawKlvField(quint8 cameraIndex, quint8 objectId, qint16 
     Sightline::OverlayFontId fontId, Sightline::OverlayPaletteColor fgColor, bool originUpperLeft)
 {
     return m_device ? m_device->drawKlvField(cameraIndex, objectId, x, y, fieldTag, formatType,
-               toSafeStdString(formatString), fontId, fgColor, originUpperLeft)
+                          toSafeStdString(formatString), fontId, fgColor, originUpperLeft)
                     : false;
 }
 
@@ -1087,4 +1065,3 @@ bool QSightlineDevice::getMultipleAlignment()
 {
     return m_device ? m_device->getMultipleAlignment() : false;
 }
-

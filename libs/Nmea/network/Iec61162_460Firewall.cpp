@@ -3,8 +3,16 @@
 
 #include "Iec61162_460Firewall.h"
 
+#include <cstdint>
+
 #include <algorithm>
+#include <chrono>
+#include <memory>
+#include <mutex>
 #include <sstream>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace Nmea::Network {
 
@@ -40,8 +48,8 @@ void Iec61162_460Firewall::setAlertCallback(SecurityAlertCallback cb)
     m_alertCallback = std::move(cb);
 }
 
-bool Iec61162_460Firewall::inspectInbound(SecurityZone zone, std::string_view sourceIp,
-                                          std::string_view sourceMac, std::string_view payload)
+bool Iec61162_460Firewall::inspectInbound(
+    SecurityZone zone, std::string_view sourceIp, std::string_view sourceMac, std::string_view payload)
 {
     std::lock_guard<std::mutex> lock { m_mutex };
 
@@ -49,7 +57,7 @@ bool Iec61162_460Firewall::inspectInbound(SecurityZone zone, std::string_view so
     const auto itMac = m_macBindings.find(std::string { sourceIp });
     if (itMac != m_macBindings.end() && !sourceMac.empty() && itMac->second != sourceMac) {
         recordViolation(SecurityViolationType::MacIpMismatch, zone, sourceIp, sourceMac,
-                        "MAC address mismatch for bound IP: expected " + itMac->second + ", got " + std::string { sourceMac });
+            "MAC address mismatch for bound IP: expected " + itMac->second + ", got " + std::string { sourceMac });
         return false;
     }
 
@@ -67,7 +75,7 @@ bool Iec61162_460Firewall::inspectInbound(SecurityZone zone, std::string_view so
         if (!rule.ipCidr.empty() && !matchesCidr(sourceIp, rule.ipCidr)) {
             passedAllFilters = false;
             recordViolation(SecurityViolationType::UnauthorizedIp, zone, sourceIp, sourceMac,
-                            "Source IP rejected by zone CIDR policy");
+                "Source IP rejected by zone CIDR policy");
             return false;
         }
 
@@ -75,7 +83,7 @@ bool Iec61162_460Firewall::inspectInbound(SecurityZone zone, std::string_view so
         if (!rule.macAddress.empty() && !sourceMac.empty() && rule.macAddress != sourceMac) {
             passedAllFilters = false;
             recordViolation(SecurityViolationType::MacIpMismatch, zone, sourceIp, sourceMac,
-                            "Source MAC does not match rule requirement");
+                "Source MAC does not match rule requirement");
             return false;
         }
 
@@ -83,7 +91,7 @@ bool Iec61162_460Firewall::inspectInbound(SecurityZone zone, std::string_view so
         if (rule.maxPacketsPerSec > 0U && !checkRateLimit(sourceIp, rule.maxPacketsPerSec)) {
             passedAllFilters = false;
             recordViolation(SecurityViolationType::RateLimitExceeded, zone, sourceIp, sourceMac,
-                            "Traffic rate limit exceeded (> " + std::to_string(rule.maxPacketsPerSec) + " PPS)");
+                "Traffic rate limit exceeded (> " + std::to_string(rule.maxPacketsPerSec) + " PPS)");
             return false;
         }
 
@@ -95,7 +103,7 @@ bool Iec61162_460Firewall::inspectInbound(SecurityZone zone, std::string_view so
                 if (itFmt == rule.allowedFormatters.end()) {
                     passedAllFilters = false;
                     recordViolation(SecurityViolationType::DisallowedSentence, zone, sourceIp, sourceMac,
-                                    "Sentence formatter " + formatter + " disallowed by zone policy");
+                        "Sentence formatter " + formatter + " disallowed by zone policy");
                     return false;
                 }
             }
@@ -106,7 +114,7 @@ bool Iec61162_460Firewall::inspectInbound(SecurityZone zone, std::string_view so
     // If rules are configured but this zone has no matching rule, block untrusted zones
     if (!matchedZoneRule && !m_rules.empty() && zone == SecurityZone::InternetShore) {
         recordViolation(SecurityViolationType::UnauthorizedIp, zone, sourceIp, sourceMac,
-                        "Untrusted shore network denied ingress by default");
+            "Untrusted shore network denied ingress by default");
         return false;
     }
 
@@ -121,7 +129,7 @@ bool Iec61162_460Firewall::inspectOutbound(SecurityZone targetZone, std::string_
         const std::string formatter { extractFormatter(payload) };
         if (formatter == "ALF" || formatter == "ARC" || formatter == "PFLIR" || formatter == "PFEC") {
             recordViolation(SecurityViolationType::DisallowedSentence, targetZone, "localhost", "",
-                            "Egress leak prevented: " + formatter + " blocked to untrusted network");
+                "Egress leak prevented: " + formatter + " blocked to untrusted network");
             return false;
         }
     }
@@ -151,8 +159,8 @@ bool Iec61162_460Firewall::checkRateLimit(std::string_view ip, std::uint32_t max
     const auto now = std::chrono::steady_clock::now();
     auto& tracker = m_rateTrackers[std::string { ip }];
 
-    if (tracker.windowStart.time_since_epoch().count() == 0 ||
-        std::chrono::duration_cast<std::chrono::seconds>(now - tracker.windowStart).count() >= 1) {
+    if (tracker.windowStart.time_since_epoch().count() == 0
+        || std::chrono::duration_cast<std::chrono::seconds>(now - tracker.windowStart).count() >= 1) {
         tracker.windowStart = now;
         tracker.packetCount = 1U;
         return true;
@@ -207,12 +215,12 @@ std::string Iec61162_460Firewall::extractFormatter(std::string_view payload)
     return std::string { addressField };
 }
 
-void Iec61162_460Firewall::recordViolation(SecurityViolationType type, SecurityZone zone, std::string_view ip,
-                                          std::string_view mac, std::string_view desc)
+void Iec61162_460Firewall::recordViolation(
+    SecurityViolationType type, SecurityZone zone, std::string_view ip, std::string_view mac, std::string_view desc)
 {
     ++m_violationCount;
 
-    SecurityIncident incident {};
+    SecurityIncident incident { };
     incident.timestamp = std::chrono::system_clock::now();
     incident.violationType = type;
     incident.sourceZone = zone;
@@ -231,13 +239,11 @@ void Iec61162_460Firewall::recordViolation(SecurityViolationType type, SecurityZ
 
     if (m_bam) {
         if (type == SecurityViolationType::RateLimitExceeded) {
-            m_bam->registerAlert(kAlertIdNetworkFlood, 1U, Bam::AlertPriority::Warning,
-                                 Bam::AlertCategory::CategoryB, "Network Flood",
-                                 "Bridge Network Flood Detected");
+            m_bam->registerAlert(kAlertIdNetworkFlood, 1U, Bam::AlertPriority::Warning, Bam::AlertCategory::CategoryB,
+                "Network Flood", "Bridge Network Flood Detected");
         } else {
             m_bam->registerAlert(kAlertIdSecurityViolation, 1U, Bam::AlertPriority::Warning,
-                                 Bam::AlertCategory::CategoryB, "Security Violation",
-                                 std::string { desc });
+                Bam::AlertCategory::CategoryB, "Security Violation", std::string { desc });
         }
     }
 }

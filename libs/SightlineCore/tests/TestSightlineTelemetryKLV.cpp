@@ -1,5 +1,6 @@
 /// @file TestSightlineTelemetryKLV.cpp
-/// @brief Comprehensive unit tests for Sightline KLV Metadata module (STANAG 4609 / MISB ST 0601 / ST 0102 / ST 0903 / CoT).
+/// @brief Comprehensive unit tests for Sightline KLV Metadata module (STANAG 4609 / MISB ST 0601 / ST 0102 / ST 0903 /
+/// CoT).
 
 #include "SightlineFraming.h"
 #include "SightlineProtocolBuilder.h"
@@ -10,7 +11,10 @@
 #include "modules/SightlineTelemetryBuilder.h"
 #include "modules/SightlineTelemetryParser.h"
 
+#include <cstdint>
+
 #include <gtest/gtest.h>
+#include <vector>
 
 namespace Sightline {
 namespace {
@@ -67,7 +71,7 @@ namespace {
     /// @brief Verify SetMetadataValues (0x13, 44 bytes) build and parse round-trip.
     TEST(TestSightlineTelemetryKLV, SetMetadataValuesRoundTrip)
     {
-        MsgSetMetadataValues msgIn {};
+        MsgSetMetadataValues msgIn { };
         msgIn.validDataMask = 0x0FFFU;
         msgIn.utcTime = 1609459200000000ULL; // timestamp in microseconds
         msgIn.heading = MsgSetMetadataValues::degToHeading(90.0);
@@ -90,7 +94,7 @@ namespace {
         const auto payload = SightlineFraming::extractPayload(pkt);
         EXPECT_EQ(payload.size(), 44U);
 
-        MsgSetMetadataValues msgOut {};
+        MsgSetMetadataValues msgOut { };
         ASSERT_TRUE(SightlineKlvParser::parseMetadataValues(pkt, msgOut));
         EXPECT_EQ(msgOut.validDataMask, 0x0FFFU);
         EXPECT_EQ(msgOut.utcTime, 1609459200000000ULL);
@@ -107,7 +111,7 @@ namespace {
         EXPECT_EQ(msgOut.displayId, 0x0002U);
 
         // Facade equivalence
-        MsgSetMetadataValues facadeOut {};
+        MsgSetMetadataValues facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseMetadataValues(pkt, facadeOut));
         EXPECT_EQ(facadeOut.utcTime, msgIn.utcTime);
     }
@@ -115,25 +119,25 @@ namespace {
     /// @brief Verify CurrentMetadataValues (0x8B, 42 bytes) parsing.
     TEST(TestSightlineTelemetryKLV, CurrentMetadataValuesParsing)
     {
-        std::vector<std::uint8_t> payload {};
+        std::vector<std::uint8_t> payload { };
         payload.reserve(42U);
         SightlineFraming::appendU64Le(payload, 1609459200123456ULL); // utcTime
-        SightlineFraming::appendU16Le(payload, 1000U);                // heading
-        SightlineFraming::appendS16Le(payload, -500);                 // pitch
-        SightlineFraming::appendS16Le(payload, 250);                  // roll
-        SightlineFraming::appendS32Le(payload, 12345678);             // lat
-        SightlineFraming::appendS32Le(payload, -87654321);            // lon
-        SightlineFraming::appendU16Le(payload, 5000U);                // alt
-        SightlineFraming::appendU16Le(payload, 3000U);                // hfov
-        SightlineFraming::appendU16Le(payload, 2000U);                // vfov
-        SightlineFraming::appendU32Le(payload, 40000U);               // az
-        SightlineFraming::appendS32Le(payload, -10000);               // el
-        SightlineFraming::appendU32Le(payload, 0U);                   // sensorRoll
-        SightlineFraming::appendU16Le(payload, 0x0080U);              // displayId (Net1)
+        SightlineFraming::appendU16Le(payload, 1000U); // heading
+        SightlineFraming::appendS16Le(payload, -500); // pitch
+        SightlineFraming::appendS16Le(payload, 250); // roll
+        SightlineFraming::appendS32Le(payload, 12345678); // lat
+        SightlineFraming::appendS32Le(payload, -87654321); // lon
+        SightlineFraming::appendU16Le(payload, 5000U); // alt
+        SightlineFraming::appendU16Le(payload, 3000U); // hfov
+        SightlineFraming::appendU16Le(payload, 2000U); // vfov
+        SightlineFraming::appendU32Le(payload, 40000U); // az
+        SightlineFraming::appendS32Le(payload, -10000); // el
+        SightlineFraming::appendU32Le(payload, 0U); // sensorRoll
+        SightlineFraming::appendU16Le(payload, 0x0080U); // displayId (Net1)
 
         const auto pkt = SightlineFraming::buildPacket(MessageId::CurrentMetadataValues, payload);
 
-        MsgCurrentMetadataValues curOut {};
+        MsgCurrentMetadataValues curOut { };
         ASSERT_TRUE(SightlineKlvParser::parseCurrentValues(pkt, curOut));
         EXPECT_EQ(curOut.utcTime, 1609459200123456ULL);
         EXPECT_EQ(curOut.heading, 1000U);
@@ -145,7 +149,7 @@ namespace {
         EXPECT_EQ(curOut.displayId, 0x0080U);
 
         // Facade equivalence
-        MsgCurrentMetadataValues facadeCurOut {};
+        MsgCurrentMetadataValues facadeCurOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseCurrentValues(pkt, facadeCurOut));
         EXPECT_EQ(facadeCurOut.utcTime, curOut.utcTime);
     }
@@ -153,7 +157,7 @@ namespace {
     /// @brief Verify MetadataStaticValues (0x14) build and parse round-trip.
     TEST(TestSightlineTelemetryKLV, MetadataStaticValuesRoundTrip)
     {
-        MsgMetadataStaticValues msgIn {};
+        MsgMetadataStaticValues msgIn { };
         msgIn.type = StaticMetadataType::MissionId;
         msgIn.setString("OPERATION_FIREFLY");
         msgIn.displayId = 0x0002U;
@@ -162,14 +166,14 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::MetadataStaticValues);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildMetadataStaticValues(msgIn));
 
-        MsgMetadataStaticValues msgOut {};
+        MsgMetadataStaticValues msgOut { };
         ASSERT_TRUE(SightlineKlvParser::parseMetadataStaticValues(pkt, msgOut));
         EXPECT_EQ(msgOut.type, StaticMetadataType::MissionId);
         EXPECT_EQ(msgOut.asString(), "OPERATION_FIREFLY");
         EXPECT_EQ(msgOut.displayId, 0x0002U);
 
         // Facade equivalence
-        MsgMetadataStaticValues facadeOut {};
+        MsgMetadataStaticValues facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseMetadataStaticValues(pkt, facadeOut));
         EXPECT_EQ(facadeOut.asString(), "OPERATION_FIREFLY");
     }
@@ -177,7 +181,7 @@ namespace {
     /// @brief Verify SetMetadataFrameValues (0x15, 49 bytes) build and parse round-trip.
     TEST(TestSightlineTelemetryKLV, FrameValuesRoundTrip)
     {
-        MsgSetMetadataFrameValues msgIn {};
+        MsgSetMetadataFrameValues msgIn { };
         msgIn.validDataMask = 0x001FU;
         msgIn.frameCenterLat = 100000;
         msgIn.frameCenterLon = -200000;
@@ -194,7 +198,7 @@ namespace {
         const auto payload = SightlineFraming::extractPayload(pkt);
         EXPECT_EQ(payload.size(), 49U);
 
-        MsgSetMetadataFrameValues msgOut {};
+        MsgSetMetadataFrameValues msgOut { };
         ASSERT_TRUE(SightlineKlvParser::parseFrameValues(pkt, msgOut));
         EXPECT_EQ(msgOut.validDataMask, 0x001FU);
         EXPECT_EQ(msgOut.frameCenterLat, 100000);
@@ -206,7 +210,7 @@ namespace {
         EXPECT_EQ(msgOut.displayId, 0x0002U);
 
         // Facade equivalence
-        MsgSetMetadataFrameValues facadeOut {};
+        MsgSetMetadataFrameValues facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseFrameValues(pkt, facadeOut));
         EXPECT_EQ(facadeOut.slantRange, 1500U);
     }
@@ -214,9 +218,9 @@ namespace {
     /// @brief Verify SetMetadataRate (0x62, 11 bytes) build and parse round-trip.
     TEST(TestSightlineTelemetryKLV, MetadataRateRoundTrip)
     {
-        MsgSetMetadataRate msgIn {};
+        MsgSetMetadataRate msgIn { };
         msgIn.enables = 0x0000000000000001ULL; // Bit 0: MISB ST 0601 enable
-        msgIn.frameStep = 1U;                  // 30 Hz full rate
+        msgIn.frameStep = 1U; // 30 Hz full rate
         msgIn.displayId = 0x0002U;
 
         const auto pkt = SightlineKlvBuilder::buildSetMetadataRate(msgIn);
@@ -226,14 +230,14 @@ namespace {
         const auto payload = SightlineFraming::extractPayload(pkt);
         EXPECT_EQ(payload.size(), 11U);
 
-        MsgSetMetadataRate msgOut {};
+        MsgSetMetadataRate msgOut { };
         ASSERT_TRUE(SightlineKlvParser::parseMetadataRate(pkt, msgOut));
         EXPECT_EQ(msgOut.enables, 1ULL);
         EXPECT_EQ(msgOut.frameStep, 1U);
         EXPECT_EQ(msgOut.displayId, 0x0002U);
 
         // Facade equivalence
-        MsgSetMetadataRate facadeOut {};
+        MsgSetMetadataRate facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseMetadataRate(pkt, facadeOut));
         EXPECT_EQ(facadeOut.frameStep, 1U);
     }
@@ -242,7 +246,7 @@ namespace {
     TEST(TestSightlineTelemetryKLV, TagControlRoundTrip)
     {
         // 0x96 TagData
-        MsgTagData tagMsg {};
+        MsgTagData tagMsg { };
         tagMsg.tagId = 94U; // MI Core ID
         tagMsg.tagSubId = 0U;
         tagMsg.displayId = 0x0002U;
@@ -252,14 +256,14 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(tagPkt), MessageId::TagData);
         EXPECT_EQ(tagPkt, SightlineProtocolBuilder::buildTagData(tagMsg));
 
-        MsgTagData tagOut {};
+        MsgTagData tagOut { };
         ASSERT_TRUE(SightlineKlvParser::parseTagData(tagPkt, tagOut));
         EXPECT_EQ(tagOut.tagId, 94U);
         EXPECT_EQ(tagOut.data.size(), 4U);
         EXPECT_EQ(tagOut.data[0], 0x01);
 
         // 0x97 TagDataRate
-        MsgTagDataRate rateMsg {};
+        MsgTagDataRate rateMsg { };
         rateMsg.mode = 0U; // single tag
         rateMsg.tagId1 = 5U;
         rateMsg.frameStep = 10U; // decimate by 10
@@ -269,13 +273,13 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(ratePkt), MessageId::TagDataRate);
         EXPECT_EQ(ratePkt, SightlineProtocolBuilder::buildTagDataRate(rateMsg));
 
-        MsgTagDataRate rateOut {};
+        MsgTagDataRate rateOut { };
         ASSERT_TRUE(SightlineKlvParser::parseTagDataRate(ratePkt, rateOut));
         EXPECT_EQ(rateOut.tagId1, 5U);
         EXPECT_EQ(rateOut.frameStep, 10U);
 
         // 0x98 TagSourceSelector
-        MsgTagSourceSelector srcMsg {};
+        MsgTagSourceSelector srcMsg { };
         srcMsg.mode = 0U;
         srcMsg.tagId1 = 13U; // Sensor Lat
         srcMsg.selector = static_cast<std::uint16_t>(TagSource::SlaProtocol);
@@ -285,7 +289,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(srcPkt), MessageId::TagSourceSelector);
         EXPECT_EQ(srcPkt, SightlineProtocolBuilder::buildSetTagSourceSelector(srcMsg));
 
-        MsgTagSourceSelector srcOut {};
+        MsgTagSourceSelector srcOut { };
         ASSERT_TRUE(SightlineKlvParser::parseTagSourceSelector(srcPkt, srcOut));
         EXPECT_EQ(srcOut.tagId1, 13U);
         EXPECT_EQ(srcOut.selector, static_cast<std::uint16_t>(TagSource::SlaProtocol));
@@ -294,7 +298,7 @@ namespace {
     /// @brief Verify CursorOnTarget (0xB0) build and parse round-trip.
     TEST(TestSightlineTelemetryKLV, CursorOnTargetRoundTrip)
     {
-        MsgCursorOnTarget cotMsg {};
+        MsgCursorOnTarget cotMsg { };
         cotMsg.mode = 1U;
         cotMsg.ipAddress = 0xEFE00A0AU; // 239.224.10.10
         cotMsg.port = 1870U;
@@ -305,7 +309,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(cotPkt), MessageId::CursorOnTarget);
         EXPECT_EQ(cotPkt, SightlineProtocolBuilder::buildCursorOnTarget(cotMsg));
 
-        MsgCursorOnTarget cotOut {};
+        MsgCursorOnTarget cotOut { };
         ASSERT_TRUE(SightlineKlvParser::parseCursorOnTarget(cotPkt, cotOut));
         EXPECT_EQ(cotOut.mode, 1U);
         EXPECT_EQ(cotOut.ipAddress, 0xEFE00A0AU);
@@ -318,7 +322,7 @@ namespace {
     TEST(TestSightlineTelemetryKLV, VmtiChipsAndFieldsRoundTrip)
     {
         // 0xAD VmtiChips
-        MsgVmtiChips chipsMsg {};
+        MsgVmtiChips chipsMsg { };
         chipsMsg.mode = 1U;
         chipsMsg.format = VmtiChipFormat::Jpeg;
         chipsMsg.sizeType = VmtiChipSizeType::FixedSize;
@@ -331,7 +335,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(chipsPkt), MessageId::VmtiChips);
         EXPECT_EQ(chipsPkt, SightlineProtocolBuilder::buildVmtiChips(chipsMsg));
 
-        MsgVmtiChips chipsOut {};
+        MsgVmtiChips chipsOut { };
         ASSERT_TRUE(SightlineKlvParser::parseVmtiChips(chipsPkt, chipsOut));
         EXPECT_EQ(chipsOut.mode, 1U);
         EXPECT_EQ(chipsOut.format, VmtiChipFormat::Jpeg);
@@ -339,7 +343,7 @@ namespace {
         EXPECT_EQ(chipsOut.maxPerFrame, 2U);
 
         // 0xBF VmtiFields
-        MsgVmtiFields fieldsMsg {};
+        MsgVmtiFields fieldsMsg { };
         fieldsMsg.displayId = 0x0002U;
         fieldsMsg.fields = 0x0007U;
         fieldsMsg.ontologySeriesRate = 15U;
@@ -348,7 +352,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(fieldsPkt), MessageId::VmtiFields);
         EXPECT_EQ(fieldsPkt, SightlineProtocolBuilder::buildVmtiFields(fieldsMsg));
 
-        MsgVmtiFields fieldsOut {};
+        MsgVmtiFields fieldsOut { };
         ASSERT_TRUE(SightlineKlvParser::parseVmtiFields(fieldsPkt, fieldsOut));
         EXPECT_EQ(fieldsOut.displayId, 0x0002U);
         EXPECT_EQ(fieldsOut.fields, 0x0007U);
@@ -358,7 +362,7 @@ namespace {
     /// @brief Verify AncillaryTextMetadata (0xAC) round-trip.
     TEST(TestSightlineTelemetryKLV, AncillaryTextRoundTrip)
     {
-        MsgAncillaryTextMetadata textMsg {};
+        MsgAncillaryTextMetadata textMsg { };
         textMsg.creationTime = 1609459200000000ULL;
         textMsg.source = "Operator";
         textMsg.originator = "GCS-ALPHA";
@@ -369,7 +373,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(textPkt), MessageId::AncillaryTextMetadata);
         EXPECT_EQ(textPkt, SightlineProtocolBuilder::buildAncillaryTextMetadata(textMsg));
 
-        MsgAncillaryTextMetadata textOut {};
+        MsgAncillaryTextMetadata textOut { };
         ASSERT_TRUE(SightlineKlvParser::parseAncillaryText(textPkt, textOut));
         EXPECT_EQ(textOut.creationTime, 1609459200000000ULL);
         EXPECT_EQ(textOut.source, "Operator");

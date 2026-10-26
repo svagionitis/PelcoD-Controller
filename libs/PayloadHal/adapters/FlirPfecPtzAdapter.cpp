@@ -1,7 +1,12 @@
 #include "FlirPfecPtzAdapter.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <string>
 
 namespace PayloadHal {
 
@@ -65,7 +70,7 @@ DeviceState FlirPfecPtzAdapter::state() const noexcept
 
 DeviceInfo FlirPfecPtzAdapter::info() const noexcept
 {
-    DeviceInfo dev {};
+    DeviceInfo dev { };
     dev.manufacturer = "FLIR";
     dev.model = "FLIR M-Series Marine PTZ";
     dev.firmwareVersion = "1.0.0";
@@ -154,7 +159,7 @@ bool FlirPfecPtzAdapter::getLimits(double& minPan, double& maxPan, double& minTi
     return true;
 }
 
-bool FlirPfecPtzAdapter::savePreset(uint8_t presetId, const std::string& /*name*/)
+bool FlirPfecPtzAdapter::savePreset(std::uint8_t presetId, const std::string& /*name*/)
 {
     if (!m_device) {
         return false;
@@ -162,7 +167,7 @@ bool FlirPfecPtzAdapter::savePreset(uint8_t presetId, const std::string& /*name*
     return m_device->savePreset(presetId);
 }
 
-bool FlirPfecPtzAdapter::recallPreset(uint8_t presetId)
+bool FlirPfecPtzAdapter::recallPreset(std::uint8_t presetId)
 {
     if (!m_device) {
         return false;
@@ -184,8 +189,8 @@ GimbalTelemetry FlirPfecPtzAdapter::currentTelemetry() const
 
 void FlirPfecPtzAdapter::handlePositionReport(const Nmea::PfecGimbalPosition& pos)
 {
-    TelemetryCallback cb {};
-    GimbalTelemetry telem {};
+    TelemetryCallback cb { };
+    GimbalTelemetry telem { };
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);

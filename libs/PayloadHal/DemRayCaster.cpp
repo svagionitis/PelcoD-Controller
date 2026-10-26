@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 namespace PayloadHal {
 
@@ -14,10 +15,7 @@ namespace {
 } // namespace
 
 Klv::GeoPoint3D DemRayCaster::evaluateRayPoint(
-    const Klv::GeoPoint3D& platformPos,
-    double trueBearingDeg,
-    double tiltDeg,
-    double slantDistanceM) noexcept
+    const Klv::GeoPoint3D& platformPos, double trueBearingDeg, double tiltDeg, double slantDistanceM) noexcept
 {
     const double R_E = Klv::KlvGeodesy::kEarthRadiusMeters;
     const double R0 = R_E + platformPos.altitudeM;
@@ -34,19 +32,13 @@ Klv::GeoPoint3D DemRayCaster::evaluateRayPoint(
     const double groundDistM = R_E * gamma;
 
     const auto pt2D = Klv::KlvGeodesy::directGeodetic(
-        { platformPos.latitudeDeg, platformPos.longitudeDeg },
-        trueBearingDeg,
-        groundDistM);
+        { platformPos.latitudeDeg, platformPos.longitudeDeg }, trueBearingDeg, groundDistM);
 
     return Klv::GeoPoint3D { pt2D.latitudeDeg, pt2D.longitudeDeg, rayAltM };
 }
 
-std::optional<DemIntersectionResult> DemRayCaster::intersect(
-    const IDemProvider& dem,
-    const Klv::GeoPoint3D& platformPos,
-    double platformHeadingDeg,
-    double gimbalPanDeg,
-    double gimbalTiltDeg,
+std::optional<DemIntersectionResult> DemRayCaster::intersect(const IDemProvider& dem,
+    const Klv::GeoPoint3D& platformPos, double platformHeadingDeg, double gimbalPanDeg, double gimbalTiltDeg,
     const DemRayConfig& config) noexcept
 {
     // Boresight pointing direction
@@ -62,8 +54,7 @@ std::optional<DemIntersectionResult> DemRayCaster::intersect(
 
     // Evaluate at platform origin (s = 0)
     const auto pt0 = evaluateRayPoint(platformPos, bearing, gimbalTiltDeg, 0.0);
-    const double hDem0 = dem.getElevationM(pt0.latitudeDeg, pt0.longitudeDeg)
-                             .value_or(config.fallbackGroundElevationM);
+    const double hDem0 = dem.getElevationM(pt0.latitudeDeg, pt0.longitudeDeg).value_or(config.fallbackGroundElevationM);
     const double f0 = pt0.altitudeM - hDem0;
 
     if (f0 <= 0.0) {
@@ -82,8 +73,8 @@ std::optional<DemIntersectionResult> DemRayCaster::intersect(
         const auto pt = evaluateRayPoint(platformPos, bearing, gimbalTiltDeg, sCurr);
         steps++;
 
-        const double hDem = dem.getElevationM(pt.latitudeDeg, pt.longitudeDeg)
-                                .value_or(config.fallbackGroundElevationM);
+        const double hDem
+            = dem.getElevationM(pt.latitudeDeg, pt.longitudeDeg).value_or(config.fallbackGroundElevationM);
         const double fCurr = pt.altitudeM - hDem;
 
         if (fCurr <= 0.0) {
@@ -112,10 +103,10 @@ std::optional<DemIntersectionResult> DemRayCaster::intersect(
     double sA = sPrev;
     double fA = fPrev;
     double sB = sCurr;
-    double fB = evaluateRayPoint(platformPos, bearing, gimbalTiltDeg, sB).altitudeM -
-               dem.getElevationM(evaluateRayPoint(platformPos, bearing, gimbalTiltDeg, sB).latitudeDeg,
-                                 evaluateRayPoint(platformPos, bearing, gimbalTiltDeg, sB).longitudeDeg)
-                   .value_or(config.fallbackGroundElevationM);
+    double fB = evaluateRayPoint(platformPos, bearing, gimbalTiltDeg, sB).altitudeM
+        - dem.getElevationM(evaluateRayPoint(platformPos, bearing, gimbalTiltDeg, sB).latitudeDeg,
+                 evaluateRayPoint(platformPos, bearing, gimbalTiltDeg, sB).longitudeDeg)
+              .value_or(config.fallbackGroundElevationM);
 
     for (int iter = 0; iter < config.maxRootIterations; ++iter) {
         if (std::abs(sB - sA) <= config.toleranceMeters || std::abs(fB) <= config.toleranceMeters) {
@@ -124,8 +115,7 @@ std::optional<DemIntersectionResult> DemRayCaster::intersect(
 
         // Illinois secant interpolation
         const double denom = fB - fA;
-        double sMid = (std::abs(denom) > 1e-9) ? (sB - fB * (sB - sA) / denom)
-                                               : (0.5 * (sA + sB));
+        double sMid = (std::abs(denom) > 1e-9) ? (sB - fB * (sB - sA) / denom) : (0.5 * (sA + sB));
 
         // Safeguard to bisection if secant step falls outside [sA, sB]
         if (sMid <= sA || sMid >= sB) {
@@ -135,8 +125,8 @@ std::optional<DemIntersectionResult> DemRayCaster::intersect(
         const auto ptMid = evaluateRayPoint(platformPos, bearing, gimbalTiltDeg, sMid);
         steps++;
 
-        const double hDemMid = dem.getElevationM(ptMid.latitudeDeg, ptMid.longitudeDeg)
-                                  .value_or(config.fallbackGroundElevationM);
+        const double hDemMid
+            = dem.getElevationM(ptMid.latitudeDeg, ptMid.longitudeDeg).value_or(config.fallbackGroundElevationM);
         const double fMid = ptMid.altitudeM - hDemMid;
 
         if (std::abs(fMid) <= config.toleranceMeters) {
@@ -155,20 +145,13 @@ std::optional<DemIntersectionResult> DemRayCaster::intersect(
     }
 
     const auto finalPt = evaluateRayPoint(platformPos, bearing, gimbalTiltDeg, sB);
-    const double finalDem = dem.getElevationM(finalPt.latitudeDeg, finalPt.longitudeDeg)
-                                .value_or(config.fallbackGroundElevationM);
+    const double finalDem
+        = dem.getElevationM(finalPt.latitudeDeg, finalPt.longitudeDeg).value_or(config.fallbackGroundElevationM);
 
     Klv::GeoPoint3D targetGeo { finalPt.latitudeDeg, finalPt.longitudeDeg, finalDem };
     const bool occluded = (finalDem > (config.fallbackGroundElevationM + 25.0));
 
-    return DemIntersectionResult {
-        targetGeo,
-        sB,
-        finalPt.altitudeM,
-        finalDem,
-        occluded,
-        steps
-    };
+    return DemIntersectionResult { targetGeo, sB, finalPt.altitudeM, finalDem, occluded, steps };
 }
 
 } // namespace PayloadHal

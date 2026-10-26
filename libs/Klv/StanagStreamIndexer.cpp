@@ -3,22 +3,26 @@
 #include "KlvParser.h"
 #include "VideoNaluParser.h"
 
+#include <cstdint>
 #include <cstring>
+
 #include <fstream>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace Klv {
 
 namespace {
 
-constexpr std::size_t kTsPacketSize { 188U };
-constexpr std::uint8_t kTsSyncByte { 0x47U };
-constexpr std::uint32_t kSidxMagic { 0x58444953U }; // "SIDX" in little-endian
-constexpr std::uint32_t kSidxVersion { 1U };
+    constexpr std::size_t kTsPacketSize { 188U };
+    constexpr std::uint8_t kTsSyncByte { 0x47U };
+    constexpr std::uint32_t kSidxMagic { 0x58444953U }; // "SIDX" in little-endian
+    constexpr std::uint32_t kSidxVersion { 1U };
 
-// 16-byte MISB ST 0601 Universal Label prefix: 06 0E 2B 34 02 0B 01 01 0E 01 03 01 01 00 00 00
-constexpr std::uint8_t kMisb0601UlPrefix[] = {
-    0x06U, 0x0EU, 0x2BU, 0x34U, 0x02U, 0x0BU, 0x01U, 0x01U
-};
+    // 16-byte MISB ST 0601 Universal Label prefix: 06 0E 2B 34 02 0B 01 01 0E 01 03 01 01 00 00 00
+    constexpr std::uint8_t kMisb0601UlPrefix[] = { 0x06U, 0x0EU, 0x2BU, 0x34U, 0x02U, 0x0BU, 0x01U, 0x01U };
 
 } // namespace
 
@@ -66,8 +70,7 @@ TelemetryTimeIndex& StanagStreamIndexer::timeIndex() noexcept
     return m_timeIndex;
 }
 
-bool StanagStreamIndexer::indexFile(std::string_view filePath,
-                                    ProgressCallback progress)
+bool StanagStreamIndexer::indexFile(std::string_view filePath, ProgressCallback progress)
 {
     reset();
 
@@ -111,9 +114,7 @@ bool StanagStreamIndexer::indexFile(std::string_view filePath,
     return true;
 }
 
-std::size_t StanagStreamIndexer::indexChunk(const std::uint8_t* data,
-                                            std::size_t size,
-                                            std::uint64_t baseOffset)
+std::size_t StanagStreamIndexer::indexChunk(const std::uint8_t* data, std::size_t size, std::uint64_t baseOffset)
 {
     if (data == nullptr || size < kTsPacketSize) {
         return 0U;
@@ -194,9 +195,9 @@ void StanagStreamIndexer::parsePat(const std::uint8_t* payload, std::size_t size
         return;
     }
 
-    const std::size_t sectionLen = static_cast<std::size_t>(
-        ((static_cast<std::uint16_t>(payload[sectionOffset + 1] & 0x0FU)) << 8U) |
-        static_cast<std::uint16_t>(payload[sectionOffset + 2]));
+    const std::size_t sectionLen
+        = static_cast<std::size_t>(((static_cast<std::uint16_t>(payload[sectionOffset + 1] & 0x0FU)) << 8U)
+            | static_cast<std::uint16_t>(payload[sectionOffset + 2]));
 
     const std::size_t sectionEnd = std::min(size, sectionOffset + 3U + sectionLen);
     if (sectionEnd < 4U) {
@@ -208,8 +209,9 @@ void StanagStreamIndexer::parsePat(const std::uint8_t* payload, std::size_t size
     while (pos + 4U <= dataEnd) {
         const std::uint16_t progNum = static_cast<std::uint16_t>(
             (static_cast<std::uint16_t>(payload[pos]) << 8U) | static_cast<std::uint16_t>(payload[pos + 1]));
-        const std::uint16_t progPid = static_cast<std::uint16_t>(
-            ((static_cast<std::uint16_t>(payload[pos + 2] & 0x1FU)) << 8U) | static_cast<std::uint16_t>(payload[pos + 3]));
+        const std::uint16_t progPid
+            = static_cast<std::uint16_t>(((static_cast<std::uint16_t>(payload[pos + 2] & 0x1FU)) << 8U)
+                | static_cast<std::uint16_t>(payload[pos + 3]));
 
         if (progNum != 0U) {
             m_pmtPid = progPid;
@@ -230,9 +232,9 @@ void StanagStreamIndexer::parsePmt(const std::uint8_t* payload, std::size_t size
         return;
     }
 
-    const std::size_t sectionLen = static_cast<std::size_t>(
-        ((static_cast<std::uint16_t>(payload[sectionOffset + 1] & 0x0FU)) << 8U) |
-        static_cast<std::uint16_t>(payload[sectionOffset + 2]));
+    const std::size_t sectionLen
+        = static_cast<std::size_t>(((static_cast<std::uint16_t>(payload[sectionOffset + 1] & 0x0FU)) << 8U)
+            | static_cast<std::uint16_t>(payload[sectionOffset + 2]));
 
     const std::size_t sectionEnd = std::min(size, sectionOffset + 3U + sectionLen);
     if (sectionEnd < 4U) {
@@ -240,17 +242,19 @@ void StanagStreamIndexer::parsePmt(const std::uint8_t* payload, std::size_t size
     }
     const std::size_t dataEnd = sectionEnd - 4U; // Exclude CRC32
 
-    const std::size_t progInfoLen = static_cast<std::size_t>(
-        ((static_cast<std::uint16_t>(payload[sectionOffset + 10] & 0x0FU)) << 8U) |
-        static_cast<std::uint16_t>(payload[sectionOffset + 11]));
+    const std::size_t progInfoLen
+        = static_cast<std::size_t>(((static_cast<std::uint16_t>(payload[sectionOffset + 10] & 0x0FU)) << 8U)
+            | static_cast<std::uint16_t>(payload[sectionOffset + 11]));
 
     std::size_t pos = sectionOffset + 12U + progInfoLen;
     while (pos + 5U <= dataEnd) {
         const std::uint8_t streamType = payload[pos];
-        const std::uint16_t elemPid = static_cast<std::uint16_t>(
-            ((static_cast<std::uint16_t>(payload[pos + 1] & 0x1FU)) << 8U) | static_cast<std::uint16_t>(payload[pos + 2]));
-        const std::size_t esInfoLen = static_cast<std::size_t>(
-            ((static_cast<std::uint16_t>(payload[pos + 3] & 0x0FU)) << 8U) | static_cast<std::uint16_t>(payload[pos + 4]));
+        const std::uint16_t elemPid
+            = static_cast<std::uint16_t>(((static_cast<std::uint16_t>(payload[pos + 1] & 0x1FU)) << 8U)
+                | static_cast<std::uint16_t>(payload[pos + 2]));
+        const std::size_t esInfoLen
+            = static_cast<std::size_t>(((static_cast<std::uint16_t>(payload[pos + 3] & 0x0FU)) << 8U)
+                | static_cast<std::uint16_t>(payload[pos + 4]));
 
         // Video: 0x1B (H.264), 0x24 (H.265), 0x02 (MPEG-2 Video)
         if (streamType == 0x1BU || streamType == 0x24U || streamType == 0x02U) {
@@ -269,9 +273,7 @@ void StanagStreamIndexer::parsePmt(const std::uint8_t* payload, std::size_t size
     }
 }
 
-void StanagStreamIndexer::processVideoPes(const std::uint8_t* pesData,
-                                         std::size_t size,
-                                         std::uint64_t fileOffset)
+void StanagStreamIndexer::processVideoPes(const std::uint8_t* pesData, std::size_t size, std::uint64_t fileOffset)
 {
     // Need at least PES start code (3), stream_id (1), length (2), flags (3) = 9 bytes
     if (size < 9U || pesData[0] != 0x00U || pesData[1] != 0x00U || pesData[2] != 0x01U) {
@@ -289,20 +291,18 @@ void StanagStreamIndexer::processVideoPes(const std::uint8_t* pesData,
 
     if ((ptsDtsFlags & 0x02U) != 0U && size >= 14U) {
         ptsTicks = (static_cast<std::uint64_t>(pesData[9] & 0x0EU) << 29U)
-                 | (static_cast<std::uint64_t>(pesData[10]) << 22U)
-                 | (static_cast<std::uint64_t>(pesData[11] & 0xFEU) << 14U)
-                 | (static_cast<std::uint64_t>(pesData[12]) << 7U)
-                 | (static_cast<std::uint64_t>(pesData[13] & 0xFEU) >> 1U);
+            | (static_cast<std::uint64_t>(pesData[10]) << 22U)
+            | (static_cast<std::uint64_t>(pesData[11] & 0xFEU) << 14U) | (static_cast<std::uint64_t>(pesData[12]) << 7U)
+            | (static_cast<std::uint64_t>(pesData[13] & 0xFEU) >> 1U);
         m_lastVideoPts = ptsTicks;
         dtsTicks = ptsTicks;
     }
 
     if (ptsDtsFlags == 0x03U && size >= 19U) {
         dtsTicks = (static_cast<std::uint64_t>(pesData[14] & 0x0EU) << 29U)
-                 | (static_cast<std::uint64_t>(pesData[15]) << 22U)
-                 | (static_cast<std::uint64_t>(pesData[16] & 0xFEU) << 14U)
-                 | (static_cast<std::uint64_t>(pesData[17]) << 7U)
-                 | (static_cast<std::uint64_t>(pesData[18] & 0xFEU) >> 1U);
+            | (static_cast<std::uint64_t>(pesData[15]) << 22U)
+            | (static_cast<std::uint64_t>(pesData[16] & 0xFEU) << 14U) | (static_cast<std::uint64_t>(pesData[17]) << 7U)
+            | (static_cast<std::uint64_t>(pesData[18] & 0xFEU) >> 1U);
     }
 
     // Inspect video payload for IDR / keyframe slices
@@ -329,7 +329,8 @@ void StanagStreamIndexer::processVideoPes(const std::uint8_t* pesData,
                 // H.265: nal_unit_type = (nalHeader >> 1) & 0x3F. IDR = 19..20, VPS = 32, SPS = 33
                 const std::uint8_t nalTypeHevc = (nalHeader >> 1U) & 0x3FU;
 
-                if (nalTypeAvc == 5U || nalTypeAvc == 7U || nalTypeHevc == 19U || nalTypeHevc == 20U || nalTypeHevc == 33U) {
+                if (nalTypeAvc == 5U || nalTypeAvc == 7U || nalTypeHevc == 19U || nalTypeHevc == 20U
+                    || nalTypeHevc == 33U) {
                     isKeyframe = true;
                     break;
                 }
@@ -338,7 +339,7 @@ void StanagStreamIndexer::processVideoPes(const std::uint8_t* pesData,
         }
     }
 
-    VideoIndexEntry entry {};
+    VideoIndexEntry entry { };
     entry.ptsTicks = ptsTicks;
     entry.dtsTicks = dtsTicks;
     entry.fileByteOffset = fileOffset;
@@ -349,9 +350,7 @@ void StanagStreamIndexer::processVideoPes(const std::uint8_t* pesData,
     m_timeIndex.addVideoEntry(entry);
 }
 
-void StanagStreamIndexer::processKlvPes(const std::uint8_t* pesData,
-                                       std::size_t size,
-                                       std::uint64_t fileOffset)
+void StanagStreamIndexer::processKlvPes(const std::uint8_t* pesData, std::size_t size, std::uint64_t fileOffset)
 {
     if (size < 9U || pesData[0] != 0x00U || pesData[1] != 0x00U || pesData[2] != 0x01U) {
         return;
@@ -367,16 +366,15 @@ void StanagStreamIndexer::processKlvPes(const std::uint8_t* pesData,
 
     if ((ptsDtsFlags & 0x02U) != 0U && size >= 14U) {
         ptsTicks = (static_cast<std::uint64_t>(pesData[9] & 0x0EU) << 29U)
-                 | (static_cast<std::uint64_t>(pesData[10]) << 22U)
-                 | (static_cast<std::uint64_t>(pesData[11] & 0xFEU) << 14U)
-                 | (static_cast<std::uint64_t>(pesData[12]) << 7U)
-                 | (static_cast<std::uint64_t>(pesData[13] & 0xFEU) >> 1U);
+            | (static_cast<std::uint64_t>(pesData[10]) << 22U)
+            | (static_cast<std::uint64_t>(pesData[11] & 0xFEU) << 14U) | (static_cast<std::uint64_t>(pesData[12]) << 7U)
+            | (static_cast<std::uint64_t>(pesData[13] & 0xFEU) >> 1U);
         m_lastKlvPts = ptsTicks;
     }
 
     const std::size_t payloadOffset = 9U + pesHeaderDataLen;
     std::uint64_t utcUs = 0U;
-    std::optional<UasDatalinkMessage> parsedMsg {};
+    std::optional<UasDatalinkMessage> parsedMsg { };
 
     if (size > payloadOffset) {
         const std::uint8_t* klvData = pesData + payloadOffset;
@@ -389,7 +387,7 @@ void StanagStreamIndexer::processKlvPes(const std::uint8_t* pesData,
 
         for (std::size_t i = 0U; i + 16U <= klvSize; ++i) {
             if (KlvParser::isMisb0601(klvData + i, klvSize - i)) {
-                UasDatalinkMessage msg {};
+                UasDatalinkMessage msg { };
                 if (KlvParser::parse(klvData + i, klvSize - i, msg, false) == KlvStatus::Success) {
                     parsedMsg = msg;
                     if (msg.precisionTimeStampUs && utcUs == 0U) {
@@ -401,7 +399,7 @@ void StanagStreamIndexer::processKlvPes(const std::uint8_t* pesData,
         }
     }
 
-    KlvIndexEntry entry {};
+    KlvIndexEntry entry { };
     entry.ptsTicks = ptsTicks;
     entry.utcTimestampUs = utcUs;
     entry.fileByteOffset = fileOffset;
@@ -412,8 +410,7 @@ void StanagStreamIndexer::processKlvPes(const std::uint8_t* pesData,
     m_timeIndex.addKlvEntry(entry);
 }
 
-std::optional<std::uint64_t> StanagStreamIndexer::peekUtcTimestamp(const std::uint8_t* data,
-                                                                  std::size_t size) noexcept
+std::optional<std::uint64_t> StanagStreamIndexer::peekUtcTimestamp(const std::uint8_t* data, std::size_t size) noexcept
 {
     if (data == nullptr || size < 20U) {
         return std::nullopt;
@@ -485,7 +482,7 @@ bool StanagStreamIndexer::saveIndex(std::string_view indexPath) const
         return false;
     }
 
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
 
     auto append64 = [&payload](std::uint64_t v) {
         for (int i = 0; i < 8; ++i) {

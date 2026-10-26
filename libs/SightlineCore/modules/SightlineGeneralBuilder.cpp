@@ -4,13 +4,16 @@
 #include "SightlineGeneralBuilder.h"
 #include "SightlineKlvBuilder.h"
 
+#include <cstdint>
+
 #include <algorithm>
+#include <vector>
 
 namespace Sightline {
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildGetVersionNumber()
 {
-    return SightlineFraming::buildPacket(MessageId::GetVersionNumber, {});
+    return SightlineFraming::buildPacket(MessageId::GetVersionNumber, { });
 }
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildGetParameters(std::uint8_t queryId)
@@ -27,12 +30,12 @@ std::vector<std::uint8_t> SightlineGeneralBuilder::buildResetAllParameters(const
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildSaveParameters(const MsgSaveParameters& /*msg*/)
 {
-    return SightlineFraming::buildPacket(MessageId::SaveParameters, {});
+    return SightlineFraming::buildPacket(MessageId::SaveParameters, { });
 }
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildSystemStatusMode(const MsgSystemStatusMode& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(6U);
     SightlineFraming::appendU16Le(payload, msg.systemStatusBits);
     SightlineFraming::appendU32Le(payload, msg.systemDebugBits);
@@ -41,7 +44,7 @@ std::vector<std::uint8_t> SightlineGeneralBuilder::buildSystemStatusMode(const M
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildGetHardwareId()
 {
-    return SightlineFraming::buildPacket(MessageId::GetHardwareID, {});
+    return SightlineFraming::buildPacket(MessageId::GetHardwareID, { });
 }
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildGetSystemStatusMode()
@@ -58,7 +61,7 @@ std::vector<std::uint8_t> SightlineGeneralBuilder::buildGetCurrentConfig()
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildSetSystemValue(const MsgSystemValue& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     const std::size_t count { std::clamp(
         static_cast<std::size_t>(msg.numValues), std::size_t { 1U }, std::size_t { 4U }) };
     payload.reserve(1U + (count * 4U));
@@ -79,7 +82,7 @@ std::vector<std::uint8_t> SightlineGeneralBuilder::buildSetSystemValue(const Msg
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildSetTrafficControl(
     std::uint32_t rateKbps, std::uint32_t burstBytes, std::uint32_t mtuBytes)
 {
-    MsgSystemValue msg {};
+    MsgSystemValue msg { };
     msg.systemValueId = MsgSystemValue::TrafficControl;
     msg.value = rateKbps;
     msg.value1 = burstBytes;
@@ -122,7 +125,7 @@ std::vector<std::uint8_t> SightlineGeneralBuilder::buildGetTagSourceSelector(std
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildDetailedTiming(const MsgDetailedTiming& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(16U);
     SightlineFraming::appendU32Le(payload, msg.frameNumber);
     SightlineFraming::appendU32Le(payload, msg.captureLatencyUs);
@@ -143,7 +146,7 @@ std::vector<std::uint8_t> SightlineGeneralBuilder::buildGetAppendedMetadata(std:
 
 std::vector<std::uint8_t> SightlineGeneralBuilder::buildFrameIndex(const MsgFrameIndex& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(13U);
     payload.push_back(msg.cameraIndex);
     SightlineFraming::appendU32Le(payload, msg.frameIndex);

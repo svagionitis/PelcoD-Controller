@@ -3,13 +3,17 @@
 
 #include "SecureStorageSyncService.h"
 
+#include <cstdint>
+
+#include <memory>
+#include <mutex>
+#include <string>
+#include <string_view>
 #include <utility>
 
 namespace Sightline {
 
-SecureStorageSyncService::SecureStorageSyncService(
-    std::shared_ptr<ISecureStorageSink> sink,
-    SecureSyncConfig config)
+SecureStorageSyncService::SecureStorageSyncService(std::shared_ptr<ISecureStorageSink> sink, SecureSyncConfig config)
     : m_sink(std::move(sink))
     , m_config(std::move(config))
 {
@@ -39,9 +43,9 @@ void SecureStorageSyncService::enqueueUpload(std::string_view localPath, std::st
 
 bool SecureStorageSyncService::processNext()
 {
-    SecureSyncTask task {};
+    SecureSyncTask task { };
     std::shared_ptr<ISecureStorageSink> sink;
-    std::string remoteDir {};
+    std::string remoteDir { };
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -104,7 +108,7 @@ std::uint64_t SecureStorageSyncService::failedCount() const noexcept
 void SecureStorageSyncService::clear() noexcept
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    std::queue<SecureSyncTask> emptyQueue {};
+    std::queue<SecureSyncTask> emptyQueue { };
     std::swap(m_pendingQueue, emptyQueue);
     m_completedCount = 0ULL;
     m_failedCount = 0ULL;

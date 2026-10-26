@@ -2,16 +2,17 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 
 namespace Mapping {
 
 namespace {
-inline constexpr double kPi { 3.14159265358979323846 };
-inline constexpr double kDegToRad { kPi / 180.0 };
+    inline constexpr double kPi { 3.14159265358979323846 };
+    inline constexpr double kDegToRad { kPi / 180.0 };
 } // namespace
 
-ScreenFrustum TacticalOverlay::projectFrustum(const MapViewport& viewport,
-                                             const Klv::FrustumCorners& frustum) noexcept {
+ScreenFrustum TacticalOverlay::projectFrustum(const MapViewport& viewport, const Klv::FrustumCorners& frustum) noexcept
+{
     ScreenFrustum sf;
     sf.corners[0] = viewport.geoToScreen(frustum.topLeft);
     sf.corners[1] = viewport.geoToScreen(frustum.topRight);
@@ -35,10 +36,9 @@ ScreenFrustum TacticalOverlay::projectFrustum(const MapViewport& viewport,
     return sf;
 }
 
-ScreenVector TacticalOverlay::projectHeadingVector(const MapViewport& viewport,
-                                                   const Klv::GeoPoint2D& platformPos,
-                                                   double headingDeg,
-                                                   double lengthPixels) noexcept {
+ScreenVector TacticalOverlay::projectHeadingVector(
+    const MapViewport& viewport, const Klv::GeoPoint2D& platformPos, double headingDeg, double lengthPixels) noexcept
+{
     ScreenVector sv;
     sv.origin = viewport.geoToScreen(platformPos);
 
@@ -52,9 +52,9 @@ ScreenVector TacticalOverlay::projectHeadingVector(const MapViewport& viewport,
     return sv;
 }
 
-ScreenVector TacticalOverlay::projectLineOfSight(const MapViewport& viewport,
-                                                 const Klv::GeoPoint2D& platformPos,
-                                                 const Klv::GeoPoint2D& targetPos) noexcept {
+ScreenVector TacticalOverlay::projectLineOfSight(
+    const MapViewport& viewport, const Klv::GeoPoint2D& platformPos, const Klv::GeoPoint2D& targetPos) noexcept
+{
     ScreenVector sv;
     sv.origin = viewport.geoToScreen(platformPos);
     sv.tip = viewport.geoToScreen(targetPos);
@@ -74,8 +74,8 @@ ScreenVector TacticalOverlay::projectLineOfSight(const MapViewport& viewport,
     return sv;
 }
 
-bool TacticalOverlay::isFrustumVisible(const ScreenFrustum& frustum,
-                                      const ScreenRect& viewportRect) noexcept {
+bool TacticalOverlay::isFrustumVisible(const ScreenFrustum& frustum, const ScreenRect& viewportRect) noexcept
+{
     if (!frustum.valid) {
         return false;
     }
@@ -100,8 +100,8 @@ bool TacticalOverlay::isFrustumVisible(const ScreenFrustum& frustum,
         maxY = std::max(maxY, frustum.corners[i].y);
     }
 
-    if (maxX < viewportRect.left() || minX > viewportRect.right() ||
-        maxY < viewportRect.top() || minY > viewportRect.bottom()) {
+    if (maxX < viewportRect.left() || minX > viewportRect.right() || maxY < viewportRect.top()
+        || minY > viewportRect.bottom()) {
         return false;
     }
 

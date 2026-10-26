@@ -9,12 +9,16 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <ctime>
 #include <iomanip>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
+#include <optional>
 #include <sstream>
+#include <string>
+#include <vector>
 
 namespace Video::Filters {
 
@@ -103,7 +107,7 @@ namespace {
         }
         const std::time_t sec = static_cast<std::time_t>(epochUs / 1000000ULL);
         const auto ms = static_cast<int>((epochUs % 1000000ULL) / 1000ULL);
-        std::tm tmBuf {};
+        std::tm tmBuf { };
 #if defined(_WIN32)
         gmtime_s(&tmBuf, &sec);
 #else
@@ -281,7 +285,7 @@ std::string TacticalHudFilter::formatSt1909IsoTime(std::optional<std::uint64_t> 
 
     const std::time_t sec = static_cast<std::time_t>(*epochUs / 1000000ULL);
     const auto frac10 = static_cast<int>((*epochUs % 1000000ULL) / 100000ULL);
-    std::tm tmBuf {};
+    std::tm tmBuf { };
 #if defined(_WIN32)
     gmtime_s(&tmBuf, &sec);
 #else
@@ -542,7 +546,7 @@ void TacticalHudFilter::process(std::uint8_t* data, int width, int height, Pixel
                 else if (wrapped == 315)
                     label = "NW";
                 else {
-                    char buf[16] {};
+                    char buf[16] { };
                     std::snprintf(buf, sizeof(buf), "%02d", wrapped / 10);
                     label = buf;
                 }
@@ -608,7 +612,7 @@ void TacticalHudFilter::process(std::uint8_t* data, int width, int height, Pixel
             drawOutlinedLine(mat, pR2, rotateAndTranslate(+rungLen, yOffset + tickDir), theme, 1);
 
             // Angle text
-            char pStr[16] {};
+            char pStr[16] { };
             std::snprintf(pStr, sizeof(pStr), "%d", std::abs(pDeg));
             drawOutlinedText(
                 mat, pStr, rotateAndTranslate(-rungLen - 16, yOffset + 4), cv::FONT_HERSHEY_SIMPLEX, 0.32, theme, 1);

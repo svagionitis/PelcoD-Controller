@@ -2,8 +2,15 @@
 #include "GeoreferenceUtils.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <map>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -37,7 +44,7 @@ public:
     }
     DeviceInfo info() const noexcept override
     {
-        DeviceInfo d {};
+        DeviceInfo d { };
         d.manufacturer = "Fujinon / Pelco";
         d.model = "SX800 Integrated PTZ Head";
         d.firmwareVersion = "2.4.0";
@@ -140,14 +147,14 @@ public:
         return true;
     }
 
-    bool savePreset(uint8_t presetId, const std::string& /*name*/) override
+    bool savePreset(std::uint8_t presetId, const std::string& /*name*/) override
     {
         if (!m_device)
             return false;
         return m_device->setPreset(presetId) == PelcoD::SendResult::Success;
     }
 
-    bool recallPreset(uint8_t presetId) override
+    bool recallPreset(std::uint8_t presetId) override
     {
         if (!m_device)
             return false;
@@ -162,13 +169,13 @@ public:
 
     void updateTelemetry(const PelcoD::DeviceStatus& status)
     {
-        GimbalTelemetry telem {};
+        GimbalTelemetry telem { };
         telem.panAngleDeg = status.panDegrees();
         const double rawTilt = status.tiltDegrees();
         telem.tiltAngleDeg = (rawTilt <= 180.0) ? -rawTilt : (360.0 - rawTilt);
         telem.timestamp = std::chrono::system_clock::now();
 
-        TelemetryCallback cbCopy {};
+        TelemetryCallback cbCopy { };
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_telemetry = telem;
@@ -188,9 +195,9 @@ public:
 private:
     std::shared_ptr<PelcoD::FujinonSX800Device> m_device;
     mutable std::mutex m_mutex;
-    GimbalTelemetry m_telemetry {};
-    TelemetryCallback m_telemetryCb {};
-    StateCallback m_stateCb {};
+    GimbalTelemetry m_telemetry { };
+    TelemetryCallback m_telemetryCb { };
+    StateCallback m_stateCb { };
 };
 
 class PelcoDFujinonPayloadAdapter::FujinonCameraUnit : public ICameraPayload {
@@ -219,7 +226,7 @@ public:
     }
     DeviceInfo info() const noexcept override
     {
-        DeviceInfo d {};
+        DeviceInfo d { };
         d.manufacturer = "Fujifilm / Fujinon";
         d.model = "SX800 Long-Range Surveillance Camera";
         d.firmwareVersion = "2.4.0";
@@ -374,7 +381,7 @@ public:
 
     void updateTelemetry(const PelcoD::DeviceStatus& status, const PelcoD::FujinonStatus& fujinonStatus)
     {
-        CameraTelemetry telem {};
+        CameraTelemetry telem { };
         // SX800 magnification centivalue
         const double mag = (status.magnification > 0U) ? (static_cast<double>(status.magnification) / 100.0) : 1.0;
         telem.opticalZoomFactor = std::clamp(mag, 1.0, 40.0);
@@ -392,7 +399,7 @@ public:
         telem.verticalFovDeg = currentVfovRad * (180.0 / 3.14159265358979323846);
         telem.timestamp = std::chrono::system_clock::now();
 
-        TelemetryCallback cbCopy {};
+        TelemetryCallback cbCopy { };
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_telemetry = telem;
@@ -422,7 +429,7 @@ public:
                 return primIt->second;
             }
         }
-        return {};
+        return { };
     }
 
     bool setVideoStreamUri(const std::string& uri, VideoStreamProfile profile = VideoStreamProfile::Primary) override
@@ -471,10 +478,10 @@ public:
 private:
     std::shared_ptr<PelcoD::FujinonSX800Device> m_device;
     mutable std::mutex m_mutex;
-    CameraTelemetry m_telemetry {};
-    TelemetryCallback m_telemetryCb {};
-    StateCallback m_stateCb {};
-    std::map<VideoStreamProfile, std::string> m_streamUris {};
+    CameraTelemetry m_telemetry { };
+    TelemetryCallback m_telemetryCb { };
+    StateCallback m_stateCb { };
+    std::map<VideoStreamProfile, std::string> m_streamUris { };
 };
 
 // =============================================================================
@@ -544,7 +551,7 @@ DeviceState PelcoDFujinonPayloadAdapter::state() const noexcept
 
 DeviceInfo PelcoDFujinonPayloadAdapter::info() const noexcept
 {
-    DeviceInfo d {};
+    DeviceInfo d { };
     d.manufacturer = "Fujifilm / Fujinon";
     d.model = "SX800 Composite Station";
     d.firmwareVersion = "2.4.0";

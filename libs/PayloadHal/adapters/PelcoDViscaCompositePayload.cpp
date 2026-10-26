@@ -1,7 +1,12 @@
 #include "PelcoDViscaCompositePayload.h"
+
 #include "GeoreferenceUtils.h"
 #include "PelcoDPtzAdapter.h"
 #include "ViscaSonyAdapter.h"
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
 
 namespace PayloadHal {
 
@@ -110,7 +115,7 @@ void PelcoDViscaCompositePayload::disconnect()
 
 [[nodiscard]] DeviceInfo PelcoDViscaCompositePayload::info() const noexcept
 {
-    DeviceInfo d {};
+    DeviceInfo d { };
     d.manufacturer = "Pelco / Sony";
     d.model = "Pelco-D PT + Sony FCB VISCA Composite";
     if (m_camera) {
@@ -203,8 +208,8 @@ PelcoDViscaCompositePayload::underlyingSonyDevice() const noexcept
 
 void PelcoDViscaCompositePayload::handleSubsystemStateChange()
 {
-    StateCallback cbCopy {};
-    DeviceState currentState {};
+    StateCallback cbCopy { };
+    DeviceState currentState { };
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         currentState = state();

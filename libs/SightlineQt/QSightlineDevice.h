@@ -13,11 +13,13 @@
 #include <SightlineCore/modules/SightlineNetwork.h>
 #include <SightlineCore/modules/SightlineNuc.h>
 #include <SightlineCore/modules/SightlineRecording.h>
+#include <cstdint>
 
 #include <QByteArray>
 #include <QObject>
 #include <map>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -211,8 +213,7 @@ public slots:
     bool setForcedCoast(quint8 cameraIndex, quint8 trackId, Sightline::ForcedCoastingMode mode);
     bool reinitTrack(quint8 cameraIndex, quint8 trackId);
     bool resizeTrack(quint8 cameraIndex, quint8 trackId, quint16 width, quint16 height, bool assist = true);
-    bool cueTrackAt(
-        quint8 cameraIndex, quint16 col, quint16 row, Sightline::ModifyMode mode, quint8 trackId = 0xFFU);
+    bool cueTrackAt(quint8 cameraIndex, quint16 col, quint16 row, Sightline::ModifyMode mode, quint8 trackId = 0xFFU);
     bool setTrackingParameters(const Sightline::MsgSetTrackingParameters& params);
 
     // Automated Target Detection & Analytics (EAN-Detection-Modes)
@@ -323,8 +324,8 @@ private:
     void processTrackTelemetry(quint8 cameraIndex, const std::vector<Sightline::TrackCoordinate>& tracks);
 
     std::unique_ptr<Sightline::SightlineDevice> m_device;
-    std::map<std::pair<quint8, quint8>, bool> m_knownCoastingState {};
-    std::map<quint8, quint8> m_knownPrimaryTrack {};
+    std::map<std::pair<quint8, quint8>, bool> m_knownCoastingState { };
+    std::map<quint8, quint8> m_knownPrimaryTrack { };
 };
 
 Q_DECLARE_METATYPE(Sightline::TrackCoordinate)

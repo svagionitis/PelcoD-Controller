@@ -1,13 +1,15 @@
+#include "GimbalSectorBlanking.h"
 #include "LaserDesignatorCoordinator.h"
 #include "LaserDesignatorTypes.h"
-#include "GimbalSectorBlanking.h"
 #include "sim/SimulatedPayload.h"
 
+#include <cstdint>
 #include <gtest/gtest.h>
 
 #include <chrono>
 #include <cmath>
 #include <memory>
+#include <string>
 #include <thread>
 
 using namespace PayloadHal;
@@ -17,12 +19,30 @@ class MockPtu : public IPanTiltUnit {
 public:
     MockPtu() = default;
 
-    bool connect() override { m_connected = true; return true; }
-    void disconnect() override { m_connected = false; }
-    [[nodiscard]] bool isConnected() const noexcept override { return m_connected; }
-    [[nodiscard]] DeviceState state() const noexcept override { return m_connected ? DeviceState::Ready : DeviceState::Disconnected; }
-    [[nodiscard]] DeviceInfo info() const noexcept override { return DeviceInfo{"Mock", "Ptu", "1.0"}; }
-    void registerStateCallback(StateCallback) override {}
+    bool connect() override
+    {
+        m_connected = true;
+        return true;
+    }
+    void disconnect() override
+    {
+        m_connected = false;
+    }
+    [[nodiscard]] bool isConnected() const noexcept override
+    {
+        return m_connected;
+    }
+    [[nodiscard]] DeviceState state() const noexcept override
+    {
+        return m_connected ? DeviceState::Ready : DeviceState::Disconnected;
+    }
+    [[nodiscard]] DeviceInfo info() const noexcept override
+    {
+        return DeviceInfo { "Mock", "Ptu", "1.0" };
+    }
+    void registerStateCallback(StateCallback) override
+    {
+    }
 
     bool setRate(double panDegPerSec, double tiltDegPerSec) override
     {
@@ -30,14 +50,20 @@ public:
         m_tiltRate = tiltDegPerSec;
         return true;
     }
-    bool setNormalizedVelocity(float, float) override { return true; }
+    bool setNormalizedVelocity(float, float) override
+    {
+        return true;
+    }
     bool setAbsoluteAngles(double panDeg, double tiltDeg) override
     {
         m_pan = panDeg;
         m_tilt = tiltDeg;
         return true;
     }
-    bool setRelativeNudge(double, double) override { return true; }
+    bool setRelativeNudge(double, double) override
+    {
+        return true;
+    }
     bool stopMotion() override
     {
         m_panRate = 0.0;
@@ -45,24 +71,47 @@ public:
         return true;
     }
 
-    [[nodiscard]] bool supportsStabilization() const noexcept override { return false; }
-    bool setStabilizationMode(StabilizationMode) override { return false; }
-    [[nodiscard]] StabilizationMode stabilizationMode() const noexcept override { return StabilizationMode::Disabled; }
-    bool zeroGyroDrift() override { return false; }
+    [[nodiscard]] bool supportsStabilization() const noexcept override
+    {
+        return false;
+    }
+    bool setStabilizationMode(StabilizationMode) override
+    {
+        return false;
+    }
+    [[nodiscard]] StabilizationMode stabilizationMode() const noexcept override
+    {
+        return StabilizationMode::Disabled;
+    }
+    bool zeroGyroDrift() override
+    {
+        return false;
+    }
 
     bool getLimits(double& minPan, double& maxPan, double& minTilt, double& maxTilt) const override
     {
-        minPan = -180.0; maxPan = 180.0; minTilt = -90.0; maxTilt = 45.0;
+        minPan = -180.0;
+        maxPan = 180.0;
+        minTilt = -90.0;
+        maxTilt = 45.0;
         return true;
     }
-    bool savePreset(std::uint8_t, const std::string&) override { return false; }
-    bool recallPreset(std::uint8_t) override { return false; }
+    bool savePreset(std::uint8_t, const std::string&) override
+    {
+        return false;
+    }
+    bool recallPreset(std::uint8_t) override
+    {
+        return false;
+    }
 
-    void registerTelemetryCallback(TelemetryCallback) override {}
+    void registerTelemetryCallback(TelemetryCallback) override
+    {
+    }
 
     [[nodiscard]] GimbalTelemetry currentTelemetry() const override
     {
-        GimbalTelemetry telem {};
+        GimbalTelemetry telem { };
         telem.panAngleDeg = m_pan;
         telem.tiltAngleDeg = m_tilt;
         telem.panRateDegPerSec = m_panRate;
@@ -261,7 +310,7 @@ TEST(TestLaserDesignatorCoordinator, SectorBlankingSafetyInterlock)
     auto sectorBlanking = std::make_shared<GimbalSectorBlanking>();
 
     // Add keep-out zone from pan 10 to 30 deg, tilt -20 to 0 deg
-    BlankingZone zone {};
+    BlankingZone zone { };
     zone.id = "AircraftWing";
     zone.description = "Aircraft Wing / Propeller";
     zone.azMinDeg = 10.0;
@@ -277,7 +326,8 @@ TEST(TestLaserDesignatorCoordinator, SectorBlankingSafetyInterlock)
     // Aim outside zone (0 deg pan, -10 deg tilt)
     ptu->setPanTilt(0.0, -10.0);
     EXPECT_TRUE(coordinator.armDesignator());
-    for (int i = 0; i < 50; ++i) coordinator.update(0.1);
+    for (int i = 0; i < 50; ++i)
+        coordinator.update(0.1);
     EXPECT_EQ(coordinator.designatorState(), DesignatorState::ReadyToFire);
 
     // Starting designation outside zone should succeed

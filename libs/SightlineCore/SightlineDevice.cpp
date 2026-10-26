@@ -1,9 +1,16 @@
 /// @file SightlineDevice.cpp
 /// @brief Implementation of Sightline SLA high-level controller and message dispatcher.
 
+#include <cstdint>
+
 #include "SightlineDevice.h"
 #include "modules/SightlineEnhancementParser.h"
 #include "modules/SightlineTrackingBuilder.h"
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace Sightline {
 
@@ -18,7 +25,7 @@ namespace {
     template <typename Callback, typename Message>
     void fireCallback(std::mutex& mutex, const Callback& slot, const Message& msg)
     {
-        Callback cb {};
+        Callback cb { };
         {
             std::lock_guard<std::mutex> lock(mutex);
             cb = slot;
@@ -93,7 +100,7 @@ Transport::TransportStatsSnapshot SightlineDevice::getTransportStats() const
     if (m_transport) {
         return m_transport->getStats();
     }
-    return {};
+    return { };
 }
 
 // ==============================================================================
@@ -103,7 +110,7 @@ Transport::TransportStatsSnapshot SightlineDevice::getTransportStats() const
 bool SightlineDevice::startTracking(std::uint8_t cameraIndex, std::uint16_t col, std::uint16_t row, std::uint16_t width,
     std::uint16_t height, std::uint8_t flags)
 {
-    MsgStartTracking msg {};
+    MsgStartTracking msg { };
     msg.cameraIndex = cameraIndex;
     msg.centerCol = col;
     msg.centerRow = row;
@@ -117,13 +124,13 @@ bool SightlineDevice::startTracking(std::uint8_t cameraIndex, std::uint16_t col,
 bool SightlineDevice::stopTracking(std::uint8_t cameraIndex, std::uint8_t trackId)
 {
     if (trackId == 0xFFU) {
-        MsgStopTracking msg {};
+        MsgStopTracking msg { };
         msg.cameraIndex = cameraIndex;
         msg.trackId = 0xFFU;
         return sendPacket(SightlineProtocolBuilder::buildStopTracking(msg));
     }
 
-    MsgModifyTrackIndex modifyMsg {};
+    MsgModifyTrackIndex modifyMsg { };
     modifyMsg.trackIndex = trackId;
     modifyMsg.flags = 0U; // 0 = Stop track
     modifyMsg.cameraIndex = cameraIndex;
@@ -133,7 +140,7 @@ bool SightlineDevice::stopTracking(std::uint8_t cameraIndex, std::uint8_t trackI
 bool SightlineDevice::modifyTracking(
     std::uint8_t cameraIndex, std::uint8_t trackId, std::uint8_t mode, std::uint8_t flags)
 {
-    MsgModifyTracking msg {};
+    MsgModifyTracking msg { };
     msg.cameraIndex = cameraIndex;
     msg.trackId = trackId;
     msg.mode = mode;
@@ -142,49 +149,41 @@ bool SightlineDevice::modifyTracking(
     return sendPacket(SightlineProtocolBuilder::buildModifyTracking(msg));
 }
 
-bool SightlineDevice::startPrecisionTrack(
-    std::uint8_t cameraIndex, std::uint16_t col, std::uint16_t row,
-    std::uint16_t width, std::uint16_t height, std::uint64_t framePtsUs,
-    std::uint8_t flags)
+bool SightlineDevice::startPrecisionTrack(std::uint8_t cameraIndex, std::uint16_t col, std::uint16_t row,
+    std::uint16_t width, std::uint16_t height, std::uint64_t framePtsUs, std::uint8_t flags)
 {
-    return sendPacket(SightlineTrackingBuilder::buildStartPrecision(
-        cameraIndex, col, row, width, height, framePtsUs, flags));
+    return sendPacket(
+        SightlineTrackingBuilder::buildStartPrecision(cameraIndex, col, row, width, height, framePtsUs, flags));
 }
 
-bool SightlineDevice::setForcedCoast(
-    std::uint8_t cameraIndex, std::uint8_t trackId, ForcedCoastingMode mode)
+bool SightlineDevice::setForcedCoast(std::uint8_t cameraIndex, std::uint8_t trackId, ForcedCoastingMode mode)
 {
-    return sendPacket(SightlineTrackingBuilder::buildForcedCoasting(
-        cameraIndex, trackId, mode));
+    return sendPacket(SightlineTrackingBuilder::buildForcedCoasting(cameraIndex, trackId, mode));
 }
 
 bool SightlineDevice::reinitTrack(std::uint8_t cameraIndex, std::uint8_t trackId)
 {
-    return sendPacket(SightlineTrackingBuilder::buildModifyTrackIndex(
-        cameraIndex, trackId, TrackIndexAction::Reinitialize));
+    return sendPacket(
+        SightlineTrackingBuilder::buildModifyTrackIndex(cameraIndex, trackId, TrackIndexAction::Reinitialize));
 }
 
 bool SightlineDevice::resizeTrack(
-    std::uint8_t cameraIndex, std::uint8_t trackId,
-    std::uint16_t width, std::uint16_t height, bool acqAssist)
+    std::uint8_t cameraIndex, std::uint8_t trackId, std::uint16_t width, std::uint16_t height, bool acqAssist)
 {
-    const auto action = acqAssist ? TrackIndexAction::ResizeWithAcquisitionAssist
-                                  : TrackIndexAction::ResizeNoAcquisitionAssist;
-    return sendPacket(SightlineTrackingBuilder::buildModifyTrackIndex(
-        cameraIndex, trackId, action, width, height));
+    const auto action
+        = acqAssist ? TrackIndexAction::ResizeWithAcquisitionAssist : TrackIndexAction::ResizeNoAcquisitionAssist;
+    return sendPacket(SightlineTrackingBuilder::buildModifyTrackIndex(cameraIndex, trackId, action, width, height));
 }
 
 bool SightlineDevice::cueTrackAt(
-    std::uint8_t cameraIndex, std::uint16_t col, std::uint16_t row,
-    ModifyMode mode, std::uint8_t trackId)
+    std::uint8_t cameraIndex, std::uint16_t col, std::uint16_t row, ModifyMode mode, std::uint8_t trackId)
 {
-    return sendPacket(SightlineTrackingBuilder::buildModifyTrackingMode(
-        cameraIndex, col, row, mode, trackId));
+    return sendPacket(SightlineTrackingBuilder::buildModifyTrackingMode(cameraIndex, col, row, mode, trackId));
 }
 
 bool SightlineDevice::nudgeTracking(std::uint8_t cameraIndex, std::int16_t deltaCol, std::int16_t deltaRow)
 {
-    MsgNudgeTrackingCoordinate msg {};
+    MsgNudgeTrackingCoordinate msg { };
     msg.cameraIndex = cameraIndex;
     msg.deltaCol = deltaCol;
     msg.deltaRow = deltaRow;
@@ -192,8 +191,7 @@ bool SightlineDevice::nudgeTracking(std::uint8_t cameraIndex, std::int16_t delta
     return sendPacket(SightlineProtocolBuilder::buildNudgeTracking(msg));
 }
 
-bool SightlineDevice::nudgeDisplayTrack(
-    std::uint8_t cameraIndex, std::int16_t deltaCol, std::int16_t deltaRow)
+bool SightlineDevice::nudgeDisplayTrack(std::uint8_t cameraIndex, std::int16_t deltaCol, std::int16_t deltaRow)
 {
     return sendPacket(SightlineTrackingBuilder::buildNudgeTrackingRotated(
         cameraIndex, deltaCol, deltaRow, NudgeCoordinateMode::DisplayCoordinates));
@@ -201,7 +199,7 @@ bool SightlineDevice::nudgeDisplayTrack(
 
 bool SightlineDevice::setReportingMode(std::uint8_t cameraIndex, std::uint8_t framePeriod, std::uint8_t reportingFlags)
 {
-    MsgCoordinateReportingMode msg {};
+    MsgCoordinateReportingMode msg { };
     msg.cameraIndex = cameraIndex;
     msg.framePeriod = framePeriod;
     msg.reportingFlags = reportingFlags;
@@ -211,7 +209,7 @@ bool SightlineDevice::setReportingMode(std::uint8_t cameraIndex, std::uint8_t fr
 
 bool SightlineDevice::designatePrimary(std::uint8_t cameraIndex, std::uint8_t trackId)
 {
-    MsgDesignateSelectedTrackPrimary msg {};
+    MsgDesignateSelectedTrackPrimary msg { };
     msg.cameraIndex = cameraIndex;
     msg.trackId = trackId;
 
@@ -221,7 +219,7 @@ bool SightlineDevice::designatePrimary(std::uint8_t cameraIndex, std::uint8_t tr
 bool SightlineDevice::shiftTrack(
     std::uint8_t cameraIndex, std::uint8_t trackId, std::int16_t shiftCol, std::int16_t shiftRow)
 {
-    MsgShiftSelectedTrack msg {};
+    MsgShiftSelectedTrack msg { };
     msg.cameraIndex = cameraIndex;
     msg.trackId = trackId;
     msg.shiftCol = shiftCol;
@@ -232,7 +230,7 @@ bool SightlineDevice::shiftTrack(
 
 bool SightlineDevice::stopTrack(std::uint8_t cameraIndex, std::uint8_t trackId)
 {
-    MsgStopSelectedTrack msg {};
+    MsgStopSelectedTrack msg { };
     msg.cameraIndex = cameraIndex;
     msg.trackId = trackId;
 
@@ -271,7 +269,7 @@ bool SightlineDevice::setVMTI(const MsgSetVMTI& msg)
 
 bool SightlineDevice::triggerDetectionSnapshot(std::uint8_t cameraIndex, std::uint8_t detectionIndex)
 {
-    MsgDoDetectSnapShot msg {};
+    MsgDoDetectSnapShot msg { };
     msg.cameraIndex = cameraIndex;
     msg.detectionIndex = detectionIndex;
     return sendPacket(SightlineProtocolBuilder::buildDoDetectSnapShot(msg));
@@ -289,11 +287,11 @@ bool SightlineDevice::setClassifierConfig(const MsgClassifierConfig& msg)
 
 bool SightlineDevice::setComputeResources(bool useNpu, bool asyncInferencing)
 {
-    MsgSystemValue npuVal {};
+    MsgSystemValue npuVal { };
     npuVal.systemValueId = 0x3CU; // NPU_CONTROL
     npuVal.value = useNpu ? 1U : 0U;
 
-    MsgSystemValue asyncVal {};
+    MsgSystemValue asyncVal { };
     asyncVal.systemValueId = 0x3DU; // CLASSIFY_ASYNC
     asyncVal.value = asyncInferencing ? 1U : 0U;
 
@@ -354,7 +352,7 @@ bool SightlineDevice::setStabilization(const MsgSetStabilizationParameters& msg)
 bool SightlineDevice::setStabilization(
     std::uint8_t cameraIndex, std::uint8_t mode, std::uint8_t rate, std::uint8_t maxStabOff)
 {
-    MsgSetStabilizationParameters msg {};
+    MsgSetStabilizationParameters msg { };
     msg.cameraIndex = cameraIndex;
     msg.mode = mode;
     msg.rate = rate;
@@ -365,7 +363,7 @@ bool SightlineDevice::setStabilization(
 
 bool SightlineDevice::resetStabilization(std::uint8_t cameraIndex, std::uint8_t resetType)
 {
-    MsgResetStabilizationParameters msg {};
+    MsgResetStabilizationParameters msg { };
     msg.cameraIndex = cameraIndex;
     msg.resetType = resetType;
 
@@ -380,7 +378,7 @@ bool SightlineDevice::setStabilizationBias(const MsgSetStabilizationBias& msg)
 bool SightlineDevice::setStabilizationBias(std::uint8_t cameraIndex, std::int16_t biasCol, std::int16_t biasRow,
     std::uint8_t autoBias, std::uint8_t updateRate)
 {
-    MsgSetStabilizationBias msg {};
+    MsgSetStabilizationBias msg { };
     msg.cameraIndex = cameraIndex;
     msg.biasCol = biasCol;
     msg.biasRow = biasRow;
@@ -494,8 +492,7 @@ bool SightlineDevice::setUserPalette(const MsgUserPalette& msg)
     return sendPacket(SightlineProtocolBuilder::buildSetUserPalette(msg));
 }
 
-bool SightlineDevice::setIsothermPalette(
-    const SightlineIsothermBuilder& builder, std::uint8_t paletteIndex)
+bool SightlineDevice::setIsothermPalette(const SightlineIsothermBuilder& builder, std::uint8_t paletteIndex)
 {
     return sendPacket(SightlineProtocolBuilder::buildSetIsothermPalette(builder, paletteIndex));
 }
@@ -597,7 +594,7 @@ bool SightlineDevice::sendFileStorageMgmt(const MsgFileStorageManagement& msg)
 
 bool SightlineDevice::streamingControl(std::uint8_t streamIndex, std::uint8_t action)
 {
-    MsgStreamingControl msg {};
+    MsgStreamingControl msg { };
     msg.streamIndex = streamIndex;
     msg.action = action;
 
@@ -633,10 +630,9 @@ bool SightlineDevice::setMetadataRate(const MsgSetMetadataRate& msg)
     return sendPacket(SightlineProtocolBuilder::buildSetMetadataRate(msg));
 }
 
-bool SightlineDevice::setMetadataRate(
-    std::uint64_t enables, std::uint8_t frameStep, std::uint16_t displayId)
+bool SightlineDevice::setMetadataRate(std::uint64_t enables, std::uint8_t frameStep, std::uint16_t displayId)
 {
-    MsgSetMetadataRate msg {};
+    MsgSetMetadataRate msg { };
     msg.enables = enables;
     msg.frameStep = frameStep;
     msg.displayId = displayId;
@@ -699,7 +695,7 @@ bool SightlineDevice::setTelemetryDest(const MsgSetTelemetryDestination& msg)
 
 bool SightlineDevice::sendLensCommand(std::uint8_t cameraIndex, std::uint8_t commandType, std::int16_t rateOrPosition)
 {
-    MsgLensCommand msg {};
+    MsgLensCommand msg { };
     msg.cameraIndex = cameraIndex;
     msg.commandType = commandType;
     msg.rateOrPosition = rateOrPosition;
@@ -816,7 +812,7 @@ bool SightlineDevice::setUserFont(const MsgUserFont& msg)
 
 bool SightlineDevice::setUserFont(std::uint8_t slotIndex, const std::string& fontFileName)
 {
-    MsgUserFont msg {};
+    MsgUserFont msg { };
     msg.userFontIndex = slotIndex;
     msg.fontFileName = fontFileName;
     return setUserFont(msg);
@@ -838,14 +834,14 @@ bool SightlineDevice::getOverlayObjectParams(std::uint8_t objectId)
 
 bool SightlineDevice::saveParameters(std::uint8_t commitType)
 {
-    MsgSaveParameters msg {};
+    MsgSaveParameters msg { };
     msg.commitType = commitType;
     return sendPacket(SightlineProtocolBuilder::buildSaveParameters(msg));
 }
 
 bool SightlineDevice::resetParameters(std::uint8_t resetType)
 {
-    MsgResetAllParameters msg {};
+    MsgResetAllParameters msg { };
     msg.resetType = resetType;
     return sendPacket(SightlineProtocolBuilder::buildResetAllParameters(msg));
 }
@@ -867,7 +863,7 @@ bool SightlineDevice::queryVersion()
 
 bool SightlineDevice::enableSystemStatus(bool enable)
 {
-    MsgSystemStatusMode mode {};
+    MsgSystemStatusMode mode { };
     mode.systemStatusBits = enable ? 0x0001U : 0x0000U;
     mode.systemDebugBits = 0U;
     return sendPacket(SightlineProtocolBuilder::buildSystemStatusMode(mode));
@@ -1296,7 +1292,7 @@ void SightlineDevice::handleIncomingBytes(const std::vector<std::uint8_t>& data)
 
 void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
 {
-    RawTrafficCallback rawCb {};
+    RawTrafficCallback rawCb { };
     {
         std::lock_guard<std::mutex> lock(m_callbackMutex);
         rawCb = m_rawTrafficCallback;
@@ -1308,13 +1304,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
     const auto id = SightlineProtocolParser::identifyMessage(packet);
     switch (id) {
     case MessageId::TrackingPositions: {
-        MsgTrackingPositions trackPositions {};
+        MsgTrackingPositions trackPositions { };
         if (SightlineProtocolParser::parseTrackingPositions(packet, trackPositions)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastPositions = trackPositions;
             }
-            TrackingCallback cb {};
+            TrackingCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_trackingCallback;
@@ -1326,9 +1322,9 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
         break;
     }
     case MessageId::TrackingPositionsExtended: {
-        MsgTrackingPositionsExtended extPositions {};
+        MsgTrackingPositionsExtended extPositions { };
         if (SightlineProtocolParser::parsePositionsExtended(packet, extPositions)) {
-            ExtendedPositionsCallback cb {};
+            ExtendedPositionsCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_extendedPositionsCallback;
@@ -1341,13 +1337,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
     }
     case MessageId::CurrentTrackingParameters:
     case MessageId::SetTrackingParameters: {
-        MsgSetTrackingParameters params {};
+        MsgSetTrackingParameters params { };
         if (SightlineProtocolParser::parseTrackingParameters(packet, params)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastTrackingParams = params;
             }
-            TrackingParamsCallback cb {};
+            TrackingParamsCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_trackingParamsCallback;
@@ -1359,9 +1355,9 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
         break;
     }
     case MessageId::UserWarningMessage: {
-        MsgUserWarningMessage warning {};
+        MsgUserWarningMessage warning { };
         if (SightlineProtocolParser::parseUserWarning(packet, warning)) {
-            WarningCallback cb {};
+            WarningCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_warningCallback;
@@ -1374,13 +1370,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
     }
     case MessageId::GetVersionNumber:
     case MessageId::VersionNumber: {
-        MsgVersionNumber version {};
+        MsgVersionNumber version { };
         if (SightlineProtocolParser::parseVersionNumber(packet, version)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastVersion = version;
             }
-            VersionCallback cb {};
+            VersionCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_versionCallback;
@@ -1392,13 +1388,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
         break;
     }
     case MessageId::SystemStatusMessage: {
-        MsgSystemStatusMessage status {};
+        MsgSystemStatusMessage status { };
         if (SightlineProtocolParser::parseSystemStatus(packet, status)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastStatus = status;
             }
-            SystemStatusCallback cb {};
+            SystemStatusCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_systemStatusCallback;
@@ -1411,13 +1407,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
     }
     case MessageId::CurrentStabilizationParameters:
     case MessageId::SetStabilizationParameters: {
-        MsgSetStabilizationParameters stab {};
+        MsgSetStabilizationParameters stab { };
         if (SightlineProtocolParser::parseStabilizationParams(packet, stab)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastStabilization = stab;
             }
-            StabilizationCallback cb {};
+            StabilizationCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_stabilizationCallback;
@@ -1431,13 +1427,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
     case MessageId::RegistrationParameters:
     case MessageId::CurrentRegistrationParameters:
     case MessageId::SetRegistrationParameters: {
-        MsgSetRegistrationParameters reg {};
+        MsgSetRegistrationParameters reg { };
         if (SightlineProtocolParser::parseRegistration(packet, reg)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastRegistration = reg;
             }
-            RegistrationCallback cb {};
+            RegistrationCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_registrationCallback;
@@ -1451,13 +1447,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
     case MessageId::StabilizationBias:
     case MessageId::CurrentStabilizationBias:
     case MessageId::SetStabilizationBias: {
-        MsgSetStabilizationBias bias {};
+        MsgSetStabilizationBias bias { };
         if (SightlineProtocolParser::parseStabilizationBias(packet, bias)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastStabilizationBias = bias;
             }
-            StabilizationBiasCallback cb {};
+            StabilizationBiasCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_stabilizationBiasCallback;
@@ -1470,13 +1466,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
     }
     case MessageId::CurrentOverlayMode:
     case MessageId::SetOverlayMode: {
-        MsgSetOverlayMode mode {};
+        MsgSetOverlayMode mode { };
         if (SightlineProtocolParser::parseOverlayMode(packet, mode)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastOverlayMode = mode;
             }
-            OverlayModeCallback cb {};
+            OverlayModeCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_overlayModeCallback;
@@ -1488,13 +1484,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
         break;
     }
     case MessageId::CurrentOverlayObjectsIds: {
-        MsgCurrentOverlayObjectsIds ids {};
+        MsgCurrentOverlayObjectsIds ids { };
         if (SightlineProtocolParser::parseOverlayObjectsIds(packet, ids)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastOverlayObjectsIds = ids;
             }
-            OverlayObjectsIdsCallback cb {};
+            OverlayObjectsIdsCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_objectsIdsCallback;
@@ -1506,9 +1502,9 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
         break;
     }
     case MessageId::CurrentOverlayObjectParameters: {
-        MsgCurrentOverlayObjectParameters params {};
+        MsgCurrentOverlayObjectParameters params { };
         if (SightlineProtocolParser::parseOverlayObjectParams(packet, params)) {
-            OverlayObjectParamsCallback cb {};
+            OverlayObjectParamsCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_objectParamsCallback;
@@ -1520,13 +1516,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
         break;
     }
     case MessageId::LogoParameters: {
-        MsgLogoParameters logo {};
+        MsgLogoParameters logo { };
         if (SightlineProtocolParser::parseLogoParameters(packet, logo)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastLogoParameters = logo;
             }
-            LogoParametersCallback cb {};
+            LogoParametersCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_logoCallback;
@@ -1539,13 +1535,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
     }
     case MessageId::CurrentDetectionParameters:
     case MessageId::SetDetectionParameters: {
-        MsgSetDetectionParameters det {};
+        MsgSetDetectionParameters det { };
         if (SightlineProtocolParser::parseDetectionParams(packet, det)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastDetectionParams = det;
             }
-            DetectionCallback cb {};
+            DetectionCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_detectionCallback;
@@ -1558,13 +1554,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
     }
     case MessageId::CurrentAdvancedDetectionParameters:
     case MessageId::SetAdvancedDetectionParameters: {
-        MsgAdvancedDetectionParameters adv {};
+        MsgAdvancedDetectionParameters adv { };
         if (SightlineProtocolParser::parseAdvDetectionParams(packet, adv)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastAdvDetection = adv;
             }
-            AdvDetectionCallback cb {};
+            AdvDetectionCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_advDetectionCallback;
@@ -1577,13 +1573,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
     }
     case MessageId::CurrentDetectionRegionOfInterestParameters:
     case MessageId::SetDetectionRegionOfInterestParameters: {
-        MsgDetectionROI roi {};
+        MsgDetectionROI roi { };
         if (SightlineProtocolParser::parseDetectionROI(packet, roi)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastDetectionROI = roi;
             }
-            DetectionRoiCallback cb {};
+            DetectionRoiCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_detectionRoiCallback;
@@ -1595,13 +1591,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
         break;
     }
     case MessageId::KlvClassFilters: {
-        MsgKlvMetricFilters filters {};
+        MsgKlvMetricFilters filters { };
         if (SightlineProtocolParser::parseKlvMetricFilters(packet, filters)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastKlvMetricFilters = filters;
             }
-            KlvMetricFiltersCallback cb {};
+            KlvMetricFiltersCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_klvMetricFiltersCallback;
@@ -1613,13 +1609,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
         break;
     }
     case MessageId::CommandAck: {
-        MsgCommandAck ack {};
+        MsgCommandAck ack { };
         if (SightlineProtocolParser::parseCmdAck(packet, ack)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastCommandAck = ack;
             }
-            CommandAckCallback cb {};
+            CommandAckCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_commandAckCallback;
@@ -1631,13 +1627,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
         break;
     }
     case MessageId::FileRecordingEvent: {
-        MsgFileRecordingEvent event {};
+        MsgFileRecordingEvent event { };
         if (SightlineProtocolParser::parseRecordingEvent(packet, event)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastRecordingEvent = event;
             }
-            RecordingEventCallback cb {};
+            RecordingEventCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_recordingEventCb;
@@ -1649,13 +1645,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
         break;
     }
     case MessageId::CurrentRecordingStatusV2: {
-        MsgCurrentRecordingStatusV2 status {};
+        MsgCurrentRecordingStatusV2 status { };
         if (SightlineProtocolParser::parseRecordingStatusV2(packet, status)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastRecordingStatus = status;
             }
-            RecordingStatusV2Callback cb {};
+            RecordingStatusV2Callback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_recordingStatusCb;
@@ -1667,13 +1663,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
         break;
     }
     case MessageId::DirectoryListingReply: {
-        MsgDirectoryListingReply reply {};
+        MsgDirectoryListingReply reply { };
         if (SightlineProtocolParser::parseDirListingReply(packet, reply)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastDirListingReply = reply;
             }
-            DirListingReplyCallback cb {};
+            DirListingReplyCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_dirListingReplyCb;
@@ -1686,13 +1682,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
     }
     case MessageId::CurrentH264Parameters:
     case MessageId::SetH264Parameters: {
-        MsgSetH264Parameters params {};
+        MsgSetH264Parameters params { };
         if (SightlineProtocolParser::parseH264Parameters(packet, params)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastH264Params = params;
             }
-            H264ParamsCallback cb {};
+            H264ParamsCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_h264ParamsCallback;
@@ -1705,13 +1701,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
     }
     case MessageId::CurrentEthernetDisplayParameters:
     case MessageId::SetEthernetDisplayParameters: {
-        MsgSetEthernetDisplayParameters params {};
+        MsgSetEthernetDisplayParameters params { };
         if (SightlineProtocolParser::parseEthernetDisplay(packet, params)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastEthernetDisplay = params;
             }
-            EthernetDisplayCallback cb {};
+            EthernetDisplayCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_ethDisplayCallback;
@@ -1724,13 +1720,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
     }
     case MessageId::CurrentEthernetVideoParameters:
     case MessageId::SetEthernetVideoParameters: {
-        MsgSetEthernetVideoParameters params {};
+        MsgSetEthernetVideoParameters params { };
         if (SightlineProtocolParser::parseEthernetVideo(packet, params)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastEthernetVideo = params;
             }
-            EthernetVideoCallback cb {};
+            EthernetVideoCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_ethVideoCallback;
@@ -1743,13 +1739,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
     }
     case MessageId::CurrentNetworkParameters:
     case MessageId::SetNetworkParameters: {
-        MsgSetNetworkParameters params {};
+        MsgSetNetworkParameters params { };
         if (SightlineProtocolParser::parseNetworkParameters(packet, params)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastNetworkParams = params;
             }
-            NetworkParamsCallback cb {};
+            NetworkParamsCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_netParamsCallback;
@@ -1761,13 +1757,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
         break;
     }
     case MessageId::CurrentNetworkList: {
-        MsgCurrentNetworkList list {};
+        MsgCurrentNetworkList list { };
         if (SightlineProtocolParser::parseNetworkList(packet, list)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastNetworkList = list;
             }
-            NetworkListCallback cb {};
+            NetworkListCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_netListCallback;
@@ -1780,13 +1776,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
     }
     case MessageId::CurrentSystemValue:
     case MessageId::SetSystemValue: {
-        MsgSystemValue val {};
+        MsgSystemValue val { };
         if (SightlineProtocolParser::parseSystemValue(packet, val)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastSystemValue = val;
             }
-            SystemValueCallback cb {};
+            SystemValueCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_systemValueCallback;
@@ -1798,13 +1794,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
         break;
     }
     case MessageId::SetBlendParameters: {
-        MsgSetBlendParameters params {};
+        MsgSetBlendParameters params { };
         if (SightlineProtocolParser::parseBlendParameters(packet, params)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastBlendParams = params;
             }
-            BlendParamsCallback cb {};
+            BlendParamsCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_blendParamsCb;
@@ -1816,9 +1812,9 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
         break;
     }
     case MessageId::CurrentBlendParameters: {
-        MsgCurrentBlendParameters curParams {};
+        MsgCurrentBlendParameters curParams { };
         if (SightlineProtocolParser::parseCurrentBlendParameters(packet, curParams)) {
-            MsgSetBlendParameters mappedParams {};
+            MsgSetBlendParameters mappedParams { };
             const bool mappedOk { SightlineProtocolParser::parseBlendParameters(packet, mappedParams) };
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
@@ -1827,8 +1823,8 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
                     m_lastBlendParams = mappedParams;
                 }
             }
-            CurrentBlendParamsCallback curCb {};
-            BlendParamsCallback mappedCb {};
+            CurrentBlendParamsCallback curCb { };
+            BlendParamsCallback mappedCb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 curCb = m_currentBlendParamsCb;
@@ -1844,13 +1840,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
         break;
     }
     case MessageId::FourAlignPoints: {
-        MsgFourAlignPoints points {};
+        MsgFourAlignPoints points { };
         if (SightlineProtocolParser::parseFourAlignPoints(packet, points)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastFourAlignPoints = points;
             }
-            FourAlignPointsCallback cb {};
+            FourAlignPointsCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_fourAlignPointsCb;
@@ -1862,13 +1858,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
         break;
     }
     case MessageId::BlendAlign: {
-        MsgBlendAlign align {};
+        MsgBlendAlign align { };
         if (SightlineProtocolParser::parseBlendAlign(packet, align)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastBlendAlign = align;
             }
-            BlendAlignCallback cb {};
+            BlendAlignCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_blendAlignCb;
@@ -1881,13 +1877,13 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
     }
     case MessageId::SetMultipleAlignment:
     case MessageId::CurrentMultipleAlignment: {
-        MsgSetMultipleAlignment multiAlign {};
+        MsgSetMultipleAlignment multiAlign { };
         if (SightlineProtocolParser::parseMultipleAlignment(packet, multiAlign)) {
             {
                 std::lock_guard<std::mutex> lock(m_cacheMutex);
                 m_lastMultipleAlignment = multiAlign;
             }
-            MultipleAlignmentCallback cb {};
+            MultipleAlignmentCallback cb { };
             {
                 std::lock_guard<std::mutex> lock(m_callbackMutex);
                 cb = m_multipleAlignmentCb;
@@ -1899,28 +1895,28 @@ void SightlineDevice::dispatchPacket(const std::vector<std::uint8_t>& packet)
         break;
     }
     case MessageId::NucParameters: {
-        MsgNucParameters nuc {};
+        MsgNucParameters nuc { };
         if (SightlineProtocolParser::parseNucParameters(packet, nuc)) {
             fireCallback(m_callbackMutex, m_nucParamsCb, nuc);
         }
         break;
     }
     case MessageId::ReadWriteNuc: {
-        MsgReadWriteNuc table {};
+        MsgReadWriteNuc table { };
         if (SightlineProtocolParser::parseReadWriteNuc(packet, table)) {
             fireCallback(m_callbackMutex, m_nucTableCb, table);
         }
         break;
     }
     case MessageId::DeadPixelStats: {
-        MsgDeadPixelStats stats {};
+        MsgDeadPixelStats stats { };
         if (SightlineProtocolParser::parseDeadPixelStats(packet, stats)) {
             fireCallback(m_callbackMutex, m_deadStatsCb, stats);
         }
         break;
     }
     case MessageId::Noise3D: {
-        MsgNoise3D noise {};
+        MsgNoise3D noise { };
         if (SightlineEnhancementParser::parseNoise3D(packet, noise)) {
             fireCallback(m_callbackMutex, m_noise3DCb, noise);
         }
@@ -1937,7 +1933,7 @@ bool SightlineDevice::sendPacket(const std::vector<std::uint8_t>& packet)
         return false;
     }
 
-    RawTrafficCallback rawCb {};
+    RawTrafficCallback rawCb { };
     {
         std::lock_guard<std::mutex> lock(m_callbackMutex);
         rawCb = m_rawTrafficCallback;

@@ -8,6 +8,7 @@
 #include "UnscentedKalmanFilter.h"
 
 #include <cmath>
+#include <cstddef>
 #include <gtest/gtest.h>
 #include <iostream>
 #include <vector>
@@ -42,13 +43,13 @@ TEST(NonlinearKalmanTest, MatrixBasicOperations)
 {
     std::cout << "[Test] Matrix basic operations (addition, multiplication, transpose)..." << std::endl;
 
-    Matrix<2, 2> a {};
+    Matrix<2, 2> a { };
     a(0, 0) = 1.0;
     a(0, 1) = 2.0;
     a(1, 0) = 3.0;
     a(1, 1) = 4.0;
 
-    Matrix<2, 2> b {};
+    Matrix<2, 2> b { };
     b(0, 0) = 5.0;
     b(0, 1) = 6.0;
     b(1, 0) = 7.0;
@@ -90,7 +91,7 @@ TEST(NonlinearKalmanTest, MatrixInversion)
 {
     std::cout << "[Test] Matrix inversion with partial pivoting..." << std::endl;
 
-    Matrix<3, 3> m {};
+    Matrix<3, 3> m { };
     m(0, 0) = 2.0;
     m(0, 1) = 1.0;
     m(0, 2) = 1.0;
@@ -119,7 +120,7 @@ TEST(NonlinearKalmanTest, CholeskyDecomposition)
     std::cout << "[Test] Lower-triangular Cholesky decomposition..." << std::endl;
 
     // Symmetric positive-definite matrix
-    Matrix<3, 3> a {};
+    Matrix<3, 3> a { };
     a(0, 0) = 4.0;
     a(0, 1) = 12.0;
     a(0, 2) = -16.0;
@@ -154,7 +155,7 @@ TEST(NonlinearKalmanTest, CameraModelProjectionAndUnprojection)
 {
     std::cout << "[Test] Camera model projection and unprojection round-trip..." << std::endl;
 
-    CameraIntrinsics intr {};
+    CameraIntrinsics intr { };
     intr.imageWidth = 1920;
     intr.imageHeight = 1080;
     intr.cx = 960.0;
@@ -200,7 +201,7 @@ TEST(NonlinearKalmanTest, CameraModelOpticalZoom)
 {
     std::cout << "[Test] Camera model dynamic optical zoom scaling..." << std::endl;
 
-    CameraIntrinsics intr {};
+    CameraIntrinsics intr { };
     intr.fx0 = 1000.0;
     intr.fy0 = 1000.0;
     intr.cx = 960.0;
@@ -223,7 +224,7 @@ TEST(NonlinearKalmanTest, CameraModelJacobian)
 {
     std::cout << "[Test] Camera model Jacobian matrix computation..." << std::endl;
 
-    CameraIntrinsics intr {};
+    CameraIntrinsics intr { };
     PtzCameraModel model(intr);
 
     auto H = model.computeJacobian(degToRad(4.0), degToRad(-3.0), 0.0, 0.0, 1.0);
@@ -246,7 +247,7 @@ TEST(NonlinearKalmanTest, EkfCircularTrajectoryHighElevation)
 {
     std::cout << "[Test] EKF tracking high-elevation circular trajectory (70 deg elevation)..." << std::endl;
 
-    SphericalEstimatorConfig config {};
+    SphericalEstimatorConfig config { };
     config.type = EstimatorType::EKF;
     config.pixelNoiseStd = 1.0;
     config.intrinsics.imageWidth = 1920;
@@ -302,7 +303,7 @@ TEST(NonlinearKalmanTest, EkfMahalanobisOutlierGating)
 {
     std::cout << "[Test] EKF Mahalanobis distance outlier rejection..." << std::endl;
 
-    SphericalEstimatorConfig config {};
+    SphericalEstimatorConfig config { };
     config.type = EstimatorType::EKF;
     config.mahalanobisGateThreshold = 9.21; // 99% Chi-square threshold for 2 DOF
 
@@ -335,7 +336,7 @@ TEST(NonlinearKalmanTest, UkfTrackingUnderSevereRadialDistortion)
 {
     std::cout << "[Test] UKF non-linear sigma-point tracking under severe lens distortion..." << std::endl;
 
-    SphericalEstimatorConfig config {};
+    SphericalEstimatorConfig config { };
     config.type = EstimatorType::UKF;
     config.intrinsics.k1 = -0.35; // Severe wide-angle barrel distortion
     config.intrinsics.k2 = 0.12;
@@ -380,7 +381,7 @@ TEST(NonlinearKalmanTest, PtzSphericalEstimatorWorkflow)
 {
     std::cout << "[Test] PtzSphericalEstimator complete workflow (lock, lookahead, algo switch)..." << std::endl;
 
-    SphericalEstimatorConfig config {};
+    SphericalEstimatorConfig config { };
     config.type = EstimatorType::EKF;
 
     PtzSphericalEstimator estimator(config);

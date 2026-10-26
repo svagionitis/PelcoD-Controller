@@ -6,7 +6,12 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cstdint>
 #include <cstring>
+#include <mutex>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace Nmea::Network {
 
@@ -37,7 +42,7 @@ bool NmeaTcpServer::start()
     int opt { 1 };
     ::setsockopt(s, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
 
-    sockaddr_in addr {};
+    sockaddr_in addr { };
     addr.sin_family = AF_INET;
     addr.sin_port = htons(m_port);
     if (m_bindIp == "0.0.0.0" || m_bindIp.empty()) {
@@ -138,7 +143,7 @@ std::size_t NmeaTcpServer::clientCount() const
 std::vector<TcpClientInfo> NmeaTcpServer::getConnectedClients() const
 {
     std::lock_guard<std::mutex> lock { m_clientMutex };
-    std::vector<TcpClientInfo> result {};
+    std::vector<TcpClientInfo> result { };
     result.reserve(m_clients.size());
     for (const auto& c : m_clients) {
         result.push_back(TcpClientInfo { c.id, c.ip, c.port, c.connectTime, c.bytesSent, c.bytesReceived });
@@ -155,16 +160,16 @@ void NmeaTcpServer::serverLoop()
         }
 
         // Accept any new incoming connections
-        sockaddr_in clientAddr {};
+        sockaddr_in clientAddr { };
         auto addrLen = static_cast<Transport::Net::SockOptLenType>(sizeof(clientAddr));
         const auto clientSock = ::accept(listenSock, reinterpret_cast<sockaddr*>(&clientAddr), &addrLen);
 
         if (clientSock != Transport::Net::InvalidSocket) {
             Transport::Net::setNonBlocking(clientSock, true);
-            std::array<char, INET_ADDRSTRLEN> ipStr {};
+            std::array<char, INET_ADDRSTRLEN> ipStr { };
             ::inet_ntop(AF_INET, &clientAddr.sin_addr, ipStr.data(), ipStr.size());
 
-            ConnectedClient newClient {};
+            ConnectedClient newClient { };
             newClient.id = m_nextClientId++;
             newClient.socket = clientSock;
             newClient.ip = ipStr.data();
@@ -176,11 +181,11 @@ void NmeaTcpServer::serverLoop()
         }
 
         // Poll and read from existing clients
-        std::vector<std::pair<std::uint32_t, std::string>> sentencesToDispatch {};
+        std::vector<std::pair<std::uint32_t, std::string>> sentencesToDispatch { };
         {
             std::lock_guard<std::mutex> lock { m_clientMutex };
             for (auto it = m_clients.begin(); it != m_clients.end();) {
-                std::vector<std::string> sentencesOut {};
+                std::vector<std::string> sentencesOut { };
                 processClientRx(*it, sentencesOut);
 
                 for (auto& s : sentencesOut) {
@@ -208,14 +213,14 @@ void NmeaTcpServer::serverLoop()
 
 void NmeaTcpServer::processClientRx(ConnectedClient& client, std::vector<std::string>& sentencesOut)
 {
-    std::array<char, 2048> buf {};
+    std::array<char, 2048> buf { };
     const auto n = ::recv(client.socket, buf.data(), static_cast<Transport::Net::SockBufLenType>(buf.size()), 0);
 
     if (n > 0) {
         client.bytesReceived += static_cast<std::uint64_t>(n);
         client.rxBuffer.append(buf.data(), static_cast<std::size_t>(n));
 
-        std::size_t newlinePos {};
+        std::size_t newlinePos { };
         while ((newlinePos = client.rxBuffer.find('\n')) != std::string::npos) {
             std::string line = client.rxBuffer.substr(0U, newlinePos);
             client.rxBuffer.erase(0U, newlinePos + 1U);

@@ -9,9 +9,11 @@
 #include "modules/SightlineBlendingBuilder.h"
 #include "modules/SightlineNucBuilder.h"
 
+#include <cstdint>
 #include <gtest/gtest.h>
 
 #include <atomic>
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -66,7 +68,7 @@ namespace {
     private:
         mutable std::mutex m_mutex;
         bool m_isOpen { false };
-        std::vector<std::vector<std::uint8_t>> m_sentPackets {};
+        std::vector<std::vector<std::uint8_t>> m_sentPackets { };
     };
 
     /// @brief Verify lifecycle start, stop, and connection state.
@@ -115,7 +117,7 @@ namespace {
         });
 
         // Synthesize mock TrackingPositions frame
-        std::vector<std::uint8_t> payload {};
+        std::vector<std::uint8_t> payload { };
         payload.push_back(1U); // cameraIndex = 1
         // timestamp 8 bytes
         for (std::size_t i = 0; i < 8; ++i) {
@@ -171,7 +173,7 @@ namespace {
             EXPECT_EQ(ext.cameraIndex, 0U);
         });
 
-        std::vector<std::uint8_t> extPayload {};
+        std::vector<std::uint8_t> extPayload { };
         extPayload.push_back(0U); // cameraIndex
         for (std::size_t i = 0; i < 8; ++i) {
             extPayload.push_back(0U);
@@ -191,7 +193,7 @@ namespace {
             EXPECT_EQ(status.coreTempC, 45);
         });
 
-        std::vector<std::uint8_t> statPayload {};
+        std::vector<std::uint8_t> statPayload { };
         // bytes 0..7: errorFlags (u64 LE = 0)
         for (std::size_t i = 0; i < 8; ++i) {
             statPayload.push_back(0U);
@@ -231,10 +233,10 @@ namespace {
         EXPECT_TRUE(device.saveParameters(0U));
         EXPECT_TRUE(device.queryVersion());
 
-        MsgSetOverlayMode mode {};
+        MsgSetOverlayMode mode { };
         EXPECT_TRUE(device.setOverlayMode(mode));
 
-        MsgDigitalCameraParameters digiParams {};
+        MsgDigitalCameraParameters digiParams { };
         digiParams.cameraIndex = 1U;
         digiParams.mode = AutoGainMode::Manual;
         EXPECT_TRUE(device.setDigitalCameraParams(digiParams));
@@ -256,7 +258,7 @@ namespace {
         std::atomic<int> reentrantCalls { 0 };
         device.setRawTrafficCallback([&](bool /*isTx*/, const std::vector<std::uint8_t>& /*pkt*/) {
             // Re-entrant access to m_callbackMutex inside raw traffic callback
-            device.setTrackingCallback([&](const MsgTrackingPositions&) {});
+            device.setTrackingCallback([&](const MsgTrackingPositions&) { });
             reentrantCalls.fetch_add(1);
         });
 
@@ -306,7 +308,7 @@ namespace {
         EXPECT_EQ(sent[0U], expectedCrossPkt);
 
         // 8. drawOverlayBatch
-        std::vector<MsgDrawOverlay> batch {};
+        std::vector<MsgDrawOverlay> batch { };
         batch.push_back(SightlineProtocolBuilder::makeCrossOverlay(0U, 10U, 100, 100, 15U));
         batch.push_back(SightlineProtocolBuilder::makeDestroyOverlay(0U, 11U));
         EXPECT_TRUE(device.drawOverlayBatch(batch));
@@ -330,7 +332,7 @@ namespace {
         EXPECT_TRUE(device.getOverlayObjectParams(42U));
         EXPECT_TRUE(device.setUserFont(1U, "/fonts/Roboto.ttf"));
 
-        MsgLogoParameters logoMsg {};
+        MsgLogoParameters logoMsg { };
         logoMsg.cameraIndex = 0U;
         logoMsg.logoOpacity = 128U;
         logoMsg.offsetX = 20U;
@@ -399,7 +401,7 @@ namespace {
         EXPECT_TRUE(device.lastOverlayObjectsIds()->isObjectActive(1U));
 
         // 3. Inject CurrentOverlayObjectParameters (0x6B)
-        std::vector<std::uint8_t> paramPayload {};
+        std::vector<std::uint8_t> paramPayload { };
         paramPayload.push_back(1U); // type Rectangle
         paramPayload.push_back(7U); // objectId 7
         paramPayload.push_back(4U); // flags
@@ -415,7 +417,7 @@ namespace {
         EXPECT_TRUE(paramsFired.load());
 
         // 4. Inject LogoParameters (0x9B)
-        MsgLogoParameters logoMsg {};
+        MsgLogoParameters logoMsg { };
         logoMsg.cameraIndex = 0U;
         logoMsg.logoOpacity = 200U;
         logoMsg.offsetX = 50U;
@@ -436,30 +438,30 @@ namespace {
         SightlineDevice device(transport);
         ASSERT_TRUE(device.start());
 
-        MsgSetDetectionParameters detMsg {};
+        MsgSetDetectionParameters detMsg { };
         detMsg.cameraIndex = 0U;
         detMsg.mode = DetectionMode::Maritime;
         EXPECT_TRUE(device.setDetection(detMsg));
 
-        MsgAdvancedDetectionParameters advMsg {};
+        MsgAdvancedDetectionParameters advMsg { };
         advMsg.cameraIndex = 0U;
         EXPECT_TRUE(device.setAdvancedDetection(advMsg));
 
-        MsgDetectionROI roiMsg {};
+        MsgDetectionROI roiMsg { };
         roiMsg.cameraIndex = 0U;
         EXPECT_TRUE(device.setDetectionROI(roiMsg));
 
-        MsgSetVMTI vmtiMsg {};
+        MsgSetVMTI vmtiMsg { };
         vmtiMsg.cameraIndex = 0U;
         EXPECT_TRUE(device.setVMTI(vmtiMsg));
 
         EXPECT_TRUE(device.triggerDetectionSnapshot(0U, 1U));
 
-        MsgKlvMetricFilters metricMsg {};
+        MsgKlvMetricFilters metricMsg { };
         metricMsg.cameraIndex = 0U;
         EXPECT_TRUE(device.setKlvMetricFilters(metricMsg));
 
-        MsgClassifierConfig classMsg {};
+        MsgClassifierConfig classMsg { };
         classMsg.cameraIndex = 0U;
         EXPECT_TRUE(device.setClassifierConfig(classMsg));
 
@@ -514,7 +516,7 @@ namespace {
         });
 
         // 1. Inject CurrentDetectionParameters (0x54)
-        MsgSetDetectionParameters detMsg {};
+        MsgSetDetectionParameters detMsg { };
         detMsg.cameraIndex = 0U;
         detMsg.mode = DetectionMode::Maritime;
         const auto detPkt = SightlineProtocolBuilder::buildSetDetectionParams(detMsg);
@@ -526,7 +528,7 @@ namespace {
         EXPECT_EQ(device.lastDetectionParams()->mode, DetectionMode::Maritime);
 
         // 2. Inject CurrentAdvancedDetectionParameters (0x77)
-        MsgAdvancedDetectionParameters advMsg {};
+        MsgAdvancedDetectionParameters advMsg { };
         advMsg.cameraIndex = 0U;
         advMsg.updateRate = 55U;
         const auto advPkt = SightlineProtocolBuilder::buildSetAdvDetectionParams(advMsg);
@@ -538,7 +540,7 @@ namespace {
         EXPECT_EQ(device.lastAdvDetection()->updateRate, 55U);
 
         // 3. Inject CurrentDetectionRegionOfInterestParameters (0x7D)
-        MsgDetectionROI roiMsg {};
+        MsgDetectionROI roiMsg { };
         roiMsg.cameraIndex = 0U;
         roiMsg.lineLeftX = 120U;
         const auto roiPkt = SightlineProtocolBuilder::buildSetDetectionROI(roiMsg);
@@ -551,7 +553,7 @@ namespace {
         EXPECT_EQ(device.lastDetectionROI()->lineLeftX, 120U);
 
         // 4. Inject KlvClassFilters (0xC1)
-        MsgKlvMetricFilters metricMsg {};
+        MsgKlvMetricFilters metricMsg { };
         metricMsg.cameraIndex = 1U;
         metricMsg.minTargetWidthM = 1.2F;
         const auto klvPkt = SightlineProtocolBuilder::buildSetKlvMetricFilters(metricMsg);
@@ -637,14 +639,14 @@ namespace {
         ASSERT_TRUE(device.start());
 
         std::atomic<bool> ackReceived { false };
-        MsgCommandAck capturedAck {};
+        MsgCommandAck capturedAck { };
         device.setCommandAckCallback([&](const MsgCommandAck& ack) {
             ackReceived = true;
             capturedAck = ack;
         });
 
         // 1. Dispatch setFileRecordingV2
-        MsgSetFileRecordingParamsV2 recMsg {};
+        MsgSetFileRecordingParamsV2 recMsg { };
         recMsg.sequenceId = 0x4201U;
         recMsg.cameraIndex = 0U;
         recMsg.action = RecordingAction::Start;
@@ -659,7 +661,7 @@ namespace {
 
         // 2. Dispatch doSnapShotV2
         transport->clearSentPackets();
-        MsgDoSnapShotV2 snapMsg {};
+        MsgDoSnapShotV2 snapMsg { };
         snapMsg.sequenceId = 0x4202U;
         snapMsg.cameraIndex = 1U;
         snapMsg.format = SnapshotFormat::Tiff16;
@@ -673,7 +675,7 @@ namespace {
 
         // 3. Dispatch sendCmdAck
         transport->clearSentPackets();
-        MsgCommandAck ackReply {};
+        MsgCommandAck ackReply { };
         ackReply.sequenceId = 0x4201U;
         ackReply.originalMsgId = static_cast<std::uint8_t>(MessageId::SetFileRecordingParamsV2);
         ackReply.statusCode = RecordingStatusCode::Success;
@@ -709,21 +711,21 @@ namespace {
         ASSERT_TRUE(device.start());
 
         std::atomic<bool> eventReceived { false };
-        MsgFileRecordingEvent capturedEvent {};
+        MsgFileRecordingEvent capturedEvent { };
         device.setRecordingEventCb([&](const MsgFileRecordingEvent& evt) {
             eventReceived = true;
             capturedEvent = evt;
         });
 
         std::atomic<bool> statusReceived { false };
-        MsgCurrentRecordingStatusV2 capturedStatus {};
+        MsgCurrentRecordingStatusV2 capturedStatus { };
         device.setRecordingStatusCb([&](const MsgCurrentRecordingStatusV2& st) {
             statusReceived = true;
             capturedStatus = st;
         });
 
         // 1. Dispatch sendRecordingEvent
-        MsgFileRecordingEvent eventOut {};
+        MsgFileRecordingEvent eventOut { };
         eventOut.timestampUs = 123456789ULL;
         eventOut.cameraIndex = 0U;
         eventOut.eventType = RecordingEventType::Started;
@@ -739,7 +741,7 @@ namespace {
 
         // 2. Dispatch sendRecordingStatusV2
         transport->clearSentPackets();
-        MsgCurrentRecordingStatusV2 statusOut {};
+        MsgCurrentRecordingStatusV2 statusOut { };
         statusOut.sequenceId = 101U;
         statusOut.cameraIndex = 0U;
         statusOut.recordingState = 1U;
@@ -793,14 +795,14 @@ namespace {
         ASSERT_TRUE(device.start());
 
         std::atomic<bool> replyReceived { false };
-        MsgDirectoryListingReply capturedReply {};
+        MsgDirectoryListingReply capturedReply { };
         device.setDirListingReplyCb([&](const MsgDirectoryListingReply& rep) {
             replyReceived = true;
             capturedReply = rep;
         });
 
         // 1. Dispatch getDirectoryListing
-        MsgGetDirectoryListing getMsg {};
+        MsgGetDirectoryListing getMsg { };
         getMsg.sequenceId = 0x6101U;
         getMsg.destination = StorageDestination::MicroSD;
         getMsg.startIndex = 0U;
@@ -814,7 +816,7 @@ namespace {
 
         // 2. Dispatch sendFileStorageMgmt
         transport->clearSentPackets();
-        MsgFileStorageManagement mgmtMsg {};
+        MsgFileStorageManagement mgmtMsg { };
         mgmtMsg.sequenceId = 0x6102U;
         mgmtMsg.operation = FileStorageOp::Pin;
         mgmtMsg.destination = StorageDestination::MicroSD;
@@ -826,11 +828,11 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(sent[0]), MessageId::FileStorageManagement);
 
         // 3. Inject inbound DirectoryListingReply
-        MsgDirectoryListingReply inboundReply {};
+        MsgDirectoryListingReply inboundReply { };
         inboundReply.sequenceId = 0x6101U;
         inboundReply.totalFiles = 1U;
         inboundReply.startIndex = 0U;
-        DirListEntry entry {};
+        DirListEntry entry { };
         entry.filename = "Mission_0001.ts";
         entry.fileSizeBytes = 1048576ULL;
         entry.timestampUs = 12345000ULL;
@@ -885,32 +887,32 @@ namespace {
         std::atomic<bool> ethVideoReceived { false };
         std::atomic<bool> systemValReceived { false };
 
-        MsgSetH264Parameters capturedH264 {};
+        MsgSetH264Parameters capturedH264 { };
         device.setH264ParamsCallback([&](const MsgSetH264Parameters& params) {
             capturedH264 = params;
             h264Received.store(true);
         });
 
-        MsgSetEthernetDisplayParameters capturedDisplay {};
+        MsgSetEthernetDisplayParameters capturedDisplay { };
         device.setEthernetDisplayCb([&](const MsgSetEthernetDisplayParameters& params) {
             capturedDisplay = params;
             ethDisplayReceived.store(true);
         });
 
-        MsgSetEthernetVideoParameters capturedVideo {};
+        MsgSetEthernetVideoParameters capturedVideo { };
         device.setEthernetVideoCb([&](const MsgSetEthernetVideoParameters& params) {
             capturedVideo = params;
             ethVideoReceived.store(true);
         });
 
-        MsgSystemValue capturedVal {};
+        MsgSystemValue capturedVal { };
         device.setSystemValueCallback([&](const MsgSystemValue& val) {
             capturedVal = val;
             systemValReceived.store(true);
         });
 
         // 3. Inject CurrentH264Parameters (0x56)
-        MsgSetH264Parameters inH264 {};
+        MsgSetH264Parameters inH264 { };
         inH264.targetBitrateBps = 4500000U;
         inH264.intraFrameInterval = 30U;
         inH264.flags = 0x12U;
@@ -925,7 +927,7 @@ namespace {
         EXPECT_EQ(device.lastH264Params()->targetBitrateBps, 4500000U);
 
         // 4. Inject CurrentEthernetDisplayParameters (0x52)
-        MsgSetEthernetDisplayParameters inDisplay {};
+        MsgSetEthernetDisplayParameters inDisplay { };
         inDisplay.protocol = static_cast<std::uint8_t>(EthernetDisplayProtocol::RtpH264);
         inDisplay.ipAddress = 0x7F000001U;
         inDisplay.port = 15004U;
@@ -962,7 +964,7 @@ namespace {
         ASSERT_TRUE(device.start());
 
         // 1. setBlend
-        MsgSetBlendParameters blendMsg {};
+        MsgSetBlendParameters blendMsg { };
         blendMsg.mode = BlendMode::FrameBlendWarpEo;
         blendMsg.amt = 128U;
         EXPECT_TRUE(device.setBlend(blendMsg));
@@ -971,7 +973,7 @@ namespace {
         EXPECT_TRUE(device.getBlendParameters());
 
         // 3. setFourAlignPoints
-        MsgFourAlignPoints fourPts {};
+        MsgFourAlignPoints fourPts { };
         fourPts.index = 1U;
         EXPECT_TRUE(device.setFourAlignPoints(fourPts));
 
@@ -979,7 +981,7 @@ namespace {
         EXPECT_TRUE(device.getFourAlignPoints(2U));
 
         // 5. setBlendAlign
-        MsgBlendAlign alignMsg {};
+        MsgBlendAlign alignMsg { };
         alignMsg.index = 0U;
         alignMsg.vertical = 10;
         EXPECT_TRUE(device.setBlendAlign(alignMsg));
@@ -988,7 +990,7 @@ namespace {
         EXPECT_TRUE(device.getBlendAlign(1U));
 
         // 7. setMultipleAlignment
-        MsgSetMultipleAlignment multiMsg {};
+        MsgSetMultipleAlignment multiMsg { };
         multiMsg.nAlignments = 2U;
         EXPECT_TRUE(device.setMultipleAlignment(multiMsg));
 
@@ -1022,38 +1024,38 @@ namespace {
         std::atomic<bool> blendAlignReceived { false };
         std::atomic<bool> multiAlignReceived { false };
 
-        MsgSetBlendParameters capturedBlend {};
+        MsgSetBlendParameters capturedBlend { };
         device.setBlendParamsCb([&](const MsgSetBlendParameters& params) {
             capturedBlend = params;
             blendParamsReceived.store(true);
         });
 
-        MsgCurrentBlendParameters capturedCurrent {};
+        MsgCurrentBlendParameters capturedCurrent { };
         device.setCurrentBlendParamsCb([&](const MsgCurrentBlendParameters& params) {
             capturedCurrent = params;
             currentBlendReceived.store(true);
         });
 
-        MsgFourAlignPoints capturedFourPts {};
+        MsgFourAlignPoints capturedFourPts { };
         device.setFourAlignPointsCb([&](const MsgFourAlignPoints& points) {
             capturedFourPts = points;
             fourAlignReceived.store(true);
         });
 
-        MsgBlendAlign capturedBlendAlign {};
+        MsgBlendAlign capturedBlendAlign { };
         device.setBlendAlignCb([&](const MsgBlendAlign& align) {
             capturedBlendAlign = align;
             blendAlignReceived.store(true);
         });
 
-        MsgSetMultipleAlignment capturedMultiAlign {};
+        MsgSetMultipleAlignment capturedMultiAlign { };
         device.setMultipleAlignmentCb([&](const MsgSetMultipleAlignment& multi) {
             capturedMultiAlign = multi;
             multiAlignReceived.store(true);
         });
 
         // 1. Inject SetBlendParameters (0x2F - 18B payload)
-        MsgSetBlendParameters inBlend {};
+        MsgSetBlendParameters inBlend { };
         inBlend.mode = BlendMode::ThermalBlendWarpEo;
         inBlend.vertical = -5;
         inBlend.horizontal = 12;
@@ -1107,7 +1109,7 @@ namespace {
         EXPECT_EQ(device.lastBlendParams()->vertical, 8);
 
         // 3. Inject FourAlignPoints (0x95 - 33B payload)
-        MsgFourAlignPoints inFourPts {};
+        MsgFourAlignPoints inFourPts { };
         inFourPts.index = 2U;
         inFourPts.points[0U] = { 100, 200, 105, 198 };
         inFourPts.points[1U] = { 500, 200, 498, 202 };
@@ -1123,7 +1125,7 @@ namespace {
         EXPECT_EQ(device.lastFourAlignPoints()->points[1U].leftCol, 500);
 
         // 4. Inject BlendAlign (0xB9 - 11B payload)
-        MsgBlendAlign inAlign {};
+        MsgBlendAlign inAlign { };
         inAlign.index = 3U;
         inAlign.vertical = -15;
         inAlign.horizontal = 30;
@@ -1141,7 +1143,7 @@ namespace {
         EXPECT_EQ(device.lastBlendAlign()->rotate, 640U);
 
         // 5. Inject CurrentMultipleAlignment (0x75 - 26B payload)
-        MsgSetMultipleAlignment inMulti {};
+        MsgSetMultipleAlignment inMulti { };
         inMulti.nAlignments = 3U;
         inMulti.alignment[0U] = { 5, 10, 0, 128, 128 };
         inMulti.alignment[1U] = { 12, 4, 2, 130, 130 };
@@ -1168,22 +1170,34 @@ namespace {
         SightlineDevice device(transport);
         ASSERT_TRUE(device.start());
 
-        MsgNucParameters nucOut {};
-        MsgReadWriteNuc tableOut {};
-        MsgDeadPixelStats statsOut {};
-        MsgNoise3D noiseOut {};
+        MsgNucParameters nucOut { };
+        MsgReadWriteNuc tableOut { };
+        MsgDeadPixelStats statsOut { };
+        MsgNoise3D noiseOut { };
         int fired { 0 };
-        device.setNucParamsCallback([&](const MsgNucParameters& m) { nucOut = m; ++fired; });
-        device.setNucTableCallback([&](const MsgReadWriteNuc& m) { tableOut = m; ++fired; });
-        device.setDeadStatsCallback([&](const MsgDeadPixelStats& m) { statsOut = m; ++fired; });
-        device.setNoise3DCallback([&](const MsgNoise3D& m) { noiseOut = m; ++fired; });
+        device.setNucParamsCallback([&](const MsgNucParameters& m) {
+            nucOut = m;
+            ++fired;
+        });
+        device.setNucTableCallback([&](const MsgReadWriteNuc& m) {
+            tableOut = m;
+            ++fired;
+        });
+        device.setDeadStatsCallback([&](const MsgDeadPixelStats& m) {
+            statsOut = m;
+            ++fired;
+        });
+        device.setNoise3DCallback([&](const MsgNoise3D& m) {
+            noiseOut = m;
+            ++fired;
+        });
 
-        MsgNucParameters nucIn {};
+        MsgNucParameters nucIn { };
         nucIn.cameraIndex = 1U;
         nucIn.deadReplace = DeadReplace::Median;
         transport->injectData(SightlineNucBuilder::buildNucParameters(nucIn));
 
-        MsgReadWriteNuc tableIn {};
+        MsgReadWriteNuc tableIn { };
         tableIn.cameraIndex = 1U;
         tableIn.fileOp = NucFileOp::LoadNuc;
         tableIn.fileName = "zoom1";
@@ -1222,7 +1236,7 @@ namespace {
 
         const auto pkt { SightlineNucBuilder::buildGetNucParameters(2U) };
         EXPECT_TRUE(device.sendFramed(pkt));
-        EXPECT_FALSE(device.sendFramed(std::vector<std::uint8_t> {}));
+        EXPECT_FALSE(device.sendFramed(std::vector<std::uint8_t> { }));
         const auto sent { transport->getSentPackets() };
         ASSERT_EQ(sent.size(), 1U);
         EXPECT_EQ(sent[0U], pkt);

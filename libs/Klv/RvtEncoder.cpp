@@ -4,87 +4,103 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <string>
+#include <vector>
 
 namespace Klv {
 
 namespace {
 
-void appendTagBytes(std::uint32_t tag, const std::vector<std::uint8_t>& val, std::vector<std::uint8_t>& out) {
-    KlvBer::encodeTag(tag, out);
-    KlvBer::encodeLength(val.size(), out);
-    out.insert(out.end(), val.begin(), val.end());
-}
-
-void appendTagUint8(std::uint32_t tag, std::uint8_t val, std::vector<std::uint8_t>& out) {
-    KlvBer::encodeTag(tag, out);
-    KlvBer::encodeLength(1U, out);
-    out.push_back(val);
-}
-
-void appendTagInt8(std::uint32_t tag, std::int8_t val, std::vector<std::uint8_t>& out) {
-    appendTagUint8(tag, static_cast<std::uint8_t>(val), out);
-}
-
-void appendTagUint16(std::uint32_t tag, std::uint16_t val, std::vector<std::uint8_t>& out) {
-    KlvBer::encodeTag(tag, out);
-    KlvBer::encodeLength(2U, out);
-    out.push_back(static_cast<std::uint8_t>((val >> 8U) & 0xFFU));
-    out.push_back(static_cast<std::uint8_t>(val & 0xFFU));
-}
-
-void appendTagUint24(std::uint32_t tag, std::uint32_t val, std::vector<std::uint8_t>& out) {
-    KlvBer::encodeTag(tag, out);
-    KlvBer::encodeLength(3U, out);
-    out.push_back(static_cast<std::uint8_t>((val >> 16U) & 0xFFU));
-    out.push_back(static_cast<std::uint8_t>((val >> 8U) & 0xFFU));
-    out.push_back(static_cast<std::uint8_t>(val & 0xFFU));
-}
-
-void appendTagUint32(std::uint32_t tag, std::uint32_t val, std::vector<std::uint8_t>& out) {
-    KlvBer::encodeTag(tag, out);
-    KlvBer::encodeLength(4U, out);
-    out.push_back(static_cast<std::uint8_t>((val >> 24U) & 0xFFU));
-    out.push_back(static_cast<std::uint8_t>((val >> 16U) & 0xFFU));
-    out.push_back(static_cast<std::uint8_t>((val >> 8U) & 0xFFU));
-    out.push_back(static_cast<std::uint8_t>(val & 0xFFU));
-}
-
-void appendTagInt32(std::uint32_t tag, std::int32_t val, std::vector<std::uint8_t>& out) {
-    appendTagUint32(tag, static_cast<std::uint32_t>(val), out);
-}
-
-void appendTagUint64(std::uint32_t tag, std::uint64_t val, std::vector<std::uint8_t>& out) {
-    KlvBer::encodeTag(tag, out);
-    KlvBer::encodeLength(8U, out);
-    for (int i = 7; i >= 0; --i) {
-        out.push_back(static_cast<std::uint8_t>((val >> (static_cast<unsigned>(i) * 8U)) & 0xFFU));
+    void appendTagBytes(std::uint32_t tag, const std::vector<std::uint8_t>& val, std::vector<std::uint8_t>& out)
+    {
+        KlvBer::encodeTag(tag, out);
+        KlvBer::encodeLength(val.size(), out);
+        out.insert(out.end(), val.begin(), val.end());
     }
-}
 
-void appendTagString(std::uint32_t tag, const std::string& str, std::vector<std::uint8_t>& out) {
-    if (str.empty()) return;
-    KlvBer::encodeTag(tag, out);
-    KlvBer::encodeLength(str.size(), out);
-    for (const char ch : str) {
-        out.push_back(static_cast<std::uint8_t>(ch));
+    void appendTagUint8(std::uint32_t tag, std::uint8_t val, std::vector<std::uint8_t>& out)
+    {
+        KlvBer::encodeTag(tag, out);
+        KlvBer::encodeLength(1U, out);
+        out.push_back(val);
     }
-}
+
+    void appendTagInt8(std::uint32_t tag, std::int8_t val, std::vector<std::uint8_t>& out)
+    {
+        appendTagUint8(tag, static_cast<std::uint8_t>(val), out);
+    }
+
+    void appendTagUint16(std::uint32_t tag, std::uint16_t val, std::vector<std::uint8_t>& out)
+    {
+        KlvBer::encodeTag(tag, out);
+        KlvBer::encodeLength(2U, out);
+        out.push_back(static_cast<std::uint8_t>((val >> 8U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>(val & 0xFFU));
+    }
+
+    void appendTagUint24(std::uint32_t tag, std::uint32_t val, std::vector<std::uint8_t>& out)
+    {
+        KlvBer::encodeTag(tag, out);
+        KlvBer::encodeLength(3U, out);
+        out.push_back(static_cast<std::uint8_t>((val >> 16U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>((val >> 8U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>(val & 0xFFU));
+    }
+
+    void appendTagUint32(std::uint32_t tag, std::uint32_t val, std::vector<std::uint8_t>& out)
+    {
+        KlvBer::encodeTag(tag, out);
+        KlvBer::encodeLength(4U, out);
+        out.push_back(static_cast<std::uint8_t>((val >> 24U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>((val >> 16U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>((val >> 8U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>(val & 0xFFU));
+    }
+
+    void appendTagInt32(std::uint32_t tag, std::int32_t val, std::vector<std::uint8_t>& out)
+    {
+        appendTagUint32(tag, static_cast<std::uint32_t>(val), out);
+    }
+
+    void appendTagUint64(std::uint32_t tag, std::uint64_t val, std::vector<std::uint8_t>& out)
+    {
+        KlvBer::encodeTag(tag, out);
+        KlvBer::encodeLength(8U, out);
+        for (int i = 7; i >= 0; --i) {
+            out.push_back(static_cast<std::uint8_t>((val >> (static_cast<unsigned>(i) * 8U)) & 0xFFU));
+        }
+    }
+
+    void appendTagString(std::uint32_t tag, const std::string& str, std::vector<std::uint8_t>& out)
+    {
+        if (str.empty())
+            return;
+        KlvBer::encodeTag(tag, out);
+        KlvBer::encodeLength(str.size(), out);
+        for (const char ch : str) {
+            out.push_back(static_cast<std::uint8_t>(ch));
+        }
+    }
 
 } // namespace
 
-std::int32_t RvtEncoder::scaleLatitude(double latDeg) noexcept {
+std::int32_t RvtEncoder::scaleLatitude(double latDeg) noexcept
+{
     constexpr double kMaxVal = 2147483647.0;
     const double clamped = std::clamp(latDeg, -90.0, 90.0);
     return static_cast<std::int32_t>(std::round(clamped * (kMaxVal / 90.0)));
 }
 
-std::int32_t RvtEncoder::scaleLongitude(double lonDeg) noexcept {
+std::int32_t RvtEncoder::scaleLongitude(double lonDeg) noexcept
+{
     constexpr double kMaxVal = 2147483647.0;
     const double clamped = std::clamp(lonDeg, -180.0, 180.0);
     return static_cast<std::int32_t>(std::round(clamped * (kMaxVal / 180.0)));
 }
 
-std::uint16_t RvtEncoder::scaleAltitude(double altM) noexcept {
+std::uint16_t RvtEncoder::scaleAltitude(double altM) noexcept
+{
     constexpr double kRange = 19900.0;
     constexpr double kMaxVal = 65535.0;
     constexpr double kOffset = 900.0;
@@ -92,7 +108,8 @@ std::uint16_t RvtEncoder::scaleAltitude(double altM) noexcept {
     return static_cast<std::uint16_t>(std::round((clamped + kOffset) * (kMaxVal / kRange)));
 }
 
-void RvtEncoder::encodePoi(const PoiPack& poi, std::vector<std::uint8_t>& out) {
+void RvtEncoder::encodePoi(const PoiPack& poi, std::vector<std::uint8_t>& out)
+{
     std::vector<std::uint8_t> payload;
 
     // Tag 1: POI Number (Mandatory)
@@ -142,7 +159,8 @@ void RvtEncoder::encodePoi(const PoiPack& poi, std::vector<std::uint8_t>& out) {
     out.insert(out.end(), payload.begin(), payload.end());
 }
 
-void RvtEncoder::encodeAoi(const AoiPack& aoi, std::vector<std::uint8_t>& out) {
+void RvtEncoder::encodeAoi(const AoiPack& aoi, std::vector<std::uint8_t>& out)
+{
     std::vector<std::uint8_t> payload;
 
     // Tag 1: AOI Number (Mandatory)
@@ -186,13 +204,15 @@ void RvtEncoder::encodeAoi(const AoiPack& aoi, std::vector<std::uint8_t>& out) {
     out.insert(out.end(), payload.begin(), payload.end());
 }
 
-void RvtEncoder::encodeUserDefined(const UserDefinedPack& userDef, std::vector<std::uint8_t>& out) {
+void RvtEncoder::encodeUserDefined(const UserDefinedPack& userDef, std::vector<std::uint8_t>& out)
+{
     std::vector<std::uint8_t> payload;
 
     // Tag 1: Numeric ID and Data Type
     const auto typeBits = static_cast<std::uint8_t>(static_cast<std::uint8_t>(userDef.dataType) << 6U);
     const auto idBits = static_cast<std::uint8_t>(userDef.numericId & 0x3FU);
-    appendTagUint8(static_cast<std::uint32_t>(UserDefinedTag::NumericIdType), static_cast<std::uint8_t>(typeBits | idBits), payload);
+    appendTagUint8(static_cast<std::uint32_t>(UserDefinedTag::NumericIdType),
+        static_cast<std::uint8_t>(typeBits | idBits), payload);
 
     // Tag 2: User Data
     appendTagBytes(static_cast<std::uint32_t>(UserDefinedTag::UserData), userDef.data, payload);
@@ -200,7 +220,8 @@ void RvtEncoder::encodeUserDefined(const UserDefinedPack& userDef, std::vector<s
     out.insert(out.end(), payload.begin(), payload.end());
 }
 
-std::vector<std::uint8_t> RvtEncoder::encode(const RvtLocalSet& rvt, bool standalone) {
+std::vector<std::uint8_t> RvtEncoder::encode(const RvtLocalSet& rvt, bool standalone)
+{
     std::vector<std::uint8_t> payload;
 
     // Requirement ST 0806.4-02: Precision Time Stamp MUST be the first element
@@ -210,12 +231,14 @@ std::vector<std::uint8_t> RvtEncoder::encode(const RvtLocalSet& rvt, bool standa
 
     // Tag 3: Platform True Airspeed
     if (rvt.platformTrueAirspeedMps.has_value()) {
-        appendTagUint16(static_cast<std::uint32_t>(RvtTag::PlatformTrueAirspeed), *rvt.platformTrueAirspeedMps, payload);
+        appendTagUint16(
+            static_cast<std::uint32_t>(RvtTag::PlatformTrueAirspeed), *rvt.platformTrueAirspeedMps, payload);
     }
 
     // Tag 4: Platform Indicated Airspeed
     if (rvt.platformIndicatedAirspeedMps.has_value()) {
-        appendTagUint16(static_cast<std::uint32_t>(RvtTag::PlatformIndicatedAirspeed), *rvt.platformIndicatedAirspeedMps, payload);
+        appendTagUint16(
+            static_cast<std::uint32_t>(RvtTag::PlatformIndicatedAirspeed), *rvt.platformIndicatedAirspeedMps, payload);
     }
 
     // Tag 5: Telemetry Accuracy Indicator
@@ -243,7 +266,8 @@ std::vector<std::uint8_t> RvtEncoder::encode(const RvtLocalSet& rvt, bool standa
 
     // Tag 10: Digital Video File Format
     if (rvt.digitalVideoFileFormat.has_value()) {
-        appendTagString(static_cast<std::uint32_t>(RvtTag::DigitalVideoFileFormat), *rvt.digitalVideoFileFormat, payload);
+        appendTagString(
+            static_cast<std::uint32_t>(RvtTag::DigitalVideoFileFormat), *rvt.digitalVideoFileFormat, payload);
     }
 
     // Tag 11: User Defined Local Sets
@@ -270,7 +294,8 @@ std::vector<std::uint8_t> RvtEncoder::encode(const RvtLocalSet& rvt, bool standa
     // Tags 14..17: Aircraft MGRS
     if (rvt.aircraftMgrs.has_value()) {
         appendTagUint8(static_cast<std::uint32_t>(RvtTag::AircraftMgrsZone), rvt.aircraftMgrs->zone, payload);
-        appendTagString(static_cast<std::uint32_t>(RvtTag::AircraftMgrsLatBandSquare), rvt.aircraftMgrs->bandAndGridSquare, payload);
+        appendTagString(static_cast<std::uint32_t>(RvtTag::AircraftMgrsLatBandSquare),
+            rvt.aircraftMgrs->bandAndGridSquare, payload);
         appendTagUint24(static_cast<std::uint32_t>(RvtTag::AircraftMgrsEasting), rvt.aircraftMgrs->eastingM, payload);
         appendTagUint24(static_cast<std::uint32_t>(RvtTag::AircraftMgrsNorthing), rvt.aircraftMgrs->northingM, payload);
     }
@@ -278,9 +303,12 @@ std::vector<std::uint8_t> RvtEncoder::encode(const RvtLocalSet& rvt, bool standa
     // Tags 18..21: Frame Center MGRS
     if (rvt.frameCenterMgrs.has_value()) {
         appendTagUint8(static_cast<std::uint32_t>(RvtTag::FrameCenterMgrsZone), rvt.frameCenterMgrs->zone, payload);
-        appendTagString(static_cast<std::uint32_t>(RvtTag::FrameCenterMgrsLatBandSquare), rvt.frameCenterMgrs->bandAndGridSquare, payload);
-        appendTagUint24(static_cast<std::uint32_t>(RvtTag::FrameCenterMgrsEasting), rvt.frameCenterMgrs->eastingM, payload);
-        appendTagUint24(static_cast<std::uint32_t>(RvtTag::FrameCenterMgrsNorthing), rvt.frameCenterMgrs->northingM, payload);
+        appendTagString(static_cast<std::uint32_t>(RvtTag::FrameCenterMgrsLatBandSquare),
+            rvt.frameCenterMgrs->bandAndGridSquare, payload);
+        appendTagUint24(
+            static_cast<std::uint32_t>(RvtTag::FrameCenterMgrsEasting), rvt.frameCenterMgrs->eastingM, payload);
+        appendTagUint24(
+            static_cast<std::uint32_t>(RvtTag::FrameCenterMgrsNorthing), rvt.frameCenterMgrs->northingM, payload);
     }
 
     if (!standalone) {

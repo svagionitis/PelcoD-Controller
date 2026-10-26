@@ -1,7 +1,12 @@
 #include "PelcoDPtzAdapter.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <string>
 
 namespace PayloadHal {
 
@@ -63,7 +68,7 @@ DeviceState PelcoDPtzAdapter::state() const noexcept
 
 DeviceInfo PelcoDPtzAdapter::info() const noexcept
 {
-    DeviceInfo dev {};
+    DeviceInfo dev { };
     dev.manufacturer = "Pelco";
     dev.model = "Pelco-D PTZ Unit";
     dev.firmwareVersion = "1.0.0";
@@ -198,7 +203,7 @@ bool PelcoDPtzAdapter::getLimits(double& minPan, double& maxPan, double& minTilt
     return true;
 }
 
-bool PelcoDPtzAdapter::savePreset(uint8_t presetId, const std::string& /*name*/)
+bool PelcoDPtzAdapter::savePreset(std::uint8_t presetId, const std::string& /*name*/)
 {
     if (!m_device) {
         return false;
@@ -206,7 +211,7 @@ bool PelcoDPtzAdapter::savePreset(uint8_t presetId, const std::string& /*name*/)
     return m_device->setPreset(presetId) == PelcoD::SendResult::Success;
 }
 
-bool PelcoDPtzAdapter::recallPreset(uint8_t presetId)
+bool PelcoDPtzAdapter::recallPreset(std::uint8_t presetId)
 {
     if (!m_device) {
         return false;
@@ -228,7 +233,7 @@ GimbalTelemetry PelcoDPtzAdapter::currentTelemetry() const
 
 void PelcoDPtzAdapter::handleDeviceStatus(const PelcoD::DeviceStatus& status)
 {
-    GimbalTelemetry telem {};
+    GimbalTelemetry telem { };
     telem.panAngleDeg = status.panDegrees();
     // Pelco tilt conversion back to elevation: elevation = -tilt if downwards
     const double rawTilt = status.tiltDegrees();
@@ -242,7 +247,7 @@ void PelcoDPtzAdapter::handleDeviceStatus(const PelcoD::DeviceStatus& status)
     telem.limitReached = false;
     telem.timestamp = std::chrono::system_clock::now();
 
-    TelemetryCallback cbCopy {};
+    TelemetryCallback cbCopy { };
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_lastTelemetry = telem;

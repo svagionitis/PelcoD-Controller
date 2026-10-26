@@ -2,31 +2,35 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <limits>
+#include <vector>
 
 namespace Klv {
 
 namespace {
 
-constexpr std::uint8_t kPosInfinityTop { 0xC8U };
-constexpr std::uint8_t kNegInfinityTop { 0xE8U };
-constexpr std::uint8_t kPosQuietNanTop { 0xD0U };
-constexpr std::uint8_t kNegQuietNanTop { 0xF0U };
-constexpr std::uint8_t kPosSignalingNanTop { 0xD8U };
-constexpr std::uint8_t kNegSignalingNanTop { 0xF8U };
-constexpr std::uint8_t kBelowMinTop { 0xE0U };
-constexpr std::uint8_t kAboveMaxTop { 0xE1U };
+    constexpr std::uint8_t kPosInfinityTop { 0xC8U };
+    constexpr std::uint8_t kNegInfinityTop { 0xE8U };
+    constexpr std::uint8_t kPosQuietNanTop { 0xD0U };
+    constexpr std::uint8_t kNegQuietNanTop { 0xF0U };
+    constexpr std::uint8_t kPosSignalingNanTop { 0xD8U };
+    constexpr std::uint8_t kNegSignalingNanTop { 0xF8U };
+    constexpr std::uint8_t kBelowMinTop { 0xE0U };
+    constexpr std::uint8_t kAboveMaxTop { 0xE1U };
 
-[[nodiscard]] constexpr std::uint64_t lengthMask(std::size_t lengthBytes) noexcept {
-    if (lengthBytes >= 8U) {
-        return 0xFFFFFFFFFFFFFFFFULL;
+    [[nodiscard]] constexpr std::uint64_t lengthMask(std::size_t lengthBytes) noexcept
+    {
+        if (lengthBytes >= 8U) {
+            return 0xFFFFFFFFFFFFFFFFULL;
+        }
+        return (1ULL << (8U * lengthBytes)) - 1ULL;
     }
-    return (1ULL << (8U * lengthBytes)) - 1ULL;
-}
 
 } // namespace
 
-std::size_t Misb1201::computeLength(double minVal, double maxVal, double precision) noexcept {
+std::size_t Misb1201::computeLength(double minVal, double maxVal, double precision) noexcept
+{
     if (minVal >= maxVal || precision <= 0.0 || precision >= (maxVal - minVal)) {
         return 0U;
     }
@@ -36,15 +40,16 @@ std::size_t Misb1201::computeLength(double minVal, double maxVal, double precisi
     const double gPow = std::floor(std::log2(precision));
     const double lBits = bPow - gPow + 1.0;
     const auto lengthBytes = static_cast<std::size_t>(std::ceil(lBits / 8.0));
-    return std::clamp(lengthBytes, std::size_t{ 1U }, std::size_t{ 8U });
+    return std::clamp(lengthBytes, std::size_t { 1U }, std::size_t { 8U });
 }
 
-Misb1201Params Misb1201::computeParams(double minVal, double maxVal, std::size_t lengthBytes) noexcept {
+Misb1201Params Misb1201::computeParams(double minVal, double maxVal, std::size_t lengthBytes) noexcept
+{
     if (minVal >= maxVal || lengthBytes == 0U) {
-        return Misb1201Params{};
+        return Misb1201Params { };
     }
 
-    const std::size_t clampedLen = std::min(lengthBytes, std::size_t{ 8U });
+    const std::size_t clampedLen = std::min(lengthBytes, std::size_t { 8U });
     const double span = maxVal - minVal;
     const double bPow = std::ceil(std::log2(span));
     const double dPow = static_cast<double>(8U * clampedLen - 1U);
@@ -56,15 +61,17 @@ Misb1201Params Misb1201::computeParams(double minVal, double maxVal, std::size_t
         zOffset = sF * minVal - std::floor(sF * minVal);
     }
 
-    return Misb1201Params{ minVal, maxVal, clampedLen, sF, sR, zOffset, sR };
+    return Misb1201Params { minVal, maxVal, clampedLen, sF, sR, zOffset, sR };
 }
 
-std::uint64_t Misb1201::encode(double val, double minVal, double maxVal, std::size_t lengthBytes) noexcept {
+std::uint64_t Misb1201::encode(double val, double minVal, double maxVal, std::size_t lengthBytes) noexcept
+{
     const Misb1201Params params = computeParams(minVal, maxVal, lengthBytes);
     return encode(val, params);
 }
 
-std::uint64_t Misb1201::encode(double val, const Misb1201Params& params) noexcept {
+std::uint64_t Misb1201::encode(double val, const Misb1201Params& params) noexcept
+{
     if (params.lengthBytes == 0U || params.lengthBytes > 8U) {
         return 0ULL;
     }
@@ -100,7 +107,9 @@ std::uint64_t Misb1201::encode(double val, const Misb1201Params& params) noexcep
     return intVal & lengthMask(params.lengthBytes);
 }
 
-void Misb1201::encodeBytes(double val, double minVal, double maxVal, std::size_t lengthBytes, std::vector<std::uint8_t>& out) {
+void Misb1201::encodeBytes(
+    double val, double minVal, double maxVal, std::size_t lengthBytes, std::vector<std::uint8_t>& out)
+{
     const std::uint64_t encoded = encode(val, minVal, maxVal, lengthBytes);
     for (std::size_t i = 0U; i < lengthBytes; ++i) {
         const std::size_t shiftBits = 8U * (lengthBytes - 1U - i);
@@ -108,14 +117,16 @@ void Misb1201::encodeBytes(double val, double minVal, double maxVal, std::size_t
     }
 }
 
-Misb1201Result Misb1201::decode(std::uint64_t rawInt, double minVal, double maxVal, std::size_t lengthBytes) noexcept {
+Misb1201Result Misb1201::decode(std::uint64_t rawInt, double minVal, double maxVal, std::size_t lengthBytes) noexcept
+{
     const Misb1201Params params = computeParams(minVal, maxVal, lengthBytes);
     return decode(rawInt, params);
 }
 
-Misb1201Result Misb1201::decode(std::uint64_t rawInt, const Misb1201Params& params) noexcept {
+Misb1201Result Misb1201::decode(std::uint64_t rawInt, const Misb1201Params& params) noexcept
+{
     if (params.lengthBytes == 0U || params.lengthBytes > 8U) {
-        return Misb1201Result{ 0.0, Misb1201SpecialValue::Reserved };
+        return Misb1201Result { 0.0, Misb1201SpecialValue::Reserved };
     }
 
     const std::uint64_t val = rawInt & lengthMask(params.lengthBytes);
@@ -128,27 +139,29 @@ Misb1201Result Misb1201::decode(std::uint64_t rawInt, const Misb1201Params& para
         const auto topByte = static_cast<std::uint8_t>((val >> shift) & 0xFFULL);
 
         switch (topByte) {
-            case kPosInfinityTop:
-                return Misb1201Result{ std::numeric_limits<double>::infinity(), Misb1201SpecialValue::PositiveInfinity };
-            case kNegInfinityTop:
-                return Misb1201Result{ -std::numeric_limits<double>::infinity(), Misb1201SpecialValue::NegativeInfinity };
-            case kPosQuietNanTop:
-                return Misb1201Result{ std::numeric_limits<double>::quiet_NaN(), Misb1201SpecialValue::PositiveQuietNan };
-            case kNegQuietNanTop:
-                return Misb1201Result{ -std::numeric_limits<double>::quiet_NaN(), Misb1201SpecialValue::NegativeQuietNan };
-            case kPosSignalingNanTop:
-                return Misb1201Result{ std::numeric_limits<double>::signaling_NaN(), Misb1201SpecialValue::PositiveSignalingNan };
-            case kNegSignalingNanTop:
-                return Misb1201Result{ -std::numeric_limits<double>::signaling_NaN(), Misb1201SpecialValue::NegativeSignalingNan };
-            case kBelowMinTop:
-                return Misb1201Result{ params.minVal, Misb1201SpecialValue::BelowMinimum };
-            case kAboveMaxTop:
-                return Misb1201Result{ params.maxVal, Misb1201SpecialValue::AboveMaximum };
-            default:
-                if ((topByte & 0xF8U) == 0xC0U) {
-                    return Misb1201Result{ 0.0, Misb1201SpecialValue::UserDefined };
-                }
-                return Misb1201Result{ 0.0, Misb1201SpecialValue::Reserved };
+        case kPosInfinityTop:
+            return Misb1201Result { std::numeric_limits<double>::infinity(), Misb1201SpecialValue::PositiveInfinity };
+        case kNegInfinityTop:
+            return Misb1201Result { -std::numeric_limits<double>::infinity(), Misb1201SpecialValue::NegativeInfinity };
+        case kPosQuietNanTop:
+            return Misb1201Result { std::numeric_limits<double>::quiet_NaN(), Misb1201SpecialValue::PositiveQuietNan };
+        case kNegQuietNanTop:
+            return Misb1201Result { -std::numeric_limits<double>::quiet_NaN(), Misb1201SpecialValue::NegativeQuietNan };
+        case kPosSignalingNanTop:
+            return Misb1201Result { std::numeric_limits<double>::signaling_NaN(),
+                Misb1201SpecialValue::PositiveSignalingNan };
+        case kNegSignalingNanTop:
+            return Misb1201Result { -std::numeric_limits<double>::signaling_NaN(),
+                Misb1201SpecialValue::NegativeSignalingNan };
+        case kBelowMinTop:
+            return Misb1201Result { params.minVal, Misb1201SpecialValue::BelowMinimum };
+        case kAboveMaxTop:
+            return Misb1201Result { params.maxVal, Misb1201SpecialValue::AboveMaximum };
+        default:
+            if ((topByte & 0xF8U) == 0xC0U) {
+                return Misb1201Result { 0.0, Misb1201SpecialValue::UserDefined };
+            }
+            return Misb1201Result { 0.0, Misb1201SpecialValue::Reserved };
         }
     }
 
@@ -156,20 +169,23 @@ Misb1201Result Misb1201::decode(std::uint64_t rawInt, const Misb1201Params& para
         // Table 1: msb=1, msb-1=0 is only valid if all lower bits are zero (max mapped value)
         const std::uint64_t lowerMask = (1ULL << (nBits - 1U)) - 1ULL;
         if ((val & lowerMask) == 0ULL) {
-            const double normalVal = params.reverseScale * (static_cast<double>(val) - params.zeroOffset) + params.minVal;
-            return Misb1201Result{ normalVal, Misb1201SpecialValue::Valid };
+            const double normalVal
+                = params.reverseScale * (static_cast<double>(val) - params.zeroOffset) + params.minVal;
+            return Misb1201Result { normalVal, Misb1201SpecialValue::Valid };
         }
-        return Misb1201Result{ 0.0, Misb1201SpecialValue::Reserved };
+        return Misb1201Result { 0.0, Misb1201SpecialValue::Reserved };
     }
 
     // Normal mapped value
     const double normalVal = params.reverseScale * (static_cast<double>(val) - params.zeroOffset) + params.minVal;
-    return Misb1201Result{ normalVal, Misb1201SpecialValue::Valid };
+    return Misb1201Result { normalVal, Misb1201SpecialValue::Valid };
 }
 
-Misb1201Result Misb1201::decodeBytes(const std::uint8_t* data, std::size_t lengthBytes, double minVal, double maxVal) noexcept {
+Misb1201Result Misb1201::decodeBytes(
+    const std::uint8_t* data, std::size_t lengthBytes, double minVal, double maxVal) noexcept
+{
     if (data == nullptr || lengthBytes == 0U || lengthBytes > 8U) {
-        return Misb1201Result{ 0.0, Misb1201SpecialValue::Reserved };
+        return Misb1201Result { 0.0, Misb1201SpecialValue::Reserved };
     }
 
     std::uint64_t rawInt { 0ULL };

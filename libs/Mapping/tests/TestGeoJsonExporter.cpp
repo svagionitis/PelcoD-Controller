@@ -2,14 +2,17 @@
 /// @brief Unit tests for GeoJsonExporter RFC 7946 serialization and formatting.
 
 #include "GeoJsonExporter.h"
+
 #include <gtest/gtest.h>
+#include <string>
 
 using namespace Mapping;
 
-TEST(TestGeoJsonExporter, ExportFeatureCollectionStructure) {
+TEST(TestGeoJsonExporter, ExportFeatureCollectionStructure)
+{
     SpatialDataRecorder recorder;
 
-    Klv::UasDatalinkMessage msg1 {};
+    Klv::UasDatalinkMessage msg1 { };
     msg1.precisionTimeStampUs = 1728043200000000ULL;
     msg1.sensorLatitudeDeg = 32.7157;
     msg1.sensorLongitudeDeg = -117.1611;
@@ -17,7 +20,7 @@ TEST(TestGeoJsonExporter, ExportFeatureCollectionStructure) {
     msg1.platformTailNumber = "TEST-UAV";
     msg1.missionId = "ALPHA";
 
-    Klv::FrustumCorners corners {};
+    Klv::FrustumCorners corners { };
     corners.topLeft = { 32.720, -117.150 };
     corners.topRight = { 32.720, -117.140 };
     corners.bottomRight = { 32.710, -117.140 };
@@ -38,7 +41,7 @@ TEST(TestGeoJsonExporter, ExportFeatureCollectionStructure) {
     msg2.sensorLongitudeDeg = -117.1610;
     recorder.addTelemetryFrame(msg2);
 
-    GeoJsonConfig config {};
+    GeoJsonConfig config { };
     config.coordinatePrecision = 6;
     const std::string json = GeoJsonExporter::exportToString(recorder, config);
 
@@ -71,16 +74,17 @@ TEST(TestGeoJsonExporter, ExportFeatureCollectionStructure) {
     EXPECT_NE(json.find("-117.145000, 32.715000, 25.00"), std::string::npos);
 }
 
-TEST(TestGeoJsonExporter, DisableLayers) {
+TEST(TestGeoJsonExporter, DisableLayers)
+{
     SpatialDataRecorder recorder;
-    Klv::UasDatalinkMessage msg {};
+    Klv::UasDatalinkMessage msg { };
     msg.precisionTimeStampUs = 1728043200000000ULL;
     msg.sensorLatitudeDeg = 10.0;
     msg.sensorLongitudeDeg = 20.0;
     msg.sensorTrueAltitudeM = 500.0;
     recorder.addTelemetryFrame(msg);
 
-    GeoJsonConfig config {};
+    GeoJsonConfig config { };
     config.includeFlightTrack = false;
     config.includeFootprints = false;
     config.includeVolumetricFrustums = false;

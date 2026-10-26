@@ -1,14 +1,17 @@
 /// @file SightlineTrackingBuilder.cpp
 /// @brief Implementation of Sightline video tracking and motion command serializers.
 
-#include "SightlineTrackingBuilder.h"
+#include <cstdint>
+
 #include "SightlineDetectionBuilder.h"
+#include "SightlineTrackingBuilder.h"
+#include <vector>
 
 namespace Sightline {
 
 std::vector<std::uint8_t> SightlineTrackingBuilder::buildStartTracking(const MsgStartTracking& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(21U);
     payload.push_back(msg.cameraIndex);
     SightlineFraming::appendU16Le(payload, msg.centerCol);
@@ -23,12 +26,10 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildStartTracking(const Msg
     return SightlineFraming::buildPacket(MessageId::StartTracking, payload);
 }
 
-std::vector<std::uint8_t> SightlineTrackingBuilder::buildStartPrecision(
-    std::uint8_t cameraIndex, std::uint16_t col, std::uint16_t row,
-    std::uint16_t width, std::uint16_t height, std::uint64_t framePtsUs,
-    std::uint8_t flags)
+std::vector<std::uint8_t> SightlineTrackingBuilder::buildStartPrecision(std::uint8_t cameraIndex, std::uint16_t col,
+    std::uint16_t row, std::uint16_t width, std::uint16_t height, std::uint64_t framePtsUs, std::uint8_t flags)
 {
-    MsgStartTracking msg {};
+    MsgStartTracking msg { };
     msg.cameraIndex = cameraIndex;
     msg.centerCol = col;
     msg.centerRow = row;
@@ -47,7 +48,7 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildStopTracking(const MsgS
 
 std::vector<std::uint8_t> SightlineTrackingBuilder::buildModifyTracking(const MsgModifyTracking& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve((msg.trackId != 0U || msg.mode != 0U) ? 10U : 7U);
     SightlineFraming::appendU16Le(payload, msg.col);
     SightlineFraming::appendU16Le(payload, msg.row);
@@ -62,12 +63,10 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildModifyTracking(const Ms
     return SightlineFraming::buildPacket(MessageId::ModifyTracking, payload);
 }
 
-std::vector<std::uint8_t> SightlineTrackingBuilder::buildModifyTrackingMode(
-    std::uint8_t cameraIndex, std::uint16_t col, std::uint16_t row,
-    ModifyMode mode, std::uint8_t trackId,
-    std::uint8_t width, std::uint8_t height)
+std::vector<std::uint8_t> SightlineTrackingBuilder::buildModifyTrackingMode(std::uint8_t cameraIndex, std::uint16_t col,
+    std::uint16_t row, ModifyMode mode, std::uint8_t trackId, std::uint8_t width, std::uint8_t height)
 {
-    MsgModifyTracking msg {};
+    MsgModifyTracking msg { };
     msg.cameraIndex = cameraIndex;
     msg.col = col;
     msg.row = row;
@@ -88,10 +87,9 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildNudgeTracking(const Msg
 }
 
 std::vector<std::uint8_t> SightlineTrackingBuilder::buildNudgeTrackingRotated(
-    std::uint8_t cameraIndex, std::int16_t deltaCol, std::int16_t deltaRow,
-    NudgeCoordinateMode coordMode)
+    std::uint8_t cameraIndex, std::int16_t deltaCol, std::int16_t deltaRow, NudgeCoordinateMode coordMode)
 {
-    MsgNudgeTrackingCoordinate msg {};
+    MsgNudgeTrackingCoordinate msg { };
     msg.cameraIndex = cameraIndex;
     msg.deltaCol = deltaCol;
     msg.deltaRow = deltaRow;
@@ -101,7 +99,7 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildNudgeTrackingRotated(
 
 std::vector<std::uint8_t> SightlineTrackingBuilder::buildSetReportingMode(const MsgCoordinateReportingMode& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(4U);
     payload.push_back(msg.framePeriod);
     const std::uint16_t f { (msg.flags != 0U) ? msg.flags : static_cast<std::uint16_t>(msg.reportingFlags) };
@@ -112,7 +110,7 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildSetReportingMode(const 
 
 std::vector<std::uint8_t> SightlineTrackingBuilder::buildSetTrackingParameters(const MsgSetTrackingParameters& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve((msg.maxPauseTime > 0U) ? 17U : 16U);
     payload.push_back(msg.objectSize);
     payload.push_back(msg.mode);
@@ -135,7 +133,7 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildSetTrackingParameters(c
 
 std::vector<std::uint8_t> SightlineTrackingBuilder::buildModifyTrackIndex(const MsgModifyTrackIndex& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(7U);
     payload.push_back(msg.trackIndex);
     payload.push_back(msg.flags);
@@ -145,11 +143,10 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildModifyTrackIndex(const 
     return SightlineFraming::buildPacket(MessageId::ModifyTrackIndex, payload);
 }
 
-std::vector<std::uint8_t> SightlineTrackingBuilder::buildModifyTrackIndex(
-    std::uint8_t cameraIndex, std::uint8_t trackIndex, TrackIndexAction action,
-    std::uint16_t width, std::uint16_t height)
+std::vector<std::uint8_t> SightlineTrackingBuilder::buildModifyTrackIndex(std::uint8_t cameraIndex,
+    std::uint8_t trackIndex, TrackIndexAction action, std::uint16_t width, std::uint16_t height)
 {
-    MsgModifyTrackIndex msg {};
+    MsgModifyTrackIndex msg { };
     msg.cameraIndex = cameraIndex;
     msg.trackIndex = trackIndex;
     msg.flags = static_cast<std::uint8_t>(action);
@@ -182,7 +179,7 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildForcedCoasting(
 
 std::vector<std::uint8_t> SightlineTrackingBuilder::buildTrackTrails(const MsgTrackTrails& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(7U);
     payload.push_back(msg.cameraIndex);
     SightlineFraming::appendU16Le(payload, msg.flags);
@@ -199,7 +196,7 @@ std::vector<std::uint8_t> SightlineTrackingBuilder::buildDesignatePrimary(const 
 
 std::vector<std::uint8_t> SightlineTrackingBuilder::buildShiftSelectedTrack(const MsgShiftSelectedTrack& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(6U);
     payload.push_back(msg.cameraIndex);
     payload.push_back(msg.trackId);

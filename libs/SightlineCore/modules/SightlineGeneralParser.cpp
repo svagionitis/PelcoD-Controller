@@ -4,8 +4,11 @@
 #include "SightlineGeneralParser.h"
 #include "SightlineKlvParser.h"
 
+#include <cstdint>
+
 #include <algorithm>
 #include <string>
+#include <vector>
 
 namespace Sightline {
 

@@ -3,40 +3,45 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <limits>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <vector>
 
 namespace PayloadHal {
 
 namespace {
 
-inline constexpr double PI = 3.14159265358979323846;
-inline constexpr double DEG_TO_RAD = PI / 180.0;
-inline constexpr double RAD_TO_DEG = 180.0 / PI;
-inline constexpr double WGS84_A = 6378137.0; // Semi-major axis in meters
+    inline constexpr double PI = 3.14159265358979323846;
+    inline constexpr double DEG_TO_RAD = PI / 180.0;
+    inline constexpr double RAD_TO_DEG = 180.0 / PI;
+    inline constexpr double WGS84_A = 6378137.0; // Semi-major axis in meters
 
-[[nodiscard]] double normalizeHeadingDeg(double deg) noexcept
-{
-    double h = std::fmod(deg, 360.0);
-    if (h < 0.0) {
-        h += 360.0;
+    [[nodiscard]] double normalizeHeadingDeg(double deg) noexcept
+    {
+        double h = std::fmod(deg, 360.0);
+        if (h < 0.0) {
+            h += 360.0;
+        }
+        return h;
     }
-    return h;
-}
 
-void latLonToLocalMeters(double refLat, double refLon, double lat, double lon, double& x, double& y) noexcept
-{
-    const double latRad = refLat * DEG_TO_RAD;
-    x = WGS84_A * (lon - refLon) * DEG_TO_RAD * std::cos(latRad);
-    y = WGS84_A * (lat - refLat) * DEG_TO_RAD;
-}
+    void latLonToLocalMeters(double refLat, double refLon, double lat, double lon, double& x, double& y) noexcept
+    {
+        const double latRad = refLat * DEG_TO_RAD;
+        x = WGS84_A * (lon - refLon) * DEG_TO_RAD * std::cos(latRad);
+        y = WGS84_A * (lat - refLat) * DEG_TO_RAD;
+    }
 
-void localMetersToLatLon(double refLat, double refLon, double x, double y, double& lat, double& lon) noexcept
-{
-    const double latRad = refLat * DEG_TO_RAD;
-    const double cosLat = std::cos(latRad);
-    lat = refLat + (y / WGS84_A) * RAD_TO_DEG;
-    lon = refLon + (x / (WGS84_A * (std::abs(cosLat) > 1e-6 ? cosLat : 1e-6))) * RAD_TO_DEG;
-}
+    void localMetersToLatLon(double refLat, double refLon, double x, double y, double& lat, double& lon) noexcept
+    {
+        const double latRad = refLat * DEG_TO_RAD;
+        const double cosLat = std::cos(latRad);
+        lat = refLat + (y / WGS84_A) * RAD_TO_DEG;
+        lon = refLon + (x / (WGS84_A * (std::abs(cosLat) > 1e-6 ? cosLat : 1e-6))) * RAD_TO_DEG;
+    }
 
 } // namespace
 
@@ -44,11 +49,8 @@ void localMetersToLatLon(double refLat, double refLon, double x, double y, doubl
 // Construction & Destruction
 // =============================================================================
 
-GeoSurveyGridEngine::GeoSurveyGridEngine(
-    std::shared_ptr<IPanTiltUnit> ptu,
-    std::shared_ptr<ICameraPayload> camera,
-    std::shared_ptr<IDemProvider> dem,
-    SurveyPlanConfig config) noexcept
+GeoSurveyGridEngine::GeoSurveyGridEngine(std::shared_ptr<IPanTiltUnit> ptu, std::shared_ptr<ICameraPayload> camera,
+    std::shared_ptr<IDemProvider> dem, SurveyPlanConfig config) noexcept
     : m_ptu(std::move(ptu))
     , m_camera(std::move(camera))
     , m_dem(std::move(dem))
@@ -141,7 +143,10 @@ bool GeoSurveyGridEngine::generatePlan()
     const double sinTheta = std::sin(thetaRad);
     const double cosTheta = std::cos(thetaRad);
 
-    struct LocalPoint { double u; double v; };
+    struct LocalPoint {
+        double u;
+        double v;
+    };
     std::vector<LocalPoint> polyUv;
     polyUv.reserve(m_config.boundaryPolygon.size());
 
@@ -171,7 +176,8 @@ bool GeoSurveyGridEngine::generatePlan()
     m_transects.clear();
     m_totalLengthMeters = 0.0;
 
-    const std::size_t numTracks = std::max<std::size_t>(1U, static_cast<std::size_t>(std::ceil(totalCrossTrackWidth / trackSpacingMeters)));
+    const std::size_t numTracks
+        = std::max<std::size_t>(1U, static_cast<std::size_t>(std::ceil(totalCrossTrackWidth / trackSpacingMeters)));
     const double actualSpacing = totalCrossTrackWidth / static_cast<double>(numTracks);
 
     std::uint32_t transectGlobalIdx = 0U;
@@ -204,9 +210,8 @@ bool GeoSurveyGridEngine::generatePlan()
         }
 
         std::sort(uIntersects.begin(), uIntersects.end());
-        auto last = std::unique(uIntersects.begin(), uIntersects.end(), [](double a, double b) {
-            return std::abs(a - b) < 0.1;
-        });
+        auto last = std::unique(
+            uIntersects.begin(), uIntersects.end(), [](double a, double b) { return std::abs(a - b) < 0.1; });
         uIntersects.erase(last, uIntersects.end());
 
         // Convert endpoints to geodetic
@@ -234,14 +239,15 @@ bool GeoSurveyGridEngine::generatePlan()
                 continue;
             }
 
-            SurveyTransect transect {};
+            SurveyTransect transect { };
             transect.index = transectGlobalIdx++;
             transect.headingDeg = sweepAngleDeg;
             transect.lengthMeters = uEnd - uStart;
             m_totalLengthMeters += transect.lengthMeters;
 
             // Boustrophedon direction reversal on odd tracks
-            const bool reverseDirection = (m_config.patternType == SweepPatternType::Boustrophedon) && (trackIdx % 2U == 1U);
+            const bool reverseDirection
+                = (m_config.patternType == SweepPatternType::Boustrophedon) && (trackIdx % 2U == 1U);
             if (reverseDirection) {
                 std::swap(uStart, uEnd);
                 transect.headingDeg = normalizeHeadingDeg(sweepAngleDeg + 180.0);
@@ -252,14 +258,15 @@ bool GeoSurveyGridEngine::generatePlan()
 
             // Generate discrete observation waypoints along transect
             const double legDistance = std::abs(uEnd - uStart);
-            const std::size_t numWaypoints = std::max<std::size_t>(2U, static_cast<std::size_t>(std::ceil(legDistance / stationSpacingMeters)) + 1U);
+            const std::size_t numWaypoints = std::max<std::size_t>(
+                2U, static_cast<std::size_t>(std::ceil(legDistance / stationSpacingMeters)) + 1U);
 
             for (std::size_t wpIdx = 0; wpIdx < numWaypoints; ++wpIdx) {
                 const double fraction = static_cast<double>(wpIdx) / static_cast<double>(numWaypoints - 1);
                 const double uPos = uStart + fraction * (uEnd - uStart);
                 const Klv::GeoPoint2D ptGeo = uvToGeo(uPos, vLine);
 
-                SurveyWaypoint wp {};
+                SurveyWaypoint wp { };
                 wp.transectIndex = transect.index;
                 wp.waypointIndex = static_cast<std::uint32_t>(wpIdx);
                 wp.dwellTimeSec = m_config.waypointDwellSec;
@@ -433,8 +440,8 @@ void GeoSurveyGridEngine::update(double deltaSeconds, const Klv::GeoPoint3D& pla
     const auto& currentWp = m_transects[m_currentTransectIdx].waypoints[m_currentWaypointIdx];
 
     // Compute look-angles to active target waypoint
-    const auto lookAngles = GeoreferenceUtils::computeLookAnglesToTarget(
-        platformPos, platformHeadingDeg, currentWp.targetGroundPos);
+    const auto lookAngles
+        = GeoreferenceUtils::computeLookAnglesToTarget(platformPos, platformHeadingDeg, currentWp.targetGroundPos);
 
     if (m_ptu) {
         m_ptu->setAbsoluteAngles(lookAngles.panAngleDeg, lookAngles.tiltAngleDeg);
@@ -480,18 +487,18 @@ void GeoSurveyGridEngine::stampFootprint(const Klv::FrustumCorners& frustum, con
         return;
     }
 
-    const std::vector<Klv::GeoPoint2D> frustumPoly {
-        frustum.topLeft,
-        frustum.topRight,
-        frustum.bottomRight,
-        frustum.bottomLeft
-    };
+    const std::vector<Klv::GeoPoint2D> frustumPoly { frustum.topLeft, frustum.topRight, frustum.bottomRight,
+        frustum.bottomLeft };
 
     // Find bounding box of frustum in grid space
-    double fMinLat = std::min({ frustumPoly[0].latitudeDeg, frustumPoly[1].latitudeDeg, frustumPoly[2].latitudeDeg, frustumPoly[3].latitudeDeg });
-    double fMaxLat = std::max({ frustumPoly[0].latitudeDeg, frustumPoly[1].latitudeDeg, frustumPoly[2].latitudeDeg, frustumPoly[3].latitudeDeg });
-    double fMinLon = std::min({ frustumPoly[0].longitudeDeg, frustumPoly[1].longitudeDeg, frustumPoly[2].longitudeDeg, frustumPoly[3].longitudeDeg });
-    double fMaxLon = std::max({ frustumPoly[0].longitudeDeg, frustumPoly[1].longitudeDeg, frustumPoly[2].longitudeDeg, frustumPoly[3].longitudeDeg });
+    double fMinLat = std::min({ frustumPoly[0].latitudeDeg, frustumPoly[1].latitudeDeg, frustumPoly[2].latitudeDeg,
+        frustumPoly[3].latitudeDeg });
+    double fMaxLat = std::max({ frustumPoly[0].latitudeDeg, frustumPoly[1].latitudeDeg, frustumPoly[2].latitudeDeg,
+        frustumPoly[3].latitudeDeg });
+    double fMinLon = std::min({ frustumPoly[0].longitudeDeg, frustumPoly[1].longitudeDeg, frustumPoly[2].longitudeDeg,
+        frustumPoly[3].longitudeDeg });
+    double fMaxLon = std::max({ frustumPoly[0].longitudeDeg, frustumPoly[1].longitudeDeg, frustumPoly[2].longitudeDeg,
+        frustumPoly[3].longitudeDeg });
 
     std::size_t rMin = 0U;
     std::size_t rMax = m_grid.rows - 1U;
@@ -508,8 +515,10 @@ void GeoSurveyGridEngine::stampFootprint(const Klv::FrustumCorners& frustum, con
         rMax = tempR;
         cMax = tempC;
     }
-    if (rMin > rMax) std::swap(rMin, rMax);
-    if (cMin > cMax) std::swap(cMin, cMax);
+    if (rMin > rMax)
+        std::swap(rMin, rMax);
+    if (cMin > cMax)
+        std::swap(cMin, cMax);
 
     // Rasterize frustum quad onto occupancy grid cells
     for (std::size_t r = rMin; r <= rMax; ++r) {
@@ -601,8 +610,8 @@ bool GeoSurveyGridEngine::isPointInsidePolygon(
         const double minLon = std::min(lon_i, lon_j) - 1e-7;
         const double maxLon = std::max(lon_i, lon_j) + 1e-7;
 
-        if (point.latitudeDeg >= minLat && point.latitudeDeg <= maxLat &&
-            point.longitudeDeg >= minLon && point.longitudeDeg <= maxLon) {
+        if (point.latitudeDeg >= minLat && point.latitudeDeg <= maxLat && point.longitudeDeg >= minLon
+            && point.longitudeDeg <= maxLon) {
             const double dLat = lat_j - lat_i;
             const double dLon = lon_j - lon_i;
             const double cross = (point.latitudeDeg - lat_i) * dLon - (point.longitudeDeg - lon_i) * dLat;
@@ -662,8 +671,10 @@ double GeoSurveyGridEngine::calculatePolygonAreaM2(const std::vector<Klv::GeoPoi
     double areaAcc = 0.0;
     for (std::size_t i = 0; i < n; ++i) {
         const std::size_t j = (i + 1) % n;
-        double x1 = 0.0; double y1 = 0.0;
-        double x2 = 0.0; double y2 = 0.0;
+        double x1 = 0.0;
+        double y1 = 0.0;
+        double x2 = 0.0;
+        double y2 = 0.0;
         latLonToLocalMeters(refLat, refLon, polygon[i].latitudeDeg, polygon[i].longitudeDeg, x1, y1);
         latLonToLocalMeters(refLat, refLon, polygon[j].latitudeDeg, polygon[j].longitudeDeg, x2, y2);
         areaAcc += (x1 * y2) - (x2 * y1);
@@ -687,11 +698,15 @@ double GeoSurveyGridEngine::calculateOptimalSweepHeading(const std::vector<Klv::
     refLat /= static_cast<double>(n);
     refLon /= static_cast<double>(n);
 
-    struct Point2D { double x; double y; };
+    struct Point2D {
+        double x;
+        double y;
+    };
     std::vector<Point2D> pts;
     pts.reserve(n);
     for (const auto& pt : polygon) {
-        double x = 0.0; double y = 0.0;
+        double x = 0.0;
+        double y = 0.0;
         latLonToLocalMeters(refLat, refLon, pt.latitudeDeg, pt.longitudeDeg, x, y);
         pts.push_back({ x, y });
     }
@@ -747,7 +762,7 @@ void GeoSurveyGridEngine::transitionState(SurveyState newState, const std::strin
 void GeoSurveyGridEngine::initializeOccupancyGrid()
 {
     if (m_config.boundaryPolygon.size() < 3U) {
-        m_grid = SurveyOccupancyGrid {};
+        m_grid = SurveyOccupancyGrid { };
         return;
     }
 
@@ -776,8 +791,10 @@ void GeoSurveyGridEngine::initializeOccupancyGrid()
     const double lonSpanMeters = (maxLon - minLon) * (PI / 180.0) * WGS84_A * std::cos(refLat * DEG_TO_RAD);
 
     const double resMeters = std::clamp(m_config.gridResolutionMeters, 1.0, 500.0);
-    const std::size_t rows = std::clamp<std::size_t>(static_cast<std::size_t>(std::ceil(latSpanMeters / resMeters)), 10U, 500U);
-    const std::size_t cols = std::clamp<std::size_t>(static_cast<std::size_t>(std::ceil(lonSpanMeters / resMeters)), 10U, 500U);
+    const std::size_t rows
+        = std::clamp<std::size_t>(static_cast<std::size_t>(std::ceil(latSpanMeters / resMeters)), 10U, 500U);
+    const std::size_t cols
+        = std::clamp<std::size_t>(static_cast<std::size_t>(std::ceil(lonSpanMeters / resMeters)), 10U, 500U);
 
     m_grid.minLat = minLat;
     m_grid.maxLat = maxLat;

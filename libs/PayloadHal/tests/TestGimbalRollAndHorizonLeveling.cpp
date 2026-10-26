@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <gtest/gtest.h>
 
 #include "CameraStreamBinder.h"
@@ -11,6 +12,7 @@
 #include <chrono>
 #include <cmath>
 #include <memory>
+#include <string>
 #include <thread>
 
 using namespace PayloadHal;
@@ -75,12 +77,10 @@ TEST(TestGimbalRollAndHorizonLeveling, FrustumCornersRollRotation)
     EXPECT_GT(rolled->topRight.latitudeDeg, unrolled->topRight.latitudeDeg);
 
     // Test with DEM provider
-    ProceduralDemProvider dem([](double /*lat*/, double /*lon*/) {
-        return 50.0;
-    }, 50.0, 50.0);
+    ProceduralDemProvider dem([](double /*lat*/, double /*lon*/) { return 50.0; }, 50.0, 50.0);
 
-    const auto demCorners = GeoreferenceUtils::computeFrustumCorners(
-        dem, platform, heading, pan, tilt, hfov, vfov, 25.0);
+    const auto demCorners
+        = GeoreferenceUtils::computeFrustumCorners(dem, platform, heading, pan, tilt, hfov, vfov, 25.0);
     ASSERT_TRUE(demCorners.has_value());
     EXPECT_GT(demCorners->topLeft.latitudeDeg, demCorners->bottomLeft.latitudeDeg);
 }
@@ -197,12 +197,28 @@ TEST(TestGimbalRollAndHorizonLeveling, SimHorizonLevelingLifecycle)
 
 class MockTwoAxisPtu : public IPanTiltUnit {
 public:
-    bool connect() override { return true; }
-    void disconnect() override {}
-    [[nodiscard]] bool isConnected() const noexcept override { return true; }
-    [[nodiscard]] DeviceState state() const noexcept override { return DeviceState::Ready; }
-    [[nodiscard]] DeviceInfo info() const noexcept override { return {}; }
-    void registerStateCallback(StateCallback) override {}
+    bool connect() override
+    {
+        return true;
+    }
+    void disconnect() override
+    {
+    }
+    [[nodiscard]] bool isConnected() const noexcept override
+    {
+        return true;
+    }
+    [[nodiscard]] DeviceState state() const noexcept override
+    {
+        return DeviceState::Ready;
+    }
+    [[nodiscard]] DeviceInfo info() const noexcept override
+    {
+        return { };
+    }
+    void registerStateCallback(StateCallback) override
+    {
+    }
 
     bool setRate(double pan, double tilt) override
     {
@@ -210,26 +226,58 @@ public:
         m_tiltRate = tilt;
         return true;
     }
-    bool setNormalizedVelocity(float, float) override { return true; }
+    bool setNormalizedVelocity(float, float) override
+    {
+        return true;
+    }
     bool setAbsoluteAngles(double pan, double tilt) override
     {
         m_pan = pan;
         m_tilt = tilt;
         return true;
     }
-    bool setRelativeNudge(double, double) override { return true; }
-    bool stopMotion() override { return true; }
-    [[nodiscard]] bool supportsStabilization() const noexcept override { return false; }
-    bool setStabilizationMode(StabilizationMode) override { return false; }
-    [[nodiscard]] StabilizationMode stabilizationMode() const noexcept override { return StabilizationMode::Disabled; }
-    bool zeroGyroDrift() override { return false; }
-    bool getLimits(double&, double&, double&, double&) const override { return false; }
-    bool savePreset(uint8_t, const std::string&) override { return false; }
-    bool recallPreset(uint8_t) override { return false; }
-    void registerTelemetryCallback(TelemetryCallback) override {}
+    bool setRelativeNudge(double, double) override
+    {
+        return true;
+    }
+    bool stopMotion() override
+    {
+        return true;
+    }
+    [[nodiscard]] bool supportsStabilization() const noexcept override
+    {
+        return false;
+    }
+    bool setStabilizationMode(StabilizationMode) override
+    {
+        return false;
+    }
+    [[nodiscard]] StabilizationMode stabilizationMode() const noexcept override
+    {
+        return StabilizationMode::Disabled;
+    }
+    bool zeroGyroDrift() override
+    {
+        return false;
+    }
+    bool getLimits(double&, double&, double&, double&) const override
+    {
+        return false;
+    }
+    bool savePreset(std::uint8_t, const std::string&) override
+    {
+        return false;
+    }
+    bool recallPreset(std::uint8_t) override
+    {
+        return false;
+    }
+    void registerTelemetryCallback(TelemetryCallback) override
+    {
+    }
     [[nodiscard]] GimbalTelemetry currentTelemetry() const override
     {
-        GimbalTelemetry t {};
+        GimbalTelemetry t { };
         t.panAngleDeg = m_pan;
         t.tiltAngleDeg = m_tilt;
         t.panRateDegPerSec = m_panRate;
@@ -293,7 +341,7 @@ TEST(TestGimbalRollAndHorizonLeveling, KlvTag20SensorRelativeRoll)
     EXPECT_TRUE(ptu->setRollAngle(22.5));
 
     PayloadKlvGenerator generator(payload);
-    PlatformNavData nav {};
+    PlatformNavData nav { };
     nav.position = { 38.0, 23.0, 1500.0 };
     nav.headingDeg = 45.0;
 
@@ -323,7 +371,7 @@ TEST(TestGimbalRollAndHorizonLeveling, StreamBinderRollInterpolation)
     const auto t1 = t0 + std::chrono::milliseconds(100);
     const auto tMid = t0 + std::chrono::milliseconds(50);
 
-    GimbalTelemetry telem1 {};
+    GimbalTelemetry telem1 { };
     telem1.timestamp = t0;
     telem1.panAngleDeg = 10.0;
     telem1.tiltAngleDeg = -20.0;
@@ -331,7 +379,7 @@ TEST(TestGimbalRollAndHorizonLeveling, StreamBinderRollInterpolation)
     telem1.rollRateDegPerSec = 2.0;
     telem1.isHorizonLeveled = false;
 
-    GimbalTelemetry telem2 {};
+    GimbalTelemetry telem2 { };
     telem2.timestamp = t1;
     telem2.panAngleDeg = 20.0;
     telem2.tiltAngleDeg = -10.0;
@@ -342,7 +390,7 @@ TEST(TestGimbalRollAndHorizonLeveling, StreamBinderRollInterpolation)
     binder.recordGimbalTelemetry(telem1);
     binder.recordGimbalTelemetry(telem2);
 
-    RawVideoFrame frame {};
+    RawVideoFrame frame { };
     frame.timestamp = tMid;
     frame.width = 1920;
     frame.height = 1080;

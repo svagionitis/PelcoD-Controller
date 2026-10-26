@@ -23,7 +23,7 @@ public:
     /// @brief Constructs a SonyFCBDevice wrapping a VISCA device.
     /// @param[in] transport Underlying transport instance.
     /// @param[in] cameraAddress Camera address on bus (1..7).
-    explicit SonyFCBDevice(std::shared_ptr<::Transport::ITransport> transport, uint8_t cameraAddress = 1);
+    explicit SonyFCBDevice(std::shared_ptr<::Transport::ITransport> transport, std::uint8_t cameraAddress = 1);
 
     /// @brief Virtual destructor.
     virtual ~SonyFCBDevice() = default;
@@ -66,30 +66,30 @@ public:
     bool pollStatus();
 
     // --- Lens & Optics Controls ---
-    bool setZoomDirect(uint16_t position);
-    bool zoomTele(uint8_t speed = 4);
-    bool zoomWide(uint8_t speed = 4);
+    bool setZoomDirect(std::uint16_t position);
+    bool zoomTele(std::uint8_t speed = 4);
+    bool zoomWide(std::uint8_t speed = 4);
     bool zoomStop();
 
     bool setFocusAuto(bool autoMode);
-    bool setFocusDirect(uint16_t position);
-    bool focusFar(uint8_t speed = 4);
-    bool focusNear(uint8_t speed = 4);
+    bool setFocusDirect(std::uint16_t position);
+    bool focusFar(std::uint8_t speed = 4);
+    bool focusNear(std::uint8_t speed = 4);
     bool focusStop();
     bool focusOnePush();
-    bool setFocusNearLimit(uint16_t limit);
+    bool setFocusNearLimit(std::uint16_t limit);
 
     // --- Exposure Controls ---
     bool setExposureMode(SonyExposureMode mode);
-    bool setShutter(uint8_t position);
-    bool setIris(uint8_t position);
-    bool setGain(uint8_t position);
-    bool setExposureCompensation(bool on, uint8_t position = 0);
+    bool setShutter(std::uint8_t position);
+    bool setIris(std::uint8_t position);
+    bool setGain(std::uint8_t position);
+    bool setExposureCompensation(bool on, std::uint8_t position = 0);
 
     // --- White Balance ---
     bool setWhiteBalance(SonyWhiteBalanceMode mode);
-    bool setRgaiDirect(uint8_t position);
-    bool setBgainDirect(uint8_t position);
+    bool setRgaiDirect(std::uint8_t position);
+    bool setBgainDirect(std::uint8_t position);
     bool triggerOnePushWb();
 
     // --- Image Processing & Enhancements ---
@@ -99,7 +99,7 @@ public:
     bool setAutoIcr(bool on);
 
     // --- Picture & Sharpness Controls ---
-    bool setAperture(uint8_t level);
+    bool setAperture(std::uint8_t level);
     bool apertureReset();
     bool apertureUp();
     bool apertureDown();
@@ -110,8 +110,8 @@ public:
     bool setHighSensitivity(bool on);
 
     // --- Noise Reduction ---
-    bool setNoiseReduction2D(uint8_t level);
-    bool setNoiseReduction3D(uint8_t level);
+    bool setNoiseReduction2D(std::uint8_t level);
+    bool setNoiseReduction3D(std::uint8_t level);
 
     // --- Dynamic Range & Effects ---
     bool setWideD(SonyWideDMode mode);
@@ -120,31 +120,31 @@ public:
     bool setLrReverse(bool on);
 
     // --- Color & Gamma Adjustments ---
-    bool setColorGain(uint8_t gain);
-    bool setColorHue(uint8_t hue);
-    bool setChromaSuppress(uint8_t level);
-    bool setGamma(uint8_t mode);
+    bool setColorGain(std::uint8_t gain);
+    bool setColorHue(std::uint8_t hue);
+    bool setChromaSuppress(std::uint8_t level);
+    bool setGamma(std::uint8_t mode);
 
     // --- Preset Memory Controls ---
-    bool memorySet(uint8_t channel);
-    bool memoryRecall(uint8_t channel);
-    bool memoryReset(uint8_t channel);
+    bool memorySet(std::uint8_t channel);
+    bool memoryRecall(std::uint8_t channel);
+    bool memoryReset(std::uint8_t channel);
 
     // --- Spot Controls ---
     bool setSpotAe(bool on);
-    bool setSpotAePosition(uint8_t x, uint8_t y);
-    bool setSpotFocusPosition(uint8_t x, uint8_t y);
-    bool setSpotAwbPosition(uint8_t x, uint8_t y);
+    bool setSpotAePosition(std::uint8_t x, std::uint8_t y);
+    bool setSpotFocusPosition(std::uint8_t x, std::uint8_t y);
+    bool setSpotAwbPosition(std::uint8_t x, std::uint8_t y);
 
     // --- Individual Fast-Path Parameter Queries ---
 
     /// @brief Queries current optical zoom position directly via CAM_ZoomPosInq.
     /// @return Current 16-bit zoom position, or std::nullopt on communication failure.
-    [[nodiscard]] std::optional<uint16_t> queryZoomPosition();
+    [[nodiscard]] std::optional<std::uint16_t> queryZoomPosition();
 
     /// @brief Queries current focus position directly via CAM_FocusPosInq.
     /// @return Current 16-bit focus position, or std::nullopt on communication failure.
-    [[nodiscard]] std::optional<uint16_t> queryFocusPosition();
+    [[nodiscard]] std::optional<std::uint16_t> queryFocusPosition();
 
     /// @brief Queries active exposure control mode directly via CAM_ExpModeInq.
     /// @return Active SonyExposureMode, or std::nullopt on communication failure.
@@ -152,15 +152,15 @@ public:
 
     /// @brief Queries current shutter speed position directly via CAM_ShutterPosInq.
     /// @return 8-bit shutter speed index, or std::nullopt on communication failure.
-    [[nodiscard]] std::optional<uint8_t> queryShutterPosition();
+    [[nodiscard]] std::optional<std::uint8_t> queryShutterPosition();
 
     /// @brief Queries current iris step position directly via CAM_IrisPosInq.
     /// @return 8-bit iris step index, or std::nullopt on communication failure.
-    [[nodiscard]] std::optional<uint8_t> queryIrisPosition();
+    [[nodiscard]] std::optional<std::uint8_t> queryIrisPosition();
 
     /// @brief Queries current analog gain position directly via CAM_GainPosInq.
     /// @return 8-bit gain step index, or std::nullopt on communication failure.
-    [[nodiscard]] std::optional<uint8_t> queryGainPosition();
+    [[nodiscard]] std::optional<std::uint8_t> queryGainPosition();
 
     /// @brief Queries current white balance mode directly via CAM_WBModeInq.
     /// @return Active SonyWhiteBalanceMode, or std::nullopt on communication failure.
@@ -168,11 +168,11 @@ public:
 
     /// @brief Queries current aperture sharpness level directly via CAM_ApertureInq.
     /// @return 8-bit aperture level, or std::nullopt on communication failure.
-    [[nodiscard]] std::optional<uint8_t> queryAperture();
+    [[nodiscard]] std::optional<std::uint8_t> queryAperture();
 
     /// @brief Queries last recalled preset memory channel directly via CAM_MemoryInq.
     /// @return Preset channel number (0..15), or std::nullopt on communication failure.
-    [[nodiscard]] std::optional<uint8_t> queryLastMemoryChannel();
+    [[nodiscard]] std::optional<std::uint8_t> queryLastMemoryChannel();
 
     // --- Hardware Gated Controls ---
 
@@ -192,27 +192,27 @@ public:
     /// @note Gated: Modes >= 0x25 are 4K UHD and only supported on FCB-EW9500H.
     /// @param[in] mode Register 0x72 operating mode code.
     /// @return True if command executed, false if unsupported mode requested.
-    bool setOperatingMode(uint8_t mode);
+    bool setOperatingMode(std::uint8_t mode);
 
     /// @brief Sets LVDS serial video output mode (Register 0x74).
     /// @note Gated: Supported on FCB-EV9520L, NOT supported on FCB-EW9500H.
     /// @param[in] mode Mode value.
     /// @return True if command executed, false if unsupported.
-    bool setLvdsMode(uint8_t mode);
+    bool setLvdsMode(std::uint8_t mode);
 
     /// @brief Sets TMDS / HDMI digital output mode (Register 0x60).
     /// @note Gated: Supported on FCB-EW9500H, NOT supported on FCB-EV9520L.
     /// @param[in] mode Mode value.
     /// @return True if command executed, false if unsupported.
-    bool setDigitalOutputMode(uint8_t mode);
+    bool setDigitalOutputMode(std::uint8_t mode);
 
 private:
     ViscaDevice m_device;
     SonyCameraModelType m_modelType { SonyCameraModelType::Unknown };
-    CameraCapabilities m_capabilities {};
+    CameraCapabilities m_capabilities { };
 
-    mutable std::mutex m_statusMutex {};
-    SonyFCBStatus m_status {};
+    mutable std::mutex m_statusMutex { };
+    SonyFCBStatus m_status { };
 };
 
 } // namespace Visca::Sony

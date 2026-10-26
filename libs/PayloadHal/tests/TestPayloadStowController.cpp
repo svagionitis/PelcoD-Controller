@@ -5,7 +5,9 @@
 #include "sim/SimulatedPayload.h"
 
 #include <cmath>
+
 #include <memory>
+#include <string>
 
 using namespace PayloadHal;
 
@@ -297,14 +299,14 @@ TEST(TestPayloadStowController, AntiTamperZeroization)
     PayloadStowController controller(sim->panTilt(), sim->presetManager(), sim->primaryCamera());
 
     // Add presets to preset manager
-    PtzPreset p1 {};
+    PtzPreset p1 { };
     p1.id = 1;
     p1.name = "Forward Lookout";
     p1.panAngleDeg = 10.0;
     p1.tiltAngleDeg = -5.0;
     sim->presetManager()->savePreset(p1);
 
-    PtzPreset p2 {};
+    PtzPreset p2 { };
     p2.id = 2;
     p2.name = "Aft Guard";
     p2.panAngleDeg = 180.0;

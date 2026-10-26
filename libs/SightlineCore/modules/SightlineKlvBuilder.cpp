@@ -1,13 +1,17 @@
 /// @file SightlineKlvBuilder.cpp
 /// @brief Implementation of Sightline KLV Metadata builder conforming to IDD 3.11 and EAN-KLV-Metadata.
 
+#include <cstdint>
+
 #include "SightlineKlvBuilder.h"
+#include <string>
+#include <vector>
 
 namespace Sightline {
 
 std::vector<std::uint8_t> SightlineKlvBuilder::buildSetMetadataValues(const MsgSetMetadataValues& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(44U);
     SightlineFraming::appendU16Le(payload, msg.validDataMask);
     SightlineFraming::appendU64Le(payload, msg.utcTime);
@@ -28,7 +32,7 @@ std::vector<std::uint8_t> SightlineKlvBuilder::buildSetMetadataValues(const MsgS
 
 std::vector<std::uint8_t> SightlineKlvBuilder::buildMetadataStaticValues(const MsgMetadataStaticValues& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(msg.value.size() + 4U);
     payload.push_back(static_cast<std::uint8_t>(msg.type));
     payload.push_back(static_cast<std::uint8_t>(msg.value.size()));
@@ -39,7 +43,7 @@ std::vector<std::uint8_t> SightlineKlvBuilder::buildMetadataStaticValues(const M
 
 std::vector<std::uint8_t> SightlineKlvBuilder::buildSetMetadataFrameValues(const MsgSetMetadataFrameValues& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(49U);
     SightlineFraming::appendU16Le(payload, msg.validDataMask);
     SightlineFraming::appendS32Le(payload, msg.frameCenterLat);
@@ -67,7 +71,7 @@ std::vector<std::uint8_t> SightlineKlvBuilder::buildSetMetadataFrameValues(const
 
 std::vector<std::uint8_t> SightlineKlvBuilder::buildSetKlvData(const MsgSetKlvData& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(msg.klvData.size() + 2U);
     SightlineFraming::appendU16Le(payload, msg.displayId);
     payload.insert(payload.end(), msg.klvData.begin(), msg.klvData.end());
@@ -76,7 +80,7 @@ std::vector<std::uint8_t> SightlineKlvBuilder::buildSetKlvData(const MsgSetKlvDa
 
 std::vector<std::uint8_t> SightlineKlvBuilder::buildSetMetadataRate(const MsgSetMetadataRate& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(11U);
     SightlineFraming::appendU64Le(payload, msg.enables);
     payload.push_back(msg.frameStep);
@@ -86,7 +90,7 @@ std::vector<std::uint8_t> SightlineKlvBuilder::buildSetMetadataRate(const MsgSet
 
 std::vector<std::uint8_t> SightlineKlvBuilder::buildSetVmti(const MsgSetVmti& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve((msg.targets.size() * 12U) + 3U);
     payload.push_back(static_cast<std::uint8_t>(msg.targets.size()));
     for (const auto& t : msg.targets) {
@@ -104,7 +108,7 @@ std::vector<std::uint8_t> SightlineKlvBuilder::buildSetVmti(const MsgSetVmti& ms
 
 std::vector<std::uint8_t> SightlineKlvBuilder::buildAppendedMetadata(const MsgAppendedMetadata& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(msg.data.size() + 2U);
     SightlineFraming::appendU16Le(payload, msg.displayId);
     payload.insert(payload.end(), msg.data.begin(), msg.data.end());
@@ -113,7 +117,7 @@ std::vector<std::uint8_t> SightlineKlvBuilder::buildAppendedMetadata(const MsgAp
 
 std::vector<std::uint8_t> SightlineKlvBuilder::buildTagData(const MsgTagData& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(msg.data.size() + 9U);
     payload.push_back(msg.reserved1);
     payload.push_back(msg.reserved2);
@@ -128,7 +132,7 @@ std::vector<std::uint8_t> SightlineKlvBuilder::buildTagData(const MsgTagData& ms
 
 std::vector<std::uint8_t> SightlineKlvBuilder::buildSetTagDataRate(const MsgTagDataRate& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(9U);
     payload.push_back(msg.reserved1);
     payload.push_back(msg.reserved2);
@@ -142,7 +146,7 @@ std::vector<std::uint8_t> SightlineKlvBuilder::buildSetTagDataRate(const MsgTagD
 
 std::vector<std::uint8_t> SightlineKlvBuilder::buildGetTagDataRate(std::uint8_t tagId, std::uint16_t displayId)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(5U);
     payload.push_back(static_cast<std::uint8_t>(MessageId::TagDataRate));
     payload.push_back(0U);
@@ -153,7 +157,7 @@ std::vector<std::uint8_t> SightlineKlvBuilder::buildGetTagDataRate(std::uint8_t 
 
 std::vector<std::uint8_t> SightlineKlvBuilder::buildSetTagSourceSelector(const MsgTagSourceSelector& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(9U);
     payload.push_back(msg.reserved1);
     payload.push_back(msg.reserved2);
@@ -167,7 +171,7 @@ std::vector<std::uint8_t> SightlineKlvBuilder::buildSetTagSourceSelector(const M
 
 std::vector<std::uint8_t> SightlineKlvBuilder::buildGetTagSourceSelector(std::uint8_t tagId, std::uint16_t displayId)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(5U);
     payload.push_back(static_cast<std::uint8_t>(MessageId::TagSourceSelector));
     payload.push_back(0U);
@@ -178,7 +182,7 @@ std::vector<std::uint8_t> SightlineKlvBuilder::buildGetTagSourceSelector(std::ui
 
 std::vector<std::uint8_t> SightlineKlvBuilder::buildAncillaryTextMetadata(const MsgAncillaryTextMetadata& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     SightlineFraming::appendU64Le(payload, msg.creationTime);
     auto appendStr = [&](const std::string& str) {
         payload.push_back(static_cast<std::uint8_t>(str.size()));
@@ -195,7 +199,7 @@ std::vector<std::uint8_t> SightlineKlvBuilder::buildAncillaryTextMetadata(const 
 
 std::vector<std::uint8_t> SightlineKlvBuilder::buildVmtiChips(const MsgVmtiChips& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(10U);
     payload.push_back(msg.mode);
     payload.push_back(static_cast<std::uint8_t>(msg.format));
@@ -210,7 +214,7 @@ std::vector<std::uint8_t> SightlineKlvBuilder::buildVmtiChips(const MsgVmtiChips
 
 std::vector<std::uint8_t> SightlineKlvBuilder::buildCursorOnTarget(const MsgCursorOnTarget& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(12U);
     SightlineFraming::appendU16Le(payload, msg.mode);
     // ipAddr and port are big-endian network byte order per IDD
@@ -227,7 +231,7 @@ std::vector<std::uint8_t> SightlineKlvBuilder::buildCursorOnTarget(const MsgCurs
 
 std::vector<std::uint8_t> SightlineKlvBuilder::buildVmtiFields(const MsgVmtiFields& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(6U);
     SightlineFraming::appendU16Le(payload, msg.displayId);
     SightlineFraming::appendU16Le(payload, msg.fields);

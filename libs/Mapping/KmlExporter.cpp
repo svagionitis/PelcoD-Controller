@@ -3,10 +3,13 @@
 
 #include "KmlExporter.h"
 
+#include <cstdint>
 #include <ctime>
+
 #include <fstream>
 #include <iomanip>
 #include <sstream>
+#include <string>
 
 namespace Mapping {
 
@@ -19,13 +22,13 @@ namespace {
         }
         const std::time_t sec = static_cast<std::time_t>(timestampUs / 1000000ULL);
         const auto ms = static_cast<unsigned int>((timestampUs % 1000000ULL) / 1000ULL);
-        std::tm tmBuf {};
+        std::tm tmBuf { };
 #if defined(_WIN32)
         gmtime_s(&tmBuf, &sec);
 #else
         gmtime_r(&sec, &tmBuf);
 #endif
-        char buf[64] {};
+        char buf[64] { };
         std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ", tmBuf.tm_year + 1900, tmBuf.tm_mon + 1,
             tmBuf.tm_mday, tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec, ms);
         return std::string(buf);

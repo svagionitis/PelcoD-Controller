@@ -4,7 +4,12 @@
 #include "NmeaStreamAccumulator.h"
 #include "NmeaTagBlockParser.h"
 
+#include <cstdint>
+
 #include <algorithm>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace Nmea {
 
@@ -22,7 +27,7 @@ std::vector<std::string> NmeaStreamAccumulator::push(const std::vector<std::uint
 std::vector<std::string> NmeaStreamAccumulator::push(const std::uint8_t* data, std::size_t size, bool validateChecksum)
 {
     if (data == nullptr || size == 0U) {
-        return {};
+        return { };
     }
     const std::string_view sv(reinterpret_cast<const char*>(data), size);
     return push(sv, validateChecksum);
@@ -36,8 +41,8 @@ namespace {
             return false;
         }
         if (candidate.front() == '\\') {
-            NmeaTagBlock tb {};
-            std::string_view remainder {};
+            NmeaTagBlock tb { };
+            std::string_view remainder { };
             if (!NmeaTagBlockParser::parse(candidate, tb, remainder)) {
                 return false;
             }
@@ -51,7 +56,7 @@ namespace {
 std::vector<std::string> NmeaStreamAccumulator::push(std::string_view text, bool validateChecksum)
 {
     std::scoped_lock lock(m_mutex);
-    std::vector<std::string> sentences {};
+    std::vector<std::string> sentences { };
 
     m_buffer.append(text);
 

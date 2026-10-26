@@ -7,8 +7,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <iterator>
 #include <utility>
+#include <vector>
 
 namespace Sightline {
 
@@ -148,7 +150,7 @@ namespace {
     /// @return Decoded parameters.
     DeadCalcParams readParams(const std::uint8_t* p) noexcept
     {
-        DeadCalcParams r {};
+        DeadCalcParams r { };
         r.maxGain = SightlineFraming::readFloat32Le(p);
         r.minGain = SightlineFraming::readFloat32Le(&p[4]);
         r.maxOff = SightlineFraming::readS32Le(&p[8]);
@@ -204,7 +206,7 @@ TableFileError SightlineNucTableFile::parseNuc(ByteView data, NucTable& out)
         return sz;
     }
 
-    NucTable t {};
+    NucTable t { };
     t.version = version;
     t.height = height;
     t.width = width;
@@ -234,7 +236,7 @@ TableFileError SightlineNucTableFile::writeNuc(const NucTable& table, std::vecto
         return TableFileError::BadSize;
     }
 
-    std::vector<std::uint8_t> buf {};
+    std::vector<std::uint8_t> buf { };
     buf.reserve(kNucHeader + (count * kNucEntry));
     SightlineFraming::appendU32Le(buf, table.version);
     SightlineFraming::appendU32Le(buf, kNucFileMagic);
@@ -279,7 +281,7 @@ TableFileError SightlineNucTableFile::parseDead(ByteView data, DeadTable& out)
         return sz;
     }
 
-    DeadTable t {};
+    DeadTable t { };
     t.version = version;
     std::size_t off { kDeadHeader };
     if (version >= kDeadParamsVer) {
@@ -293,7 +295,7 @@ TableFileError SightlineNucTableFile::parseDead(ByteView data, DeadTable& out)
     }
     t.pixels.reserve(count);
     for (std::size_t i { 0U }; i < count; ++i) {
-        DeadPixelEntry e {};
+        DeadPixelEntry e { };
         e.row = SightlineFraming::readU16Le(&p[off]);
         e.col = SightlineFraming::readU16Le(&p[off + 2U]);
         if (version < kDeadFileVersion) {
@@ -334,7 +336,7 @@ TableFileError SightlineNucTableFile::writeDead(const DeadTable& table, std::vec
     }
 
     const std::size_t entry { deadEntrySize(table.version) };
-    std::vector<std::uint8_t> buf {};
+    std::vector<std::uint8_t> buf { };
     buf.reserve(deadHeaderSize(table.version) + (table.pixels.size() * entry));
     SightlineFraming::appendU32Le(buf, table.version);
     SightlineFraming::appendU32Le(buf, kNucFileMagic);

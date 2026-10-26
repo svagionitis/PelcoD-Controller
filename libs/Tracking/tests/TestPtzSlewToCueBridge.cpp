@@ -1,17 +1,20 @@
 /// @file TestPtzSlewToCueBridge.cpp
 /// @brief Comprehensive unit tests for PtzSlewToCueBridge.
 
+#include "PelcoDCore/PelcoDFrame.h"
 #include "PtzAutoTracker.h"
 #include "PtzSlewToCueBridge.h"
-#include "PelcoDCore/PelcoDFrame.h"
-#include <gtest/gtest.h>
 #include <cmath>
+#include <gtest/gtest.h>
+
+#include <memory>
 
 using namespace Tracking;
 
 class PtzSlewToCueBridgeTest : public ::testing::Test {
 protected:
-    void SetUp() override {
+    void SetUp() override
+    {
         m_tracker = std::make_unique<PtzAutoTracker>();
         m_config.coarseThresholdDeg = 4.0;
         m_config.settleToleranceDeg = 0.25;
@@ -21,11 +24,12 @@ protected:
     }
 
     std::unique_ptr<PtzAutoTracker> m_tracker;
-    SlewBridgeConfig m_config{};
+    SlewBridgeConfig m_config { };
     std::unique_ptr<PtzSlewToCueBridge> m_bridge;
 };
 
-TEST_F(PtzSlewToCueBridgeTest, InitialStateIsIdle) {
+TEST_F(PtzSlewToCueBridgeTest, InitialStateIsIdle)
+{
     EXPECT_EQ(m_bridge->getState(), SlewState::Idle);
     EXPECT_FALSE(m_bridge->hasCue());
 
@@ -36,7 +40,8 @@ TEST_F(PtzSlewToCueBridgeTest, InitialStateIsIdle) {
     EXPECT_TRUE(batch.rateMotionCmd.empty());
 }
 
-TEST_F(PtzSlewToCueBridgeTest, ShortestAngleDeltaWrapping) {
+TEST_F(PtzSlewToCueBridgeTest, ShortestAngleDeltaWrapping)
+{
     // Basic deltas
     EXPECT_NEAR(PtzSlewToCueBridge::shortestAngleDelta(10.0, 5.0), 5.0, 1e-6);
     EXPECT_NEAR(PtzSlewToCueBridge::shortestAngleDelta(5.0, 10.0), -5.0, 1e-6);
@@ -51,8 +56,9 @@ TEST_F(PtzSlewToCueBridgeTest, ShortestAngleDeltaWrapping) {
     EXPECT_NEAR(std::abs(PtzSlewToCueBridge::shortestAngleDelta(180.0, 0.0)), 180.0, 1e-6);
 }
 
-TEST_F(PtzSlewToCueBridgeTest, StationaryMastDueNorth) {
-    PlatformNavState platform{};
+TEST_F(PtzSlewToCueBridgeTest, StationaryMastDueNorth)
+{
+    PlatformNavState platform { };
     platform.position = Klv::GeoPoint3D { 0.0, 0.0, 100.0 };
     platform.headingDeg = 0.0;
     platform.pitchDeg = 0.0;
@@ -61,7 +67,7 @@ TEST_F(PtzSlewToCueBridgeTest, StationaryMastDueNorth) {
     m_bridge->updatePlatform(platform);
 
     // Target 0.01 deg North (approx 1113 meters), same elevation
-    TargetCue cue{};
+    TargetCue cue { };
     cue.position = Klv::GeoPoint3D { 0.01, 0.0, 100.0 };
     cue.targetRadiusM = 2.5;
     m_bridge->updateCue(cue);
@@ -69,9 +75,9 @@ TEST_F(PtzSlewToCueBridgeTest, StationaryMastDueNorth) {
     EXPECT_TRUE(m_bridge->hasCue());
     EXPECT_EQ(m_bridge->getState(), SlewState::CoarseAcquisition);
 
-    double panDeg{0.0};
-    double tiltDeg{0.0};
-    double slantM{0.0};
+    double panDeg { 0.0 };
+    double tiltDeg { 0.0 };
+    double slantM { 0.0 };
     EXPECT_TRUE(PtzSlewToCueBridge::solveGimbalAngles(platform, cue.position, panDeg, tiltDeg, slantM));
 
     EXPECT_NEAR(panDeg, 0.0, 0.1);
@@ -80,8 +86,9 @@ TEST_F(PtzSlewToCueBridgeTest, StationaryMastDueNorth) {
     EXPECT_LT(slantM, 1120.0);
 }
 
-TEST_F(PtzSlewToCueBridgeTest, PlatformAttitudeCompensation) {
-    PlatformNavState platform{};
+TEST_F(PtzSlewToCueBridgeTest, PlatformAttitudeCompensation)
+{
+    PlatformNavState platform { };
     platform.position = Klv::GeoPoint3D { 37.0, -120.0, 500.0 };
     // Host vehicle heading 090 (East), pitched 5 deg up, rolled 0 deg
     platform.headingDeg = 90.0;
@@ -89,11 +96,11 @@ TEST_F(PtzSlewToCueBridgeTest, PlatformAttitudeCompensation) {
     platform.rollDeg = 0.0;
 
     // Target is due East (same as platform heading), same altitude
-    Klv::GeoPoint3D target{ 37.0, -119.99, 500.0 };
+    Klv::GeoPoint3D target { 37.0, -119.99, 500.0 };
 
-    double panDeg{0.0};
-    double tiltDeg{0.0};
-    double slantM{0.0};
+    double panDeg { 0.0 };
+    double tiltDeg { 0.0 };
+    double slantM { 0.0 };
     EXPECT_TRUE(PtzSlewToCueBridge::solveGimbalAngles(platform, target, panDeg, tiltDeg, slantM));
 
     // Because vehicle heading is East (90 deg), target due East should be at Gimbal Pan = 0 deg
@@ -102,13 +109,14 @@ TEST_F(PtzSlewToCueBridgeTest, PlatformAttitudeCompensation) {
     EXPECT_NEAR(tiltDeg, -5.0, 0.2);
 }
 
-TEST_F(PtzSlewToCueBridgeTest, CoarseSlewTriggersAbsolutePositionCommands) {
-    PlatformNavState platform{};
+TEST_F(PtzSlewToCueBridgeTest, CoarseSlewTriggersAbsolutePositionCommands)
+{
+    PlatformNavState platform { };
     platform.position = Klv::GeoPoint3D { 0.0, 0.0, 50.0 };
     m_bridge->updatePlatform(platform);
 
     // Target 45 degrees East of North
-    TargetCue cue{};
+    TargetCue cue { };
     cue.position = Klv::GeoPoint3D { 0.01, 0.01, 50.0 };
     m_bridge->updateCue(cue);
 
@@ -128,12 +136,13 @@ TEST_F(PtzSlewToCueBridgeTest, CoarseSlewTriggersAbsolutePositionCommands) {
     EXPECT_EQ(batch.coarseTiltCmd[3], 0x4DU);
 }
 
-TEST_F(PtzSlewToCueBridgeTest, FineTrackingAndSettlingTransitions) {
-    PlatformNavState platform{};
+TEST_F(PtzSlewToCueBridgeTest, FineTrackingAndSettlingTransitions)
+{
+    PlatformNavState platform { };
     platform.position = Klv::GeoPoint3D { 0.0, 0.0, 50.0 };
     m_bridge->updatePlatform(platform);
 
-    TargetCue cue{};
+    TargetCue cue { };
     cue.position = Klv::GeoPoint3D { 0.01, 0.0, 50.0 }; // Target at Azimuth 0.0 deg
     m_bridge->updateCue(cue);
 
@@ -152,12 +161,13 @@ TEST_F(PtzSlewToCueBridgeTest, FineTrackingAndSettlingTransitions) {
     EXPECT_EQ(batch.state, SlewState::Settled);
 }
 
-TEST_F(PtzSlewToCueBridgeTest, AutoZoomFramingAdjustment) {
-    PlatformNavState platform{};
+TEST_F(PtzSlewToCueBridgeTest, AutoZoomFramingAdjustment)
+{
+    PlatformNavState platform { };
     platform.position = Klv::GeoPoint3D { 0.0, 0.0, 100.0 };
     m_bridge->updatePlatform(platform);
 
-    TargetCue cue{};
+    TargetCue cue { };
     cue.position = Klv::GeoPoint3D { 0.01, 0.0, 100.0 }; // Slant range ~1113 meters
     cue.targetRadiusM = 5.0; // 5 meter target
     m_bridge->updateCue(cue);
@@ -173,12 +183,13 @@ TEST_F(PtzSlewToCueBridgeTest, AutoZoomFramingAdjustment) {
     EXPECT_EQ(batch.zoomCmd[3], 0x20U);
 }
 
-TEST_F(PtzSlewToCueBridgeTest, ClearCueTransitionsToIdle) {
-    PlatformNavState platform{};
+TEST_F(PtzSlewToCueBridgeTest, ClearCueTransitionsToIdle)
+{
+    PlatformNavState platform { };
     platform.position = Klv::GeoPoint3D { 0.0, 0.0, 100.0 };
     m_bridge->updatePlatform(platform);
 
-    TargetCue cue{};
+    TargetCue cue { };
     cue.position = Klv::GeoPoint3D { 0.01, 0.0, 100.0 };
     m_bridge->updateCue(cue);
     EXPECT_TRUE(m_bridge->hasCue());

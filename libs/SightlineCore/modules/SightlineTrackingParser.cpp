@@ -1,12 +1,14 @@
 /// @file SightlineTrackingParser.cpp
 /// @brief Implementation of Sightline SLA tracking frame deserializers.
 
+#include <cstdint>
+
 #include "SightlineTrackingParser.h"
+#include <vector>
 
 namespace Sightline {
 
-bool SightlineTrackingParser::parseTrackingPosition(
-    const std::vector<std::uint8_t>& packet, MsgTrackingPosition& out)
+bool SightlineTrackingParser::parseTrackingPosition(const std::vector<std::uint8_t>& packet, MsgTrackingPosition& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::TrackingPosition) {
         return false;
@@ -66,8 +68,7 @@ bool SightlineTrackingParser::parseTrackingPosition(
     return true;
 }
 
-bool SightlineTrackingParser::parseTrackingPositions(
-    const std::vector<std::uint8_t>& packet, MsgTrackingPositions& out)
+bool SightlineTrackingParser::parseTrackingPositions(const std::vector<std::uint8_t>& packet, MsgTrackingPositions& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::TrackingPositions) {
         return false;
@@ -89,7 +90,7 @@ bool SightlineTrackingParser::parseTrackingPositions(
             break;
         }
 
-        TrackCoordinate track {};
+        TrackCoordinate track { };
         track.trackId = payload[offset];
         track.centerCol = static_cast<double>(SightlineFraming::readS16Le(payload.data() + offset + 1U));
         track.centerRow = static_cast<double>(SightlineFraming::readS16Le(payload.data() + offset + 3U));
@@ -141,7 +142,7 @@ bool SightlineTrackingParser::parsePositionsExtended(
             break;
         }
 
-        TrackCoordinate track {};
+        TrackCoordinate track { };
         track.trackId = payload[offset];
         track.centerCol = static_cast<double>(SightlineFraming::readS16Le(payload.data() + offset + 1U));
         track.centerRow = static_cast<double>(SightlineFraming::readS16Le(payload.data() + offset + 3U));
@@ -170,8 +171,7 @@ bool SightlineTrackingParser::parsePositionsExtended(
     return true;
 }
 
-bool SightlineTrackingParser::parseTrackTrails(
-    const std::vector<std::uint8_t>& packet, MsgTrackTrails& out)
+bool SightlineTrackingParser::parseTrackTrails(const std::vector<std::uint8_t>& packet, MsgTrackTrails& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::TrackTrails) {
         return false;
@@ -226,8 +226,7 @@ bool SightlineTrackingParser::parseTrackingParameters(
     return true;
 }
 
-bool SightlineTrackingParser::parseStartTracking(
-    const std::vector<std::uint8_t>& packet, MsgStartTracking& out)
+bool SightlineTrackingParser::parseStartTracking(const std::vector<std::uint8_t>& packet, MsgStartTracking& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::StartTracking) {
         return false;
@@ -266,8 +265,7 @@ bool SightlineTrackingParser::parseStartTracking(
     return true;
 }
 
-bool SightlineTrackingParser::parseModifyTracking(
-    const std::vector<std::uint8_t>& packet, MsgModifyTracking& out)
+bool SightlineTrackingParser::parseModifyTracking(const std::vector<std::uint8_t>& packet, MsgModifyTracking& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::ModifyTracking) {
         return false;
@@ -305,8 +303,7 @@ bool SightlineTrackingParser::parseModifyTracking(
     return true;
 }
 
-bool SightlineTrackingParser::parseModifyTrackIndex(
-    const std::vector<std::uint8_t>& packet, MsgModifyTrackIndex& out)
+bool SightlineTrackingParser::parseModifyTrackIndex(const std::vector<std::uint8_t>& packet, MsgModifyTrackIndex& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::ModifyTrackIndex) {
         return false;

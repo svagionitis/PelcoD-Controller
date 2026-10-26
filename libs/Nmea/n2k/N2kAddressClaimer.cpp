@@ -3,7 +3,11 @@
 
 #include "N2kAddressClaimer.h"
 
+#include <cstdint>
 #include <cstring>
+
+#include <chrono>
+#include <mutex>
 
 namespace Nmea::N2k {
 
@@ -30,15 +34,14 @@ void N2kAddressClaimer::processCanFrame(const CanFrame& frame)
 
     // 1. Handle ISO Request (PGN 59904)
     if (hdr.pgn == static_cast<std::uint32_t>(Pgn::IsoRequest) && frame.dlc >= 3U) {
-        const auto reqPgn = static_cast<std::uint32_t>(frame.data[0]) |
-                            (static_cast<std::uint32_t>(frame.data[1]) << 8U) |
-                            (static_cast<std::uint32_t>(frame.data[2]) << 16U);
+        const auto reqPgn = static_cast<std::uint32_t>(frame.data[0])
+            | (static_cast<std::uint32_t>(frame.data[1]) << 8U) | (static_cast<std::uint32_t>(frame.data[2]) << 16U);
 
         if (reqPgn == static_cast<std::uint32_t>(Pgn::IsoAddressClaim)) {
-            const std::uint8_t addrToSend = (m_state == AddressClaimState::Claimed ||
-                                             m_state == AddressClaimState::WaitingForClaim)
-                                                ? m_currentAddress
-                                                : 254U;
+            const std::uint8_t addrToSend
+                = (m_state == AddressClaimState::Claimed || m_state == AddressClaimState::WaitingForClaim)
+                ? m_currentAddress
+                : 254U;
             sendAddressClaim(addrToSend);
         }
         return;
@@ -67,8 +70,8 @@ void N2kAddressClaimer::processCanFrame(const CanFrame& frame)
             return; // Null address; no contention
         }
 
-        if (hdr.sourceAddress == m_currentAddress &&
-            (m_state == AddressClaimState::Claimed || m_state == AddressClaimState::WaitingForClaim)) {
+        if (hdr.sourceAddress == m_currentAddress
+            && (m_state == AddressClaimState::Claimed || m_state == AddressClaimState::WaitingForClaim)) {
             std::uint64_t remoteName { 0ULL };
             for (std::size_t i { 0U }; i < 8U; ++i) {
                 remoteName |= (static_cast<std::uint64_t>(frame.data[i]) << (i * 8U));
@@ -116,11 +119,8 @@ void N2kAddressClaimer::setSendCallback(CanSendCallback cb)
     m_sendCallback = std::move(cb);
 }
 
-std::uint64_t N2kAddressClaimer::composeName(std::uint32_t uniqueNumber,
-                                             std::uint16_t manufacturerCode,
-                                             std::uint8_t deviceFunction,
-                                             std::uint8_t deviceClass,
-                                             bool arbitraryAddress) noexcept
+std::uint64_t N2kAddressClaimer::composeName(std::uint32_t uniqueNumber, std::uint16_t manufacturerCode,
+    std::uint8_t deviceFunction, std::uint8_t deviceClass, bool arbitraryAddress) noexcept
 {
     std::uint64_t name { 0ULL };
     name |= (static_cast<std::uint64_t>(uniqueNumber) & 0x1FFFFFULL);
@@ -136,13 +136,13 @@ std::uint64_t N2kAddressClaimer::composeName(std::uint32_t uniqueNumber,
 
 void N2kAddressClaimer::sendAddressClaim(std::uint8_t address)
 {
-    N2kHeader hdr {};
+    N2kHeader hdr { };
     hdr.priority = 6U;
     hdr.pgn = static_cast<std::uint32_t>(Pgn::IsoAddressClaim);
     hdr.sourceAddress = address;
     hdr.destinationAddress = 0xFFU;
 
-    CanFrame frame {};
+    CanFrame frame { };
     frame.id = hdr.toCanId();
     frame.dlc = 8U;
     for (std::size_t i { 0U }; i < 8U; ++i) {

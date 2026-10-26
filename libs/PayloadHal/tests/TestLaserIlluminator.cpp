@@ -7,6 +7,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <memory>
 
 using namespace PayloadHal;
 
@@ -147,7 +148,7 @@ TEST_F(LaserIlluminatorTest, BeamDivergenceZoom)
 TEST_F(LaserIlluminatorTest, TelemetryCallbacksAndThermalFeedback)
 {
     std::atomic<bool> callbackFired { false };
-    IlluminatorTelemetry lastTelem {};
+    IlluminatorTelemetry lastTelem { };
 
     m_illuminator->registerTelemetryCallback([&](const IlluminatorTelemetry& telem) {
         callbackFired = true;

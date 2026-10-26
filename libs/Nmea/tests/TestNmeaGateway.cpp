@@ -3,26 +3,29 @@
 #include "n2k/N2kDecoder.h"
 #include "n2k/N2kEncoder.h"
 
+#include <chrono>
+#include <cstdint>
 #include <gtest/gtest.h>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Nmea::Gateway {
 
 TEST(TestNmeaGateway, N2kToNmea0183PositionAndCogSog)
 {
-    GatewayConfig cfg {};
+    GatewayConfig cfg { };
     cfg.enableN2kTo0183 = true;
     cfg.enable0183ToN2k = false;
     cfg.defaultDecimationInterval = std::chrono::milliseconds(0); // No decimation for test
 
     NmeaGateway gateway(cfg);
 
-    std::vector<std::string> emittedSentences {};
+    std::vector<std::string> emittedSentences { };
     gateway.setSentenceOutputCallback([&](std::string_view s) { emittedSentences.emplace_back(s); });
 
     // 1. Send Position Rapid (PGN 129025)
-    N2k::PositionRapid pos {};
+    N2k::PositionRapid pos { };
     pos.latitudeDeg = 37.7749;
     pos.longitudeDeg = -122.4194;
     pos.isValid = true;
@@ -37,7 +40,7 @@ TEST(TestNmeaGateway, N2kToNmea0183PositionAndCogSog)
 
     // 2. Send CogSog Rapid (PGN 129026)
     emittedSentences.clear();
-    N2k::CogSogRapid cogSog {};
+    N2k::CogSogRapid cogSog { };
     cogSog.cogDegrees = 180.0;
     cogSog.sogKnots = 12.5;
     cogSog.hasCog = true;
@@ -54,16 +57,16 @@ TEST(TestNmeaGateway, N2kToNmea0183PositionAndCogSog)
 
 TEST(TestNmeaGateway, N2kToNmea0183HeadingAttitudeAndWind)
 {
-    GatewayConfig cfg {};
+    GatewayConfig cfg { };
     cfg.enableN2kTo0183 = true;
     cfg.defaultDecimationInterval = std::chrono::milliseconds(0);
 
     NmeaGateway gateway(cfg);
-    std::vector<std::string> emittedSentences {};
+    std::vector<std::string> emittedSentences { };
     gateway.setSentenceOutputCallback([&](std::string_view s) { emittedSentences.emplace_back(s); });
 
     // Heading
-    N2k::VesselHeading hdg {};
+    N2k::VesselHeading hdg { };
     hdg.headingDegrees = 142.5;
     hdg.hasHeading = true;
     gateway.onCanFrame(N2k::N2kEncoder::encodeVesselHeading(hdg));
@@ -74,7 +77,7 @@ TEST(TestNmeaGateway, N2kToNmea0183HeadingAttitudeAndWind)
 
     // Attitude
     emittedSentences.clear();
-    N2k::Attitude att {};
+    N2k::Attitude att { };
     att.pitchDegrees = 4.2;
     att.rollDegrees = -1.8;
     att.hasPitch = true;
@@ -87,7 +90,7 @@ TEST(TestNmeaGateway, N2kToNmea0183HeadingAttitudeAndWind)
 
     // Wind
     emittedSentences.clear();
-    N2k::WindData wind {};
+    N2k::WindData wind { };
     wind.windSpeedKnots = 15.0;
     wind.windSpeedMps = 15.0 * 0.514444;
     wind.windAngleDegrees = 60.0;
@@ -103,12 +106,12 @@ TEST(TestNmeaGateway, N2kToNmea0183HeadingAttitudeAndWind)
 
 TEST(TestNmeaGateway, Nmea0183ToN2kConversion)
 {
-    GatewayConfig cfg {};
+    GatewayConfig cfg { };
     cfg.enable0183ToN2k = true;
     cfg.defaultDecimationInterval = std::chrono::milliseconds(0);
 
     NmeaGateway gateway(cfg);
-    std::vector<N2k::CanFrame> emittedFrames {};
+    std::vector<N2k::CanFrame> emittedFrames { };
     gateway.setCanFrameOutputCallback([&](const N2k::CanFrame& f) { emittedFrames.push_back(f); });
 
     // 1. Feed GGA
@@ -119,7 +122,7 @@ TEST(TestNmeaGateway, Nmea0183ToN2kConversion)
     auto hdr = N2k::N2kHeader::fromCanId(emittedFrames.back().id);
     EXPECT_EQ(hdr.pgn, static_cast<std::uint32_t>(N2k::Pgn::PositionRapidUpdate));
 
-    N2k::PositionRapid pos {};
+    N2k::PositionRapid pos { };
     ASSERT_TRUE(N2k::N2kDecoder::parsePgn129025(emittedFrames.back().data.data(), emittedFrames.back().dlc, pos));
     EXPECT_TRUE(pos.isValid);
     EXPECT_NEAR(pos.latitudeDeg, 48.1173, 1e-4);
@@ -134,7 +137,7 @@ TEST(TestNmeaGateway, Nmea0183ToN2kConversion)
     hdr = N2k::N2kHeader::fromCanId(emittedFrames.back().id);
     EXPECT_EQ(hdr.pgn, static_cast<std::uint32_t>(N2k::Pgn::VesselHeading));
 
-    N2k::VesselHeading decodedHdg {};
+    N2k::VesselHeading decodedHdg { };
     ASSERT_TRUE(
         N2k::N2kDecoder::parsePgn127250(emittedFrames.back().data.data(), emittedFrames.back().dlc, decodedHdg));
     EXPECT_TRUE(decodedHdg.hasHeading);
@@ -149,7 +152,7 @@ TEST(TestNmeaGateway, Nmea0183ToN2kConversion)
     hdr = N2k::N2kHeader::fromCanId(emittedFrames.back().id);
     EXPECT_EQ(hdr.pgn, static_cast<std::uint32_t>(N2k::Pgn::Attitude));
 
-    N2k::Attitude att {};
+    N2k::Attitude att { };
     ASSERT_TRUE(N2k::N2kDecoder::parsePgn127257(emittedFrames.back().data.data(), emittedFrames.back().dlc, att));
     EXPECT_TRUE(att.hasPitch);
     EXPECT_TRUE(att.hasRoll);
@@ -159,7 +162,7 @@ TEST(TestNmeaGateway, Nmea0183ToN2kConversion)
 
 TEST(TestNmeaGateway, RateDecimationThrottling)
 {
-    GatewayConfig cfg {};
+    GatewayConfig cfg { };
     cfg.enableN2kTo0183 = true;
     cfg.defaultDecimationInterval = std::chrono::milliseconds(500); // 500 ms limit
 
@@ -167,7 +170,7 @@ TEST(TestNmeaGateway, RateDecimationThrottling)
     int sentenceCount { 0 };
     gateway.setSentenceOutputCallback([&](std::string_view) { ++sentenceCount; });
 
-    N2k::VesselHeading hdg {};
+    N2k::VesselHeading hdg { };
     hdg.headingDegrees = 100.0;
     hdg.hasHeading = true;
     const auto frame = N2k::N2kEncoder::encodeVesselHeading(hdg);
@@ -185,16 +188,16 @@ TEST(TestNmeaGateway, RateDecimationThrottling)
 
 TEST(TestNmeaGateway, N2kToNmea0183RudderAndSystemTime)
 {
-    GatewayConfig cfg {};
+    GatewayConfig cfg { };
     cfg.enableN2kTo0183 = true;
     cfg.defaultDecimationInterval = std::chrono::milliseconds(0);
 
     NmeaGateway gateway(cfg);
-    std::vector<std::string> emitted {};
+    std::vector<std::string> emitted { };
     gateway.setSentenceOutputCallback([&](std::string_view s) { emitted.emplace_back(s); });
 
     // 1. Rudder PGN 127245
-    N2k::RudderData rudder {};
+    N2k::RudderData rudder { };
     rudder.positionDegrees = -8.5;
     rudder.hasPosition = true;
     gateway.onCanFrame(N2k::N2kEncoder::encodeRudder(rudder));
@@ -207,7 +210,7 @@ TEST(TestNmeaGateway, N2kToNmea0183RudderAndSystemTime)
 
     // 2. System Time PGN 126992
     emitted.clear();
-    N2k::SystemTimeData sysTime {};
+    N2k::SystemTimeData sysTime { };
     sysTime.systemDateDays = 20614U; // 2026-06-10
     sysTime.secondsSinceMidnight = 57612.0; // 16:00:12
     sysTime.hasDate = true;
@@ -222,7 +225,7 @@ TEST(TestNmeaGateway, N2kToNmea0183RudderAndSystemTime)
 
     // 3. Mag Variation PGN 127258
     emitted.clear();
-    N2k::MagneticVariation magVar {};
+    N2k::MagneticVariation magVar { };
     magVar.variationDegrees = -2.5;
     magVar.hasVariation = true;
     gateway.onCanFrame(N2k::N2kEncoder::encodeMagneticVariation(magVar));
@@ -236,12 +239,12 @@ TEST(TestNmeaGateway, N2kToNmea0183RudderAndSystemTime)
 
 TEST(TestNmeaGateway, Nmea0183ToN2kRudderAndSystemTime)
 {
-    GatewayConfig cfg {};
+    GatewayConfig cfg { };
     cfg.enable0183ToN2k = true;
     cfg.defaultDecimationInterval = std::chrono::milliseconds(0);
 
     NmeaGateway gateway(cfg);
-    std::vector<N2k::CanFrame> emitted {};
+    std::vector<N2k::CanFrame> emitted { };
     gateway.setCanFrameOutputCallback([&](const N2k::CanFrame& f) { emitted.push_back(f); });
 
     // 1. Feed RSA
@@ -252,7 +255,7 @@ TEST(TestNmeaGateway, Nmea0183ToN2kRudderAndSystemTime)
     auto hdr = N2k::N2kHeader::fromCanId(emitted.back().id);
     EXPECT_EQ(hdr.pgn, static_cast<std::uint32_t>(N2k::Pgn::Rudder));
 
-    N2k::RudderData rOut {};
+    N2k::RudderData rOut { };
     ASSERT_TRUE(N2k::N2kDecoder::parsePgn127245(emitted.back().data.data(), emitted.back().dlc, rOut));
     EXPECT_TRUE(rOut.hasPosition);
     EXPECT_NEAR(rOut.positionDegrees, 12.5, 0.05);
@@ -266,7 +269,7 @@ TEST(TestNmeaGateway, Nmea0183ToN2kRudderAndSystemTime)
     hdr = N2k::N2kHeader::fromCanId(emitted.back().id);
     EXPECT_EQ(hdr.pgn, static_cast<std::uint32_t>(N2k::Pgn::SystemTime));
 
-    N2k::SystemTimeData tOut {};
+    N2k::SystemTimeData tOut { };
     ASSERT_TRUE(N2k::N2kDecoder::parsePgn126992(emitted.back().data.data(), emitted.back().dlc, tOut));
     EXPECT_TRUE(tOut.hasTime);
     EXPECT_TRUE(tOut.hasDate);

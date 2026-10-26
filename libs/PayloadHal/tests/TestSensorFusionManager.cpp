@@ -5,7 +5,9 @@
 #include "sim/SimulatedPayload.h"
 
 #include <cmath>
+
 #include <memory>
+#include <string>
 
 using namespace PayloadHal;
 

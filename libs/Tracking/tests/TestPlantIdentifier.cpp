@@ -5,6 +5,7 @@
 #include "PlantIdentifier.h"
 
 #include <cmath>
+#include <cstddef>
 #include <gtest/gtest.h>
 #include <iostream>
 #include <vector>
@@ -20,7 +21,7 @@ TEST(PlantIdentifierTest, ChirpGeneration)
 {
     std::cout << "[Test] Chirp signal generation and envelope tapering...\n";
 
-    ChirpConfig config {};
+    ChirpConfig config { };
     config.startFreqHz = 0.5;
     config.endFreqHz = 10.0;
     config.durationSec = 4.0;
@@ -68,7 +69,7 @@ TEST(PlantIdentifierTest, FirstOrderPlantIdentification)
 {
     std::cout << "[Test] First-order physical plant identification (K=2.0, Tau=0.1s)...\n";
 
-    ChirpConfig config {};
+    ChirpConfig config { };
     config.startFreqHz = 0.2;
     config.endFreqHz = 10.0;
     config.durationSec = 8.0;
@@ -122,7 +123,7 @@ TEST(PlantIdentifierTest, SecondOrderResonanceDetection)
 {
     std::cout << "[Test] Second-order mechanical plant with structural resonance at 4.0 Hz...\n";
 
-    ChirpConfig config {};
+    ChirpConfig config { };
     config.startFreqHz = 0.2;
     config.endFreqHz = 12.0;
     config.durationSec = 10.0;
@@ -180,7 +181,7 @@ TEST(PlantIdentifierTest, CoherenceEstimation)
 {
     std::cout << "[Test] Spectral coherence under clean vs noisy measurements...\n";
 
-    ChirpConfig config {};
+    ChirpConfig config { };
     config.startFreqHz = 0.5;
     config.endFreqHz = 8.0;
     config.durationSec = 6.0;
@@ -241,7 +242,7 @@ TEST(PlantIdentifierTest, PidAutoTuningRules)
     PlantIdentifier identifier;
 
     // Simulate an identification result with Ku = 10.0, Tu = 0.5s, K=1.5, Tau=0.2s, Td=0.05s
-    ChirpConfig config {};
+    ChirpConfig config { };
     config.startFreqHz = 0.2;
     config.endFreqHz = 10.0;
     config.durationSec = 6.0;
@@ -301,7 +302,7 @@ TEST(PlantIdentifierTest, ChirpCalibratorWorkflowAndCancel)
     int commandedTiltDir = 0;
     int commandedTiltSpeed = 0;
 
-    ChirpConfig config {};
+    ChirpConfig config { };
     config.durationSec = 2.0;
     config.sampleRateHz = 50.0;
     config.segmentSize = 64U;

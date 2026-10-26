@@ -7,13 +7,17 @@
 #include "PayloadHal/ILaserRangeFinder.h"
 #include "Transport/ITransport.h"
 
+#include <cstdint>
+
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <string>
 #include <thread>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -31,7 +35,7 @@ public:
     /// @brief Constructs adapter wrapping a physical or virtual stream transport.
     /// @param[in] transport Shared pointer to underlying ITransport channel.
     /// @param[in] config Operational, safety, and protocol configuration.
-    explicit SerialLrfAdapter(std::shared_ptr<Transport::ITransport> transport, SerialLrfConfig config = {});
+    explicit SerialLrfAdapter(std::shared_ptr<Transport::ITransport> transport, SerialLrfConfig config = { });
 
     ~SerialLrfAdapter() override;
 
@@ -89,12 +93,12 @@ private:
     double m_gateMin { 0.5 };
     double m_gateMax { 30000.0 };
 
-    std::chrono::steady_clock::time_point m_lastActivityTime {};
-    std::chrono::steady_clock::time_point m_lastContinuousPulseTime {};
+    std::chrono::steady_clock::time_point m_lastActivityTime { };
+    std::chrono::steady_clock::time_point m_lastContinuousPulseTime { };
 
-    std::optional<LrfTargetMeasurement> m_lastMeasurement {};
-    MeasurementCallback m_measurementCb {};
-    StateCallback m_stateCb {};
+    std::optional<LrfTargetMeasurement> m_lastMeasurement { };
+    MeasurementCallback m_measurementCb { };
+    StateCallback m_stateCb { };
 
     std::atomic<bool> m_running { false };
     std::thread m_workerThread;

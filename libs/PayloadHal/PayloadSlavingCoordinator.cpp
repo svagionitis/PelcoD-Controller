@@ -9,116 +9,113 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace PayloadHal {
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
-constexpr double kDegToRad = kPi / 180.0;
-constexpr double kRadToDeg = 180.0 / kPi;
-constexpr double kEpsilon = 1e-9;
+    constexpr double kPi = 3.14159265358979323846;
+    constexpr double kDegToRad = kPi / 180.0;
+    constexpr double kRadToDeg = 180.0 / kPi;
+    constexpr double kEpsilon = 1e-9;
 
-double degToRad(double deg) noexcept
-{
-    return deg * kDegToRad;
-}
-
-double radToDeg(double rad) noexcept
-{
-    return rad * kRadToDeg;
-}
-
-double normalizeAngleDeg(double angle) noexcept
-{
-    while (angle > 180.0) {
-        angle -= 360.0;
-    }
-    while (angle < -180.0) {
-        angle += 360.0;
-    }
-    return angle;
-}
-
-struct Mat3x3 {
-    double m[3][3] { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } };
-
-    Vector3D multiply(const Vector3D& v) const noexcept
+    double degToRad(double deg) noexcept
     {
-        return {
-            m[0][0] * v.x + m[0][1] * v.y + m[0][2] * v.z,
-            m[1][0] * v.x + m[1][1] * v.y + m[1][2] * v.z,
-            m[2][0] * v.x + m[2][1] * v.y + m[2][2] * v.z
-        };
+        return deg * kDegToRad;
     }
 
-    Mat3x3 transpose() const noexcept
+    double radToDeg(double rad) noexcept
     {
-        Mat3x3 res {};
-        for (int r = 0; r < 3; ++r) {
-            for (int c = 0; c < 3; ++c) {
-                res.m[r][c] = m[c][r];
-            }
+        return rad * kRadToDeg;
+    }
+
+    double normalizeAngleDeg(double angle) noexcept
+    {
+        while (angle > 180.0) {
+            angle -= 360.0;
         }
-        return res;
+        while (angle < -180.0) {
+            angle += 360.0;
+        }
+        return angle;
     }
-};
 
-Mat3x3 eulerZyxToMatrix(double yawDeg, double pitchDeg, double rollDeg) noexcept
-{
-    const double psi = degToRad(yawDeg);
-    const double theta = degToRad(pitchDeg);
-    const double phi = degToRad(rollDeg);
+    struct Mat3x3 {
+        double m[3][3] { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } };
 
-    const double cPsi = std::cos(psi);
-    const double sPsi = std::sin(psi);
-    const double cTheta = std::cos(theta);
-    const double sTheta = std::sin(theta);
-    const double cPhi = std::cos(phi);
-    const double sPhi = std::sin(phi);
+        Vector3D multiply(const Vector3D& v) const noexcept
+        {
+            return { m[0][0] * v.x + m[0][1] * v.y + m[0][2] * v.z, m[1][0] * v.x + m[1][1] * v.y + m[1][2] * v.z,
+                m[2][0] * v.x + m[2][1] * v.y + m[2][2] * v.z };
+        }
 
-    Mat3x3 r {};
-    r.m[0][0] = cPsi * cTheta;
-    r.m[0][1] = cPsi * sTheta * sPhi - sPsi * cPhi;
-    r.m[0][2] = cPsi * sTheta * cPhi + sPsi * sPhi;
-
-    r.m[1][0] = sPsi * cTheta;
-    r.m[1][1] = sPsi * sTheta * sPhi + cPsi * cPhi;
-    r.m[1][2] = sPsi * sTheta * cPhi - cPsi * sPhi;
-
-    r.m[2][0] = -sTheta;
-    r.m[2][1] = cTheta * sPhi;
-    r.m[2][2] = cTheta * cPhi;
-
-    return r;
-}
-
-Vector3D gimbalAnglesToUnitVector(double panDeg, double tiltDeg) noexcept
-{
-    const double panRad = degToRad(panDeg);
-    const double tiltRad = degToRad(tiltDeg);
-
-    const double cTilt = std::cos(tiltRad);
-    return {
-        cTilt * std::cos(panRad),
-        cTilt * std::sin(panRad),
-        -std::sin(tiltRad)
+        Mat3x3 transpose() const noexcept
+        {
+            Mat3x3 res { };
+            for (int r = 0; r < 3; ++r) {
+                for (int c = 0; c < 3; ++c) {
+                    res.m[r][c] = m[c][r];
+                }
+            }
+            return res;
+        }
     };
-}
 
-void unitVectorToGimbalAngles(const Vector3D& v, double& panDeg, double& tiltDeg) noexcept
-{
-    const double horiz = std::sqrt(v.x * v.x + v.y * v.y);
-    if (horiz < kEpsilon && std::abs(v.z) < kEpsilon) {
-        panDeg = 0.0;
-        tiltDeg = 0.0;
-        return;
+    Mat3x3 eulerZyxToMatrix(double yawDeg, double pitchDeg, double rollDeg) noexcept
+    {
+        const double psi = degToRad(yawDeg);
+        const double theta = degToRad(pitchDeg);
+        const double phi = degToRad(rollDeg);
+
+        const double cPsi = std::cos(psi);
+        const double sPsi = std::sin(psi);
+        const double cTheta = std::cos(theta);
+        const double sTheta = std::sin(theta);
+        const double cPhi = std::cos(phi);
+        const double sPhi = std::sin(phi);
+
+        Mat3x3 r { };
+        r.m[0][0] = cPsi * cTheta;
+        r.m[0][1] = cPsi * sTheta * sPhi - sPsi * cPhi;
+        r.m[0][2] = cPsi * sTheta * cPhi + sPsi * sPhi;
+
+        r.m[1][0] = sPsi * cTheta;
+        r.m[1][1] = sPsi * sTheta * sPhi + cPsi * cPhi;
+        r.m[1][2] = sPsi * sTheta * cPhi - cPsi * sPhi;
+
+        r.m[2][0] = -sTheta;
+        r.m[2][1] = cTheta * sPhi;
+        r.m[2][2] = cTheta * cPhi;
+
+        return r;
     }
 
-    panDeg = radToDeg(std::atan2(v.y, v.x));
-    tiltDeg = radToDeg(std::atan2(-v.z, horiz));
-    panDeg = normalizeAngleDeg(panDeg);
-}
+    Vector3D gimbalAnglesToUnitVector(double panDeg, double tiltDeg) noexcept
+    {
+        const double panRad = degToRad(panDeg);
+        const double tiltRad = degToRad(tiltDeg);
+
+        const double cTilt = std::cos(tiltRad);
+        return { cTilt * std::cos(panRad), cTilt * std::sin(panRad), -std::sin(tiltRad) };
+    }
+
+    void unitVectorToGimbalAngles(const Vector3D& v, double& panDeg, double& tiltDeg) noexcept
+    {
+        const double horiz = std::sqrt(v.x * v.x + v.y * v.y);
+        if (horiz < kEpsilon && std::abs(v.z) < kEpsilon) {
+            panDeg = 0.0;
+            tiltDeg = 0.0;
+            return;
+        }
+
+        panDeg = radToDeg(std::atan2(v.y, v.x));
+        tiltDeg = radToDeg(std::atan2(-v.z, horiz));
+        panDeg = normalizeAngleDeg(panDeg);
+    }
 
 } // namespace
 
@@ -325,23 +322,15 @@ double PayloadSlavingCoordinator::handoverTimeoutSec() const noexcept
     return m_handoverTimeoutSec;
 }
 
-std::optional<SlavedLookAngles> PayloadSlavingCoordinator::computeSlaveLookAngles(
-    const std::string& masterId,
-    const std::string& slaveId,
-    double masterPanDeg,
-    double masterTiltDeg,
-    double slantRangeMeters) const
+std::optional<SlavedLookAngles> PayloadSlavingCoordinator::computeSlaveLookAngles(const std::string& masterId,
+    const std::string& slaveId, double masterPanDeg, double masterTiltDeg, double slantRangeMeters) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     return computeSlaveLookAnglesLocked(masterId, slaveId, masterPanDeg, masterTiltDeg, slantRangeMeters);
 }
 
-std::optional<SlavedLookAngles> PayloadSlavingCoordinator::computeSlaveLookAnglesLocked(
-    const std::string& masterId,
-    const std::string& slaveId,
-    double masterPanDeg,
-    double masterTiltDeg,
-    double slantRangeMeters) const
+std::optional<SlavedLookAngles> PayloadSlavingCoordinator::computeSlaveLookAnglesLocked(const std::string& masterId,
+    const std::string& slaveId, double masterPanDeg, double masterTiltDeg, double slantRangeMeters) const
 {
     auto mIt = m_stations.find(masterId);
     auto sIt = m_stations.find(slaveId);
@@ -353,14 +342,10 @@ std::optional<SlavedLookAngles> PayloadSlavingCoordinator::computeSlaveLookAngle
     const auto& slave = sIt->second;
 
     const Mat3x3 rMountMaster = eulerZyxToMatrix(
-        master.mountOrientation.yawDeg,
-        master.mountOrientation.pitchDeg,
-        master.mountOrientation.rollDeg);
+        master.mountOrientation.yawDeg, master.mountOrientation.pitchDeg, master.mountOrientation.rollDeg);
 
     const Mat3x3 rMountSlave = eulerZyxToMatrix(
-        slave.mountOrientation.yawDeg,
-        slave.mountOrientation.pitchDeg,
-        slave.mountOrientation.rollDeg);
+        slave.mountOrientation.yawDeg, slave.mountOrientation.pitchDeg, slave.mountOrientation.rollDeg);
 
     // Compute unit pointing vector of master in its local gimbal frame
     const Vector3D uGimbalM = gimbalAnglesToUnitVector(masterPanDeg, masterTiltDeg);
@@ -368,7 +353,7 @@ std::optional<SlavedLookAngles> PayloadSlavingCoordinator::computeSlaveLookAngle
     // Transform into host platform body frame
     const Vector3D uBodyM = rMountMaster.multiply(uGimbalM);
 
-    SlavedLookAngles result {};
+    SlavedLookAngles result { };
 
     // Check for infinite range / collimated LOS or zero range
     const bool isCollimated = (m_mode == SlavingMode::CollimatedLOS) || (slantRangeMeters <= kEpsilon);
@@ -388,23 +373,16 @@ std::optional<SlavedLookAngles> PayloadSlavingCoordinator::computeSlaveLookAngle
         result.isCollimated = true;
     } else {
         // Target position in platform body frame
-        const Vector3D pTargetBody = {
-            master.platformOffsetM.x + slantRangeMeters * uBodyM.x,
+        const Vector3D pTargetBody = { master.platformOffsetM.x + slantRangeMeters * uBodyM.x,
             master.platformOffsetM.y + slantRangeMeters * uBodyM.y,
-            master.platformOffsetM.z + slantRangeMeters * uBodyM.z
-        };
+            master.platformOffsetM.z + slantRangeMeters * uBodyM.z };
 
         // Vector from slave station to target in platform body frame
-        const Vector3D vSlaveBody = {
-            pTargetBody.x - slave.platformOffsetM.x,
-            pTargetBody.y - slave.platformOffsetM.y,
-            pTargetBody.z - slave.platformOffsetM.z
-        };
+        const Vector3D vSlaveBody = { pTargetBody.x - slave.platformOffsetM.x, pTargetBody.y - slave.platformOffsetM.y,
+            pTargetBody.z - slave.platformOffsetM.z };
 
-        const double distS = std::sqrt(
-            vSlaveBody.x * vSlaveBody.x +
-            vSlaveBody.y * vSlaveBody.y +
-            vSlaveBody.z * vSlaveBody.z);
+        const double distS
+            = std::sqrt(vSlaveBody.x * vSlaveBody.x + vSlaveBody.y * vSlaveBody.y + vSlaveBody.z * vSlaveBody.z);
 
         const Mat3x3 rSlaveTranspose = rMountSlave.transpose();
         const Vector3D vGimbalS = rSlaveTranspose.multiply(vSlaveBody);
@@ -460,7 +438,7 @@ HandoverState PayloadSlavingCoordinator::handoverState() const noexcept
 SlavingStatusReport PayloadSlavingCoordinator::statusReport() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    SlavingStatusReport rep {};
+    SlavingStatusReport rep { };
     rep.mode = m_mode;
     rep.activeMasterId = m_masterId;
     rep.handoverState = m_handoverState;
@@ -477,7 +455,8 @@ SlavingStatusReport PayloadSlavingCoordinator::statusReport() const
         auto mIt = m_stations.find(m_masterId);
         if (mIt != m_stations.end() && mIt->second.payload && mIt->second.payload->panTilt()) {
             const auto tel = mIt->second.payload->panTilt()->currentTelemetry();
-            rep.masterDistanceToBlindZoneDeg = distanceToNearestBlindZoneLocked(m_masterId, tel.panAngleDeg, tel.tiltAngleDeg);
+            rep.masterDistanceToBlindZoneDeg
+                = distanceToNearestBlindZoneLocked(m_masterId, tel.panAngleDeg, tel.tiltAngleDeg);
         }
     }
 
@@ -553,12 +532,12 @@ double PayloadSlavingCoordinator::distanceToNearestBlindZoneLocked(
             if (maxPan - minPan < 360.0) {
                 const double distPanMin = std::abs(panDeg - minPan);
                 const double distPanMax = std::abs(maxPan - panDeg);
-                minDist = std::min({minDist, distPanMin, distPanMax});
+                minDist = std::min({ minDist, distPanMin, distPanMax });
             }
             const double distTiltMin = std::abs(tiltDeg - minTilt);
             const double distTiltMax = std::abs(maxTilt - tiltDeg);
 
-            minDist = std::min({minDist, distTiltMin, distTiltMax});
+            minDist = std::min({ minDist, distTiltMin, distTiltMax });
         }
     }
 
@@ -566,12 +545,9 @@ double PayloadSlavingCoordinator::distanceToNearestBlindZoneLocked(
 }
 
 std::string PayloadSlavingCoordinator::selectBestCandidateSlaveLocked(
-    const std::string& currentMasterId,
-    double targetPanDeg,
-    double targetTiltDeg,
-    double slantRangeMeters) const
+    const std::string& currentMasterId, double targetPanDeg, double targetTiltDeg, double slantRangeMeters) const
 {
-    std::string bestCandidateId {};
+    std::string bestCandidateId { };
     double minSlewDist = std::numeric_limits<double>::max();
 
     for (const auto& [id, st] : m_stations) {
@@ -580,7 +556,8 @@ std::string PayloadSlavingCoordinator::selectBestCandidateSlaveLocked(
         }
 
         // Compute where this candidate would have to look
-        const auto lookOpt = computeSlaveLookAnglesLocked(currentMasterId, id, targetPanDeg, targetTiltDeg, slantRangeMeters);
+        const auto lookOpt
+            = computeSlaveLookAnglesLocked(currentMasterId, id, targetPanDeg, targetTiltDeg, slantRangeMeters);
         if (!lookOpt.has_value()) {
             continue;
         }
@@ -687,7 +664,8 @@ void PayloadSlavingCoordinator::update(double dtSeconds)
                 break;
             }
 
-            const auto lookOpt = computeSlaveLookAnglesLocked(m_masterId, m_candidateSlaveId, masterPan, masterTilt, rangeM);
+            const auto lookOpt
+                = computeSlaveLookAnglesLocked(m_masterId, m_candidateSlaveId, masterPan, masterTilt, rangeM);
             if (!lookOpt.has_value()) {
                 m_handoverState = HandoverState::HandoffFailed;
                 break;

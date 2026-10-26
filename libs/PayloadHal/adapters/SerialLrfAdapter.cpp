@@ -3,7 +3,15 @@
 
 #include "SerialLrfAdapter.h"
 
+#include <cstdint>
+
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -102,7 +110,7 @@ DeviceState SerialLrfAdapter::state() const noexcept
 
 DeviceInfo SerialLrfAdapter::info() const noexcept
 {
-    DeviceInfo d {};
+    DeviceInfo d { };
     d.manufacturer = "Serial LRF Hardware";
     switch (m_config.protocolType) {
     case LrfProtocolType::Nmea:

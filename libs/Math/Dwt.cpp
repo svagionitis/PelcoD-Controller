@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <vector>
 
 namespace Math {
 
@@ -18,7 +20,7 @@ namespace {
 
     WaveletFilters getFilters(WaveletType wavelet)
     {
-        WaveletFilters f {};
+        WaveletFilters f { };
         if (wavelet == WaveletType::Haar) {
             const double invSqrt2 = 1.0 / std::sqrt(2.0);
             f.h = { invSqrt2, invSqrt2 };
@@ -90,7 +92,7 @@ std::vector<double> idwt1D(
     const std::vector<double>& cA, const std::vector<double>& cD, WaveletType wavelet, std::size_t targetLength)
 {
     if (cA.empty() || cD.empty() || cA.size() != cD.size()) {
-        return {};
+        return { };
     }
 
     const std::size_t half = cA.size();
@@ -125,7 +127,7 @@ std::vector<double> idwt1D(
 
 WaveletDecomposition1D wavedec(const std::vector<double>& signal, std::size_t levels, WaveletType wavelet)
 {
-    WaveletDecomposition1D decomp {};
+    WaveletDecomposition1D decomp { };
     decomp.originalLength = signal.size();
     decomp.wavelet = wavelet;
 
@@ -137,8 +139,8 @@ WaveletDecomposition1D wavedec(const std::vector<double>& signal, std::size_t le
     decomp.cD.reserve(levels);
 
     for (std::size_t l = 0U; l < levels; ++l) {
-        std::vector<double> nextA {};
-        std::vector<double> nextD {};
+        std::vector<double> nextA { };
+        std::vector<double> nextD { };
         dwt1D(curApprox, nextA, nextD, wavelet);
 
         decomp.cD.push_back(std::move(nextD));
@@ -217,7 +219,7 @@ std::vector<double> waveletDenoise(const std::vector<double>& signal, std::size_
 
 WaveletCoefficients2D dwt2D(const std::vector<double>& image, std::size_t rows, std::size_t cols, WaveletType wavelet)
 {
-    WaveletCoefficients2D result {};
+    WaveletCoefficients2D result { };
     if (rows == 0U || cols == 0U || (rows % 2U) != 0U || (cols % 2U) != 0U || image.size() != (rows * cols)) {
         return result;
     }
@@ -291,7 +293,7 @@ std::vector<double> idwt2D(const WaveletCoefficients2D& coeffs, WaveletType wave
     const std::size_t halfRows = coeffs.rows;
     const std::size_t halfCols = coeffs.cols;
     if (halfRows == 0U || halfCols == 0U) {
-        return {};
+        return { };
     }
 
     const std::size_t rows = halfRows * 2U;

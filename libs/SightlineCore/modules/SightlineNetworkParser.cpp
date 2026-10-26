@@ -1,7 +1,11 @@
 /// @file SightlineNetworkParser.cpp
 /// @brief Implementation of Sightline Network module response deserializer.
 
+#include <cstdint>
+
 #include "SightlineNetworkParser.h"
+#include <string>
+#include <vector>
 
 namespace Sightline {
 
@@ -64,10 +68,8 @@ bool SightlineNetworkParser::parseEthernetDisplay(
     }
 
     out.protocol = payload[0U];
-    out.ipAddress = (static_cast<std::uint32_t>(payload[1U]) << 24U)
-        | (static_cast<std::uint32_t>(payload[2U]) << 16U)
-        | (static_cast<std::uint32_t>(payload[3U]) << 8U)
-        | static_cast<std::uint32_t>(payload[4U]);
+    out.ipAddress = (static_cast<std::uint32_t>(payload[1U]) << 24U) | (static_cast<std::uint32_t>(payload[2U]) << 16U)
+        | (static_cast<std::uint32_t>(payload[3U]) << 8U) | static_cast<std::uint32_t>(payload[4U]);
     out.port = SightlineFraming::readU16Le(payload.data() + 5U);
     out.displayId = SightlineFraming::readU16Le(payload.data() + 7U);
     out.maxPacket = SightlineFraming::readU16Le(payload.data() + 9U);
@@ -75,8 +77,7 @@ bool SightlineNetworkParser::parseEthernetDisplay(
     return true;
 }
 
-bool SightlineNetworkParser::parseNetworkList(
-    const std::vector<std::uint8_t>& packet, MsgCurrentNetworkList& out)
+bool SightlineNetworkParser::parseNetworkList(const std::vector<std::uint8_t>& packet, MsgCurrentNetworkList& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::CurrentNetworkList) {
         return false;
@@ -92,7 +93,7 @@ bool SightlineNetworkParser::parseNetworkList(
 
     std::size_t offset { 1U };
     while (offset < payload.size() && out.interfaceNames.size() < out.numInterfaces) {
-        std::string name {};
+        std::string name { };
         while (offset < payload.size() && payload[offset] != '\0') {
             name.push_back(static_cast<char>(payload[offset++]));
         }

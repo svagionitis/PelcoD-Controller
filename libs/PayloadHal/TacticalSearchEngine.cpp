@@ -5,40 +5,46 @@
 #include "GeoreferenceUtils.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace PayloadHal {
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
+    constexpr double kPi = 3.14159265358979323846;
 
-double degToRad(double deg)
-{
-    return deg * (kPi / 180.0);
-}
-
-double normalizeAngleDeg(double angle)
-{
-    while (angle > 180.0) {
-        angle -= 360.0;
+    double degToRad(double deg)
+    {
+        return deg * (kPi / 180.0);
     }
-    while (angle < -180.0) {
-        angle += 360.0;
-    }
-    return angle;
-}
 
-double angularDiffDeg(double a, double b)
-{
-    return std::abs(normalizeAngleDeg(a - b));
-}
+    double normalizeAngleDeg(double angle)
+    {
+        while (angle > 180.0) {
+            angle -= 360.0;
+        }
+        while (angle < -180.0) {
+            angle += 360.0;
+        }
+        return angle;
+    }
+
+    double angularDiffDeg(double a, double b)
+    {
+        return std::abs(normalizeAngleDeg(a - b));
+    }
 
 } // namespace
 
-TacticalSearchEngine::TacticalSearchEngine(std::shared_ptr<IPanTiltUnit> ptu,
-                                           std::shared_ptr<ICameraPayload> camera,
-                                           std::shared_ptr<ILaserRangeFinder> lrf)
+TacticalSearchEngine::TacticalSearchEngine(
+    std::shared_ptr<IPanTiltUnit> ptu, std::shared_ptr<ICameraPayload> camera, std::shared_ptr<ILaserRangeFinder> lrf)
     : m_ptu(std::move(ptu))
     , m_camera(std::move(camera))
     , m_lrf(std::move(lrf))
@@ -175,7 +181,8 @@ void TacticalSearchEngine::pausePattern()
     TacticalEngineStatus stCopy;
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        if (m_status.state == TacticalEngineState::ExecutingPattern || m_status.state == TacticalEngineState::SlewingToCue) {
+        if (m_status.state == TacticalEngineState::ExecutingPattern
+            || m_status.state == TacticalEngineState::SlewingToCue) {
             m_status.state = TacticalEngineState::Paused;
             m_status.statusMessage = "Pattern paused by operator";
             cb = m_statusCb;
@@ -298,9 +305,8 @@ bool TacticalSearchEngine::cancelCue(const std::string& cueId)
         return true;
     }
 
-    const auto it = std::remove_if(m_cueQueue.begin(), m_cueQueue.end(), [&](const TargetCue& c) {
-        return c.cueId == cueId;
-    });
+    const auto it
+        = std::remove_if(m_cueQueue.begin(), m_cueQueue.end(), [&](const TargetCue& c) { return c.cueId == cueId; });
     const bool erased = (it != m_cueQueue.end());
     m_cueQueue.erase(it, m_cueQueue.end());
     m_status.pendingCueCount = m_cueQueue.size();
@@ -473,8 +479,7 @@ void TacticalSearchEngine::stepPattern(double dtSec)
             m_patternLegTraversedDeg = 0.0;
             m_patternLegIndex++;
 
-            const double curRadius = std::hypot(
-                m_patternCurrentPanDeg - m_squareConfig.centerAzimuthDeg,
+            const double curRadius = std::hypot(m_patternCurrentPanDeg - m_squareConfig.centerAzimuthDeg,
                 m_patternCurrentTiltDeg - m_squareConfig.centerElevationDeg);
             if (curRadius >= m_squareConfig.maxRadiusDeg) {
                 m_status.completedLoops++;
@@ -513,9 +518,8 @@ void TacticalSearchEngine::stepPattern(double dtSec)
 
     case SearchPatternType::SpiralScan: {
         const double hfov = effectiveHFOV();
-        const double expansionRate = m_spiralConfig.expansionRateDeg > 0.0
-            ? m_spiralConfig.expansionRateDeg
-            : std::max(0.5, hfov);
+        const double expansionRate
+            = m_spiralConfig.expansionRateDeg > 0.0 ? m_spiralConfig.expansionRateDeg : std::max(0.5, hfov);
         const double omega = m_spiralConfig.angularVelocityDegPerSec;
 
         m_patternTimeSec += dtSec;
@@ -549,9 +553,8 @@ void TacticalSearchEngine::engineLoop()
     while (m_running) {
         std::unique_lock<std::mutex> lock(m_mutex);
 
-        m_cv.wait_for(lock, std::chrono::milliseconds(40), [this] {
-            return !m_running || m_status.state != TacticalEngineState::Idle;
-        });
+        m_cv.wait_for(lock, std::chrono::milliseconds(40),
+            [this] { return !m_running || m_status.state != TacticalEngineState::Idle; });
 
         if (!m_running) {
             break;

@@ -13,6 +13,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -100,11 +101,11 @@ private:
     [[nodiscard]] bool isSentenceAllowed(std::string_view sentence) const;
     void emitProgressLocked();
 
-    std::vector<ReplayRecord> m_records {};
-    std::vector<std::string> m_filterIds {};
+    std::vector<ReplayRecord> m_records { };
+    std::vector<std::string> m_filterIds { };
 
-    mutable std::mutex m_replayMutex {};
-    std::condition_variable m_cv {};
+    mutable std::mutex m_replayMutex { };
+    std::condition_variable m_cv { };
 
     std::atomic<bool> m_open { false };
     std::atomic<ReplayState> m_state { ReplayState::Stopped };
@@ -114,12 +115,12 @@ private:
     std::size_t m_currentIndex { 0U };
     std::chrono::microseconds m_currentOffset { 0 };
 
-    std::chrono::steady_clock::time_point m_playbackAnchorReal {};
+    std::chrono::steady_clock::time_point m_playbackAnchorReal { };
     std::chrono::microseconds m_playbackAnchorOffset { 0 };
 
-    mutable std::mutex m_progressMutex {};
+    mutable std::mutex m_progressMutex { };
     std::size_t m_nextCallbackId { 1U };
-    std::vector<std::pair<std::size_t, ProgressCallback>> m_progressCallbacks {};
+    std::vector<std::pair<std::size_t, ProgressCallback>> m_progressCallbacks { };
 };
 
 } // namespace Nmea

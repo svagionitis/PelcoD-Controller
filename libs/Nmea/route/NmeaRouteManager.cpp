@@ -1,7 +1,13 @@
 #include "NmeaRouteManager.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <string_view>
 
 namespace Nmea {
 
@@ -49,7 +55,7 @@ namespace {
         const double x = std::cos(delta) - std::sin(phi1) * std::sin(phi2);
         const double lambda2 = lambda1 + std::atan2(y, x);
 
-        NmeaCoordinates target {};
+        NmeaCoordinates target { };
         target.latitudeDeg = phi2 * kRadToDeg;
         target.longitudeDeg = lambda2 * kRadToDeg;
 
@@ -95,8 +101,8 @@ bool NmeaRouteManager::ingestRte(const RteData& rte)
         return false;
     }
 
-    RouteCallback callbackToInvoke {};
-    NmeaRoute completedRoute {};
+    RouteCallback callbackToInvoke { };
+    NmeaRoute completedRoute { };
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -130,7 +136,7 @@ bool NmeaRouteManager::ingestRte(const RteData& rte)
 
 void NmeaRouteManager::reassembleRouteLocked(const std::string& routeName, RteAssemblyState& state)
 {
-    NmeaRoute route {};
+    NmeaRoute route { };
     route.routeName = routeName;
     route.routeType = state.routeType;
     route.lastUpdated = std::chrono::steady_clock::now();
@@ -140,7 +146,7 @@ void NmeaRouteManager::reassembleRouteLocked(const std::string& routeName, RteAs
         const auto it = state.slices.find(i);
         if (it != state.slices.end()) {
             for (const auto& wptId : it->second) {
-                NmeaRouteWaypoint wpt {};
+                NmeaRouteWaypoint wpt { };
                 wpt.id = wptId;
                 wpt.sequenceIndex = seqIndex++;
                 route.waypoints.push_back(std::move(wpt));
@@ -169,7 +175,7 @@ void NmeaRouteManager::ingestRmb(const RmbData& rmb)
         return;
     }
 
-    RmbCallback cbToInvoke {};
+    RmbCallback cbToInvoke { };
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_activeRmb = rmb;
@@ -189,7 +195,7 @@ void NmeaRouteManager::ingestRmb(const RmbData& rmb)
 
 void NmeaRouteManager::setWaypoint(std::string waypointId, NmeaCoordinates coordinates)
 {
-    WplData wpl {};
+    WplData wpl { };
     wpl.waypointId = std::move(waypointId);
     wpl.coordinates = coordinates;
     wpl.valid = true;
@@ -248,7 +254,7 @@ std::optional<NmeaCoordinates> NmeaRouteManager::computeLookAhead(double lookAhe
     }
 
     const auto& rmb = *m_activeRmb;
-    std::optional<NmeaCoordinates> originCoords {};
+    std::optional<NmeaCoordinates> originCoords { };
     if (!rmb.originWaypointId.empty()) {
         const auto it = m_waypointDict.find(rmb.originWaypointId);
         if (it != m_waypointDict.end()) {

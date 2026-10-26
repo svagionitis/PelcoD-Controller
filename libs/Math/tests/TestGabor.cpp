@@ -3,6 +3,7 @@
 
 #include "Gabor.h"
 
+#include <cstdint>
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -39,7 +40,7 @@ std::vector<std::uint8_t> createSyntheticGrating(
 
 TEST(TestGabor, Kernel1DProperties)
 {
-    Math::Gabor1DConfig cfg {};
+    Math::Gabor1DConfig cfg { };
     cfg.centerFrequencyHz = 20.0;
     cfg.sampleRateHz = 200.0;
     cfg.sigmaSeconds = 0.025;
@@ -73,7 +74,7 @@ TEST(TestGabor, Kernel1DProperties)
 
 TEST(TestGabor, Kernel2DPropertiesAndDcSuppression)
 {
-    Math::Gabor2DConfig cfg {};
+    Math::Gabor2DConfig cfg { };
     cfg.wavelength = 8.0;
     cfg.orientationRad = kPi / 4.0; // 45 deg
     cfg.sigma = 4.0;
@@ -106,7 +107,7 @@ TEST(TestGabor, OrientationSelectivityOnSyntheticGratings)
     const double lambda = 8.0;
 
     // Filterbank with 4 orientations: 0 deg (0), 45 deg (pi/4), 90 deg (pi/2), 135 deg (3*pi/4)
-    Math::GaborFilterBankConfig fbConfig {};
+    Math::GaborFilterBankConfig fbConfig { };
     fbConfig.numScales = 1U;
     fbConfig.numOrientations = 4U;
     fbConfig.baseWavelength = lambda;
@@ -143,7 +144,7 @@ TEST(TestGabor, ScaleSelectivity)
     const int H = 64;
 
     // 2 scales: lambda = 4.0 (fine) and lambda = 16.0 (coarse)
-    Math::GaborFilterBankConfig fbConfig {};
+    Math::GaborFilterBankConfig fbConfig { };
     fbConfig.numScales = 2U;
     fbConfig.numOrientations = 2U;
     fbConfig.baseWavelength = 4.0;
@@ -184,7 +185,7 @@ TEST(TestGabor, DirectionalMotionBlurDetectionAndAnisotropy)
         }
     }
 
-    Math::GaborFilterBankConfig fbConfig {};
+    Math::GaborFilterBankConfig fbConfig { };
     fbConfig.numScales = 2U;
     fbConfig.numOrientations = 4U; // 0, 45, 90, 135 deg
     fbConfig.baseWavelength = 4.0;
@@ -227,7 +228,7 @@ TEST(TestGabor, FeatureVectorConsistencyAndRoiEvaluation)
     const int W = 64;
     const int H = 64;
 
-    Math::GaborFilterBankConfig fbConfig {};
+    Math::GaborFilterBankConfig fbConfig { };
     fbConfig.numScales = 3U;
     fbConfig.numOrientations = 4U;
     fbConfig.baseWavelength = 4.0;

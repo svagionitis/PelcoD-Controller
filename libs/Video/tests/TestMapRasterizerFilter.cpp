@@ -1,4 +1,5 @@
 #include "MapRasterizerFilter.h"
+#include <cstdint>
 #include <gtest/gtest.h>
 #include <numeric>
 #include <vector>
@@ -6,7 +7,8 @@
 using namespace Video;
 using namespace Video::Filters;
 
-TEST(TestMapRasterizerFilter, DefaultStateAndProperties) {
+TEST(TestMapRasterizerFilter, DefaultStateAndProperties)
+{
     MapRasterizerFilter filter(300, 220);
 
     EXPECT_TRUE(filter.isEnabled());
@@ -25,7 +27,8 @@ TEST(TestMapRasterizerFilter, DefaultStateAndProperties) {
     EXPECT_NEAR(filter.zoom(), 15.0, 1e-4);
 }
 
-TEST(TestMapRasterizerFilter, InsetModifiesFrameWhenEnabled) {
+TEST(TestMapRasterizerFilter, InsetModifiesFrameWhenEnabled)
+{
     MapRasterizerFilter filter(200, 150);
     filter.setCorner(MapRasterizerFilter::InsetCorner::BottomRight);
 
@@ -55,7 +58,8 @@ TEST(TestMapRasterizerFilter, InsetModifiesFrameWhenEnabled) {
     EXPECT_EQ(frame[2], 0);
 }
 
-TEST(TestMapRasterizerFilter, DisabledFilterLeavesFrameUntouched) {
+TEST(TestMapRasterizerFilter, DisabledFilterLeavesFrameUntouched)
+{
     MapRasterizerFilter filter(200, 150);
     filter.setEnabled(false);
 

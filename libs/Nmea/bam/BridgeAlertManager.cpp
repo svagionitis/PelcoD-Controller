@@ -1,7 +1,13 @@
 #include "BridgeAlertManager.h"
 #include "../NmeaSentenceBuilder.h"
 
+#include <cstdint>
+
 #include <chrono>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace Nmea::Bam {
 
@@ -12,17 +18,12 @@ BridgeAlertManager::BridgeAlertManager(const BamConfig& config)
 {
 }
 
-AlertRecord BridgeAlertManager::registerAlert(
-    std::uint32_t alertId,
-    std::uint32_t instance,
-    AlertPriority priority,
-    AlertCategory category,
-    std::string title,
-    std::string text)
+AlertRecord BridgeAlertManager::registerAlert(std::uint32_t alertId, std::uint32_t instance, AlertPriority priority,
+    AlertCategory category, std::string title, std::string text)
 {
-    AlertRecord record {};
-    std::string alfSentence {};
-    std::string alrSentence {};
+    AlertRecord record { };
+    std::string alfSentence { };
+    std::string alrSentence { };
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -76,9 +77,9 @@ AlertRecord BridgeAlertManager::registerAlert(
 
 bool BridgeAlertManager::rectifyAlert(std::uint32_t alertId, std::uint32_t instance)
 {
-    AlertRecord record {};
-    std::string alfSentence {};
-    std::string alrSentence {};
+    AlertRecord record { };
+    std::string alfSentence { };
+    std::string alrSentence { };
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -115,9 +116,9 @@ bool BridgeAlertManager::rectifyAlert(std::uint32_t alertId, std::uint32_t insta
 
 bool BridgeAlertManager::acknowledgeAlert(std::uint32_t alertId, std::uint32_t instance)
 {
-    AlertRecord record {};
-    std::string alfSentence {};
-    std::string alrSentence {};
+    AlertRecord record { };
+    std::string alfSentence { };
+    std::string alrSentence { };
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -154,8 +155,8 @@ bool BridgeAlertManager::acknowledgeAlert(std::uint32_t alertId, std::uint32_t i
 
 bool BridgeAlertManager::silenceAlert(std::uint32_t alertId, std::uint32_t instance)
 {
-    AlertRecord record {};
-    std::string alfSentence {};
+    AlertRecord record { };
+    std::string alfSentence { };
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -185,8 +186,8 @@ bool BridgeAlertManager::silenceAlert(std::uint32_t alertId, std::uint32_t insta
 
 bool BridgeAlertManager::transferAlert(std::uint32_t alertId, std::uint32_t instance)
 {
-    AlertRecord record {};
-    std::string alfSentence {};
+    AlertRecord record { };
+    std::string alfSentence { };
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -234,8 +235,8 @@ bool BridgeAlertManager::processAckCommand(const AckData& ack)
 
 void BridgeAlertManager::pollEscalations(std::chrono::steady_clock::time_point now)
 {
-    std::vector<std::string> pendingBroadcasts {};
-    std::vector<AlertRecord> updatedAlerts {};
+    std::vector<std::string> pendingBroadcasts { };
+    std::vector<AlertRecord> updatedAlerts { };
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -258,7 +259,8 @@ void BridgeAlertManager::pollEscalations(std::chrono::steady_clock::time_point n
 
             // 2. Check escalation timeout: increment escalationCounter for unack alarms
             if (rec.state == AlertState::ActiveUnacknowledged) {
-                const auto elapsedUnack = std::chrono::duration_cast<std::chrono::seconds>(now - rec.lastStateChangeTime);
+                const auto elapsedUnack
+                    = std::chrono::duration_cast<std::chrono::seconds>(now - rec.lastStateChangeTime);
                 if (elapsedUnack >= m_config.escalationTimeoutSec && rec.escalationCounter < 9U) {
                     rec.escalationCounter++;
                     rec.revisionCounter = (rec.revisionCounter % 99U) + 1U;
@@ -292,7 +294,7 @@ void BridgeAlertManager::pollEscalations(std::chrono::steady_clock::time_point n
 
 std::string BridgeAlertManager::generateHeartbeat()
 {
-    HbtData hbt {};
+    HbtData hbt { };
     hbt.configuredIntervalSec = static_cast<double>(m_config.heartbeatIntervalSec.count());
     hbt.equipmentStatus = 'A';
     hbt.sequentialSentenceId = m_hbtSeqId;
@@ -303,7 +305,7 @@ std::string BridgeAlertManager::generateHeartbeat()
 
 std::string BridgeAlertManager::generateAlertList()
 {
-    AlcData alc {};
+    AlcData alc { };
     alc.totalSentences = 1U;
     alc.sentenceNumber = 1U;
     alc.sequentialMessageId = m_alcSeqId;
@@ -311,7 +313,7 @@ std::string BridgeAlertManager::generateAlertList()
 
     for (const auto& pair : m_alerts) {
         if (pair.second.state != AlertState::Normal) {
-            AlcEntry entry {};
+            AlcEntry entry { };
             entry.alertIdentifier = pair.second.alertIdentifier;
             entry.alertInstance = pair.second.alertInstance;
             entry.revisionCounter = pair.second.revisionCounter;
@@ -325,7 +327,7 @@ std::string BridgeAlertManager::generateAlertList()
 
 std::string BridgeAlertManager::generateAlf(const AlertRecord& record)
 {
-    AlfData alf {};
+    AlfData alf { };
     alf.totalSentences = 1U;
     alf.sentenceNumber = 1U;
     alf.sequentialMessageId = 0U;
@@ -343,10 +345,11 @@ std::string BridgeAlertManager::generateAlf(const AlertRecord& record)
 
 std::string BridgeAlertManager::generateLegacyAlr(const AlertRecord& record)
 {
-    AlrData alr {};
+    AlrData alr { };
     alr.alertIdentifier = record.alertIdentifier;
     alr.condition = (record.state == AlertState::Normal) ? 'V' : 'A';
-    alr.acknowledgeState = (record.state == AlertState::ActiveAcknowledged || record.state == AlertState::Normal) ? 'A' : 'V';
+    alr.acknowledgeState
+        = (record.state == AlertState::ActiveAcknowledged || record.state == AlertState::Normal) ? 'A' : 'V';
     alr.alertText = record.alertTitle.empty() ? record.alertText : record.alertTitle;
     alr.valid = true;
     return NmeaSentenceBuilder::buildAlr(alr, m_config.talkerId);
@@ -355,7 +358,7 @@ std::string BridgeAlertManager::generateLegacyAlr(const AlertRecord& record)
 std::vector<AlertRecord> BridgeAlertManager::activeAlerts() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    std::vector<AlertRecord> res {};
+    std::vector<AlertRecord> res { };
     res.reserve(m_alerts.size());
     for (const auto& pair : m_alerts) {
         if (pair.second.state != AlertState::Normal) {
@@ -402,7 +405,7 @@ void BridgeAlertManager::setStateCallback(AlertCallback cb)
 
 void BridgeAlertManager::broadcastSentence(const std::string& sentence)
 {
-    BroadcastCallback cb {};
+    BroadcastCallback cb { };
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         cb = m_broadcastCb;
@@ -414,7 +417,7 @@ void BridgeAlertManager::broadcastSentence(const std::string& sentence)
 
 void BridgeAlertManager::notifyAlertChange(const AlertRecord& record)
 {
-    AlertCallback cb {};
+    AlertCallback cb { };
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         cb = m_alertCb;

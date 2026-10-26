@@ -5,6 +5,7 @@
 #include "SightlineStreamAccumulator.h"
 #include "SightlineTypes.h"
 
+#include <cstdint>
 #include <gtest/gtest.h>
 
 #include <vector>
@@ -72,7 +73,7 @@ namespace {
 
         const auto goodPkt = SightlineProtocolBuilder::buildGetParameters(0x01U);
 
-        std::vector<std::uint8_t> stream {};
+        std::vector<std::uint8_t> stream { };
         stream.insert(stream.end(), badPkt.begin(), badPkt.end());
         stream.insert(stream.end(), goodPkt.begin(), goodPkt.end());
 

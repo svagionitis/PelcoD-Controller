@@ -1,13 +1,16 @@
 /// @file SightlineDisplayBuilder.cpp
 /// @brief Implementation of Sightline display layout command serializers.
 
+#include <cstdint>
+
 #include "SightlineDisplayBuilder.h"
+#include <vector>
 
 namespace Sightline {
 
 std::vector<std::uint8_t> SightlineDisplayBuilder::buildSetDisplayParams(const MsgSetDisplayParameters& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(10U);
     payload.push_back(msg.displayIndex);
     payload.push_back(msg.cameraIndex);
@@ -39,7 +42,7 @@ std::vector<std::uint8_t> SightlineDisplayBuilder::buildGetVideoDisplay(std::uin
 
 std::vector<std::uint8_t> SightlineDisplayBuilder::buildSetMultiDisplay(const MsgMultiDisplay& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(11U);
     payload.push_back(msg.displayIndex);
     payload.push_back(msg.layout);

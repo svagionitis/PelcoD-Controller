@@ -7,10 +7,14 @@
 #include "IPanTiltUnit.h"
 #include "IPtzPresetManager.h"
 
+#include <cstdint>
+
 #include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <string>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -38,12 +42,12 @@ public:
     void setCamera(std::shared_ptr<ICameraPayload> camera);
 
 private:
-    std::shared_ptr<IPanTiltUnit> m_ptu {};
-    std::shared_ptr<ICameraPayload> m_camera {};
+    std::shared_ptr<IPanTiltUnit> m_ptu { };
+    std::shared_ptr<ICameraPayload> m_camera { };
 
-    mutable std::mutex m_mutex {};
-    std::map<std::uint32_t, PtzPreset> m_presets {};
-    std::optional<std::uint32_t> m_homePresetId {};
+    mutable std::mutex m_mutex { };
+    std::map<std::uint32_t, PtzPreset> m_presets { };
+    std::optional<std::uint32_t> m_homePresetId { };
 };
 
 } // namespace PayloadHal

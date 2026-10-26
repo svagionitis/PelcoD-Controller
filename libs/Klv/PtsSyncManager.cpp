@@ -2,60 +2,69 @@
 #include "MpegTsKlvMuxer.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <optional>
 
 namespace Klv {
 
-PtsSyncManager::PtsSyncManager(const PtsSyncConfig& config,
-                               std::shared_ptr<IMasterTimeBase> timeBase)
+PtsSyncManager::PtsSyncManager(const PtsSyncConfig& config, std::shared_ptr<IMasterTimeBase> timeBase)
     : m_config(config)
-    , m_timeBase(std::move(timeBase)) {
+    , m_timeBase(std::move(timeBase))
+{
     if (!m_timeBase) {
         m_timeBase = std::make_shared<SystemMasterTimeBase>(m_config.timeBaseMode);
     }
 }
 
-void PtsSyncManager::setSyncCallback(SyncOutputCallback callback) {
+void PtsSyncManager::setSyncCallback(SyncOutputCallback callback)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_callback = std::move(callback);
 }
 
-void PtsSyncManager::bindMuxer(MpegTsKlvMuxer* muxer) {
+void PtsSyncManager::bindMuxer(MpegTsKlvMuxer* muxer)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_boundMuxer = muxer;
 }
 
-void PtsSyncManager::setConfig(const PtsSyncConfig& config) {
+void PtsSyncManager::setConfig(const PtsSyncConfig& config)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_config = config;
 }
 
-PtsSyncConfig PtsSyncManager::config() const {
+PtsSyncConfig PtsSyncManager::config() const
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_config;
 }
 
-PtsSyncStats PtsSyncManager::stats() const {
+PtsSyncStats PtsSyncManager::stats() const
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_stats;
 }
 
-void PtsSyncManager::resetStats() noexcept {
+void PtsSyncManager::resetStats() noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_stats = PtsSyncStats {};
+    m_stats = PtsSyncStats { };
 }
 
-void PtsSyncManager::pushVideoAccessUnit(VideoAccessUnit au) {
+void PtsSyncManager::pushVideoAccessUnit(VideoAccessUnit au)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_stats.totalFrames++;
     m_videoQueue.push_back(std::move(au));
     processQueuesLocked();
 }
 
-void PtsSyncManager::pushVideoFrame(const std::uint8_t* data,
-                                    std::size_t size,
-                                    std::uint64_t ptsUs,
-                                    std::optional<std::uint64_t> dtsUs,
-                                    bool isKeyframe) {
+void PtsSyncManager::pushVideoFrame(const std::uint8_t* data, std::size_t size, std::uint64_t ptsUs,
+    std::optional<std::uint64_t> dtsUs, bool isKeyframe)
+{
     VideoAccessUnit au;
     au.codec = VideoCodec::H264;
     au.ptsUs = ptsUs;
@@ -69,7 +78,8 @@ void PtsSyncManager::pushVideoFrame(const std::uint8_t* data,
     pushVideoAccessUnit(std::move(au));
 }
 
-void PtsSyncManager::pushTelemetryMessage(UasDatalinkMessage message) {
+void PtsSyncManager::pushTelemetryMessage(UasDatalinkMessage message)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_stats.totalKlvPackets++;
     const std::uint64_t ts = message.precisionTimeStampUs.value_or(m_timeBase->nowUs());
@@ -80,9 +90,8 @@ void PtsSyncManager::pushTelemetryMessage(UasDatalinkMessage message) {
     processQueuesLocked();
 }
 
-void PtsSyncManager::pushRawKlv(const std::uint8_t* data,
-                                std::size_t size,
-                                std::uint64_t timestampUs) {
+void PtsSyncManager::pushRawKlv(const std::uint8_t* data, std::size_t size, std::uint64_t timestampUs)
+{
     if (data == nullptr || size == 0U) {
         return;
     }
@@ -95,15 +104,15 @@ void PtsSyncManager::pushRawKlv(const std::uint8_t* data,
     processQueuesLocked();
 }
 
-std::size_t PtsSyncManager::findBestTelemetry(std::uint64_t targetUs) const noexcept {
+std::size_t PtsSyncManager::findBestTelemetry(std::uint64_t targetUs) const noexcept
+{
     if (m_telemetryQueue.empty()) {
         return 0U;
     }
 
     std::size_t bestIdx = 0U;
-    std::uint64_t minDiff = (targetUs > m_telemetryQueue[0].timestampUs)
-                                ? (targetUs - m_telemetryQueue[0].timestampUs)
-                                : (m_telemetryQueue[0].timestampUs - targetUs);
+    std::uint64_t minDiff = (targetUs > m_telemetryQueue[0].timestampUs) ? (targetUs - m_telemetryQueue[0].timestampUs)
+                                                                         : (m_telemetryQueue[0].timestampUs - targetUs);
 
     for (std::size_t i = 1U; i < m_telemetryQueue.size(); ++i) {
         const std::uint64_t curTs = m_telemetryQueue[i].timestampUs;
@@ -117,7 +126,8 @@ std::size_t PtsSyncManager::findBestTelemetry(std::uint64_t targetUs) const noex
     return bestIdx;
 }
 
-void PtsSyncManager::dispatchSynchronized(const SynchronizedAccessUnit& syncd) {
+void PtsSyncManager::dispatchSynchronized(const SynchronizedAccessUnit& syncd)
+{
     if (m_boundMuxer != nullptr) {
         static_cast<void>(m_boundMuxer->muxSynchronizedFrame(syncd.videoAu, syncd.metadataMessage));
     }
@@ -126,7 +136,8 @@ void PtsSyncManager::dispatchSynchronized(const SynchronizedAccessUnit& syncd) {
     }
 }
 
-void PtsSyncManager::processQueuesLocked() {
+void PtsSyncManager::processQueuesLocked()
+{
     if (m_videoQueue.empty()) {
         return;
     }
@@ -138,9 +149,9 @@ void PtsSyncManager::processQueuesLocked() {
         const auto& frontVideo = m_videoQueue.front();
 
         // Check if we should hold this frame in jitter buffer to await closer telemetry
-        const bool hasSufficientBuffer = (m_videoQueue.size() > 1U) ||
-            (!m_telemetryQueue.empty() && m_telemetryQueue.back().timestampUs >= frontVideo.ptsUs) ||
-            (m_videoQueue.back().ptsUs >= frontVideo.ptsUs + bufferDepthUs);
+        const bool hasSufficientBuffer = (m_videoQueue.size() > 1U)
+            || (!m_telemetryQueue.empty() && m_telemetryQueue.back().timestampUs >= frontVideo.ptsUs)
+            || (m_videoQueue.back().ptsUs >= frontVideo.ptsUs + bufferDepthUs);
 
         if (!hasSufficientBuffer && m_telemetryQueue.empty()) {
             break;
@@ -156,8 +167,8 @@ void PtsSyncManager::processQueuesLocked() {
             std::size_t bestIdx = findBestTelemetry(syncd.videoAu.ptsUs);
             const auto& telem = m_telemetryQueue[bestIdx];
 
-            const auto deltaUs = static_cast<std::int64_t>(telem.timestampUs) -
-                                 static_cast<std::int64_t>(syncd.videoAu.ptsUs);
+            const auto deltaUs
+                = static_cast<std::int64_t>(telem.timestampUs) - static_cast<std::int64_t>(syncd.videoAu.ptsUs);
             const auto absDeltaUs = static_cast<std::uint64_t>(std::abs(deltaUs));
 
             syncd.skewDeltaUs = deltaUs;
@@ -176,11 +187,10 @@ void PtsSyncManager::processQueuesLocked() {
                     wasClamped = true;
                     m_stats.clampedPackets++;
                 } else if (m_config.syncPolicy == PtsSyncPolicy::StrictClamp) {
-                    const auto clampDelta = (deltaUs > 0)
-                                                ? static_cast<std::int64_t>(maxDeltaUs)
-                                                : -static_cast<std::int64_t>(maxDeltaUs);
-                    const auto clampedPts = static_cast<std::uint64_t>(
-                        static_cast<std::int64_t>(syncd.videoAu.ptsUs) + clampDelta);
+                    const auto clampDelta = (deltaUs > 0) ? static_cast<std::int64_t>(maxDeltaUs)
+                                                          : -static_cast<std::int64_t>(maxDeltaUs);
+                    const auto clampedPts
+                        = static_cast<std::uint64_t>(static_cast<std::int64_t>(syncd.videoAu.ptsUs) + clampDelta);
                     if (syncd.metadataMessage.has_value() && !m_config.preserveSensorTimestamp) {
                         syncd.metadataMessage->precisionTimeStampUs = clampedPts;
                     }
@@ -213,7 +223,8 @@ void PtsSyncManager::processQueuesLocked() {
     }
 }
 
-std::size_t PtsSyncManager::flush() {
+std::size_t PtsSyncManager::flush()
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     std::size_t count = 0U;
 
@@ -230,8 +241,8 @@ std::size_t PtsSyncManager::flush() {
 
             syncd.metadataMessage = telem.message;
             syncd.rawKlvPacket = telem.rawBytes;
-            syncd.skewDeltaUs = static_cast<std::int64_t>(telem.timestampUs) -
-                               static_cast<std::int64_t>(syncd.videoAu.ptsUs);
+            syncd.skewDeltaUs
+                = static_cast<std::int64_t>(telem.timestampUs) - static_cast<std::int64_t>(syncd.videoAu.ptsUs);
 
             for (std::size_t p = 0U; p <= bestIdx && !m_telemetryQueue.empty(); ++p) {
                 m_telemetryQueue.pop_front();
@@ -246,11 +257,12 @@ std::size_t PtsSyncManager::flush() {
     return count;
 }
 
-void PtsSyncManager::reset() noexcept {
+void PtsSyncManager::reset() noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_videoQueue.clear();
     m_telemetryQueue.clear();
-    m_stats = PtsSyncStats {};
+    m_stats = PtsSyncStats { };
 }
 
 } // namespace Klv

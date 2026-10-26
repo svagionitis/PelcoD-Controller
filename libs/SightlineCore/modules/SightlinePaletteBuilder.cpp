@@ -1,7 +1,10 @@
 /// @file SightlinePaletteBuilder.cpp
 /// @brief Implementation of the Sightline user palette serializer.
 
+#include <cstdint>
+
 #include "SightlinePaletteBuilder.h"
+#include <vector>
 
 namespace Sightline {
 
@@ -12,7 +15,7 @@ namespace {
 
 std::vector<std::uint8_t> SightlinePaletteBuilder::buildSetUserPalette(const MsgUserPalette& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     if ((msg.lutData.size() == kFullLutSize) && (msg.paletteIndex == 0U)) {
         payload = msg.lutData;
     } else {

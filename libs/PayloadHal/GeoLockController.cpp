@@ -6,7 +6,12 @@
 #include "VesselAttitudeCompensator.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <optional>
 
 namespace PayloadHal {
 
@@ -90,10 +95,7 @@ bool GeoLockController::updatePlatform(const Klv::GeoPoint3D& platformPos, doubl
 }
 
 bool GeoLockController::updatePlatform(
-    const Klv::GeoPoint3D& platformPos,
-    double platformHeadingDeg,
-    double platformPitchDeg,
-    double platformRollDeg)
+    const Klv::GeoPoint3D& platformPos, double platformHeadingDeg, double platformPitchDeg, double platformRollDeg)
 {
     Klv::GeoPoint3D target;
     double deadband = 0.0;
@@ -117,11 +119,11 @@ bool GeoLockController::updatePlatform(
         return false;
     }
 
-    GimbalLookAngles look {};
+    GimbalLookAngles look { };
     if (attComp && attComp->hasValidAttitude()) {
         look = attComp->compensateLookAngles(platformPos, target, leverCfg);
     } else if (std::abs(platformPitchDeg) > 1e-4 || std::abs(platformRollDeg) > 1e-4) {
-        PlatformPose pose {};
+        PlatformPose pose { };
         pose.gpsPosition = platformPos;
         pose.headingDeg = platformHeadingDeg;
         pose.pitchDeg = platformPitchDeg;
@@ -233,7 +235,7 @@ bool GeoLockController::startTrackingLoop(double rateHz)
     }
     m_stopRequested.store(false);
     m_loopRunning.store(true);
-    const auto intervalMs = std::chrono::milliseconds(static_cast<int64_t>(1000.0 / rateHz));
+    const auto intervalMs = std::chrono::milliseconds(static_cast<std::int64_t>(1000.0 / rateHz));
     m_workerThread = std::thread(&GeoLockController::trackingWorker, this, intervalMs);
     return true;
 }
@@ -259,7 +261,7 @@ bool GeoLockController::isTrackingLoopRunning() const noexcept
 GeoLockStatus GeoLockController::status() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    GeoLockStatus s {};
+    GeoLockStatus s { };
     s.engaged = m_engaged;
     s.target = m_target;
     s.commandedPanDeg = m_lastCommandedPan;

@@ -15,9 +15,16 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <map>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -49,7 +56,7 @@ namespace {
         }
         [[nodiscard]] DeviceInfo info() const noexcept override
         {
-            DeviceInfo d {};
+            DeviceInfo d { };
             d.manufacturer = "Pelco";
             d.model = "Pelco-D Camera Optics";
             return d;
@@ -187,7 +194,7 @@ namespace {
 
         [[nodiscard]] CameraTelemetry currentTelemetry() const override
         {
-            CameraTelemetry telem {};
+            CameraTelemetry telem { };
             if (m_device) {
                 const auto st = m_device->getStatus();
                 const double mag = (st.magnification > 0U) ? (static_cast<double>(st.magnification) / 100.0) : 1.0;
@@ -217,7 +224,7 @@ namespace {
                     return primIt->second;
                 }
             }
-            return {};
+            return { };
         }
 
         bool setVideoStreamUri(
@@ -267,9 +274,9 @@ namespace {
     private:
         std::shared_ptr<PelcoD::PelcoDDevice> m_device;
         mutable std::mutex m_mutex;
-        TelemetryCallback m_telemCb {};
-        StateCallback m_stateCb {};
-        std::map<VideoStreamProfile, std::string> m_streamUris {};
+        TelemetryCallback m_telemCb { };
+        StateCallback m_stateCb { };
+        std::map<VideoStreamProfile, std::string> m_streamUris { };
     };
 
     class PelcoDCompositePayload : public IPayload {
@@ -300,7 +307,7 @@ namespace {
         }
         [[nodiscard]] DeviceInfo info() const noexcept override
         {
-            DeviceInfo d {};
+            DeviceInfo d { };
             d.manufacturer = "Pelco";
             d.model = "Pelco-D Composite Station";
             return d;
@@ -366,7 +373,7 @@ namespace {
         std::shared_ptr<PelcoD::PelcoDDevice> m_device;
         std::shared_ptr<PelcoDPtzAdapter> m_ptu;
         std::shared_ptr<PelcoDCameraUnit> m_camera;
-        std::shared_ptr<ILaserRangeFinder> m_lrf {};
+        std::shared_ptr<ILaserRangeFinder> m_lrf { };
     };
 
     struct ParsedUri {
@@ -400,7 +407,7 @@ namespace {
 
     ParsedUri parseUriString(const std::string& uriString)
     {
-        ParsedUri result {};
+        ParsedUri result { };
         if (uriString.empty()) {
             return result;
         }
@@ -449,7 +456,7 @@ namespace {
         }
 
         const auto slashPos = rest.find('/');
-        std::string authority {};
+        std::string authority { };
         if (slashPos != std::string::npos) {
             authority = rest.substr(0, slashPos);
             result.path = rest.substr(slashPos);
@@ -598,7 +605,7 @@ std::shared_ptr<IPayload> PayloadFactory::createFromUri(const std::string& uri)
         }
         const std::string path = parsed.path.empty() ? "/onvif/device_service" : parsed.path;
         const std::string endpoint = "http://" + hostPort + path;
-        Onvif::SecurityCredentials creds {};
+        Onvif::SecurityCredentials creds { };
         creds.username = parsed.username;
         creds.password = parsed.password;
         return applyStreamParams(createOnvifPayload(endpoint, creds));
@@ -872,7 +879,7 @@ std::shared_ptr<ILaserRangeFinder> PayloadFactory::createLrfFromUri(const std::s
         return nullptr;
     }
 
-    SerialLrfConfig cfg {};
+    SerialLrfConfig cfg { };
     const std::string lrfProto = parsed.getQuery("proto", parsed.getQuery("lrf_proto", "nmea"));
     if (lrfProto == "ascii") {
         cfg.protocolType = LrfProtocolType::Ascii;

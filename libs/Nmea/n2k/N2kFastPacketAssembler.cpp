@@ -1,6 +1,11 @@
 #include "N2kFastPacketAssembler.h"
 
+#include <cstdint>
+
 #include <algorithm>
+#include <chrono>
+#include <mutex>
+#include <optional>
 
 namespace Nmea::N2k {
 
@@ -42,7 +47,7 @@ std::optional<N2kMessage> N2kFastPacketAssembler::processCanFrame(const CanFrame
 
     // If single frame (not registered as Fast Packet), return message directly
     if (m_fastPacketPgns.find(header.pgn) == m_fastPacketPgns.end()) {
-        N2kMessage msg {};
+        N2kMessage msg { };
         msg.header = header;
         msg.timestamp = now;
         const std::size_t count = std::min<std::size_t>(frame.dlc, 8U);
@@ -68,7 +73,7 @@ std::optional<N2kMessage> N2kFastPacketAssembler::processCanFrame(const CanFrame
             return std::nullopt;
         }
 
-        FastPacketSession session {};
+        FastPacketSession session { };
         session.sequenceCounter = seqCounter;
         session.expectedFrame = 1U;
         session.totalBytes = totalBytes;
@@ -81,7 +86,7 @@ std::optional<N2kMessage> N2kFastPacketAssembler::processCanFrame(const CanFrame
 
         if (session.buffer.size() >= session.totalBytes) {
             // Single-frame complete Fast Packet (small payload <= 6 bytes)
-            N2kMessage msg {};
+            N2kMessage msg { };
             msg.header = header;
             msg.timestamp = now;
             msg.payload = std::move(session.buffer);
@@ -125,7 +130,7 @@ std::optional<N2kMessage> N2kFastPacketAssembler::processCanFrame(const CanFrame
     session.expectedFrame = static_cast<std::uint8_t>((session.expectedFrame + 1U) & 0xFFU);
 
     if (session.buffer.size() >= session.totalBytes) {
-        N2kMessage msg {};
+        N2kMessage msg { };
         msg.header = header;
         msg.timestamp = now;
         msg.payload = std::move(session.buffer);

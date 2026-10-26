@@ -2,7 +2,11 @@
 #include "sim/SimulatedPayload.h"
 
 #include <cmath>
+#include <cstdint>
+
+#include <chrono>
 #include <gtest/gtest.h>
+#include <memory>
 
 namespace PayloadHal {
 namespace {
@@ -81,13 +85,13 @@ namespace {
         constexpr double aspectRatio = 16.0 / 9.0;
 
         // Scenario A: Tall target (20m wide, 40m tall) -> Governed by height (8.15 deg)
-        const double hfovTall = AutoFramingController::calculateFramingHfov(
-            range, 20.0, 40.0, widthRatio, heightRatio, aspectRatio);
+        const double hfovTall
+            = AutoFramingController::calculateFramingHfov(range, 20.0, 40.0, widthRatio, heightRatio, aspectRatio);
         EXPECT_NEAR(hfovTall, 8.15, 0.1);
 
         // Scenario B: Wide target (40m wide, 10m tall) -> Governed by width (7.64 deg)
-        const double hfovWide = AutoFramingController::calculateFramingHfov(
-            range, 40.0, 10.0, widthRatio, heightRatio, aspectRatio);
+        const double hfovWide
+            = AutoFramingController::calculateFramingHfov(range, 40.0, 10.0, widthRatio, heightRatio, aspectRatio);
         EXPECT_NEAR(hfovWide, 7.64, 0.1);
     }
 
@@ -97,22 +101,24 @@ namespace {
         constexpr double tele = 2.0;
 
         // Wide boundary: both curves yield 0.0
-        EXPECT_NEAR(AutoFramingController::calculateNormalizedZoom(
-            60.0, wide, tele, LensZoomCurveType::LinearHfov), 0.0, 1e-4);
-        EXPECT_NEAR(AutoFramingController::calculateNormalizedZoom(
-            60.0, wide, tele, LensZoomCurveType::LogarithmicFocal), 0.0, 1e-4);
+        EXPECT_NEAR(
+            AutoFramingController::calculateNormalizedZoom(60.0, wide, tele, LensZoomCurveType::LinearHfov), 0.0, 1e-4);
+        EXPECT_NEAR(
+            AutoFramingController::calculateNormalizedZoom(60.0, wide, tele, LensZoomCurveType::LogarithmicFocal), 0.0,
+            1e-4);
 
         // Tele boundary: both curves yield 1.0
-        EXPECT_NEAR(AutoFramingController::calculateNormalizedZoom(
-            2.0, wide, tele, LensZoomCurveType::LinearHfov), 1.0, 1e-4);
-        EXPECT_NEAR(AutoFramingController::calculateNormalizedZoom(
-            2.0, wide, tele, LensZoomCurveType::LogarithmicFocal), 1.0, 1e-4);
+        EXPECT_NEAR(
+            AutoFramingController::calculateNormalizedZoom(2.0, wide, tele, LensZoomCurveType::LinearHfov), 1.0, 1e-4);
+        EXPECT_NEAR(
+            AutoFramingController::calculateNormalizedZoom(2.0, wide, tele, LensZoomCurveType::LogarithmicFocal), 1.0,
+            1e-4);
 
         // Mid-HFOV (e.g. 10 deg): logarithmic zoom concentrates travel towards telephoto
-        const double zLinear = AutoFramingController::calculateNormalizedZoom(
-            10.0, wide, tele, LensZoomCurveType::LinearHfov);
-        const double zLog = AutoFramingController::calculateNormalizedZoom(
-            10.0, wide, tele, LensZoomCurveType::LogarithmicFocal);
+        const double zLinear
+            = AutoFramingController::calculateNormalizedZoom(10.0, wide, tele, LensZoomCurveType::LinearHfov);
+        const double zLog
+            = AutoFramingController::calculateNormalizedZoom(10.0, wide, tele, LensZoomCurveType::LogarithmicFocal);
 
         EXPECT_GT(zLinear, 0.0);
         EXPECT_LT(zLinear, 1.0);
@@ -137,7 +143,7 @@ namespace {
         EXPECT_DOUBLE_EQ(envDims.beamMeters, 20.0);
 
         // Fallback with ship type: Cargo (type 70)
-        Nmea::AisDimensions emptyDims {};
+        Nmea::AisDimensions emptyDims { };
         const auto envCargo = framing.estimateTargetEnvelope(emptyDims, static_cast<std::uint8_t>(70));
         EXPECT_DOUBLE_EQ(envCargo.lengthMeters, 140.0);
         EXPECT_DOUBLE_EQ(envCargo.beamMeters, 22.0);
@@ -190,7 +196,7 @@ namespace {
 
         AutoFramingConfig cfg;
         cfg.rangeHysteresisRatio = 0.06; // 6%
-        cfg.zoomDeadband01 = 0.025;      // 2.5%
+        cfg.zoomDeadband01 = 0.025; // 2.5%
 
         AutoFramingController framing(cfg);
         TargetPhysicalEnvelope env { 30.0, 8.0, 5.0 };

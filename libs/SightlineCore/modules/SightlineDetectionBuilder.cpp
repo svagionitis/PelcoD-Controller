@@ -1,13 +1,16 @@
 /// @file SightlineDetectionBuilder.cpp
 /// @brief Implementation of Sightline detection command serializers.
 
+#include <cstdint>
+
 #include "SightlineDetectionBuilder.h"
+#include <vector>
 
 namespace Sightline {
 
 std::vector<std::uint8_t> SightlineDetectionBuilder::buildSetDetectionParams(const MsgSetDetectionParameters& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(12U);
     payload.push_back(msg.cameraIndex);
     payload.push_back(static_cast<std::uint8_t>(msg.mode));
@@ -38,7 +41,7 @@ std::vector<std::uint8_t> SightlineDetectionBuilder::buildGetDetectionParams(
 
 std::vector<std::uint8_t> SightlineDetectionBuilder::buildSetVMTI(const MsgSetVMTI& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(8U);
     payload.push_back(msg.cameraIndex);
     payload.push_back(msg.enable);
@@ -57,7 +60,7 @@ std::vector<std::uint8_t> SightlineDetectionBuilder::buildGetVMTI(std::uint8_t c
 
 std::vector<std::uint8_t> SightlineDetectionBuilder::buildSetDetectionROI(const MsgDetectionROI& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(57U);
     payload.push_back(msg.cameraIndex);
     payload.push_back(msg.roiIndex);
@@ -104,7 +107,7 @@ std::vector<std::uint8_t> SightlineDetectionBuilder::buildGetDetectionROI(
 std::vector<std::uint8_t> SightlineDetectionBuilder::buildSetAdvDetectionParams(
     const MsgAdvancedDetectionParameters& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(25U);
     payload.push_back(msg.cameraIndex);
     SightlineFraming::appendU16Le(payload, msg.minVelocity);

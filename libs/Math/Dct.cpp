@@ -4,6 +4,7 @@
 #include "Dct.h"
 
 #include <cmath>
+#include <cstdint>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -38,7 +39,7 @@ namespace {
 void dct8x8(const DctMatrix8x8& input, DctMatrix8x8& output) noexcept
 {
     // Step 1: Intermediate row transform T = input * C^T
-    double temp[8][8] {};
+    double temp[8][8] { };
     for (int i = 0; i < 8; ++i) {
         for (int j = 0; j < 8; ++j) {
             double sum = 0.0;
@@ -63,7 +64,7 @@ void dct8x8(const DctMatrix8x8& input, DctMatrix8x8& output) noexcept
 
 void dct8x8(const std::uint8_t* block, int stride, DctMatrix8x8& output) noexcept
 {
-    double spatial[8][8] {};
+    double spatial[8][8] { };
     for (int i = 0; i < 8; ++i) {
         const std::uint8_t* rowPtr = block + (i * stride);
         for (int j = 0; j < 8; ++j) {
@@ -77,7 +78,7 @@ void idct8x8(const DctMatrix8x8& input, DctMatrix8x8& output) noexcept
 {
     // Inverse transform: output = C^T * input * C
     // Step 1: T = input * C
-    double temp[8][8] {};
+    double temp[8][8] { };
     for (int i = 0; i < 8; ++i) {
         for (int j = 0; j < 8; ++j) {
             double sum = 0.0;

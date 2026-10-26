@@ -2,14 +2,17 @@
 /// @brief Unit tests for KmlExporter OGC KML 2.2 and gx:Track serialization.
 
 #include "KmlExporter.h"
+
 #include <gtest/gtest.h>
+#include <string>
 
 using namespace Mapping;
 
-TEST(TestKmlExporter, ExportKmlStructureAndGxTrack) {
+TEST(TestKmlExporter, ExportKmlStructureAndGxTrack)
+{
     SpatialDataRecorder recorder;
 
-    Klv::UasDatalinkMessage msg1 {};
+    Klv::UasDatalinkMessage msg1 { };
     msg1.precisionTimeStampUs = 1728043200000000ULL;
     msg1.sensorLatitudeDeg = 32.7157;
     msg1.sensorLongitudeDeg = -117.1611;
@@ -18,7 +21,7 @@ TEST(TestKmlExporter, ExportKmlStructureAndGxTrack) {
     msg1.platformPitchDeg = 3.0;
     msg1.platformRollDeg = -2.0;
 
-    Klv::FrustumCorners corners {};
+    Klv::FrustumCorners corners { };
     corners.topLeft = { 32.720, -117.150 };
     corners.topRight = { 32.720, -117.140 };
     corners.bottomRight = { 32.710, -117.140 };
@@ -30,7 +33,7 @@ TEST(TestKmlExporter, ExportKmlStructureAndGxTrack) {
 
     recorder.addTelemetryFrame(msg1);
 
-    KmlConfig config {};
+    KmlConfig config { };
     config.documentName = "Test Mission Flight";
     config.enableGxTrack = true;
     config.enableVolumetricPyramid = true;
@@ -70,7 +73,8 @@ TEST(TestKmlExporter, ExportKmlStructureAndGxTrack) {
     EXPECT_NE(kml.find("<LinearRing>"), std::string::npos);
 }
 
-TEST(TestKmlExporter, ColorRgbaConversion) {
+TEST(TestKmlExporter, ColorRgbaConversion)
+{
     ColorRgba red { 255U, 0U, 0U, 255U };
     // KML is aabbggrr: alpha=ff, blue=00, green=00, red=ff
     EXPECT_EQ(red.toKmlColor(), "ff0000ff");

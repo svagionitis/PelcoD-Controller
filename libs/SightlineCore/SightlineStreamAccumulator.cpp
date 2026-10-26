@@ -4,7 +4,10 @@
 #include "SightlineStreamAccumulator.h"
 #include "SightlineTypes.h"
 
+#include <cstdint>
+
 #include <algorithm>
+#include <vector>
 
 namespace Sightline {
 
@@ -24,11 +27,11 @@ std::vector<std::vector<std::uint8_t>> SightlineStreamAccumulator::push(
     const std::uint8_t* data, std::size_t size, bool validateChecksum)
 {
     if (data == nullptr || size == 0U) {
-        return {};
+        return { };
     }
 
     std::scoped_lock lock(m_mutex);
-    std::vector<std::vector<std::uint8_t>> extractedPackets {};
+    std::vector<std::vector<std::uint8_t>> extractedPackets { };
 
     m_buffer.insert(m_buffer.end(), data, data + size);
 

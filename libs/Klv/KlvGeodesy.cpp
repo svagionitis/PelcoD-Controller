@@ -3,114 +3,131 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
+#include <optional>
 
 namespace Klv {
 
 namespace {
 
-constexpr double kPi { 3.14159265358979323846 };
+    constexpr double kPi { 3.14159265358979323846 };
 
-inline double deg2rad(double deg) noexcept {
-    return deg * (kPi / 180.0);
-}
-
-inline double rad2deg(double rad) noexcept {
-    return rad * (180.0 / kPi);
-}
-
-inline double normalizeAngle360(double deg) noexcept {
-    double wrapped = std::fmod(deg, 360.0);
-    if (wrapped < 0.0) {
-        wrapped += 360.0;
-    }
-    return wrapped;
-}
-
-inline double normalizeLon(double lonDeg) noexcept {
-    while (lonDeg > 180.0) lonDeg -= 360.0;
-    while (lonDeg < -180.0) lonDeg += 360.0;
-    return lonDeg;
-}
-
-struct Matrix3x3 {
-    std::array<std::array<double, 3>, 3> m {};
-
-    [[nodiscard]] static Matrix3x3 identity() noexcept {
-        Matrix3x3 r {};
-        r.m[0][0] = 1.0;
-        r.m[1][1] = 1.0;
-        r.m[2][2] = 1.0;
-        return r;
+    inline double deg2rad(double deg) noexcept
+    {
+        return deg * (kPi / 180.0);
     }
 
-    [[nodiscard]] static Matrix3x3 rotX(double rad) noexcept {
-        const double c = std::cos(rad);
-        const double s = std::sin(rad);
-        Matrix3x3 r {};
-        r.m[0][0] = 1.0;
-        r.m[1][1] = c;  r.m[1][2] = s;
-        r.m[2][1] = -s; r.m[2][2] = c;
-        return r;
+    inline double rad2deg(double rad) noexcept
+    {
+        return rad * (180.0 / kPi);
     }
 
-    [[nodiscard]] static Matrix3x3 rotY(double rad) noexcept {
-        const double c = std::cos(rad);
-        const double s = std::sin(rad);
-        Matrix3x3 r {};
-        r.m[0][0] = c;  r.m[0][2] = -s;
-        r.m[1][1] = 1.0;
-        r.m[2][0] = s;  r.m[2][2] = c;
-        return r;
-    }
-
-    [[nodiscard]] static Matrix3x3 rotZ(double rad) noexcept {
-        const double c = std::cos(rad);
-        const double s = std::sin(rad);
-        Matrix3x3 r {};
-        r.m[0][0] = c;  r.m[0][1] = s;
-        r.m[1][0] = -s; r.m[1][1] = c;
-        r.m[2][2] = 1.0;
-        return r;
-    }
-
-    [[nodiscard]] Matrix3x3 transpose() const noexcept {
-        Matrix3x3 t {};
-        for (std::size_t i = 0; i < 3; ++i) {
-            for (std::size_t j = 0; j < 3; ++j) {
-                t.m[i][j] = m[j][i];
-            }
+    inline double normalizeAngle360(double deg) noexcept
+    {
+        double wrapped = std::fmod(deg, 360.0);
+        if (wrapped < 0.0) {
+            wrapped += 360.0;
         }
-        return t;
+        return wrapped;
     }
 
-    [[nodiscard]] Matrix3x3 operator*(const Matrix3x3& o) const noexcept {
-        Matrix3x3 r {};
-        for (std::size_t i = 0; i < 3; ++i) {
-            for (std::size_t j = 0; j < 3; ++j) {
-                double sum = 0.0;
-                for (std::size_t k = 0; k < 3; ++k) {
-                    sum += m[i][k] * o.m[k][j];
+    inline double normalizeLon(double lonDeg) noexcept
+    {
+        while (lonDeg > 180.0)
+            lonDeg -= 360.0;
+        while (lonDeg < -180.0)
+            lonDeg += 360.0;
+        return lonDeg;
+    }
+
+    struct Matrix3x3 {
+        std::array<std::array<double, 3>, 3> m { };
+
+        [[nodiscard]] static Matrix3x3 identity() noexcept
+        {
+            Matrix3x3 r { };
+            r.m[0][0] = 1.0;
+            r.m[1][1] = 1.0;
+            r.m[2][2] = 1.0;
+            return r;
+        }
+
+        [[nodiscard]] static Matrix3x3 rotX(double rad) noexcept
+        {
+            const double c = std::cos(rad);
+            const double s = std::sin(rad);
+            Matrix3x3 r { };
+            r.m[0][0] = 1.0;
+            r.m[1][1] = c;
+            r.m[1][2] = s;
+            r.m[2][1] = -s;
+            r.m[2][2] = c;
+            return r;
+        }
+
+        [[nodiscard]] static Matrix3x3 rotY(double rad) noexcept
+        {
+            const double c = std::cos(rad);
+            const double s = std::sin(rad);
+            Matrix3x3 r { };
+            r.m[0][0] = c;
+            r.m[0][2] = -s;
+            r.m[1][1] = 1.0;
+            r.m[2][0] = s;
+            r.m[2][2] = c;
+            return r;
+        }
+
+        [[nodiscard]] static Matrix3x3 rotZ(double rad) noexcept
+        {
+            const double c = std::cos(rad);
+            const double s = std::sin(rad);
+            Matrix3x3 r { };
+            r.m[0][0] = c;
+            r.m[0][1] = s;
+            r.m[1][0] = -s;
+            r.m[1][1] = c;
+            r.m[2][2] = 1.0;
+            return r;
+        }
+
+        [[nodiscard]] Matrix3x3 transpose() const noexcept
+        {
+            Matrix3x3 t { };
+            for (std::size_t i = 0; i < 3; ++i) {
+                for (std::size_t j = 0; j < 3; ++j) {
+                    t.m[i][j] = m[j][i];
                 }
-                r.m[i][j] = sum;
             }
+            return t;
         }
-        return r;
-    }
 
-    [[nodiscard]] Vector3D multVec(const Vector3D& v) const noexcept {
-        return Vector3D {
-            m[0][0] * v.x + m[0][1] * v.y + m[0][2] * v.z,
-            m[1][0] * v.x + m[1][1] * v.y + m[1][2] * v.z,
-            m[2][0] * v.x + m[2][1] * v.y + m[2][2] * v.z
-        };
-    }
-};
+        [[nodiscard]] Matrix3x3 operator*(const Matrix3x3& o) const noexcept
+        {
+            Matrix3x3 r { };
+            for (std::size_t i = 0; i < 3; ++i) {
+                for (std::size_t j = 0; j < 3; ++j) {
+                    double sum = 0.0;
+                    for (std::size_t k = 0; k < 3; ++k) {
+                        sum += m[i][k] * o.m[k][j];
+                    }
+                    r.m[i][j] = sum;
+                }
+            }
+            return r;
+        }
+
+        [[nodiscard]] Vector3D multVec(const Vector3D& v) const noexcept
+        {
+            return Vector3D { m[0][0] * v.x + m[0][1] * v.y + m[0][2] * v.z,
+                m[1][0] * v.x + m[1][1] * v.y + m[1][2] * v.z, m[2][0] * v.x + m[2][1] * v.y + m[2][2] * v.z };
+        }
+    };
 
 } // namespace
 
-GeoPoint2D KlvGeodesy::directGeodetic(const GeoPoint2D& origin,
-                                      double bearingDeg,
-                                      double distanceMeters) noexcept {
+GeoPoint2D KlvGeodesy::directGeodetic(const GeoPoint2D& origin, double bearingDeg, double distanceMeters) noexcept
+{
     if (distanceMeters <= 0.0) {
         return origin;
     }
@@ -134,49 +151,45 @@ GeoPoint2D KlvGeodesy::directGeodetic(const GeoPoint2D& origin,
     const double x = cosDelta - sinPhi1 * sinPhi2;
     const double lambda2 = lambda1 + std::atan2(y, x);
 
-    return GeoPoint2D {
-        rad2deg(phi2),
-        normalizeLon(rad2deg(lambda2))
-    };
+    return GeoPoint2D { rad2deg(phi2), normalizeLon(rad2deg(lambda2)) };
 }
 
-double KlvGeodesy::distanceMeters(const GeoPoint2D& p1, const GeoPoint2D& p2) noexcept {
+double KlvGeodesy::distanceMeters(const GeoPoint2D& p1, const GeoPoint2D& p2) noexcept
+{
     const double phi1 = deg2rad(p1.latitudeDeg);
     const double phi2 = deg2rad(p2.latitudeDeg);
     const double deltaPhi = deg2rad(p2.latitudeDeg - p1.latitudeDeg);
     const double deltaLambda = deg2rad(p2.longitudeDeg - p1.longitudeDeg);
 
-    const double a = std::sin(deltaPhi / 2.0) * std::sin(deltaPhi / 2.0) +
-                     std::cos(phi1) * std::cos(phi2) *
-                     std::sin(deltaLambda / 2.0) * std::sin(deltaLambda / 2.0);
+    const double a = std::sin(deltaPhi / 2.0) * std::sin(deltaPhi / 2.0)
+        + std::cos(phi1) * std::cos(phi2) * std::sin(deltaLambda / 2.0) * std::sin(deltaLambda / 2.0);
 
-    const double c = 2.0 * std::atan2(std::sqrt(std::clamp(a, 0.0, 1.0)),
-                                      std::sqrt(std::clamp(1.0 - a, 0.0, 1.0)));
+    const double c = 2.0 * std::atan2(std::sqrt(std::clamp(a, 0.0, 1.0)), std::sqrt(std::clamp(1.0 - a, 0.0, 1.0)));
 
     return kEarthRadiusMeters * c;
 }
 
-double KlvGeodesy::bearingDeg(const GeoPoint2D& from, const GeoPoint2D& to) noexcept {
+double KlvGeodesy::bearingDeg(const GeoPoint2D& from, const GeoPoint2D& to) noexcept
+{
     const double phi1 = deg2rad(from.latitudeDeg);
     const double phi2 = deg2rad(to.latitudeDeg);
     const double deltaLambda = deg2rad(to.longitudeDeg - from.longitudeDeg);
 
     const double y = std::sin(deltaLambda) * std::cos(phi2);
-    const double x = std::cos(phi1) * std::sin(phi2) -
-                     std::sin(phi1) * std::cos(phi2) * std::cos(deltaLambda);
+    const double x = std::cos(phi1) * std::sin(phi2) - std::sin(phi1) * std::cos(phi2) * std::cos(deltaLambda);
 
     return normalizeAngle360(rad2deg(std::atan2(y, x)));
 }
 
-double KlvGeodesy::horizonDistance(double altitudeM, double groundElevationM) noexcept {
+double KlvGeodesy::horizonDistance(double altitudeM, double groundElevationM) noexcept
+{
     const double deltaH = std::max(0.0, altitudeM - groundElevationM);
     return std::sqrt(2.0 * kEarthRadiusMeters * deltaH + (deltaH * deltaH));
 }
 
-Vector3D KlvGeodesy::computeRayNed(const PlatformAttitude& attitude,
-                                   const CameraOrientation& sensor,
-                                   double opticalOffsetX,
-                                   double opticalOffsetY) noexcept {
+Vector3D KlvGeodesy::computeRayNed(const PlatformAttitude& attitude, const CameraOrientation& sensor,
+    double opticalOffsetX, double opticalOffsetY) noexcept
+{
     // 1. Platform rotation: NED to Platform Coordinate System (PCS)
     // Yaw psi around Z (Heading), Pitch theta around Y, Roll phi around X
     const double psi = deg2rad(attitude.headingDeg);
@@ -205,10 +218,9 @@ Vector3D KlvGeodesy::computeRayNed(const PlatformAttitude& attitude,
     return rScsToNed.multVec(rayScs);
 }
 
-std::optional<GeoPoint2D> KlvGeodesy::intersectRayEarth(const GeoPoint3D& platformPos,
-                                                         const Vector3D& rayNed,
-                                                         double groundElevationM,
-                                                         bool clipToHorizon) noexcept {
+std::optional<GeoPoint2D> KlvGeodesy::intersectRayEarth(
+    const GeoPoint3D& platformPos, const Vector3D& rayNed, double groundElevationM, bool clipToHorizon) noexcept
+{
     const double deltaH = platformPos.altitudeM - groundElevationM;
     if (deltaH <= 0.0) {
         return std::nullopt;
@@ -238,39 +250,38 @@ std::optional<GeoPoint2D> KlvGeodesy::intersectRayEarth(const GeoPoint3D& platfo
     }
 
     // Near intersection (entry point onto the spherical Earth)
-    const double slantRange = (rPlatform * rayNed.z) - std::sqrt(std::max(0.0, ((rPlatform * rayNed.z) * (rPlatform * rayNed.z)) - cVal));
+    const double slantRange
+        = (rPlatform * rayNed.z) - std::sqrt(std::max(0.0, ((rPlatform * rayNed.z) * (rPlatform * rayNed.z)) - cVal));
     if (slantRange <= 0.0) {
         return std::nullopt;
     }
 
     // Ground travel distance:
     const double groundPlaneDist = slantRange * std::sqrt((rayNed.x * rayNed.x) + (rayNed.y * rayNed.y));
-    const double surfaceDist = 2.0 * kEarthRadiusMeters * std::asin(std::clamp(groundPlaneDist / (2.0 * kEarthRadiusMeters), 0.0, 1.0));
+    const double surfaceDist
+        = 2.0 * kEarthRadiusMeters * std::asin(std::clamp(groundPlaneDist / (2.0 * kEarthRadiusMeters), 0.0, 1.0));
 
     return directGeodetic(origin, rayBearing, surfaceDist);
 }
 
 std::optional<GeoPoint2D> KlvGeodesy::computeFrameCenter(const GeoPoint3D& platformPos,
-                                                         const PlatformAttitude& attitude,
-                                                         const CameraOrientation& sensor,
-                                                         double groundElevationM) noexcept {
+    const PlatformAttitude& attitude, const CameraOrientation& sensor, double groundElevationM) noexcept
+{
     const Vector3D ray = computeRayNed(attitude, sensor, 0.0, 0.0);
     return intersectRayEarth(platformPos, ray, groundElevationM, false);
 }
 
-std::optional<GeoPoint2D> KlvGeodesy::computeFrameCenter(const GeoPoint3D& platformPos,
-                                                         double platformHeadingDeg,
-                                                         double sensorAzimuthDeg,
-                                                         double sensorElevationDeg,
-                                                         double groundElevationM) noexcept {
+std::optional<GeoPoint2D> KlvGeodesy::computeFrameCenter(const GeoPoint3D& platformPos, double platformHeadingDeg,
+    double sensorAzimuthDeg, double sensorElevationDeg, double groundElevationM) noexcept
+{
     const PlatformAttitude att { platformHeadingDeg, 0.0, 0.0 };
     const CameraOrientation cam { sensorAzimuthDeg, sensorElevationDeg, 0.0 };
     return computeFrameCenter(platformPos, att, cam, groundElevationM);
 }
 
-std::optional<double> KlvGeodesy::computeSlantRange(double platformAltitudeM,
-                                                    double sensorElevationDeg,
-                                                    double groundElevationM) noexcept {
+std::optional<double> KlvGeodesy::computeSlantRange(
+    double platformAltitudeM, double sensorElevationDeg, double groundElevationM) noexcept
+{
     const double deltaH = platformAltitudeM - groundElevationM;
     if (deltaH <= 0.0 || sensorElevationDeg >= -0.01) {
         return std::nullopt;
@@ -286,11 +297,9 @@ std::optional<double> KlvGeodesy::computeSlantRange(double platformAltitudeM,
 }
 
 std::optional<FrustumCorners> KlvGeodesy::computeFrustum(const GeoPoint3D& platformPos,
-                                                         const PlatformAttitude& attitude,
-                                                         const CameraOrientation& sensor,
-                                                         double hfovDeg,
-                                                         double vfovDeg,
-                                                         double groundElevationM) noexcept {
+    const PlatformAttitude& attitude, const CameraOrientation& sensor, double hfovDeg, double vfovDeg,
+    double groundElevationM) noexcept
+{
     const double deltaH = platformPos.altitudeM - groundElevationM;
     if (deltaH <= 0.0) {
         return std::nullopt;
@@ -324,13 +333,10 @@ std::optional<FrustumCorners> KlvGeodesy::computeFrustum(const GeoPoint3D& platf
     return corners;
 }
 
-std::optional<FrustumCorners> KlvGeodesy::computeFrustum(const GeoPoint3D& platformPos,
-                                                         double platformHeadingDeg,
-                                                         double sensorAzimuthDeg,
-                                                         double sensorElevationDeg,
-                                                         double hfovDeg,
-                                                         double vfovDeg,
-                                                         double groundElevationM) noexcept {
+std::optional<FrustumCorners> KlvGeodesy::computeFrustum(const GeoPoint3D& platformPos, double platformHeadingDeg,
+    double sensorAzimuthDeg, double sensorElevationDeg, double hfovDeg, double vfovDeg,
+    double groundElevationM) noexcept
+{
     const PlatformAttitude att { platformHeadingDeg, 0.0, 0.0 };
     const CameraOrientation cam { sensorAzimuthDeg, sensorElevationDeg, 0.0 };
     return computeFrustum(platformPos, att, cam, hfovDeg, vfovDeg, groundElevationM);

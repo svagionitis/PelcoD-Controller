@@ -1,7 +1,11 @@
 /// @file SightlineFraming.cpp
 /// @brief Implementation of core packet framing, CRC calculation, and endian utilities.
 
+#include <cstdint>
+
 #include "SightlineFraming.h"
+#include <string>
+#include <vector>
 
 namespace Sightline {
 
@@ -10,7 +14,7 @@ std::vector<std::uint8_t> SightlineFraming::buildPacket(MessageId id, ByteView p
     // Length covers Message ID + Payload + Checksum
     const std::size_t payloadAndCsLen { 1U + payload.size() + 1U };
 
-    std::vector<std::uint8_t> packet {};
+    std::vector<std::uint8_t> packet { };
     packet.reserve(payloadAndCsLen + 4U);
 
     packet.push_back(HeaderByte1);
@@ -65,7 +69,7 @@ ByteView SightlineFraming::extractPayload(ByteView packet) noexcept
     const std::size_t hLen { getHeaderLength(packet) };
     // Packet must have header + MessageId (1) + Checksum (1)
     if (hLen == 0U || packet.size() < (hLen + 2U)) {
-        return {};
+        return { };
     }
     // Payload is strictly between MessageId and Checksum
     return packet.subspan(hLen + 1U, packet.size() - (hLen + 2U));

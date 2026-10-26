@@ -6,16 +6,18 @@
 #include <algorithm>
 #include <cmath>
 #include <complex>
+#include <cstddef>
 #include <limits>
 #include <numeric>
+#include <vector>
 
 namespace Tracking {
 
 namespace {
 
-constexpr double PI { 3.14159265358979323846 };
-constexpr double TWO_PI { 2.0 * PI };
-constexpr double EPSILON { 1e-12 };
+    constexpr double PI { 3.14159265358979323846 };
+    constexpr double TWO_PI { 2.0 * PI };
+    constexpr double EPSILON { 1e-12 };
 
 } // namespace
 
@@ -69,10 +71,10 @@ PlantIdentificationResult PlantIdentifier::analyze()
     return analyze(m_inputBuffer, m_outputBuffer, m_config.sampleRateHz);
 }
 
-PlantIdentificationResult PlantIdentifier::analyze(const std::vector<double>& inputCommands,
-    const std::vector<double>& outputResponses, double sampleRateHz)
+PlantIdentificationResult PlantIdentifier::analyze(
+    const std::vector<double>& inputCommands, const std::vector<double>& outputResponses, double sampleRateHz)
 {
-    PlantIdentificationResult result {};
+    PlantIdentificationResult result { };
     const double fs = (sampleRateHz > 0.0) ? sampleRateHz : m_config.sampleRateHz;
 
     if (inputCommands.size() < m_config.segmentSize || outputResponses.size() < m_config.segmentSize
@@ -106,8 +108,8 @@ PlantIdentificationResult PlantIdentifier::analyze(const std::vector<double>& in
     return result;
 }
 
-void PlantIdentifier::computeWelchEstimates(const std::vector<double>& u, const std::vector<double>& y,
-    double fs, BodeData& bode)
+void PlantIdentifier::computeWelchEstimates(
+    const std::vector<double>& u, const std::vector<double>& y, double fs, BodeData& bode)
 {
     bode.frequenciesHz.clear();
     bode.magnitudeDb.clear();
@@ -204,7 +206,7 @@ void PlantIdentifier::computeWelchEstimates(const std::vector<double>& u, const 
 
 void PlantIdentifier::extractStabilityMargins(const BodeData& bode, StabilityMargins& margins)
 {
-    margins = StabilityMargins {};
+    margins = StabilityMargins { };
     const std::size_t n = bode.frequenciesHz.size();
     if (n < 2U) {
         return;
@@ -216,10 +218,9 @@ void PlantIdentifier::extractStabilityMargins(const BodeData& bode, StabilityMar
         const double mCurr = bode.magnitudeDb[i];
         if ((mPrev >= 0.0 && mCurr <= 0.0) || (mPrev <= 0.0 && mCurr >= 0.0)) {
             const double fraction = (0.0 - mPrev) / (mCurr - mPrev + EPSILON);
-            margins.gainCrossoverFreqHz = bode.frequenciesHz[i - 1U]
-                + fraction * (bode.frequenciesHz[i] - bode.frequenciesHz[i - 1U]);
-            const double phaseAtGc = bode.phaseDeg[i - 1U]
-                + fraction * (bode.phaseDeg[i] - bode.phaseDeg[i - 1U]);
+            margins.gainCrossoverFreqHz
+                = bode.frequenciesHz[i - 1U] + fraction * (bode.frequenciesHz[i] - bode.frequenciesHz[i - 1U]);
+            const double phaseAtGc = bode.phaseDeg[i - 1U] + fraction * (bode.phaseDeg[i] - bode.phaseDeg[i - 1U]);
             margins.phaseMarginDeg = 180.0 + phaseAtGc;
             margins.hasGainCrossover = true;
             break;
@@ -232,16 +233,15 @@ void PlantIdentifier::extractStabilityMargins(const BodeData& bode, StabilityMar
         const double pCurr = bode.phaseDeg[i];
         if ((pPrev >= -180.0 && pCurr <= -180.0) || (pPrev <= -180.0 && pCurr >= -180.0)) {
             const double fraction = (-180.0 - pPrev) / (pCurr - pPrev + EPSILON);
-            margins.phaseCrossoverFreqHz = bode.frequenciesHz[i - 1U]
-                + fraction * (bode.frequenciesHz[i] - bode.frequenciesHz[i - 1U]);
-            const double magAt180 = bode.magnitudeDb[i - 1U]
-                + fraction * (bode.magnitudeDb[i] - bode.magnitudeDb[i - 1U]);
+            margins.phaseCrossoverFreqHz
+                = bode.frequenciesHz[i - 1U] + fraction * (bode.frequenciesHz[i] - bode.frequenciesHz[i - 1U]);
+            const double magAt180
+                = bode.magnitudeDb[i - 1U] + fraction * (bode.magnitudeDb[i] - bode.magnitudeDb[i - 1U]);
             margins.gainMarginDb = -magAt180;
             const double linMagAt180 = std::pow(10.0, magAt180 / 20.0);
             margins.ultimateGainKu = 1.0 / std::max(EPSILON, linMagAt180);
-            margins.ultimatePeriodTu = (margins.phaseCrossoverFreqHz > EPSILON)
-                ? (1.0 / margins.phaseCrossoverFreqHz)
-                : 0.0;
+            margins.ultimatePeriodTu
+                = (margins.phaseCrossoverFreqHz > EPSILON) ? (1.0 / margins.phaseCrossoverFreqHz) : 0.0;
             margins.hasPhaseCrossover = true;
             break;
         }
@@ -262,10 +262,9 @@ void PlantIdentifier::detectResonancePeaks(const BodeData& bode, std::vector<Res
         const double coh = bode.coherence[i];
 
         // Must be a local maximum with reasonable coherence (> 0.35)
-        if (mag > bode.magnitudeDb[i - 1U] && mag > bode.magnitudeDb[i + 1U]
-            && mag > bode.magnitudeDb[i - 2U] && mag > bode.magnitudeDb[i + 2U]
-            && coh >= 0.35) {
-            
+        if (mag > bode.magnitudeDb[i - 1U] && mag > bode.magnitudeDb[i + 1U] && mag > bode.magnitudeDb[i - 2U]
+            && mag > bode.magnitudeDb[i + 2U] && coh >= 0.35) {
+
             // Measure prominence against adjacent troughs
             const double leftTrough = std::min(bode.magnitudeDb[i - 1U], bode.magnitudeDb[i - 2U]);
             const double rightTrough = std::min(bode.magnitudeDb[i + 1U], bode.magnitudeDb[i + 2U]);
@@ -298,14 +297,13 @@ void PlantIdentifier::detectResonancePeaks(const BodeData& bode, std::vector<Res
     }
 
     // Sort detected modes by descending peak magnitude
-    std::sort(peaks.begin(), peaks.end(), [](const ResonancePeak& a, const ResonancePeak& b) {
-        return a.peakMagnitudeDb > b.peakMagnitudeDb;
-    });
+    std::sort(peaks.begin(), peaks.end(),
+        [](const ResonancePeak& a, const ResonancePeak& b) { return a.peakMagnitudeDb > b.peakMagnitudeDb; });
 }
 
 void PlantIdentifier::fitFopdtModel(const BodeData& bode, const StabilityMargins& margins, FopdtModel& model)
 {
-    model = FopdtModel {};
+    model = FopdtModel { };
     const std::size_t n = bode.frequenciesHz.size();
     if (n < 4U) {
         return;
@@ -345,7 +343,7 @@ void PlantIdentifier::fitFopdtModel(const BodeData& bode, const StabilityMargins
 
 PidTuningResult PlantIdentifier::computePidGains(TuningRule rule, double imcFilterLambda) const
 {
-    PidTuningResult result {};
+    PidTuningResult result { };
     result.rule = rule;
 
     const auto& margins = m_latestResult.margins;
@@ -427,7 +425,7 @@ void PlantIdentifier::reset() noexcept
 {
     m_inputBuffer.clear();
     m_outputBuffer.clear();
-    m_latestResult = PlantIdentificationResult {};
+    m_latestResult = PlantIdentificationResult { };
 }
 
 void PlantIdentifier::setConfig(const ChirpConfig& config)

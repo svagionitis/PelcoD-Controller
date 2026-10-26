@@ -5,28 +5,35 @@
 #include "KlvGeodesy.h"
 
 #include <cmath>
+#include <cstdint>
+
+#include <optional>
+#include <vector>
 
 namespace Mapping {
 
 namespace {
 
-[[nodiscard]] double computeDistance(const SpatialPoint3D& p1, const SpatialPoint3D& p2) noexcept {
-    const Klv::GeoPoint2D g1 { p1.latitudeDeg, p1.longitudeDeg };
-    const Klv::GeoPoint2D g2 { p2.latitudeDeg, p2.longitudeDeg };
-    return Klv::KlvGeodesy::distanceMeters(g1, g2);
-}
-
-[[nodiscard]] double angularDiff(double a, double b) noexcept {
-    double diff = std::fmod(std::abs(a - b), 360.0);
-    if (diff > 180.0) {
-        diff = 360.0 - diff;
+    [[nodiscard]] double computeDistance(const SpatialPoint3D& p1, const SpatialPoint3D& p2) noexcept
+    {
+        const Klv::GeoPoint2D g1 { p1.latitudeDeg, p1.longitudeDeg };
+        const Klv::GeoPoint2D g2 { p2.latitudeDeg, p2.longitudeDeg };
+        return Klv::KlvGeodesy::distanceMeters(g1, g2);
     }
-    return diff;
-}
+
+    [[nodiscard]] double angularDiff(double a, double b) noexcept
+    {
+        double diff = std::fmod(std::abs(a - b), 360.0);
+        if (diff > 180.0) {
+            diff = 360.0 - diff;
+        }
+        return diff;
+    }
 
 } // namespace
 
-void SpatialDataRecorder::addTelemetryFrame(const Klv::UasDatalinkMessage& msg) {
+void SpatialDataRecorder::addTelemetryFrame(const Klv::UasDatalinkMessage& msg)
+{
     if (!msg.sensorLatitudeDeg.has_value() || !msg.sensorLongitudeDeg.has_value()) {
         return;
     }
@@ -37,7 +44,7 @@ void SpatialDataRecorder::addTelemetryFrame(const Klv::UasDatalinkMessage& msg) 
     const std::uint64_t timestamp = msg.precisionTimeStampUs.value_or(0U);
 
     // Build Track Point
-    SpatialTrackPoint tp {};
+    SpatialTrackPoint tp { };
     tp.timestampUs = timestamp;
     tp.position = { platformLat, platformLon, platformAlt };
     tp.headingDeg = msg.platformHeadingDeg.value_or(0.0);
@@ -59,7 +66,7 @@ void SpatialDataRecorder::addTelemetryFrame(const Klv::UasDatalinkMessage& msg) 
     const double groundElev = msg.frameCenterElevHaeM.value_or(msg.frameCenterElevM.value_or(0.0));
 
     // Build Frustum Mesh
-    FrustumMesh3D frustum {};
+    FrustumMesh3D frustum { };
     frustum.timestampUs = timestamp;
     frustum.apex = tp.position;
     frustum.hfovDeg = msg.sensorHfovDeg.value_or(0.0);
@@ -78,8 +85,8 @@ void SpatialDataRecorder::addTelemetryFrame(const Klv::UasDatalinkMessage& msg) 
         const double azimuth = msg.sensorRelAzimuthDeg.value_or(0.0);
         const double elevation = msg.sensorRelElevationDeg.value_or(-45.0);
 
-        corners = Klv::KlvGeodesy::computeFrustum(platform3D, heading, azimuth, elevation,
-                                                  *msg.sensorHfovDeg, *msg.sensorVfovDeg, groundElev);
+        corners = Klv::KlvGeodesy::computeFrustum(
+            platform3D, heading, azimuth, elevation, *msg.sensorHfovDeg, *msg.sensorVfovDeg, groundElev);
     }
 
     if (corners.has_value()) {
@@ -94,18 +101,20 @@ void SpatialDataRecorder::addTelemetryFrame(const Klv::UasDatalinkMessage& msg) 
     m_frustums.push_back(frustum);
 }
 
-void SpatialDataRecorder::clear() noexcept {
+void SpatialDataRecorder::clear() noexcept
+{
     m_trackPoints.clear();
     m_frustums.clear();
 }
 
-void SpatialDataRecorder::decimate(const DecimationConfig& config) {
+void SpatialDataRecorder::decimate(const DecimationConfig& config)
+{
     if (config.mode == DecimationMode::None || m_trackPoints.size() <= 2U) {
         return;
     }
 
-    std::vector<SpatialTrackPoint> decimatedTracks {};
-    std::vector<FrustumMesh3D> decimatedFrustums {};
+    std::vector<SpatialTrackPoint> decimatedTracks { };
+    std::vector<FrustumMesh3D> decimatedFrustums { };
     decimatedTracks.reserve(m_trackPoints.size());
     decimatedFrustums.reserve(m_frustums.size());
 
@@ -157,19 +166,23 @@ void SpatialDataRecorder::decimate(const DecimationConfig& config) {
     m_frustums = std::move(decimatedFrustums);
 }
 
-const std::vector<SpatialTrackPoint>& SpatialDataRecorder::trackPoints() const noexcept {
+const std::vector<SpatialTrackPoint>& SpatialDataRecorder::trackPoints() const noexcept
+{
     return m_trackPoints;
 }
 
-const std::vector<FrustumMesh3D>& SpatialDataRecorder::frustums() const noexcept {
+const std::vector<FrustumMesh3D>& SpatialDataRecorder::frustums() const noexcept
+{
     return m_frustums;
 }
 
-std::size_t SpatialDataRecorder::size() const noexcept {
+std::size_t SpatialDataRecorder::size() const noexcept
+{
     return m_trackPoints.size();
 }
 
-bool SpatialDataRecorder::empty() const noexcept {
+bool SpatialDataRecorder::empty() const noexcept
+{
     return m_trackPoints.empty();
 }
 

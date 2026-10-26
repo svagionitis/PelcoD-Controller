@@ -2,12 +2,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
+#include <vector>
 
 namespace Mapping {
 
-ScreenVmtiTarget VmtiOverlay::projectTarget(
-    const MapViewport& viewport,
-    const Klv::VTargetPack& pack,
+ScreenVmtiTarget VmtiOverlay::projectTarget(const MapViewport& viewport, const Klv::VTargetPack& pack,
     const std::optional<Klv::GeoPoint2D>& frameCenter) noexcept
 {
     ScreenVmtiTarget target;
@@ -20,15 +20,10 @@ ScreenVmtiTarget VmtiOverlay::projectTarget(
     std::optional<Klv::GeoPoint2D> targetGeo;
 
     if (pack.targetLocation.has_value()) {
-        targetGeo = Klv::GeoPoint2D {
-            pack.targetLocation->latitudeDeg,
-            pack.targetLocation->longitudeDeg
-        };
+        targetGeo = Klv::GeoPoint2D { pack.targetLocation->latitudeDeg, pack.targetLocation->longitudeDeg };
     } else if (pack.locationOffsetDeg.has_value() && frameCenter.has_value()) {
-        targetGeo = Klv::GeoPoint2D {
-            frameCenter->latitudeDeg + pack.locationOffsetDeg->latitudeDeg,
-            frameCenter->longitudeDeg + pack.locationOffsetDeg->longitudeDeg
-        };
+        targetGeo = Klv::GeoPoint2D { frameCenter->latitudeDeg + pack.locationOffsetDeg->latitudeDeg,
+            frameCenter->longitudeDeg + pack.locationOffsetDeg->longitudeDeg };
     }
 
     if (!targetGeo.has_value()) {
@@ -40,10 +35,8 @@ ScreenVmtiTarget VmtiOverlay::projectTarget(
 
     // Project CE90 horizontal uncertainty circle
     if (pack.targetCe90M.has_value() && *pack.targetCe90M > 0.0) {
-        const double mpp = MercatorProjection::metersPerPixel(
-            targetGeo->latitudeDeg,
-            viewport.zoom(),
-            viewport.tileSize());
+        const double mpp
+            = MercatorProjection::metersPerPixel(targetGeo->latitudeDeg, viewport.zoom(), viewport.tileSize());
 
         if (mpp > 1e-6) {
             target.ce90Pixels = *pack.targetCe90M / mpp;
@@ -55,9 +48,7 @@ ScreenVmtiTarget VmtiOverlay::projectTarget(
 }
 
 std::vector<ScreenVmtiTarget> VmtiOverlay::projectTargetSeries(
-    const MapViewport& viewport,
-    const Klv::VmtiLocalSet& vmti,
-    const std::optional<Klv::GeoPoint2D>& frameCenter)
+    const MapViewport& viewport, const Klv::VmtiLocalSet& vmti, const std::optional<Klv::GeoPoint2D>& frameCenter)
 {
     std::vector<ScreenVmtiTarget> results;
     results.reserve(vmti.targets.size());
@@ -72,24 +63,17 @@ std::vector<ScreenVmtiTarget> VmtiOverlay::projectTargetSeries(
     return results;
 }
 
-bool VmtiOverlay::isTargetVisible(
-    const ScreenVmtiTarget& target,
-    const ScreenRect& viewportRect) noexcept
+bool VmtiOverlay::isTargetVisible(const ScreenVmtiTarget& target, const ScreenRect& viewportRect) noexcept
 {
     if (!target.valid) {
         return false;
     }
 
     const double radius = std::max(target.ce90Pixels, 8.0); // At least 8px symbology hit-box
-    const ScreenRect targetBox {
-        target.screenPos.x - radius,
-        target.screenPos.y - radius,
-        radius * 2.0,
-        radius * 2.0
-    };
+    const ScreenRect targetBox { target.screenPos.x - radius, target.screenPos.y - radius, radius * 2.0, radius * 2.0 };
 
-    if (targetBox.right() < viewportRect.left() || targetBox.left() > viewportRect.right() ||
-        targetBox.bottom() < viewportRect.top() || targetBox.top() > viewportRect.bottom()) {
+    if (targetBox.right() < viewportRect.left() || targetBox.left() > viewportRect.right()
+        || targetBox.bottom() < viewportRect.top() || targetBox.top() > viewportRect.bottom()) {
         return false;
     }
 

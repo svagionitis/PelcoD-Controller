@@ -1,7 +1,10 @@
 /// @file SightlineSerialParser.cpp
 /// @brief Implementation of Sightline SLA serial port and GPIO frame deserializers.
 
+#include <cstdint>
+
 #include "SightlineSerialParser.h"
+#include <vector>
 
 namespace Sightline {
 

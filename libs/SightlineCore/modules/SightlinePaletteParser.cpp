@@ -3,6 +3,8 @@
 
 #include "SightlinePaletteParser.h"
 
+#include <cstddef>
+
 namespace Sightline {
 
 namespace {

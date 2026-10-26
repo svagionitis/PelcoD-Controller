@@ -5,8 +5,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <numeric>
 #include <stdexcept>
+#include <vector>
 
 namespace Math {
 
@@ -30,7 +32,7 @@ namespace {
 
 GaborKernel1D createGaborKernel1D(const Gabor1DConfig& config)
 {
-    GaborKernel1D result {};
+    GaborKernel1D result { };
     result.centerFrequencyHz = config.centerFrequencyHz;
     result.sampleRateHz = config.sampleRateHz;
 
@@ -80,7 +82,7 @@ GaborKernel1D createGaborKernel1D(const Gabor1DConfig& config)
 
 GaborKernel2D createGaborKernel2D(const Gabor2DConfig& config)
 {
-    GaborKernel2D result {};
+    GaborKernel2D result { };
     result.wavelength = config.wavelength;
     result.orientationRad = config.orientationRad;
 
@@ -157,7 +159,7 @@ std::vector<double> convolve2D(
     const std::uint8_t* pixels, int width, int height, int stride, const std::vector<double>& kernel, int kernelSize)
 {
     if (pixels == nullptr || width <= 0 || height <= 0 || kernelSize <= 0) {
-        return {};
+        return { };
     }
 
     const int pitch = (stride > 0) ? stride : width;
@@ -193,7 +195,7 @@ std::vector<double> convolve2D(
     const std::vector<double>& image, int width, int height, const std::vector<double>& kernel, int kernelSize)
 {
     if (image.empty() || width <= 0 || height <= 0 || kernelSize <= 0) {
-        return {};
+        return { };
     }
 
     const int halfK = kernelSize / 2;
@@ -281,7 +283,7 @@ void GaborFilterBank::buildKernels()
         const double sigma = lambda * m_config.sigmaScaleRatio;
 
         for (std::size_t o = 0U; o < O; ++o) {
-            Gabor2DConfig cfg {};
+            Gabor2DConfig cfg { };
             cfg.wavelength = lambda;
             cfg.orientationRad = m_orientationAnglesRad[o];
             cfg.sigma = sigma;
@@ -298,7 +300,7 @@ void GaborFilterBank::buildKernels()
 GaborFilterBankResult GaborFilterBank::evaluate(
     const std::uint8_t* grayPixels, int width, int height, int stride, bool computeSpatialEnergy) const
 {
-    GaborFilterBankResult result {};
+    GaborFilterBankResult result { };
     result.imageWidth = width;
     result.imageHeight = height;
 
@@ -326,7 +328,7 @@ GaborFilterBankResult GaborFilterBank::evaluate(
             const std::vector<double> imagResp
                 = convolve2D(grayPixels, width, height, stride, kernel.imagPart, kernel.kernelSize);
 
-            GaborChannelResult ch {};
+            GaborChannelResult ch { };
             ch.scaleIndex = s;
             ch.orientationIndex = o;
             ch.orientationRad = m_orientationAnglesRad[o];
@@ -412,7 +414,7 @@ GaborFilterBankResult GaborFilterBank::evaluate(
 GaborFilterBankResult GaborFilterBank::evaluate(
     const std::vector<double>& image, int width, int height, bool computeSpatialEnergy) const
 {
-    GaborFilterBankResult result {};
+    GaborFilterBankResult result { };
     result.imageWidth = width;
     result.imageHeight = height;
 
@@ -438,7 +440,7 @@ GaborFilterBankResult GaborFilterBank::evaluate(
             const std::vector<double> realResp = convolve2D(image, width, height, kernel.realPart, kernel.kernelSize);
             const std::vector<double> imagResp = convolve2D(image, width, height, kernel.imagPart, kernel.kernelSize);
 
-            GaborChannelResult ch {};
+            GaborChannelResult ch { };
             ch.scaleIndex = s;
             ch.orientationIndex = o;
             ch.orientationRad = m_orientationAnglesRad[o];

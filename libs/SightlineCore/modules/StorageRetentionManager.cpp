@@ -3,7 +3,13 @@
 
 #include "StorageRetentionManager.h"
 
+#include <cstdint>
+
 #include <algorithm>
+#include <mutex>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace Sightline {
 
@@ -31,17 +37,15 @@ void StorageRetentionManager::clearPinned() noexcept
     m_pinnedFiles.clear();
 }
 
-std::vector<std::string> StorageRetentionManager::pruneOldest(
-    const std::vector<FileMetadataEntry>& entries,
-    std::uint64_t requiredReclaimBytes,
-    std::uint64_t& outReclaimedBytes) const
+std::vector<std::string> StorageRetentionManager::pruneOldest(const std::vector<FileMetadataEntry>& entries,
+    std::uint64_t requiredReclaimBytes, std::uint64_t& outReclaimedBytes) const
 {
     outReclaimedBytes = 0ULL;
     if (requiredReclaimBytes == 0ULL || entries.empty()) {
-        return {};
+        return { };
     }
 
-    std::vector<const FileMetadataEntry*> candidates {};
+    std::vector<const FileMetadataEntry*> candidates { };
     candidates.reserve(entries.size());
 
     {
@@ -54,12 +58,12 @@ std::vector<std::string> StorageRetentionManager::pruneOldest(
         }
     }
 
-    std::sort(candidates.begin(), candidates.end(),
-        [](const FileMetadataEntry* a, const FileMetadataEntry* b) noexcept {
+    std::sort(
+        candidates.begin(), candidates.end(), [](const FileMetadataEntry* a, const FileMetadataEntry* b) noexcept {
             return a->timestampUs < b->timestampUs;
         });
 
-    std::vector<std::string> toPrune {};
+    std::vector<std::string> toPrune { };
     for (const auto* cand : candidates) {
         toPrune.push_back(cand->filename);
         outReclaimedBytes += cand->sizeBytes;

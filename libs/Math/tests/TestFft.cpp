@@ -4,6 +4,7 @@
 #include "Fft.h"
 
 #include <cmath>
+#include <cstddef>
 #include <gtest/gtest.h>
 #include <iostream>
 #include <vector>

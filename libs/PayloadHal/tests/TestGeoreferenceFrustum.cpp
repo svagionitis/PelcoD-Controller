@@ -5,7 +5,9 @@
 #include "Klv/KlvGeodesy.h"
 #include "sim/SimulatedPayload.h"
 #include <cmath>
+
 #include <gtest/gtest.h>
+#include <memory>
 
 namespace PayloadHal {
 namespace {

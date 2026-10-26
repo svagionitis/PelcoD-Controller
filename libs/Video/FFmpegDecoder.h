@@ -17,6 +17,7 @@ extern "C" {
 #include <libavformat/avformat.h>
 #include <libavutil/imgutils.h>
 #include <libswscale/swscale.h>
+#include <vector>
 }
 
 namespace Video {
@@ -121,12 +122,12 @@ private:
     SwsContextPtr m_swsCtx;
 
     int m_videoStreamIndex { -1 };
-    std::vector<int> m_metadataStreamIndices {};
+    std::vector<int> m_metadataStreamIndices { };
     bool m_reachedEof { false };
 
     DeviceType m_actualDeviceType { DeviceType::CPU };
     AVBufferRef* m_hwDeviceCtx { nullptr };
-    FFmpegInterruptContext m_interruptCtx {};
+    FFmpegInterruptContext m_interruptCtx { };
 
     void dispatchMetadataPacket(const AVPacket* pkt);
 };

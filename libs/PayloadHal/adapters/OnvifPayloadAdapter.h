@@ -8,11 +8,14 @@
 #include "IPayload.h"
 #include "Onvif/OnvifClient.h"
 
+#include <cstdint>
+
 #include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -73,11 +76,11 @@ public:
 
 private:
     std::shared_ptr<Onvif::OnvifClient> m_client;
-    std::string m_profileToken {};
+    std::string m_profileToken { };
     mutable std::mutex m_mutex;
-    StateCallback m_stateCallback {};
-    TelemetryCallback m_telemetryCallback {};
-    GimbalTelemetry m_telemetry {};
+    StateCallback m_stateCallback { };
+    TelemetryCallback m_telemetryCallback { };
+    GimbalTelemetry m_telemetry { };
     bool m_connected { false };
     bool m_ptzSupported { true };
 };
@@ -170,14 +173,14 @@ public:
 
 private:
     std::shared_ptr<Onvif::OnvifClient> m_client;
-    std::string m_profileToken {};
-    std::string m_videoSourceToken {};
+    std::string m_profileToken { };
+    std::string m_videoSourceToken { };
     mutable std::mutex m_mutex;
-    StateCallback m_stateCallback {};
-    TelemetryCallback m_telemetryCallback {};
-    CameraTelemetry m_telemetry {};
-    mutable std::string m_streamUri {};
-    mutable std::map<VideoStreamProfile, std::string> m_profileUris {};
+    StateCallback m_stateCallback { };
+    TelemetryCallback m_telemetryCallback { };
+    CameraTelemetry m_telemetry { };
+    mutable std::string m_streamUri { };
+    mutable std::map<VideoStreamProfile, std::string> m_profileUris { };
     bool m_connected { false };
 };
 
@@ -193,7 +196,8 @@ public:
     /// @brief Constructs composite payload adapter from endpoint URL and credentials.
     /// @param[in] deviceEndpoint Camera device service URL.
     /// @param[in] credentials Authentication credentials.
-    explicit OnvifPayloadAdapter(const std::string& deviceEndpoint, const Onvif::SecurityCredentials& credentials = {});
+    explicit OnvifPayloadAdapter(
+        const std::string& deviceEndpoint, const Onvif::SecurityCredentials& credentials = { });
 
     ~OnvifPayloadAdapter() override;
 
@@ -231,9 +235,9 @@ private:
     std::shared_ptr<Onvif::OnvifClient> m_client;
     std::shared_ptr<OnvifPtuAdapter> m_ptu;
     std::shared_ptr<OnvifCameraAdapter> m_camera;
-    std::shared_ptr<ILaserRangeFinder> m_lrf {};
+    std::shared_ptr<ILaserRangeFinder> m_lrf { };
     mutable std::mutex m_mutex;
-    StateCallback m_stateCallback {};
+    StateCallback m_stateCallback { };
 };
 
 } // namespace PayloadHal

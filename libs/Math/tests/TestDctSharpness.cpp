@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <gtest/gtest.h>
 #include <iostream>
 #include <vector>
@@ -17,17 +18,17 @@ namespace {
 TEST(DctSharpnessTest, DctIdctOrthogonality)
 {
     std::cout << "[Test] testDctIdctOrthogonality...\n";
-    double original[8][8] {};
+    double original[8][8] { };
     for (int i = 0; i < 8; ++i) {
         for (int j = 0; j < 8; ++j) {
             original[i][j] = (i * 12.5) + (j * 7.3) - 45.0;
         }
     }
 
-    double transformed[8][8] {};
+    double transformed[8][8] { };
     Math::dct8x8(original, transformed);
 
-    double reconstructed[8][8] {};
+    double reconstructed[8][8] { };
     Math::idct8x8(transformed, reconstructed);
 
     for (int i = 0; i < 8; ++i) {
@@ -44,14 +45,14 @@ TEST(DctSharpnessTest, SingleBlockEvaluation)
     DctSharpnessEvaluator evaluator;
 
     // 1. Completely flat / untextured block (all pixels = 128)
-    std::uint8_t flatBlock[64] {};
+    std::uint8_t flatBlock[64] { };
     std::fill(flatBlock, flatBlock + 64, static_cast<std::uint8_t>(128));
     const double flatScore = evaluator.evaluateBlock(flatBlock, 8);
     std::cout << "  Flat block score: " << flatScore << " (expected ~0)\n";
     EXPECT_TRUE(flatScore < 1e-9);
 
     // 2. High-contrast sharp edge block (left half 20, right half 220)
-    std::uint8_t edgeBlock[64] {};
+    std::uint8_t edgeBlock[64] { };
     for (int y = 0; y < 8; ++y) {
         for (int x = 0; x < 8; ++x) {
             edgeBlock[y * 8 + x] = (x < 4) ? 20 : 220;
@@ -111,7 +112,7 @@ TEST(DctSharpnessTest, DefocusBlurMonotonicity)
         }
     }
 
-    DctSharpnessConfig cfg {};
+    DctSharpnessConfig cfg { };
     cfg.roiNormX = 0.1;
     cfg.roiNormY = 0.1;
     cfg.roiNormWidth = 0.8;
@@ -157,7 +158,7 @@ TEST(DctSharpnessTest, IlluminationInvariance)
         }
     }
 
-    DctSharpnessConfig cfg {};
+    DctSharpnessConfig cfg { };
     cfg.roiNormX = 0.0;
     cfg.roiNormY = 0.0;
     cfg.roiNormWidth = 1.0;
@@ -199,7 +200,7 @@ TEST(DctSharpnessTest, RoiTargeting)
     }
 
     // Evaluator targeting center
-    DctSharpnessConfig centerCfg {};
+    DctSharpnessConfig centerCfg { };
     centerCfg.roiNormX = 0.3;
     centerCfg.roiNormY = 0.3;
     centerCfg.roiNormWidth = 0.4;
@@ -207,7 +208,7 @@ TEST(DctSharpnessTest, RoiTargeting)
     DctSharpnessEvaluator centerEval(centerCfg);
 
     // Evaluator targeting corner (flat gray)
-    DctSharpnessConfig cornerCfg {};
+    DctSharpnessConfig cornerCfg { };
     cornerCfg.roiNormX = 0.0;
     cornerCfg.roiNormY = 0.0;
     cornerCfg.roiNormWidth = 0.25;

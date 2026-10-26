@@ -1,6 +1,8 @@
 #include "n2k/N2kFastPacketAssembler.h"
 #include "n2k/N2kTypes.h"
 
+#include <chrono>
+#include <cstdint>
 #include <gtest/gtest.h>
 #include <thread>
 #include <vector>
@@ -12,13 +14,13 @@ TEST(TestN2kFastPacket, SingleFramePgnImmediateReturn)
     N2kFastPacketAssembler assembler;
 
     // PGN 129025 is single-frame (8 bytes)
-    N2kHeader hdr {};
+    N2kHeader hdr { };
     hdr.priority = 2U;
     hdr.pgn = static_cast<std::uint32_t>(Pgn::PositionRapidUpdate);
     hdr.sourceAddress = 35U;
     hdr.destinationAddress = 0xFFU;
 
-    CanFrame frame {};
+    CanFrame frame { };
     frame.id = hdr.toCanId();
     frame.dlc = 8U;
     frame.data = { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
@@ -37,7 +39,7 @@ TEST(TestN2kFastPacket, MultiFrameReassembly)
     N2kFastPacketAssembler assembler;
 
     // PGN 129038 is Fast Packet (28 bytes)
-    N2kHeader hdr {};
+    N2kHeader hdr { };
     hdr.priority = 4U;
     hdr.pgn = static_cast<std::uint32_t>(Pgn::AisClassAPositionReport);
     hdr.sourceAddress = 42U;
@@ -53,7 +55,7 @@ TEST(TestN2kFastPacket, MultiFrameReassembly)
     }
 
     // Frame 0: header byte = (seq << 3) | 0, totalBytes = 28, 6 data bytes
-    CanFrame f0 {};
+    CanFrame f0 { };
     f0.id = canId;
     f0.dlc = 8U;
     f0.data[0] = static_cast<std::uint8_t>((seq << 3) | 0U);
@@ -63,7 +65,7 @@ TEST(TestN2kFastPacket, MultiFrameReassembly)
     }
 
     // Frame 1: header byte = (seq << 3) | 1, 7 data bytes
-    CanFrame f1 {};
+    CanFrame f1 { };
     f1.id = canId;
     f1.dlc = 8U;
     f1.data[0] = static_cast<std::uint8_t>((seq << 3) | 1U);
@@ -72,7 +74,7 @@ TEST(TestN2kFastPacket, MultiFrameReassembly)
     }
 
     // Frame 2: header byte = (seq << 3) | 2, 7 data bytes
-    CanFrame f2 {};
+    CanFrame f2 { };
     f2.id = canId;
     f2.dlc = 8U;
     f2.data[0] = static_cast<std::uint8_t>((seq << 3) | 2U);
@@ -81,7 +83,7 @@ TEST(TestN2kFastPacket, MultiFrameReassembly)
     }
 
     // Frame 3: header byte = (seq << 3) | 3, 7 data bytes
-    CanFrame f3 {};
+    CanFrame f3 { };
     f3.id = canId;
     f3.dlc = 8U;
     f3.data[0] = static_cast<std::uint8_t>((seq << 3) | 3U);
@@ -90,7 +92,7 @@ TEST(TestN2kFastPacket, MultiFrameReassembly)
     }
 
     // Frame 4: header byte = (seq << 3) | 4, remaining 1 data byte
-    CanFrame f4 {};
+    CanFrame f4 { };
     f4.id = canId;
     f4.dlc = 8U;
     f4.data[0] = static_cast<std::uint8_t>((seq << 3) | 4U);
@@ -112,7 +114,7 @@ TEST(TestN2kFastPacket, OutOfOrderFrameRejection)
 {
     N2kFastPacketAssembler assembler;
 
-    N2kHeader hdr {};
+    N2kHeader hdr { };
     hdr.pgn = static_cast<std::uint32_t>(Pgn::AisClassAPositionReport);
     hdr.sourceAddress = 10U;
 
@@ -120,14 +122,14 @@ TEST(TestN2kFastPacket, OutOfOrderFrameRejection)
     const std::uint8_t seq = 1U;
 
     // Frame 0:
-    CanFrame f0 {};
+    CanFrame f0 { };
     f0.id = canId;
     f0.dlc = 8U;
     f0.data[0] = static_cast<std::uint8_t>((seq << 3) | 0U);
     f0.data[1] = 20U;
 
     // Frame 2 (Skipping Frame 1)
-    CanFrame f2 {};
+    CanFrame f2 { };
     f2.id = canId;
     f2.dlc = 8U;
     f2.data[0] = static_cast<std::uint8_t>((seq << 3) | 2U);
@@ -137,7 +139,7 @@ TEST(TestN2kFastPacket, OutOfOrderFrameRejection)
     EXPECT_FALSE(assembler.processCanFrame(f2).has_value());
 
     // Session should be aborted, so subsequent Frame 1 is now rejected as orphaned
-    CanFrame f1 {};
+    CanFrame f1 { };
     f1.id = canId;
     f1.dlc = 8U;
     f1.data[0] = static_cast<std::uint8_t>((seq << 3) | 1U);
@@ -148,11 +150,11 @@ TEST(TestN2kFastPacket, SessionTimeoutPruning)
 {
     N2kFastPacketAssembler assembler;
 
-    N2kHeader hdr {};
+    N2kHeader hdr { };
     hdr.pgn = static_cast<std::uint32_t>(Pgn::AisClassAPositionReport);
     hdr.sourceAddress = 15U;
 
-    CanFrame f0 {};
+    CanFrame f0 { };
     f0.id = hdr.toCanId();
     f0.dlc = 8U;
     f0.data[0] = 0x00;
@@ -164,7 +166,7 @@ TEST(TestN2kFastPacket, SessionTimeoutPruning)
     assembler.pruneTimedOutSessions(std::chrono::milliseconds(10));
 
     // Attempting to deliver frame 1 after timeout prune should be rejected
-    CanFrame f1 {};
+    CanFrame f1 { };
     f1.id = hdr.toCanId();
     f1.dlc = 8U;
     f1.data[0] = 0x01;

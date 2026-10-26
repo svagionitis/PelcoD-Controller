@@ -2,6 +2,7 @@
 /// @brief Unit tests for ViscaParser core response decoders.
 
 #include "ViscaParser.h"
+#include <cstdint>
 #include <gtest/gtest.h>
 
 using namespace Visca;
@@ -96,7 +97,7 @@ TEST(TestViscaParser, PanTiltResponseParsing)
     ASSERT_TRUE(posRes.has_value());
     EXPECT_EQ(posRes->cameraAddress, 1U);
     EXPECT_EQ(posRes->panPosition, 0x1234);
-    EXPECT_EQ(posRes->tiltPosition, static_cast<int16_t>(0xFA99));
+    EXPECT_EQ(posRes->tiltPosition, static_cast<std::int16_t>(0xFA99));
 
     // Invalid length or terminator
     const ViscaFrame invalidPosLen { 0x90, 0x50, 0x01, 0x02, 0x03, 0x04, 0xFF };
@@ -119,4 +120,3 @@ TEST(TestViscaParser, PanTiltResponseParsing)
     EXPECT_FALSE(statusRes->tiltDownLimit);
     EXPECT_TRUE(statusRes->moving);
 }
-

@@ -3,6 +3,7 @@
 
 #include "MockViscaTransport.h"
 #include "ViscaBusScanner.h"
+#include <cstdint>
 #include <gtest/gtest.h>
 
 #include <memory>
@@ -17,7 +18,7 @@ using namespace Visca::Testing;
 /// @details Verifies that AddressSet and CAM_VersionInq successfully identify camera parameters.
 TEST(TestViscaBusScanner, DiscoverSingleCamera)
 {
-    auto mockCamera = std::make_shared<MockViscaTransport>(uint8_t { 1U });
+    auto mockCamera = std::make_shared<MockViscaTransport>(std::uint8_t { 1U });
     mockCamera->open();
 
     ViscaBusScanner scanner(mockCamera);
@@ -42,7 +43,7 @@ TEST(TestViscaBusScanner, DiscoverSingleCamera)
 /// @brief Tests error callback when scanning with a closed or null transport interface.
 TEST(TestViscaBusScanner, ClosedTransportReportsError)
 {
-    auto mockCamera = std::make_shared<MockViscaTransport>(uint8_t { 1U });
+    auto mockCamera = std::make_shared<MockViscaTransport>(std::uint8_t { 1U });
     mockCamera->close(); // explicitly closed
 
     ViscaBusScanner scanner(mockCamera);
@@ -50,13 +51,10 @@ TEST(TestViscaBusScanner, ClosedTransportReportsError)
     ScanError reportedError = ScanError::None;
     std::string reportedMsg;
 
-    const auto cameras = scanner.scanBus(
-        nullptr,
-        nullptr,
-        [&](ScanError err, std::string_view msg) {
-            reportedError = err;
-            reportedMsg = std::string(msg);
-        });
+    const auto cameras = scanner.scanBus(nullptr, nullptr, [&](ScanError err, std::string_view msg) {
+        reportedError = err;
+        reportedMsg = std::string(msg);
+    });
 
     EXPECT_TRUE(cameras.empty());
     EXPECT_EQ(reportedError, ScanError::TransportNotOpen);
@@ -66,7 +64,7 @@ TEST(TestViscaBusScanner, ClosedTransportReportsError)
 /// @brief Tests error callback when transport sendData fails during AddressSet.
 TEST(TestViscaBusScanner, SendFailureReportsError)
 {
-    auto mockCamera = std::make_shared<MockViscaTransport>(uint8_t { 1U });
+    auto mockCamera = std::make_shared<MockViscaTransport>(std::uint8_t { 1U });
     mockCamera->open();
     mockCamera->setSendFailure(true);
 
@@ -75,13 +73,10 @@ TEST(TestViscaBusScanner, SendFailureReportsError)
     ScanError reportedError = ScanError::None;
     std::string reportedMsg;
 
-    const auto cameras = scanner.scanBus(
-        nullptr,
-        nullptr,
-        [&](ScanError err, std::string_view msg) {
-            reportedError = err;
-            reportedMsg = std::string(msg);
-        });
+    const auto cameras = scanner.scanBus(nullptr, nullptr, [&](ScanError err, std::string_view msg) {
+        reportedError = err;
+        reportedMsg = std::string(msg);
+    });
 
     EXPECT_TRUE(cameras.empty());
     EXPECT_EQ(reportedError, ScanError::AddressSetSendFailed);
@@ -91,7 +86,7 @@ TEST(TestViscaBusScanner, SendFailureReportsError)
 /// @brief Tests error reporting when AddressSet times out, triggering single-camera fallback.
 TEST(TestViscaBusScanner, AddressSetTimeoutFallback)
 {
-    auto mockCamera = std::make_shared<MockViscaTransport>(uint8_t { 1U });
+    auto mockCamera = std::make_shared<MockViscaTransport>(std::uint8_t { 1U });
     mockCamera->open();
     mockCamera->setDropAddressSet(true); // AddressSet will time out, but versionInquiry works
 
@@ -99,14 +94,11 @@ TEST(TestViscaBusScanner, AddressSetTimeoutFallback)
 
     bool receivedTimeout = false;
 
-    const auto cameras = scanner.scanBus(
-        nullptr,
-        nullptr,
-        [&](ScanError err, std::string_view /*msg*/) {
-            if (err == ScanError::AddressSetTimeout) {
-                receivedTimeout = true;
-            }
-        });
+    const auto cameras = scanner.scanBus(nullptr, nullptr, [&](ScanError err, std::string_view /*msg*/) {
+        if (err == ScanError::AddressSetTimeout) {
+            receivedTimeout = true;
+        }
+    });
 
     EXPECT_TRUE(receivedTimeout);
     EXPECT_EQ(cameras.size(), 1U);
@@ -116,7 +108,7 @@ TEST(TestViscaBusScanner, AddressSetTimeoutFallback)
 /// @brief Tests early abort when cancellation predicate is signalled.
 TEST(TestViscaBusScanner, CancellationAbortsEarly)
 {
-    auto mockCamera = std::make_shared<MockViscaTransport>(uint8_t { 1U });
+    auto mockCamera = std::make_shared<MockViscaTransport>(std::uint8_t { 1U });
     mockCamera->open();
 
     ViscaBusScanner scanner(mockCamera);
@@ -125,8 +117,7 @@ TEST(TestViscaBusScanner, CancellationAbortsEarly)
 
     // Cancel immediately before scanning addresses
     const auto cameras = scanner.scanBus(
-        nullptr,
-        nullptr,
+        nullptr, nullptr,
         [&](ScanError err, std::string_view /*msg*/) {
             if (err == ScanError::Cancelled) {
                 cancelledReported = true;

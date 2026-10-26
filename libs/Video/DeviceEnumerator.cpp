@@ -1,12 +1,14 @@
 #include "DeviceEnumerator.h"
 
+#include <cstddef>
+
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include <windows.h>
 #include <dshow.h>
 #include <objbase.h>
+#include <windows.h>
 #else
 #include <dirent.h>
 #include <fcntl.h>
@@ -16,6 +18,8 @@
 #endif
 
 #include <glog/logging.h>
+#include <string>
+#include <vector>
 
 namespace Video {
 
@@ -28,8 +32,8 @@ std::vector<VideoDeviceInfo> DeviceEnumerator::enumerateDevices()
     const bool needCoUninit = SUCCEEDED(hr);
 
     ICreateDevEnum* devEnum = nullptr;
-    hr = CoCreateInstance(CLSID_SystemDeviceEnum, nullptr, CLSCTX_INPROC_SERVER,
-                          IID_ICreateDevEnum, reinterpret_cast<void**>(&devEnum));
+    hr = CoCreateInstance(
+        CLSID_SystemDeviceEnum, nullptr, CLSCTX_INPROC_SERVER, IID_ICreateDevEnum, reinterpret_cast<void**>(&devEnum));
     if (SUCCEEDED(hr) && devEnum != nullptr) {
         IEnumMoniker* enumMoniker = nullptr;
         hr = devEnum->CreateClassEnumerator(CLSID_VideoInputDeviceCategory, &enumMoniker, 0);
@@ -37,14 +41,14 @@ std::vector<VideoDeviceInfo> DeviceEnumerator::enumerateDevices()
             IMoniker* moniker = nullptr;
             while (enumMoniker->Next(1, &moniker, nullptr) == S_OK) {
                 IPropertyBag* propBag = nullptr;
-                hr = moniker->BindToStorage(nullptr, nullptr, IID_IPropertyBag,
-                                            reinterpret_cast<void**>(&propBag));
+                hr = moniker->BindToStorage(nullptr, nullptr, IID_IPropertyBag, reinterpret_cast<void**>(&propBag));
                 if (SUCCEEDED(hr) && propBag != nullptr) {
                     VARIANT varName;
                     VariantInit(&varName);
                     hr = propBag->Read(L"FriendlyName", &varName, nullptr);
                     if (SUCCEEDED(hr) && varName.vt == VT_BSTR && varName.bstrVal != nullptr) {
-                        const int len = WideCharToMultiByte(CP_UTF8, 0, varName.bstrVal, -1, nullptr, 0, nullptr, nullptr);
+                        const int len
+                            = WideCharToMultiByte(CP_UTF8, 0, varName.bstrVal, -1, nullptr, 0, nullptr, nullptr);
                         if (len > 0) {
                             std::string name(static_cast<std::size_t>(len - 1), '\0');
                             WideCharToMultiByte(CP_UTF8, 0, varName.bstrVal, -1, name.data(), len, nullptr, nullptr);
@@ -76,7 +80,7 @@ std::vector<VideoDeviceInfo> DeviceEnumerator::enumerateDevices()
             continue;
         }
 
-        struct v4l2_capability cap {};
+        struct v4l2_capability cap { };
         if (ioctl(fd, VIDIOC_QUERYCAP, &cap) == 0) {
             if (cap.device_caps & V4L2_CAP_VIDEO_CAPTURE) {
                 VideoDeviceInfo info;

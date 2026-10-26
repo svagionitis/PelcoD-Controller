@@ -1,4 +1,5 @@
 #include "PayloadHal.h"
+#include <cstdint>
 #include <gtest/gtest.h>
 
 namespace PayloadHal {
@@ -6,7 +7,7 @@ namespace {
 
     TEST(TestPayloadHalUnits, DeviceInfoInitialization)
     {
-        DeviceInfo info {};
+        DeviceInfo info { };
         EXPECT_TRUE(info.manufacturer.empty());
         EXPECT_TRUE(info.model.empty());
         EXPECT_TRUE(info.serialNumber.empty());
@@ -25,31 +26,31 @@ namespace {
 
     TEST(TestPayloadHalUnits, DeviceStateEnumValues)
     {
-        EXPECT_EQ(static_cast<uint8_t>(DeviceState::Disconnected), 0U);
-        EXPECT_EQ(static_cast<uint8_t>(DeviceState::Connecting), 1U);
-        EXPECT_EQ(static_cast<uint8_t>(DeviceState::Standby), 2U);
-        EXPECT_EQ(static_cast<uint8_t>(DeviceState::Ready), 3U);
-        EXPECT_EQ(static_cast<uint8_t>(DeviceState::Degraded), 4U);
-        EXPECT_EQ(static_cast<uint8_t>(DeviceState::Fault), 5U);
+        EXPECT_EQ(static_cast<std::uint8_t>(DeviceState::Disconnected), 0U);
+        EXPECT_EQ(static_cast<std::uint8_t>(DeviceState::Connecting), 1U);
+        EXPECT_EQ(static_cast<std::uint8_t>(DeviceState::Standby), 2U);
+        EXPECT_EQ(static_cast<std::uint8_t>(DeviceState::Ready), 3U);
+        EXPECT_EQ(static_cast<std::uint8_t>(DeviceState::Degraded), 4U);
+        EXPECT_EQ(static_cast<std::uint8_t>(DeviceState::Fault), 5U);
     }
 
     TEST(TestPayloadHalUnits, PanTiltModesAndStabilization)
     {
-        EXPECT_EQ(static_cast<uint8_t>(PanTiltMode::Rate), 0U);
-        EXPECT_EQ(static_cast<uint8_t>(PanTiltMode::Angle), 1U);
-        EXPECT_EQ(static_cast<uint8_t>(PanTiltMode::Relative), 2U);
-        EXPECT_EQ(static_cast<uint8_t>(PanTiltMode::Stow), 3U);
-        EXPECT_EQ(static_cast<uint8_t>(PanTiltMode::Park), 4U);
+        EXPECT_EQ(static_cast<std::uint8_t>(PanTiltMode::Rate), 0U);
+        EXPECT_EQ(static_cast<std::uint8_t>(PanTiltMode::Angle), 1U);
+        EXPECT_EQ(static_cast<std::uint8_t>(PanTiltMode::Relative), 2U);
+        EXPECT_EQ(static_cast<std::uint8_t>(PanTiltMode::Stow), 3U);
+        EXPECT_EQ(static_cast<std::uint8_t>(PanTiltMode::Park), 4U);
 
-        EXPECT_EQ(static_cast<uint8_t>(StabilizationMode::Disabled), 0U);
-        EXPECT_EQ(static_cast<uint8_t>(StabilizationMode::RateStabilized), 1U);
-        EXPECT_EQ(static_cast<uint8_t>(StabilizationMode::GeoHold), 2U);
-        EXPECT_EQ(static_cast<uint8_t>(StabilizationMode::FollowPlatform), 3U);
+        EXPECT_EQ(static_cast<std::uint8_t>(StabilizationMode::Disabled), 0U);
+        EXPECT_EQ(static_cast<std::uint8_t>(StabilizationMode::RateStabilized), 1U);
+        EXPECT_EQ(static_cast<std::uint8_t>(StabilizationMode::GeoHold), 2U);
+        EXPECT_EQ(static_cast<std::uint8_t>(StabilizationMode::FollowPlatform), 3U);
     }
 
     TEST(TestPayloadHalUnits, GimbalTelemetryFields)
     {
-        GimbalTelemetry telem {};
+        GimbalTelemetry telem { };
         EXPECT_DOUBLE_EQ(telem.panAngleDeg, 0.0);
         EXPECT_DOUBLE_EQ(telem.tiltAngleDeg, 0.0);
         EXPECT_DOUBLE_EQ(telem.panRateDegPerSec, 0.0);
@@ -71,7 +72,7 @@ namespace {
 
     TEST(TestPayloadHalUnits, LrfMeasurementFields)
     {
-        LrfTargetMeasurement m {};
+        LrfTargetMeasurement m { };
         EXPECT_FALSE(m.valid);
         EXPECT_DOUBLE_EQ(m.slantRangeMeters, 0.0);
         EXPECT_FALSE(m.signalQualityRatio.has_value());
@@ -95,7 +96,7 @@ namespace {
 
     TEST(TestPayloadHalUnits, CameraTelemetryFields)
     {
-        CameraTelemetry cam {};
+        CameraTelemetry cam { };
         EXPECT_DOUBLE_EQ(cam.opticalZoomFactor, 1.0);
         EXPECT_DOUBLE_EQ(cam.normalizedZoom, 0.0);
         EXPECT_DOUBLE_EQ(cam.focusDistanceNormalized, 0.0);

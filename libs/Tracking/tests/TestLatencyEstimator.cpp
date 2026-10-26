@@ -4,6 +4,7 @@
 #include "LatencyEstimator.h"
 
 #include <cmath>
+#include <cstddef>
 #include <gtest/gtest.h>
 #include <iostream>
 #include <random>
@@ -24,7 +25,7 @@ TEST(LatencyEstimatorTest, ExactSampleDelayRecovery)
     const int delaySamples = 10; // 100 ms expected latency
     const double expectedLatencyMs = 100.0;
 
-    LatencyEstimatorConfig cfg {};
+    LatencyEstimatorConfig cfg { };
     cfg.sampleRateHz = fs;
     cfg.bufferCapacity = 128U;
     cfg.minLagMs = 0.0;
@@ -72,7 +73,7 @@ TEST(LatencyEstimatorTest, SubSampleParabolicInterpolation)
     // 3.5 samples delay = 70 ms expected latency
     const double expectedLatencyMs = 70.0;
 
-    LatencyEstimatorConfig cfg {};
+    LatencyEstimatorConfig cfg { };
     cfg.sampleRateHz = fs;
     cfg.bufferCapacity = 128U;
     cfg.minLagMs = 0.0;
@@ -110,7 +111,7 @@ TEST(LatencyEstimatorTest, SubSampleParabolicInterpolation)
 TEST(LatencyEstimatorTest, UncorrelatedSignalsRejectConfidence)
 {
     std::cout << "[Test] testUncorrelatedSignalsRejectConfidence...\n";
-    LatencyEstimatorConfig cfg {};
+    LatencyEstimatorConfig cfg { };
     cfg.sampleRateHz = 50.0;
     cfg.bufferCapacity = 128U;
     cfg.confidenceThreshold = 0.6;
@@ -138,7 +139,7 @@ TEST(LatencyEstimatorTest, DynamicLatencyTracking)
 {
     std::cout << "[Test] testDynamicLatencyTracking...\n";
     const double fs = 100.0;
-    LatencyEstimatorConfig cfg {};
+    LatencyEstimatorConfig cfg { };
     cfg.sampleRateHz = fs;
     cfg.bufferCapacity = 128U;
     cfg.minLagMs = 0.0;
@@ -179,7 +180,7 @@ TEST(LatencyEstimatorTest, InvertedNegativePolarity)
     const int delaySamples = 8; // 80 ms latency
     const double expectedLatencyMs = 80.0;
 
-    LatencyEstimatorConfig cfg {};
+    LatencyEstimatorConfig cfg { };
     cfg.sampleRateHz = fs;
     cfg.bufferCapacity = 128U;
     cfg.minLagMs = 0.0;
@@ -218,7 +219,7 @@ TEST(LatencyEstimatorTest, TimestampedAsynchronousResampling)
     std::cout << "[Test] testTimestampedAsynchronousResampling...\n";
     const double delaySec = 0.075; // 75 ms delay
 
-    LatencyEstimatorConfig cfg {};
+    LatencyEstimatorConfig cfg { };
     cfg.sampleRateHz = 50.0;
     cfg.bufferCapacity = 128U;
     cfg.minLagMs = 0.0;
@@ -257,7 +258,7 @@ TEST(LatencyEstimatorTest, TimestampedAsynchronousResampling)
 TEST(LatencyEstimatorTest, LowVarianceRejection)
 {
     std::cout << "[Test] testLowVarianceRejection...\n";
-    LatencyEstimatorConfig cfg {};
+    LatencyEstimatorConfig cfg { };
     cfg.minSignalVariance = 1e-4;
     cfg.confidenceThreshold = 0.5;
 

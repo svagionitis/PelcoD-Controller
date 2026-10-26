@@ -2,7 +2,10 @@
 /// @brief Comprehensive unit tests for the ViscaFrame container, header decoding, and nibble conversion.
 
 #include "ViscaFrame.h"
+#include <cstdint>
+
 #include <gtest/gtest.h>
+#include <vector>
 
 using namespace Visca;
 
@@ -20,12 +23,12 @@ TEST(TestViscaFrame, ConstructionVariants)
     EXPECT_EQ(listFrame[0], 0x81);
     EXPECT_EQ(listFrame[5], 0xFF);
 
-    std::vector<uint8_t> vec { 0x90, 0x41, 0xFF };
+    std::vector<std::uint8_t> vec { 0x90, 0x41, 0xFF };
     ViscaFrame vecFrame(vec);
     EXPECT_EQ(vecFrame.size(), 3U);
     EXPECT_EQ(vecFrame[1], 0x41);
 
-    const uint8_t rawBytes[] = { 0x90, 0x51, 0xFF };
+    const std::uint8_t rawBytes[] = { 0x90, 0x51, 0xFF };
     ViscaFrame ptrFrame(rawBytes, sizeof(rawBytes));
     EXPECT_EQ(ptrFrame.size(), 3U);
     EXPECT_EQ(ptrFrame[1], 0x51);
@@ -40,7 +43,7 @@ TEST(TestViscaFrame, ValidationRules)
     EXPECT_TRUE(valid3.isValid());
 
     // Valid frame: 16 bytes ending in 0xFF
-    std::vector<uint8_t> bytes16(16, 0x00);
+    std::vector<std::uint8_t> bytes16(16, 0x00);
     bytes16[0] = 0x90;
     bytes16.back() = 0xFF;
     ViscaFrame valid16(bytes16);
@@ -59,7 +62,7 @@ TEST(TestViscaFrame, ValidationRules)
     EXPECT_FALSE(noMsb.isValid());
 
     // Invalid: Too long (> 16 bytes)
-    std::vector<uint8_t> bytes17(17, 0x00);
+    std::vector<std::uint8_t> bytes17(17, 0x00);
     bytes17[0] = 0x90;
     bytes17.back() = 0xFF;
     ViscaFrame tooLong(bytes17);
@@ -141,7 +144,7 @@ TEST(TestViscaFrame, MessageTypeClassification)
 /// @details Tests 16-bit word nibbles and 8-bit byte nibbles across boundary and random values.
 TEST(TestViscaFrame, NibbleHelpers)
 {
-    const uint16_t wordVal = 0x4A7F;
+    const std::uint16_t wordVal = 0x4A7F;
     const auto wordNibbles = ViscaFrame::packWordNibbles(wordVal);
     ASSERT_EQ(wordNibbles.size(), 4U);
     EXPECT_EQ(wordNibbles[0], 0x04);
@@ -149,16 +152,16 @@ TEST(TestViscaFrame, NibbleHelpers)
     EXPECT_EQ(wordNibbles[2], 0x07);
     EXPECT_EQ(wordNibbles[3], 0x0F);
 
-    const uint16_t unpackedWord = ViscaFrame::unpackWordNibbles(wordNibbles.data());
+    const std::uint16_t unpackedWord = ViscaFrame::unpackWordNibbles(wordNibbles.data());
     EXPECT_EQ(unpackedWord, wordVal);
 
-    const uint8_t byteVal = 0x5E;
+    const std::uint8_t byteVal = 0x5E;
     const auto byteNibbles = ViscaFrame::packByteNibbles(byteVal);
     ASSERT_EQ(byteNibbles.size(), 2U);
     EXPECT_EQ(byteNibbles[0], 0x05);
     EXPECT_EQ(byteNibbles[1], 0x0E);
 
-    const uint8_t unpackedByte = ViscaFrame::unpackByteNibbles(byteNibbles.data());
+    const std::uint8_t unpackedByte = ViscaFrame::unpackByteNibbles(byteNibbles.data());
     EXPECT_EQ(unpackedByte, byteVal);
 }
 

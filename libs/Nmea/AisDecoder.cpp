@@ -5,7 +5,12 @@
 
 #include <algorithm>
 #include <charconv>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace Nmea {
 
@@ -18,7 +23,7 @@ namespace {
         }
         unsigned int val { 0U };
         const auto res = std::from_chars(sv.data(), sv.data() + sv.size(), val);
-        if (res.ec != std::errc {}) {
+        if (res.ec != std::errc { }) {
             return false;
         }
         outVal = val;
@@ -58,7 +63,7 @@ bool AisDecoder::decodeSentence(std::string_view sentence, AisVesselTarget& outT
         return false;
     }
 
-    std::vector<std::string_view> tokens {};
+    std::vector<std::string_view> tokens { };
     NmeaSentenceParser::tokenize(sentence, tokens);
 
     // Format: !AIVDM,totalSentences,sentenceNum,seqId,channel,payload,fillBits
@@ -98,7 +103,7 @@ bool AisDecoder::decodeSentence(std::string_view sentence, AisVesselTarget& outT
     }
 
     // Multi-sentence reassembly path
-    std::string assembledPayload {};
+    std::string assembledPayload { };
     std::size_t finalFillBits { 0U };
 
     {
@@ -110,7 +115,7 @@ bool AisDecoder::decodeSentence(std::string_view sentence, AisVesselTarget& outT
         auto it = m_fragments.find(key);
 
         if (sentenceNum == 1U) {
-            MultiPartFragment frag {};
+            MultiPartFragment frag { };
             frag.totalParts = static_cast<std::uint8_t>(totalSentences);
             frag.lastPart = 1U;
             frag.combinedPayload = std::string(payload);
@@ -148,7 +153,7 @@ bool AisDecoder::decodeSentence(std::string_view sentence, AisVesselTarget& outT
 bool AisDecoder::decodePayload(
     std::string_view armoredPayload, std::size_t fillBits, AisVesselTarget& outTarget) noexcept
 {
-    outTarget = AisVesselTarget {};
+    outTarget = AisVesselTarget { };
     if (armoredPayload.empty()) {
         return false;
     }

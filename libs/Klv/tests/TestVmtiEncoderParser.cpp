@@ -1,13 +1,18 @@
-#include "VmtiEncoder.h"
-#include "VmtiParser.h"
 #include "KlvEncoder.h"
 #include "KlvParser.h"
+#include "VmtiEncoder.h"
+#include "VmtiParser.h"
 #include "VmtiTypes.h"
+#include <cstdint>
+
+#include <array>
 #include <gtest/gtest.h>
+#include <vector>
 
 using namespace Klv;
 
-TEST(VmtiTest, PixelCoordRowMajorConversion) {
+TEST(VmtiTest, PixelCoordRowMajorConversion)
+{
     // MISB ST 0903.6 Section 9.2.3.1 Example:
     // 3 rows by 4 columns.
     // Yellow pixel at position (Col=3, Row=2) in frameWidth 4 => pixel number 7.
@@ -36,7 +41,8 @@ TEST(VmtiTest, PixelCoordRowMajorConversion) {
     EXPECT_EQ(reconstructedHd.row, 1080U);
 }
 
-TEST(VmtiTest, OffsetAndHaeScaling) {
+TEST(VmtiTest, OffsetAndHaeScaling)
+{
     // MISB ST 0903.6 Section 10.2.2.11 example:
     // 10.00 deg -> IMAPB(-19.2, 19.2, 3) = 0x3A6667
     const double latOffset = 10.0;
@@ -62,7 +68,8 @@ TEST(VmtiTest, OffsetAndHaeScaling) {
     EXPECT_NEAR(unscaledHae, hae, 0.5);
 }
 
-TEST(VmtiTest, StandaloneVmtiRoundTrip) {
+TEST(VmtiTest, StandaloneVmtiRoundTrip)
+{
     VmtiLocalSet original;
     original.precisionTimeStampUs = 1695500000999999ULL;
     original.systemName = "AI-TRACKER-0903";
@@ -161,7 +168,8 @@ TEST(VmtiTest, StandaloneVmtiRoundTrip) {
     EXPECT_EQ(*decT2.detectionStatus, 2U);
 }
 
-TEST(VmtiTest, EmbeddedInMisb0601RoundTrip) {
+TEST(VmtiTest, EmbeddedInMisb0601RoundTrip)
+{
     UasDatalinkMessage msg;
     msg.precisionTimeStampUs = 1695500000123456ULL;
     msg.missionId = "VMTI-AIR-TEST";

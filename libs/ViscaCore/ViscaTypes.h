@@ -8,7 +8,7 @@
 namespace Visca {
 
 /// @brief VISCA packet delimiter byte terminating all commands, inquiries, and replies.
-inline constexpr uint8_t kViscaTerminator { 0xFF };
+inline constexpr std::uint8_t kViscaTerminator { 0xFF };
 
 /// @brief Minimum valid VISCA frame size in bytes (e.g., 88 30 01 FF is 4, but IF_Clear reply can be 3: 90 50 FF).
 inline constexpr size_t kMinPacketLength { 3 };
@@ -17,19 +17,19 @@ inline constexpr size_t kMinPacketLength { 3 };
 inline constexpr size_t kMaxPacketLength { 16 };
 
 /// @brief Maximum number of daisy-chained cameras addressable on a single VISCA bus.
-inline constexpr uint8_t kMaxCamerasOnBus { 7 };
+inline constexpr std::uint8_t kMaxCamerasOnBus { 7 };
 
 /// @brief Broadcast address identifier used in VISCA header nibbles.
-inline constexpr uint8_t kBroadcastAddress { 8 };
+inline constexpr std::uint8_t kBroadcastAddress { 8 };
 
 /// @brief Controller device address (always 0 in standard VISCA topologies).
-inline constexpr uint8_t kControllerAddress { 0 };
+inline constexpr std::uint8_t kControllerAddress { 0 };
 
 /// @brief Default baud rate for Sony FCB series cameras (9600 bps out of factory).
-inline constexpr uint32_t kDefaultBaudRate { 9600 };
+inline constexpr std::uint32_t kDefaultBaudRate { 9600 };
 
 /// @brief Classification of VISCA packet types based on header and command semantics.
-enum class ViscaMessageType : uint8_t {
+enum class ViscaMessageType : std::uint8_t {
     Command, ///< Normal command dispatched to camera
     Inquiry, ///< Telemetry or state inquiry
     Ack, ///< Socket ACK response (y0 4s FF)
@@ -42,14 +42,14 @@ enum class ViscaMessageType : uint8_t {
 
 /// @brief Identifier of the camera command execution socket.
 /// @details VISCA supports 2 concurrent execution sockets (Socket 1 and Socket 2).
-enum class ViscaSocket : uint8_t {
+enum class ViscaSocket : std::uint8_t {
     None = 0, ///< No socket associated (e.g. inquiries or broadcast commands)
     Socket1 = 1, ///< Execution socket 1
     Socket2 = 2 ///< Execution socket 2
 };
 
 /// @brief Standard VISCA error status codes returned in error responses (y0 6s ee FF).
-enum class ViscaErrorCode : uint8_t {
+enum class ViscaErrorCode : std::uint8_t {
     None = 0x00, ///< No error
     MessageLengthError = 0x01, ///< Message length exceeds 14 bytes or framing invalid
     SyntaxError = 0x02, ///< Command format or opcode unrecognized
@@ -110,28 +110,28 @@ enum class ViscaErrorCode : uint8_t {
 }
 
 /// @brief Pan movement direction for Pan_TiltDrive commands (opcode 0x06 0x01).
-enum class ViscaPanDirection : uint8_t { Stop = 0x03, Left = 0x01, Right = 0x02 };
+enum class ViscaPanDirection : std::uint8_t { Stop = 0x03, Left = 0x01, Right = 0x02 };
 
 /// @brief Tilt movement direction for Pan_TiltDrive commands (opcode 0x06 0x01).
-enum class ViscaTiltDirection : uint8_t { Stop = 0x03, Up = 0x01, Down = 0x02 };
+enum class ViscaTiltDirection : std::uint8_t { Stop = 0x03, Up = 0x01, Down = 0x02 };
 
 /// @brief Corner limit boundary identifier for Pan_TiltLimitSet (opcode 0x06 0x07).
-enum class ViscaPanTiltCorner : uint8_t { DownLeft = 0x00, UpRight = 0x01 };
+enum class ViscaPanTiltCorner : std::uint8_t { DownLeft = 0x00, UpRight = 0x01 };
 
 /// @struct ViscaPanTiltPosition
 /// @brief Represents 16-bit signed Pan and Tilt coordinates from Pan_TiltPosInq.
 struct ViscaPanTiltPosition {
-    uint8_t cameraAddress { 0 }; ///< Responding camera ID (1..7)
-    int16_t panPosition { 0 }; ///< 16-bit signed Pan step position
-    int16_t tiltPosition { 0 }; ///< 16-bit signed Tilt step position
+    std::uint8_t cameraAddress { 0 }; ///< Responding camera ID (1..7)
+    std::int16_t panPosition { 0 }; ///< 16-bit signed Pan step position
+    std::int16_t tiltPosition { 0 }; ///< 16-bit signed Tilt step position
 };
 
 /// @struct ViscaPanTiltStatus
 /// @brief Status telemetry decoded from Pan_TiltStatusInq (y0 50 ... FF).
 struct ViscaPanTiltStatus {
-    uint8_t cameraAddress { 0 }; ///< Responding camera ID
-    uint8_t panSpeed { 0 }; ///< Current pan speed
-    uint8_t tiltSpeed { 0 }; ///< Current tilt speed
+    std::uint8_t cameraAddress { 0 }; ///< Responding camera ID
+    std::uint8_t panSpeed { 0 }; ///< Current pan speed
+    std::uint8_t tiltSpeed { 0 }; ///< Current tilt speed
     bool panLeftLimit { false }; ///< True if Pan Left limit reached
     bool panRightLimit { false }; ///< True if Pan Right limit reached
     bool tiltUpLimit { false }; ///< True if Tilt Up limit reached
@@ -140,7 +140,7 @@ struct ViscaPanTiltStatus {
 };
 
 /// @brief State machine lifecycle for a VISCA execution socket.
-enum class ViscaSocketState : uint8_t {
+enum class ViscaSocketState : std::uint8_t {
     Idle = 0, ///< Socket is free and ready for next command
     AwaitingAck, ///< Command dispatched; waiting for ACK (y0 4s FF)
     Executing ///< ACK received; command is running on camera hardware
@@ -151,15 +151,15 @@ enum class ViscaSocketState : uint8_t {
 struct ViscaProtocolStats {
     ViscaSocketState socket1State { ViscaSocketState::Idle };
     ViscaSocketState socket2State { ViscaSocketState::Idle };
-    uint64_t socket1Processed { 0U };
-    uint64_t socket2Processed { 0U };
-    uint64_t inquiriesProcessed { 0U };
-    uint64_t syntaxErrors { 0U };
-    uint64_t bufferFullErrors { 0U };
-    uint64_t cancelledCommands { 0U };
-    uint64_t noSocketErrors { 0U };
-    uint64_t executionErrors { 0U };
-    uint64_t timeouts { 0U };
+    std::uint64_t socket1Processed { 0U };
+    std::uint64_t socket2Processed { 0U };
+    std::uint64_t inquiriesProcessed { 0U };
+    std::uint64_t syntaxErrors { 0U };
+    std::uint64_t bufferFullErrors { 0U };
+    std::uint64_t cancelledCommands { 0U };
+    std::uint64_t noSocketErrors { 0U };
+    std::uint64_t executionErrors { 0U };
+    std::uint64_t timeouts { 0U };
     size_t pendingCommands { 0U };
     size_t pendingInquiries { 0U };
     double avgTurnaroundMs { 0.0 };

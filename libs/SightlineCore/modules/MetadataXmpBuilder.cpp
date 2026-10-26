@@ -3,68 +3,73 @@
 
 #include "MetadataXmpBuilder.h"
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+
 #include <iomanip>
 #include <sstream>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace Sightline {
 
 namespace {
 
-constexpr std::string_view kXmpNamespace { "http://ns.adobe.com/xap/1.0/\0", 29 };
-constexpr std::uint8_t kJpegMarkerPrefix { 0xFFU };
-constexpr std::uint8_t kJpegSoi { 0xD8U };
-constexpr std::uint8_t kJpegApp1 { 0xE1U };
-constexpr std::uint8_t kJpegSos { 0xDAU };
-constexpr std::uint8_t kJpegEoi { 0xD9U };
+    constexpr std::string_view kXmpNamespace { "http://ns.adobe.com/xap/1.0/\0", 29 };
+    constexpr std::uint8_t kJpegMarkerPrefix { 0xFFU };
+    constexpr std::uint8_t kJpegSoi { 0xD8U };
+    constexpr std::uint8_t kJpegApp1 { 0xE1U };
+    constexpr std::uint8_t kJpegSos { 0xDAU };
+    constexpr std::uint8_t kJpegEoi { 0xD9U };
 
-[[nodiscard]] std::string extractTag(std::string_view xml, std::string_view tag)
-{
-    const std::string openTag = "<" + std::string(tag) + ">";
-    const std::string closeTag = "</" + std::string(tag) + ">";
+    [[nodiscard]] std::string extractTag(std::string_view xml, std::string_view tag)
+    {
+        const std::string openTag = "<" + std::string(tag) + ">";
+        const std::string closeTag = "</" + std::string(tag) + ">";
 
-    const auto startPos = xml.find(openTag);
-    if (startPos == std::string_view::npos) {
-        return {};
+        const auto startPos = xml.find(openTag);
+        if (startPos == std::string_view::npos) {
+            return { };
+        }
+        const auto contentStart = startPos + openTag.size();
+        const auto endPos = xml.find(closeTag, contentStart);
+        if (endPos == std::string_view::npos) {
+            return { };
+        }
+
+        return std::string(xml.substr(contentStart, endPos - contentStart));
     }
-    const auto contentStart = startPos + openTag.size();
-    const auto endPos = xml.find(closeTag, contentStart);
-    if (endPos == std::string_view::npos) {
-        return {};
+
+    [[nodiscard]] double parseDouble(std::string_view xml, std::string_view tag, double defaultVal = 0.0)
+    {
+        const auto valStr = extractTag(xml, tag);
+        if (valStr.empty()) {
+            return defaultVal;
+        }
+        char* endPtr { nullptr };
+        const double res = std::strtod(valStr.c_str(), &endPtr);
+        return (endPtr != valStr.c_str()) ? res : defaultVal;
     }
 
-    return std::string(xml.substr(contentStart, endPos - contentStart));
-}
-
-[[nodiscard]] double parseDouble(std::string_view xml, std::string_view tag, double defaultVal = 0.0)
-{
-    const auto valStr = extractTag(xml, tag);
-    if (valStr.empty()) {
-        return defaultVal;
+    [[nodiscard]] float parseFloat(std::string_view xml, std::string_view tag, float defaultVal = 0.0F)
+    {
+        const auto valStr = extractTag(xml, tag);
+        if (valStr.empty()) {
+            return defaultVal;
+        }
+        char* endPtr { nullptr };
+        const float res = std::strtof(valStr.c_str(), &endPtr);
+        return (endPtr != valStr.c_str()) ? res : defaultVal;
     }
-    char* endPtr { nullptr };
-    const double res = std::strtod(valStr.c_str(), &endPtr);
-    return (endPtr != valStr.c_str()) ? res : defaultVal;
-}
-
-[[nodiscard]] float parseFloat(std::string_view xml, std::string_view tag, float defaultVal = 0.0F)
-{
-    const auto valStr = extractTag(xml, tag);
-    if (valStr.empty()) {
-        return defaultVal;
-    }
-    char* endPtr { nullptr };
-    const float res = std::strtof(valStr.c_str(), &endPtr);
-    return (endPtr != valStr.c_str()) ? res : defaultVal;
-}
 
 } // namespace
 
 std::string MetadataXmpBuilder::buildRdfXml(const XmpGeospatialMetadata& meta)
 {
-    std::ostringstream oss {};
+    std::ostringstream oss { };
     oss << std::fixed << std::setprecision(6);
 
     oss << "<?xpacket begin=\"\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n"
@@ -109,10 +114,10 @@ std::vector<std::uint8_t> MetadataXmpBuilder::buildApp1Packet(const XmpGeospatia
     const std::size_t markerTotalSize = 2U + 2U + payloadSize; // 0xFFE1 + Length(2) + Payload
 
     if (markerTotalSize > 65535U) {
-        return {};
+        return { };
     }
 
-    std::vector<std::uint8_t> packet {};
+    std::vector<std::uint8_t> packet { };
     packet.reserve(markerTotalSize);
 
     // Marker prefix
@@ -137,8 +142,7 @@ std::vector<std::uint8_t> MetadataXmpBuilder::buildApp1Packet(const XmpGeospatia
     return packet;
 }
 
-bool MetadataXmpBuilder::injectXmpIntoJpeg(
-    std::vector<std::uint8_t>& jpegStream, const XmpGeospatialMetadata& meta)
+bool MetadataXmpBuilder::injectXmpIntoJpeg(std::vector<std::uint8_t>& jpegStream, const XmpGeospatialMetadata& meta)
 {
     if (jpegStream.size() < 4U) {
         return false;
@@ -158,29 +162,21 @@ bool MetadataXmpBuilder::injectXmpIntoJpeg(
     std::size_t insertOffset { 2U };
 
     // If an existing Exif APP1 is present at offset 2, insert after it
-    if (jpegStream.size() >= 6U &&
-        jpegStream[2] == kJpegMarkerPrefix &&
-        jpegStream[3] == kJpegApp1)
-    {
-        const std::size_t exifLen =
-            (static_cast<std::size_t>(jpegStream[4]) << 8U) |
-            static_cast<std::size_t>(jpegStream[5]);
+    if (jpegStream.size() >= 6U && jpegStream[2] == kJpegMarkerPrefix && jpegStream[3] == kJpegApp1) {
+        const std::size_t exifLen
+            = (static_cast<std::size_t>(jpegStream[4]) << 8U) | static_cast<std::size_t>(jpegStream[5]);
         const std::size_t nextMarker = 4U + exifLen;
         if (nextMarker <= jpegStream.size()) {
             insertOffset = nextMarker;
         }
     }
 
-    jpegStream.insert(
-        jpegStream.begin() + static_cast<std::ptrdiff_t>(insertOffset),
-        app1Pkt.begin(),
-        app1Pkt.end());
+    jpegStream.insert(jpegStream.begin() + static_cast<std::ptrdiff_t>(insertOffset), app1Pkt.begin(), app1Pkt.end());
 
     return true;
 }
 
-bool MetadataXmpBuilder::extractXmpFromJpeg(
-    const std::vector<std::uint8_t>& jpegStream, std::string& outRdfXml)
+bool MetadataXmpBuilder::extractXmpFromJpeg(const std::vector<std::uint8_t>& jpegStream, std::string& outRdfXml)
 {
     outRdfXml.clear();
     if (jpegStream.size() < 4U) {
@@ -202,9 +198,8 @@ bool MetadataXmpBuilder::extractXmpFromJpeg(
             break; // Stop at Start of Scan or End of Image
         }
 
-        const std::size_t length =
-            (static_cast<std::size_t>(jpegStream[offset + 2U]) << 8U) |
-            static_cast<std::size_t>(jpegStream[offset + 3U]);
+        const std::size_t length = (static_cast<std::size_t>(jpegStream[offset + 2U]) << 8U)
+            | static_cast<std::size_t>(jpegStream[offset + 3U]);
 
         if (offset + 2U + length > jpegStream.size()) {
             break; // Corrupted length
@@ -215,8 +210,7 @@ bool MetadataXmpBuilder::extractXmpFromJpeg(
             if (std::memcmp(&jpegStream[nsStart], kXmpNamespace.data(), kXmpNamespace.size()) == 0) {
                 const std::size_t xmlStart = nsStart + kXmpNamespace.size();
                 const std::size_t xmlLen = length - 2U - kXmpNamespace.size();
-                outRdfXml.assign(
-                    reinterpret_cast<const char*>(&jpegStream[xmlStart]), xmlLen);
+                outRdfXml.assign(reinterpret_cast<const char*>(&jpegStream[xmlStart]), xmlLen);
                 return true;
             }
         }
@@ -227,8 +221,7 @@ bool MetadataXmpBuilder::extractXmpFromJpeg(
     return false;
 }
 
-bool MetadataXmpBuilder::parseRdfXml(
-    std::string_view rdfXml, XmpGeospatialMetadata& outMeta)
+bool MetadataXmpBuilder::parseRdfXml(std::string_view rdfXml, XmpGeospatialMetadata& outMeta)
 {
     if (rdfXml.empty()) {
         return false;

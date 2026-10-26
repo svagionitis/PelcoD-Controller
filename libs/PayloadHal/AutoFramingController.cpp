@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
+#include <mutex>
+#include <optional>
 
 namespace PayloadHal {
 
@@ -57,9 +60,8 @@ double AutoFramingController::calculateDesiredHfov(
     return targetAngularSpanDeg / occ;
 }
 
-double AutoFramingController::calculateFramingHfov(
-    double slantRangeMeters, double apparentWidthMeters, double apparentHeightMeters,
-    double widthRatio, double heightRatio, double aspectRatio) noexcept
+double AutoFramingController::calculateFramingHfov(double slantRangeMeters, double apparentWidthMeters,
+    double apparentHeightMeters, double widthRatio, double heightRatio, double aspectRatio) noexcept
 {
     const double hfovWidth = calculateDesiredHfov(slantRangeMeters, apparentWidthMeters, widthRatio);
     const double vfovDesired = calculateDesiredHfov(slantRangeMeters, apparentHeightMeters, heightRatio);
@@ -95,8 +97,7 @@ double AutoFramingController::calculateNormalizedZoom(double slantRangeMeters, d
 }
 
 double AutoFramingController::calculateNormalizedZoom(
-    double desiredHfovDeg, double wideHfovDeg, double teleHfovDeg,
-    LensZoomCurveType curveType) noexcept
+    double desiredHfovDeg, double wideHfovDeg, double teleHfovDeg, LensZoomCurveType curveType) noexcept
 {
     const double wide = std::max(wideHfovDeg, teleHfovDeg + 0.1);
     const double tele = std::max(teleHfovDeg, 0.1);
@@ -142,10 +143,9 @@ double AutoFramingController::estimateTargetDimension(const Nmea::AisDimensions&
 }
 
 TargetPhysicalEnvelope AutoFramingController::estimateTargetEnvelope(
-    const Nmea::AisDimensions& dimensions,
-    std::optional<std::uint8_t> shipType) const noexcept
+    const Nmea::AisDimensions& dimensions, std::optional<std::uint8_t> shipType) const noexcept
 {
-    TargetPhysicalEnvelope env {};
+    TargetPhysicalEnvelope env { };
     const auto len = dimensions.lengthMeters();
     const auto beam = dimensions.beamMeters();
 
@@ -194,18 +194,18 @@ TargetPhysicalEnvelope AutoFramingController::estimateTargetEnvelope(
         env.heightMeters = m_config.defaultTargetHeightMeters;
     }
 
-    env.lengthMeters = std::clamp(env.lengthMeters, m_config.minTargetDimensionMeters, m_config.maxTargetDimensionMeters);
+    env.lengthMeters
+        = std::clamp(env.lengthMeters, m_config.minTargetDimensionMeters, m_config.maxTargetDimensionMeters);
     env.beamMeters = std::clamp(env.beamMeters, 1.0, m_config.maxTargetDimensionMeters * 0.5);
     env.heightMeters = std::clamp(env.heightMeters, 1.0, 50.0);
 
     return env;
 }
 
-TargetFramingMetrics AutoFramingController::evaluateFraming(
-    double slantRangeMeters, const TargetPhysicalEnvelope& envelope,
-    double targetTrueHeadingDeg, double cameraAzimuthDeg) const noexcept
+TargetFramingMetrics AutoFramingController::evaluateFraming(double slantRangeMeters,
+    const TargetPhysicalEnvelope& envelope, double targetTrueHeadingDeg, double cameraAzimuthDeg) const noexcept
 {
-    TargetFramingMetrics metrics {};
+    TargetFramingMetrics metrics { };
     double relAspect = std::abs(targetTrueHeadingDeg - cameraAzimuthDeg);
     relAspect = std::fmod(relAspect, 360.0);
     if (relAspect > 180.0) {
@@ -213,17 +213,15 @@ TargetFramingMetrics AutoFramingController::evaluateFraming(
     }
     metrics.relativeAspectAngleDeg = relAspect;
 
-    metrics.apparentWidthMeters = calculateApparentWidth(
-        envelope.lengthMeters, envelope.beamMeters, relAspect);
+    metrics.apparentWidthMeters = calculateApparentWidth(envelope.lengthMeters, envelope.beamMeters, relAspect);
     metrics.apparentHeightMeters = envelope.heightMeters;
 
-    const double clampedRange = std::clamp(
-        slantRangeMeters, m_config.minSlantRangeMeters, m_config.maxSlantRangeMeters);
+    const double clampedRange
+        = std::clamp(slantRangeMeters, m_config.minSlantRangeMeters, m_config.maxSlantRangeMeters);
 
-    metrics.desiredHfovDeg = calculateFramingHfov(
-        clampedRange, metrics.apparentWidthMeters, metrics.apparentHeightMeters,
-        m_config.targetFrameOccupancyRatio, m_config.targetVerticalOccupancyRatio,
-        m_config.frameAspectRatio);
+    metrics.desiredHfovDeg
+        = calculateFramingHfov(clampedRange, metrics.apparentWidthMeters, metrics.apparentHeightMeters,
+            m_config.targetFrameOccupancyRatio, m_config.targetVerticalOccupancyRatio, m_config.frameAspectRatio);
 
     metrics.targetNormalizedZoom = calculateNormalizedZoom(
         metrics.desiredHfovDeg, m_config.wideHfovDeg, m_config.teleHfovDeg, m_config.zoomCurve);
@@ -231,15 +229,12 @@ TargetFramingMetrics AutoFramingController::evaluateFraming(
     return metrics;
 }
 
-bool AutoFramingController::scheduleFraming(
-    ICameraPayload& camera, double slantRangeMeters,
-    const TargetPhysicalEnvelope& envelope,
-    double targetTrueHeadingDeg, double cameraAzimuthDeg)
+bool AutoFramingController::scheduleFraming(ICameraPayload& camera, double slantRangeMeters,
+    const TargetPhysicalEnvelope& envelope, double targetTrueHeadingDeg, double cameraAzimuthDeg)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    const auto metrics = evaluateFraming(
-        slantRangeMeters, envelope, targetTrueHeadingDeg, cameraAzimuthDeg);
+    const auto metrics = evaluateFraming(slantRangeMeters, envelope, targetTrueHeadingDeg, cameraAzimuthDeg);
 
     // Check range & zoom deadband hysteresis
     if (m_lastFramedRangeMeters > 0.0) {

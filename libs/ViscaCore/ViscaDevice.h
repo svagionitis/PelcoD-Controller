@@ -4,6 +4,7 @@
 #include "ViscaRxAccumulator.h"
 #include "ViscaTypes.h"
 #include <Transport/ITransport.h>
+#include <cstdint>
 
 #include <array>
 #include <atomic>
@@ -15,6 +16,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -33,7 +35,7 @@ struct CommandResult {
 /// @brief Result of a VISCA inquiry execution.
 struct InquiryResult {
     bool success { false }; ///< True if inquiry response was received
-    ViscaFrame responseFrame {}; ///< Raw response frame (y0 50 ... FF)
+    ViscaFrame responseFrame { }; ///< Raw response frame (y0 50 ... FF)
     std::string errorMessage { "" }; ///< Diagnostic error description
 };
 
@@ -49,7 +51,7 @@ public:
     /// @brief Constructs a ViscaDevice wrapping an underlying transport.
     /// @param[in] transport Shared pointer to a protocol-agnostic @ref Transport::ITransport.
     /// @param[in] cameraAddress Target camera address (1..7). Defaults to 1.
-    explicit ViscaDevice(std::shared_ptr<::Transport::ITransport> transport, uint8_t cameraAddress = 1);
+    explicit ViscaDevice(std::shared_ptr<::Transport::ITransport> transport, std::uint8_t cameraAddress = 1);
 
     /// @brief Destructor. Closes in-flight transactions.
     virtual ~ViscaDevice();
@@ -60,10 +62,10 @@ public:
 
     /// @brief Sets or updates the target camera address for this device.
     /// @param[in] address Camera address (1..7).
-    void setCameraAddress(uint8_t address) noexcept;
+    void setCameraAddress(std::uint8_t address) noexcept;
 
     /// @brief Retrieves current target camera address.
-    [[nodiscard]] uint8_t cameraAddress() const noexcept;
+    [[nodiscard]] std::uint8_t cameraAddress() const noexcept;
 
     /// @brief Sets a callback to observe incoming and outgoing VISCA traffic.
     /// @param[in] callback Callable accepting frame and direction flag.
@@ -111,33 +113,33 @@ public:
     /// @param[in] tiltDir Tilt motion direction.
     /// @return @ref CommandResult containing execution status.
     [[nodiscard]] CommandResult panTiltDrive(
-        uint8_t panSpeed, uint8_t tiltSpeed, ViscaPanDirection panDir, ViscaTiltDirection tiltDir);
+        std::uint8_t panSpeed, std::uint8_t tiltSpeed, ViscaPanDirection panDir, ViscaTiltDirection tiltDir);
 
     /// @brief Halts pan and tilt axis motion.
     /// @param[in] panSpeed Optional deceleration speed. Defaults to 0.
     /// @param[in] tiltSpeed Optional deceleration speed. Defaults to 0.
     /// @return @ref CommandResult containing execution status.
-    [[nodiscard]] CommandResult panTiltStop(uint8_t panSpeed = 0, uint8_t tiltSpeed = 0);
+    [[nodiscard]] CommandResult panTiltStop(std::uint8_t panSpeed = 0, std::uint8_t tiltSpeed = 0);
 
     /// @brief Drives tilt axis upwards.
     /// @param[in] tiltSpeed Tilt speed index (0x01..0x14).
     /// @return @ref CommandResult.
-    [[nodiscard]] CommandResult panTiltUp(uint8_t tiltSpeed);
+    [[nodiscard]] CommandResult panTiltUp(std::uint8_t tiltSpeed);
 
     /// @brief Drives tilt axis downwards.
     /// @param[in] tiltSpeed Tilt speed index (0x01..0x14).
     /// @return @ref CommandResult.
-    [[nodiscard]] CommandResult panTiltDown(uint8_t tiltSpeed);
+    [[nodiscard]] CommandResult panTiltDown(std::uint8_t tiltSpeed);
 
     /// @brief Drives pan axis leftwards.
     /// @param[in] panSpeed Pan speed index (0x01..0x18).
     /// @return @ref CommandResult.
-    [[nodiscard]] CommandResult panTiltLeft(uint8_t panSpeed);
+    [[nodiscard]] CommandResult panTiltLeft(std::uint8_t panSpeed);
 
     /// @brief Drives pan axis rightwards.
     /// @param[in] panSpeed Pan speed index (0x01..0x18).
     /// @return @ref CommandResult.
-    [[nodiscard]] CommandResult panTiltRight(uint8_t panSpeed);
+    [[nodiscard]] CommandResult panTiltRight(std::uint8_t panSpeed);
 
     /// @brief Slews pan and tilt to absolute step coordinates.
     /// @param[in] panSpeed Pan speed index (0x01..0x18).
@@ -145,7 +147,8 @@ public:
     /// @param[in] panPos Signed 16-bit Pan target step coordinate.
     /// @param[in] tiltPos Signed 16-bit Tilt target step coordinate.
     /// @return @ref CommandResult containing execution status.
-    [[nodiscard]] CommandResult panTiltAbsolute(uint8_t panSpeed, uint8_t tiltSpeed, int16_t panPos, int16_t tiltPos);
+    [[nodiscard]] CommandResult panTiltAbsolute(
+        std::uint8_t panSpeed, std::uint8_t tiltSpeed, std::int16_t panPos, std::int16_t tiltPos);
 
     /// @brief Applies a relative step offset displacement to pan and tilt.
     /// @param[in] panSpeed Pan speed index (0x01..0x18).
@@ -154,7 +157,7 @@ public:
     /// @param[in] deltaTilt Signed 16-bit Tilt step offset.
     /// @return @ref CommandResult containing execution status.
     [[nodiscard]] CommandResult panTiltRelative(
-        uint8_t panSpeed, uint8_t tiltSpeed, int16_t deltaPan, int16_t deltaTilt);
+        std::uint8_t panSpeed, std::uint8_t tiltSpeed, std::int16_t deltaPan, std::int16_t deltaTilt);
 
     /// @brief Returns the pan/tilt mechanism to home origin (0, 0).
     /// @return @ref CommandResult containing execution status.
@@ -169,7 +172,7 @@ public:
     /// @param[in] panPos Signed 16-bit Pan boundary coordinate.
     /// @param[in] tiltPos Signed 16-bit Tilt boundary coordinate.
     /// @return @ref CommandResult containing execution status.
-    [[nodiscard]] CommandResult panTiltLimitSet(ViscaPanTiltCorner corner, int16_t panPos, int16_t tiltPos);
+    [[nodiscard]] CommandResult panTiltLimitSet(ViscaPanTiltCorner corner, std::int16_t panPos, std::int16_t tiltPos);
 
     /// @brief Clears software boundary limits.
     /// @param[in] corner Boundary corner to clear.
@@ -206,7 +209,7 @@ public:
         if (m_transport) {
             return m_transport->getStats();
         }
-        return {};
+        return { };
     }
 
     /// @brief Captures real-time VISCA protocol telemetry and error counters.
@@ -222,21 +225,21 @@ protected:
 
 private:
     struct InFlightCommand {
-        ViscaFrame frame {};
+        ViscaFrame frame { };
         ViscaSocket assignedSocket { ViscaSocket::None };
-        std::chrono::steady_clock::time_point sendTime {};
+        std::chrono::steady_clock::time_point sendTime { };
         std::function<void(const CommandResult&)> callback { nullptr };
     };
 
     struct SocketSlot {
         ViscaSocket id { ViscaSocket::None };
         ViscaSocketState state { ViscaSocketState::Idle };
-        InFlightCommand command {};
+        InFlightCommand command { };
     };
 
     struct InFlightInquiry {
-        ViscaFrame inquiryFrame {};
-        std::chrono::steady_clock::time_point sendTime {};
+        ViscaFrame inquiryFrame { };
+        std::chrono::steady_clock::time_point sendTime { };
         std::function<void(const InquiryResult&)> callback { nullptr };
     };
 
@@ -264,33 +267,33 @@ private:
     void sendFrameUnlocked(const ViscaFrame& frame);
 
     std::shared_ptr<::Transport::ITransport> m_transport;
-    uint8_t m_cameraAddress { 1 };
+    std::uint8_t m_cameraAddress { 1 };
 
-    mutable std::mutex m_mutex {};
-    std::condition_variable m_cv {};
+    mutable std::mutex m_mutex { };
+    std::condition_variable m_cv { };
 
-    ViscaRxAccumulator m_accumulator {};
+    ViscaRxAccumulator m_accumulator { };
 
     static constexpr size_t kSocketCount { 2 };
-    std::array<SocketSlot, kSocketCount> m_sockets { { { ViscaSocket::Socket1, ViscaSocketState::Idle, {} },
-        { ViscaSocket::Socket2, ViscaSocketState::Idle, {} } } };
+    std::array<SocketSlot, kSocketCount> m_sockets { { { ViscaSocket::Socket1, ViscaSocketState::Idle, { } },
+        { ViscaSocket::Socket2, ViscaSocketState::Idle, { } } } };
 
-    std::deque<InFlightCommand> m_commandQueue {};
-    std::deque<InFlightInquiry> m_inquiryQueue {};
+    std::deque<InFlightCommand> m_commandQueue { };
+    std::deque<InFlightInquiry> m_inquiryQueue { };
 
     TrafficCallback m_trafficCallback { nullptr };
 
-    std::atomic<uint64_t> m_socket1Processed { 0U };
-    std::atomic<uint64_t> m_socket2Processed { 0U };
-    std::atomic<uint64_t> m_inquiriesProcessed { 0U };
-    std::atomic<uint64_t> m_syntaxErrors { 0U };
-    std::atomic<uint64_t> m_bufferFullErrors { 0U };
-    std::atomic<uint64_t> m_cancelledCommands { 0U };
-    std::atomic<uint64_t> m_noSocketErrors { 0U };
-    std::atomic<uint64_t> m_executionErrors { 0U };
-    std::atomic<uint64_t> m_timeouts { 0U };
-    std::atomic<uint64_t> m_totalTurnaroundUs { 0U };
-    std::atomic<uint64_t> m_lastTurnaroundUs { 0U };
+    std::atomic<std::uint64_t> m_socket1Processed { 0U };
+    std::atomic<std::uint64_t> m_socket2Processed { 0U };
+    std::atomic<std::uint64_t> m_inquiriesProcessed { 0U };
+    std::atomic<std::uint64_t> m_syntaxErrors { 0U };
+    std::atomic<std::uint64_t> m_bufferFullErrors { 0U };
+    std::atomic<std::uint64_t> m_cancelledCommands { 0U };
+    std::atomic<std::uint64_t> m_noSocketErrors { 0U };
+    std::atomic<std::uint64_t> m_executionErrors { 0U };
+    std::atomic<std::uint64_t> m_timeouts { 0U };
+    std::atomic<std::uint64_t> m_totalTurnaroundUs { 0U };
+    std::atomic<std::uint64_t> m_lastTurnaroundUs { 0U };
 };
 
 } // namespace Visca

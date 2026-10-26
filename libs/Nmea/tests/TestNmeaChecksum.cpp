@@ -1,5 +1,7 @@
 #include "NmeaChecksum.h"
 
+#include <string>
+
 #include <gtest/gtest.h>
 
 namespace Nmea {

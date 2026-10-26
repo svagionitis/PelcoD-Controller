@@ -3,51 +3,53 @@
 #include "KlvCrc.h"
 
 #include <algorithm>
+#include <array>
+#include <cstdint>
 #include <cstring>
+#include <string>
+#include <vector>
 
 namespace Klv {
 
 namespace {
 
-bool readVarUint(const std::uint8_t* data, std::size_t len, std::uint32_t& out) noexcept {
-    if (len == 0U || len > 4U) {
-        return false;
+    bool readVarUint(const std::uint8_t* data, std::size_t len, std::uint32_t& out) noexcept
+    {
+        if (len == 0U || len > 4U) {
+            return false;
+        }
+        std::uint32_t val { 0U };
+        for (std::size_t i = 0U; i < len; ++i) {
+            val = (val << 8U) | static_cast<std::uint32_t>(data[i]);
+        }
+        out = val;
+        return true;
     }
-    std::uint32_t val { 0U };
-    for (std::size_t i = 0U; i < len; ++i) {
-        val = (val << 8U) | static_cast<std::uint32_t>(data[i]);
-    }
-    out = val;
-    return true;
-}
 
 } // namespace
 
-bool VmtiParser::isVmti(const std::uint8_t* data, std::size_t size) noexcept {
+bool VmtiParser::isVmti(const std::uint8_t* data, std::size_t size) noexcept
+{
     if (data == nullptr || size < kVmtiUniversalLabelSize) {
         return false;
     }
-    return std::equal(
-        kMisb0903UniversalLabel.begin(),
-        kMisb0903UniversalLabel.begin() + kMisb0903PrefixSize,
-        data);
+    return std::equal(kMisb0903UniversalLabel.begin(), kMisb0903UniversalLabel.begin() + kMisb0903PrefixSize, data);
 }
 
-double VmtiParser::unscaleOffset(std::uint32_t rawVal) noexcept {
+double VmtiParser::unscaleOffset(std::uint32_t rawVal) noexcept
+{
     const auto masked = static_cast<double>(rawVal & 0x00FFFFFFU);
     return (masked / 131072.0) - 19.2;
 }
 
-double VmtiParser::unscaleHae(std::uint16_t rawVal) noexcept {
+double VmtiParser::unscaleHae(std::uint16_t rawVal) noexcept
+{
     return static_cast<double>(rawVal) - 900.0;
 }
 
-bool VmtiParser::parseTarget(
-    const std::uint8_t* data,
-    std::size_t size,
-    VTargetPack& target,
-    std::uint32_t frameWidth,
-    std::uint32_t frameHeight) noexcept {
+bool VmtiParser::parseTarget(const std::uint8_t* data, std::size_t size, VTargetPack& target, std::uint32_t frameWidth,
+    std::uint32_t frameHeight) noexcept
+{
     (void)frameHeight;
     if (data == nullptr || size == 0U) {
         return false;
@@ -91,7 +93,7 @@ bool VmtiParser::parseTarget(
             std::uint32_t pixNum { 0U };
             if (readVarUint(val, itemLen, pixNum)) {
                 if (!target.boundingBox.has_value()) {
-                    target.boundingBox = PixelBoundingBox {};
+                    target.boundingBox = PixelBoundingBox { };
                 }
                 target.boundingBox->topLeft = PixelCoord::fromPixelNumber(pixNum, frameWidth);
             }
@@ -101,7 +103,7 @@ bool VmtiParser::parseTarget(
             std::uint32_t pixNum { 0U };
             if (readVarUint(val, itemLen, pixNum)) {
                 if (!target.boundingBox.has_value()) {
-                    target.boundingBox = PixelBoundingBox {};
+                    target.boundingBox = PixelBoundingBox { };
                 }
                 target.boundingBox->bottomRight = PixelCoord::fromPixelNumber(pixNum, frameWidth);
             }
@@ -136,10 +138,9 @@ bool VmtiParser::parseTarget(
             break;
         case VTargetTag::TargetIntensity:
             if (itemLen == 4U) {
-                const std::uint32_t rawBits = (static_cast<std::uint32_t>(val[0]) << 24U) |
-                                              (static_cast<std::uint32_t>(val[1]) << 16U) |
-                                              (static_cast<std::uint32_t>(val[2]) << 8U) |
-                                              static_cast<std::uint32_t>(val[3]);
+                const std::uint32_t rawBits = (static_cast<std::uint32_t>(val[0]) << 24U)
+                    | (static_cast<std::uint32_t>(val[1]) << 16U) | (static_cast<std::uint32_t>(val[2]) << 8U)
+                    | static_cast<std::uint32_t>(val[3]);
                 float fVal { 0.0F };
                 std::memcpy(&fVal, &rawBits, sizeof(float));
                 target.targetIntensity = fVal;
@@ -153,22 +154,20 @@ bool VmtiParser::parseTarget(
             break;
         case VTargetTag::TargetLocationOffsetLat:
             if (itemLen >= 3U) {
-                const auto raw = (static_cast<std::uint32_t>(val[0]) << 16U) |
-                                 (static_cast<std::uint32_t>(val[1]) << 8U) |
-                                 static_cast<std::uint32_t>(val[2]);
+                const auto raw = (static_cast<std::uint32_t>(val[0]) << 16U)
+                    | (static_cast<std::uint32_t>(val[1]) << 8U) | static_cast<std::uint32_t>(val[2]);
                 if (!target.locationOffsetDeg.has_value()) {
-                    target.locationOffsetDeg = GeoPoint2D {};
+                    target.locationOffsetDeg = GeoPoint2D { };
                 }
                 target.locationOffsetDeg->latitudeDeg = unscaleOffset(raw);
             }
             break;
         case VTargetTag::TargetLocationOffsetLon:
             if (itemLen >= 3U) {
-                const auto raw = (static_cast<std::uint32_t>(val[0]) << 16U) |
-                                 (static_cast<std::uint32_t>(val[1]) << 8U) |
-                                 static_cast<std::uint32_t>(val[2]);
+                const auto raw = (static_cast<std::uint32_t>(val[0]) << 16U)
+                    | (static_cast<std::uint32_t>(val[1]) << 8U) | static_cast<std::uint32_t>(val[2]);
                 if (!target.locationOffsetDeg.has_value()) {
-                    target.locationOffsetDeg = GeoPoint2D {};
+                    target.locationOffsetDeg = GeoPoint2D { };
                 }
                 target.locationOffsetDeg->longitudeDeg = unscaleOffset(raw);
             }
@@ -182,17 +181,13 @@ bool VmtiParser::parseTarget(
             break;
         case VTargetTag::TargetLocation:
             if (itemLen >= 10U) {
-                const auto rawLat = static_cast<std::int32_t>(
-                    (static_cast<std::uint32_t>(val[0]) << 24U) |
-                    (static_cast<std::uint32_t>(val[1]) << 16U) |
-                    (static_cast<std::uint32_t>(val[2]) << 8U) |
-                    static_cast<std::uint32_t>(val[3]));
+                const auto rawLat = static_cast<std::int32_t>((static_cast<std::uint32_t>(val[0]) << 24U)
+                    | (static_cast<std::uint32_t>(val[1]) << 16U) | (static_cast<std::uint32_t>(val[2]) << 8U)
+                    | static_cast<std::uint32_t>(val[3]));
 
-                const auto rawLon = static_cast<std::int32_t>(
-                    (static_cast<std::uint32_t>(val[4]) << 24U) |
-                    (static_cast<std::uint32_t>(val[5]) << 16U) |
-                    (static_cast<std::uint32_t>(val[6]) << 8U) |
-                    static_cast<std::uint32_t>(val[7]));
+                const auto rawLon = static_cast<std::int32_t>((static_cast<std::uint32_t>(val[4]) << 24U)
+                    | (static_cast<std::uint32_t>(val[5]) << 16U) | (static_cast<std::uint32_t>(val[6]) << 8U)
+                    | static_cast<std::uint32_t>(val[7]));
 
                 const auto rawHae = static_cast<std::uint16_t>(
                     (static_cast<std::uint16_t>(val[8]) << 8U) | static_cast<std::uint16_t>(val[9]));
@@ -219,12 +214,9 @@ bool VmtiParser::parseTarget(
     return true;
 }
 
-bool VmtiParser::parseSeries(
-    const std::uint8_t* data,
-    std::size_t size,
-    std::vector<VTargetPack>& targets,
-    std::uint32_t frameWidth,
-    std::uint32_t frameHeight) noexcept {
+bool VmtiParser::parseSeries(const std::uint8_t* data, std::size_t size, std::vector<VTargetPack>& targets,
+    std::uint32_t frameWidth, std::uint32_t frameHeight) noexcept
+{
     if (data == nullptr || size == 0U) {
         return true;
     }
@@ -254,10 +246,8 @@ bool VmtiParser::parseSeries(
 }
 
 KlvStatus VmtiParser::parse(
-    const std::uint8_t* data,
-    std::size_t size,
-    VmtiLocalSet& vmti,
-    bool verifyChecksum) noexcept {
+    const std::uint8_t* data, std::size_t size, VmtiLocalSet& vmti, bool verifyChecksum) noexcept
+{
     if (data == nullptr || size == 0U) {
         return KlvStatus::BufferUnderflow;
     }
@@ -364,7 +354,7 @@ KlvStatus VmtiParser::parse(
             break;
         }
         case VmtiTag::MiisId: {
-            MiisCoreId miis {};
+            MiisCoreId miis { };
             if (miis.decode(val, itemLen) == KlvStatus::Success) {
                 vmti.miisId = miis;
             }

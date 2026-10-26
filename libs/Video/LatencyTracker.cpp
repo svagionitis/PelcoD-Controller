@@ -1,7 +1,10 @@
 #include "LatencyTracker.h"
 
+#include <cstdint>
+
 #include <algorithm>
 #include <chrono>
+#include <mutex>
 
 namespace Video {
 
@@ -45,7 +48,7 @@ bool LatencyTracker::addInterval(std::int64_t startNs, std::int64_t endNs)
 LatencyStats LatencyTracker::snapshot() const
 {
     const std::lock_guard<std::mutex> lock { m_mutex };
-    LatencyStats stats {};
+    LatencyStats stats { };
     if (m_filled == 0U) {
         return stats;
     }

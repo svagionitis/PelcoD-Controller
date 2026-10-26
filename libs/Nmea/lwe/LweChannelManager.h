@@ -4,6 +4,7 @@
 #include "LweMulticastTransport.h"
 #include "LweTypes.h"
 
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -64,11 +65,11 @@ private:
 
     void handleIncomingChannelData(const std::vector<std::uint8_t>& data);
 
-    mutable std::mutex m_mutex {};
-    std::vector<std::shared_ptr<LweMulticastTransport>> m_channels {};
-    std::unordered_set<std::string> m_sourceWhitelist {};
+    mutable std::mutex m_mutex { };
+    std::vector<std::shared_ptr<LweMulticastTransport>> m_channels { };
+    std::unordered_set<std::string> m_sourceWhitelist { };
     bool m_useSourceFilter { false };
-    std::shared_ptr<AggregatedTransport> m_aggregatedTransport {};
+    std::shared_ptr<AggregatedTransport> m_aggregatedTransport { };
 };
 
 } // namespace Nmea::Lwe

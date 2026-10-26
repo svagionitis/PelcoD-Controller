@@ -1,7 +1,10 @@
 /// @file SightlineCompressionParser.cpp
 /// @brief Implementation of Sightline compression frame deserializers.
 
+#include <cstdint>
+
 #include "SightlineCompressionParser.h"
+#include <vector>
 
 namespace Sightline {
 

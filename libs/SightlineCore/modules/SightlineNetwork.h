@@ -7,8 +7,10 @@
 #include "../SightlineTypes.h"
 
 #include <cstdint>
+
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace Sightline {
 
@@ -95,8 +97,8 @@ enum class RtspMountChannel : std::uint8_t {
 /// @struct RtspCredentials
 /// @brief Authentication credentials for RTSP Digest sessions (RFC 2069).
 struct RtspCredentials {
-    std::string username {}; ///< Username identifier
-    std::string password {}; ///< Plaintext user password
+    std::string username { }; ///< Username identifier
+    std::string password { }; ///< Plaintext user password
 };
 
 /// @brief Formats an RTSP stream URI conforming to Sightline EAN-RTSP.
@@ -178,7 +180,7 @@ struct MsgSetEthernetDisplayParameters {
 /// @brief Available network interfaces on the SLA board (Message ID 0x67).
 struct MsgCurrentNetworkList {
     std::uint8_t numInterfaces { 0U };
-    std::vector<std::string> interfaceNames {};
+    std::vector<std::string> interfaceNames { };
 };
 
 } // namespace Sightline

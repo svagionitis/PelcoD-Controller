@@ -3,8 +3,11 @@
 
 #include "OscillationDetector.h"
 
+#include <cstddef>
+
 #include <algorithm>
 #include <numeric>
+#include <vector>
 
 namespace Tracking {
 

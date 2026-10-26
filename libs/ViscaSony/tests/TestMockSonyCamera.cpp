@@ -3,9 +3,12 @@
 
 #include "MockSonyCamera.h"
 #include "SonyViscaBuilder.h"
+#include <cstdint>
+
 #include <ViscaBuilder.h>
 #include <ViscaParser.h>
 #include <gtest/gtest.h>
+#include <vector>
 
 using namespace Visca;
 using namespace Visca::Sony;
@@ -37,7 +40,7 @@ TEST(TestMockSonyCamera, RegisterManipulation)
     EXPECT_EQ(mock.registerValue(0x57), 0x01);
 
     std::vector<ViscaFrame> rxFrames;
-    mock.setDataCallback([&](const std::vector<uint8_t>& data) {
+    mock.setDataCallback([&](const std::vector<std::uint8_t>& data) {
         ViscaRxAccumulator acc;
         acc.setFrameCallback([&](const ViscaFrame& f) { rxFrames.push_back(f); });
         acc.addData(data);
@@ -60,7 +63,7 @@ TEST(TestMockSonyCamera, InjectedErrors)
     ViscaRxAccumulator acc;
     acc.setFrameCallback([&](const ViscaFrame& f) { rxFrames.push_back(f); });
 
-    mock.setDataCallback([&](const std::vector<uint8_t>& data) { acc.addData(data); });
+    mock.setDataCallback([&](const std::vector<std::uint8_t>& data) { acc.addData(data); });
 
     mock.injectNextError(ViscaErrorCode::CommandNotExecutable);
 
@@ -82,7 +85,7 @@ TEST(TestMockSonyCamera, CommandCancelHandling)
     ViscaRxAccumulator acc;
     acc.setFrameCallback([&](const ViscaFrame& f) { rxFrames.push_back(f); });
 
-    mock.setDataCallback([&](const std::vector<uint8_t>& data) { acc.addData(data); });
+    mock.setDataCallback([&](const std::vector<std::uint8_t>& data) { acc.addData(data); });
 
     const ViscaFrame cancelCmd = ViscaBuilder::commandCancel(1, ViscaSocket::Socket1);
     EXPECT_TRUE(mock.sendData(cancelCmd.bytes()));

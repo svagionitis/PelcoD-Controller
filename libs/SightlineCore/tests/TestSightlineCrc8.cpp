@@ -3,6 +3,7 @@
 
 #include "SightlineCrc8.h"
 
+#include <cstdint>
 #include <gtest/gtest.h>
 
 #include <vector>

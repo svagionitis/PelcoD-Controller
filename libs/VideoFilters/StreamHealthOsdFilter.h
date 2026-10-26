@@ -9,6 +9,7 @@
 #include "StreamHealthMonitor.h"
 
 #include <chrono>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -135,16 +136,16 @@ private:
     mutable std::mutex m_mutex;
     Position m_position { Position::TopRight };
     Style m_style { Style::TacticalPill };
-    std::string m_customLabel {};
+    std::string m_customLabel { };
     bool m_showFps { true };
     bool m_showFreezeTimer { true };
     bool m_showExclusionZones { false };
     bool m_pulseAnimation { true };
     double m_scrimOpacity { 0.65 };
 
-    std::weak_ptr<const StreamHealthMonitor> m_boundMonitor {};
+    std::weak_ptr<const StreamHealthMonitor> m_boundMonitor { };
     StreamHealthState m_state { StreamHealthState::Healthy };
-    StreamHealthMetrics m_metrics {};
+    StreamHealthMetrics m_metrics { };
 };
 
 } // namespace Video::Filters

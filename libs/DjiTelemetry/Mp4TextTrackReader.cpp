@@ -5,8 +5,13 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
+#include <optional>
+#include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 namespace Dji {
 
@@ -187,7 +192,7 @@ namespace {
     [[nodiscard]] std::optional<Box> findChild(const Buffer& b, std::size_t begin, std::size_t end, std::uint32_t type)
     {
         std::size_t pos { begin };
-        Box box {};
+        Box box { };
         while ((pos < end) && parseBox(b, pos, end, box)) {
             if (box.type == type) {
                 return box;
@@ -437,7 +442,7 @@ namespace {
                 const std::uint32_t first { m_stsc[e].firstChunk };
                 const std::uint32_t last { ((e + 1U) < m_stsc.size()) ? (m_stsc[e + 1U].firstChunk - 1U) : chunkCount };
                 for (std::uint32_t chunk { first };
-                     (chunk <= last) && (chunk <= chunkCount) && (out.size() < m_sampleCount); ++chunk) {
+                    (chunk <= last) && (chunk <= chunkCount) && (out.size() < m_sampleCount); ++chunk) {
                     std::uint64_t offset { m_offsets[chunk - 1U] };
                     for (std::uint32_t k { 0U }; (k < m_stsc[e].samplesPerChunk) && (out.size() < m_sampleCount); ++k) {
                         const std::uint32_t size { (m_fixedSize != 0U) ? m_fixedSize : m_sizes[out.size()] };
@@ -492,9 +497,9 @@ namespace {
         std::uint64_t m_fileSize { 0U };
         std::uint32_t m_fixedSize { 0U };
         std::uint32_t m_sampleCount { 0U };
-        std::vector<std::uint32_t> m_sizes {};
-        std::vector<std::uint64_t> m_offsets {};
-        std::vector<StscEntry> m_stsc {};
+        std::vector<std::uint32_t> m_sizes { };
+        std::vector<std::uint64_t> m_offsets { };
+        std::vector<StscEntry> m_stsc { };
     };
 
     /// @brief Reads the handler type of a trak.
@@ -563,7 +568,7 @@ namespace {
         const auto udta { child(b, moov, kUdta) };
         const auto meta { udta.has_value() ? child(b, *udta, kMeta) : std::nullopt };
         if (!meta.has_value()) {
-            return {};
+            return { };
         }
         // ISO meta is a full box; QuickTime meta is not. Detect by peeking for a child header.
         std::uint32_t peek { 0U };
@@ -573,9 +578,9 @@ namespace {
         const auto tool { ilst.has_value() ? child(b, *ilst, kCopyTool) : std::nullopt };
         const auto data { tool.has_value() ? child(b, *tool, kData) : std::nullopt };
         if (!data.has_value() || (data->size < 8U)) {
-            return {};
+            return { };
         }
-        std::string out {};
+        std::string out { };
         out.reserve(data->size - 8U);
         for (std::size_t i { data->body + 8U }; i < data->end(); ++i) {
             if (b[i] == 0U) {
@@ -607,7 +612,7 @@ bool Mp4TextTrackReader::loadMoov(std::vector<std::uint8_t>& moov)
     std::uint64_t pos { 0U };
     bool first { true };
     while ((m_fileSize >= kBoxHeader) && (pos <= (m_fileSize - kBoxHeader))) {
-        std::array<std::uint8_t, kLargeHeader> hdr {};
+        std::array<std::uint8_t, kLargeHeader> hdr { };
         m_file.seekg(static_cast<std::streamoff>(pos));
         m_file.read(reinterpret_cast<char*>(hdr.data()), static_cast<std::streamsize>(kBoxHeader));
         if (m_file.gcount() != static_cast<std::streamsize>(kBoxHeader)) {
@@ -667,7 +672,7 @@ bool Mp4TextTrackReader::open(std::string_view path)
     }
     m_fileSize = static_cast<std::uint64_t>(end);
 
-    Buffer moovBody {};
+    Buffer moovBody { };
     if (!loadMoov(moovBody)) {
         reset();
         return false;
@@ -684,7 +689,7 @@ bool Mp4TextTrackReader::open(std::string_view path)
     m_encoder = readEncoder(moovBody, moov);
 
     std::size_t pos { 0U };
-    Box trak {};
+    Box trak { };
     while ((pos < moovBody.size()) && parseBox(moovBody, pos, moovBody.size(), trak)) {
         pos = trak.next;
         if (trak.type != kTrak) {
@@ -718,14 +723,14 @@ bool Mp4TextTrackReader::open(std::string_view path)
         if (!readHeaderTimes(moovBody, *mdhd, timescale, ignored) || (timescale == 0U)) {
             continue;
         }
-        EditInfo edit {};
+        EditInfo edit { };
         if (const auto elst { descend(moovBody, trak, std::array<std::uint32_t, 2U> { kEdts, kElst }) }) {
             if (!parseElst(moovBody, *elst, edit)) {
                 continue;
             }
         }
         TableParser tables { moovBody, m_fileSize };
-        std::vector<Mp4Sample> samples {};
+        std::vector<Mp4Sample> samples { };
         if (tables.build(*stbl, timescale, edit, movieTimescale, samples)) {
             m_samples = std::move(samples);
             m_timescale = timescale;

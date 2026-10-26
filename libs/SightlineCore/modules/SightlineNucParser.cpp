@@ -1,7 +1,10 @@
 /// @file SightlineNucParser.cpp
 /// @brief Implementation of Sightline SLA NUC and dead pixel frame deserializers (IDD v3.11).
 
+#include <cstdint>
+
 #include "SightlineNucParser.h"
+#include <string>
 
 namespace Sightline {
 
@@ -46,7 +49,10 @@ namespace {
 
         /// @brief Number of unread bytes.
         /// @return Remaining byte count.
-        [[nodiscard]] std::size_t remaining() const noexcept { return m_data.size() - m_pos; }
+        [[nodiscard]] std::size_t remaining() const noexcept
+        {
+            return m_data.size() - m_pos;
+        }
 
         /// @brief Reads one byte.
         /// @param[out] value Destination.
@@ -136,7 +142,7 @@ namespace {
         }
 
     private:
-        ByteView m_data {}; ///< Payload being read
+        ByteView m_data { }; ///< Payload being read
         std::size_t m_pos { 0U }; ///< Current read offset
     };
 
@@ -184,8 +190,7 @@ namespace {
             return false;
         }
         msg.deadFilter = static_cast<DeadFilter>(raw);
-        if (!rd.readS16(msg.deadFilterThresh) || !rd.readU8(msg.destripeAmount)
-            || !rd.readU8(msg.destripeSections)) {
+        if (!rd.readS16(msg.deadFilterThresh) || !rd.readU8(msg.destripeAmount) || !rd.readU8(msg.destripeSections)) {
             return rd.remaining() == 0U;
         }
         if (rd.remaining() == 0U) {
@@ -198,7 +203,7 @@ namespace {
 
 bool SightlineNucParser::parseNucParameters(ByteView packet, MsgNucParameters& out)
 {
-    ByteView payload {};
+    ByteView payload { };
     if (!payloadFor(packet, MessageId::NucParameters, payload) || (payload.size() < kNucParamsMin)) {
         return false;
     }
@@ -206,7 +211,7 @@ bool SightlineNucParser::parseNucParameters(ByteView packet, MsgNucParameters& o
         return false;
     }
 
-    MsgNucParameters msg {};
+    MsgNucParameters msg { };
     msg.cameraIndex = payload[0U];
     msg.nucShow = static_cast<NucShow>(payload[1U]);
     msg.nucRunMode = static_cast<NucRunMode>(payload[2U]);
@@ -222,7 +227,7 @@ bool SightlineNucParser::parseNucParameters(ByteView packet, MsgNucParameters& o
 
 bool SightlineNucParser::parseDeadPixel(ByteView packet, MsgDeadPixel& out)
 {
-    ByteView payload {};
+    ByteView payload { };
     if (!payloadFor(packet, MessageId::DeadPixel, payload) || (payload.size() < kDeadPixelSize)) {
         return false;
     }
@@ -241,7 +246,7 @@ bool SightlineNucParser::parseDeadPixel(ByteView packet, MsgDeadPixel& out)
 
 bool SightlineNucParser::parseReadWriteNuc(ByteView packet, MsgReadWriteNuc& out)
 {
-    ByteView payload {};
+    ByteView payload { };
     if (!payloadFor(packet, MessageId::ReadWriteNuc, payload) || (payload.size() < kReadWriteMin)) {
         return false;
     }
@@ -251,7 +256,7 @@ bool SightlineNucParser::parseReadWriteNuc(ByteView packet, MsgReadWriteNuc& out
         return false;
     }
 
-    MsgReadWriteNuc msg {};
+    MsgReadWriteNuc msg { };
     msg.cameraIndex = payload[0U];
     msg.fileOp = static_cast<NucFileOp>(fileOp);
     msg.defaultOp = static_cast<NucDefaultOp>(defaultOp);
@@ -272,7 +277,7 @@ bool SightlineNucParser::parseReadWriteNuc(ByteView packet, MsgReadWriteNuc& out
 
 bool SightlineNucParser::parseDeadPixelStats(ByteView packet, MsgDeadPixelStats& out)
 {
-    ByteView payload {};
+    ByteView payload { };
     if (!payloadFor(packet, MessageId::DeadPixelStats, payload) || (payload.size() < kDeadStatsSize)) {
         return false;
     }

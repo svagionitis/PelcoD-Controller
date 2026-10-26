@@ -5,6 +5,9 @@
 
 #include "MatrixMath.h"
 
+#include <cstddef>
+
+#include <array>
 #include <functional>
 
 namespace Tracking {
@@ -67,11 +70,11 @@ private:
     void calculateWeights() noexcept;
 
     bool m_initialized { false };
-    Math::Vector<6> m_x {};
-    Math::Matrix<6, 6> m_P {};
+    Math::Vector<6> m_x { };
+    Math::Matrix<6, 6> m_P { };
 
-    Math::Vector<2> m_y {};
-    Math::Matrix<2, 2> m_S {};
+    Math::Vector<2> m_y { };
+    Math::Matrix<2, 2> m_S { };
     double m_mahalanobisSq { 0.0 };
 
     double m_qPos { 1e-4 };
@@ -86,8 +89,8 @@ private:
 
     // Sigma weights (2*N + 1 = 13 weights)
     static constexpr std::size_t SigmaCount = 13U;
-    std::array<double, SigmaCount> m_wm {};
-    std::array<double, SigmaCount> m_wc {};
+    std::array<double, SigmaCount> m_wm { };
+    std::array<double, SigmaCount> m_wc { };
 };
 
 } // namespace Tracking

@@ -1,46 +1,62 @@
 #include "CompositeTileProvider.h"
+
+#include <cstddef>
+
 #include "ProceduralGridTileProvider.h"
+#include <memory>
+#include <mutex>
+#include <optional>
 
 namespace Mapping {
 
-CompositeTileProvider::CompositeTileProvider(std::shared_ptr<DiskTileCache> diskCache,
-                                             std::size_t memoryCacheCapacity)
+CompositeTileProvider::CompositeTileProvider(std::shared_ptr<DiskTileCache> diskCache, std::size_t memoryCacheCapacity)
     : m_memoryCache(memoryCacheCapacity)
-    , m_diskCache(std::move(diskCache)) {}
+    , m_diskCache(std::move(diskCache))
+{
+}
 
-void CompositeTileProvider::setDiskCache(std::shared_ptr<DiskTileCache> diskCache) {
+void CompositeTileProvider::setDiskCache(std::shared_ptr<DiskTileCache> diskCache)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_diskCache = std::move(diskCache);
 }
 
-void CompositeTileProvider::addOfflineProvider(std::shared_ptr<ITileProvider> provider) {
-    if (!provider) return;
+void CompositeTileProvider::addOfflineProvider(std::shared_ptr<ITileProvider> provider)
+{
+    if (!provider)
+        return;
     std::lock_guard<std::mutex> lock(m_mutex);
     m_offlineProviders.push_back(std::move(provider));
 }
 
-void CompositeTileProvider::setNetworkProvider(std::shared_ptr<ITileProvider> provider) {
+void CompositeTileProvider::setNetworkProvider(std::shared_ptr<ITileProvider> provider)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_networkProvider = std::move(provider);
 }
 
-void CompositeTileProvider::setOfflineOnly(bool offlineOnly) noexcept {
+void CompositeTileProvider::setOfflineOnly(bool offlineOnly) noexcept
+{
     m_offlineOnly = offlineOnly;
 }
 
-bool CompositeTileProvider::isOfflineOnly() const noexcept {
+bool CompositeTileProvider::isOfflineOnly() const noexcept
+{
     return m_offlineOnly;
 }
 
-void CompositeTileProvider::setProceduralFallbackEnabled(bool enabled) noexcept {
+void CompositeTileProvider::setProceduralFallbackEnabled(bool enabled) noexcept
+{
     m_enableProceduralFallback = enabled;
 }
 
-bool CompositeTileProvider::isProceduralFallbackEnabled() const noexcept {
+bool CompositeTileProvider::isProceduralFallbackEnabled() const noexcept
+{
     return m_enableProceduralFallback;
 }
 
-bool CompositeTileProvider::hasTile(const TileCoord& coord) const noexcept {
+bool CompositeTileProvider::hasTile(const TileCoord& coord) const noexcept
+{
     // 1. Check memory cache
     if (m_memoryCache.contains(coord)) {
         return true;
@@ -64,7 +80,8 @@ bool CompositeTileProvider::hasTile(const TileCoord& coord) const noexcept {
     return m_enableProceduralFallback;
 }
 
-std::optional<TileData> CompositeTileProvider::getTile(const TileCoord& coord) {
+std::optional<TileData> CompositeTileProvider::getTile(const TileCoord& coord)
+{
     // 1. Check memory LRU cache
     if (auto cached = m_memoryCache.get(coord); cached.has_value()) {
         return cached;

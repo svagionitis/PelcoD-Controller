@@ -1,12 +1,14 @@
 /// @file SightlineEnhancementParser.cpp
 /// @brief Implementation of Sightline enhancement frame deserializers.
 
+#include <cstdint>
+
 #include "SightlineEnhancementParser.h"
+#include <vector>
 
 namespace Sightline {
 
-bool SightlineEnhancementParser::parseVideoEnhance(
-    const std::vector<std::uint8_t>& packet, MsgSetVideoEnhancement& out)
+bool SightlineEnhancementParser::parseVideoEnhance(const std::vector<std::uint8_t>& packet, MsgSetVideoEnhancement& out)
 {
     const auto id { SightlineFraming::identifyMessage(packet) };
     if (id != MessageId::CurrentVideoEnhancementParameters && id != MessageId::SetVideoEnhancementParameters) {
@@ -89,8 +91,7 @@ bool SightlineEnhancementParser::parseVideoEnhanceFull(
     return true;
 }
 
-bool SightlineEnhancementParser::parseNoise3D(
-    const std::vector<std::uint8_t>& packet, MsgNoise3D& out)
+bool SightlineEnhancementParser::parseNoise3D(const std::vector<std::uint8_t>& packet, MsgNoise3D& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::Noise3D) {
         return false;

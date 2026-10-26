@@ -6,7 +6,13 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
+#include <cstdint>
 #include <cstring>
+#include <mutex>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace Nmea::Network {
 
@@ -37,7 +43,7 @@ bool NmeaWebSocketServer::start()
     int opt { 1 };
     ::setsockopt(s, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
 
-    sockaddr_in addr {};
+    sockaddr_in addr { };
     addr.sin_family = AF_INET;
     addr.sin_port = htons(m_port);
     if (m_bindIp == "0.0.0.0" || m_bindIp.empty()) {
@@ -127,7 +133,7 @@ std::size_t NmeaWebSocketServer::broadcastJson(std::string_view jsonText)
 
 void NmeaWebSocketServer::sendFrame(Transport::Net::SocketHandle s, std::string_view payload, std::uint8_t opcode)
 {
-    std::vector<std::uint8_t> frame {};
+    std::vector<std::uint8_t> frame { };
     frame.push_back(static_cast<std::uint8_t>(0x80U | (opcode & 0x0FU))); // FIN = 1 + Opcode
 
     const auto len = payload.size();
@@ -161,13 +167,13 @@ void NmeaWebSocketServer::workerLoop()
         }
 
         // Accept new connections
-        sockaddr_in clientAddr {};
+        sockaddr_in clientAddr { };
         auto addrLen = static_cast<Transport::Net::SockOptLenType>(sizeof(clientAddr));
         const auto clientSock = ::accept(listenSock, reinterpret_cast<sockaddr*>(&clientAddr), &addrLen);
 
         if (clientSock != Transport::Net::InvalidSocket) {
             Transport::Net::setNonBlocking(clientSock, true);
-            WsClient client {};
+            WsClient client { };
             client.id = m_nextClientId++;
             client.socket = clientSock;
 
@@ -176,7 +182,7 @@ void NmeaWebSocketServer::workerLoop()
         }
 
         // Poll existing clients
-        std::vector<std::pair<std::uint32_t, std::string>> msgsToDispatch {};
+        std::vector<std::pair<std::uint32_t, std::string>> msgsToDispatch { };
         {
             std::lock_guard<std::mutex> lock { m_clientMutex };
             for (auto it = m_clients.begin(); it != m_clients.end();) {
@@ -189,7 +195,7 @@ void NmeaWebSocketServer::workerLoop()
                         }
                     }
                 } else {
-                    std::vector<std::string> msgs {};
+                    std::vector<std::string> msgs { };
                     readClientFrames(*it, msgs);
                     for (auto& m : msgs) {
                         msgsToDispatch.emplace_back(it->id, std::move(m));
@@ -215,7 +221,7 @@ void NmeaWebSocketServer::workerLoop()
 
 bool NmeaWebSocketServer::processHandshake(WsClient& client)
 {
-    std::array<char, 2048> buf {};
+    std::array<char, 2048> buf { };
     const auto n = ::recv(client.socket, buf.data(), static_cast<Transport::Net::SockBufLenType>(buf.size()), 0);
 
     if (n > 0) {
@@ -270,7 +276,7 @@ bool NmeaWebSocketServer::processHandshake(WsClient& client)
 
 void NmeaWebSocketServer::readClientFrames(WsClient& client, std::vector<std::string>& msgsOut)
 {
-    std::array<char, 4096> buf {};
+    std::array<char, 4096> buf { };
     const auto n = ::recv(client.socket, buf.data(), static_cast<Transport::Net::SockBufLenType>(buf.size()), 0);
 
     if (n > 0) {
@@ -294,9 +300,9 @@ void NmeaWebSocketServer::readClientFrames(WsClient& client, std::vector<std::st
             if (client.rxBuffer.size() < 4U) {
                 break;
             }
-            payloadLen
-                = static_cast<std::uint64_t>((static_cast<std::uint32_t>(static_cast<std::uint8_t>(client.rxBuffer[2])) << 8U)
-                    | static_cast<std::uint32_t>(static_cast<std::uint8_t>(client.rxBuffer[3])));
+            payloadLen = static_cast<std::uint64_t>(
+                (static_cast<std::uint32_t>(static_cast<std::uint8_t>(client.rxBuffer[2])) << 8U)
+                | static_cast<std::uint32_t>(static_cast<std::uint8_t>(client.rxBuffer[3])));
             headerSize = 4U;
         } else if (payloadLen == 127U) {
             if (client.rxBuffer.size() < 10U) {
@@ -309,7 +315,7 @@ void NmeaWebSocketServer::readClientFrames(WsClient& client, std::vector<std::st
             headerSize = 10U;
         }
 
-        std::array<std::uint8_t, 4> maskKey {};
+        std::array<std::uint8_t, 4> maskKey { };
         if (isMasked) {
             if (client.rxBuffer.size() < headerSize + 4U) {
                 break;
@@ -324,7 +330,7 @@ void NmeaWebSocketServer::readClientFrames(WsClient& client, std::vector<std::st
             break; // Await full frame payload
         }
 
-        std::string unmaskedPayload {};
+        std::string unmaskedPayload { };
         unmaskedPayload.reserve(payloadLen);
         for (std::size_t i = 0; i < payloadLen; ++i) {
             auto b = static_cast<std::uint8_t>(client.rxBuffer[headerSize + i]);

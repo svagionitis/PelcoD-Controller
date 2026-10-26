@@ -2,40 +2,50 @@
 #include "KlvCrc.h"
 #include "KlvEncoder.h"
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
+#include <optional>
+#include <vector>
 
 namespace Klv {
 
 MpegTsKlvMuxer::MpegTsKlvMuxer(const MpegTsMuxerConfig& config)
-    : m_config(config) {
+    : m_config(config)
+{
 }
 
-void MpegTsKlvMuxer::setPacketCallback(TsPacketCallback callback) {
+void MpegTsKlvMuxer::setPacketCallback(TsPacketCallback callback)
+{
     m_callback = std::move(callback);
 }
 
-void MpegTsKlvMuxer::setConfig(const MpegTsMuxerConfig& config) {
+void MpegTsKlvMuxer::setConfig(const MpegTsMuxerConfig& config)
+{
     m_config = config;
 }
 
-const MpegTsMuxerConfig& MpegTsKlvMuxer::config() const noexcept {
+const MpegTsMuxerConfig& MpegTsKlvMuxer::config() const noexcept
+{
     return m_config;
 }
 
-void MpegTsKlvMuxer::reset() noexcept {
+void MpegTsKlvMuxer::reset() noexcept
+{
     m_continuityCounters.clear();
     m_packetCounter = 0U;
     m_lastPcrTimestampUs = 0U;
 }
 
-std::uint16_t MpegTsKlvMuxer::effectivePcrPid() const noexcept {
+std::uint16_t MpegTsKlvMuxer::effectivePcrPid() const noexcept
+{
     if (m_config.videoCodec != VideoCodec::None && m_config.pcrOnVideo) {
         return m_config.videoPid;
     }
     return m_config.pcrPid;
 }
 
-std::uint8_t MpegTsKlvMuxer::nextCc(std::uint16_t pid) noexcept {
+std::uint8_t MpegTsKlvMuxer::nextCc(std::uint16_t pid) noexcept
+{
     auto it = m_continuityCounters.find(pid);
     if (it == m_continuityCounters.end()) {
         m_continuityCounters[pid] = 0U;
@@ -46,17 +56,19 @@ std::uint8_t MpegTsKlvMuxer::nextCc(std::uint16_t pid) noexcept {
     return cc;
 }
 
-void MpegTsKlvMuxer::dispatchPacket(const std::vector<std::uint8_t>& packet) {
+void MpegTsKlvMuxer::dispatchPacket(const std::vector<std::uint8_t>& packet)
+{
     if (m_callback && packet.size() == kTsPacketSize) {
         m_callback(packet.data(), packet.size());
     }
 }
 
-std::vector<std::uint8_t> MpegTsKlvMuxer::buildPatPacket() {
+std::vector<std::uint8_t> MpegTsKlvMuxer::buildPatPacket()
+{
     std::vector<std::uint8_t> packet(kTsPacketSize, 0xFFU);
     packet[0] = kTsSyncByte; // 0x47
-    packet[1] = 0x40U;       // PUSI=1, PID high 5 bits = 0
-    packet[2] = 0x00U;       // PID low 8 bits = 0
+    packet[1] = 0x40U; // PUSI=1, PID high 5 bits = 0
+    packet[2] = 0x00U; // PID low 8 bits = 0
     packet[3] = static_cast<std::uint8_t>(0x10U | (nextCc(0x0000U) & 0x0FU));
 
     packet[4] = 0x00U; // Pointer field
@@ -94,7 +106,8 @@ std::vector<std::uint8_t> MpegTsKlvMuxer::buildPatPacket() {
     return packet;
 }
 
-std::vector<std::uint8_t> MpegTsKlvMuxer::buildPmtPacket() {
+std::vector<std::uint8_t> MpegTsKlvMuxer::buildPmtPacket()
+{
     std::vector<std::uint8_t> packet(kTsPacketSize, 0xFFU);
     packet[0] = kTsSyncByte; // 0x47
     packet[1] = static_cast<std::uint8_t>(0x40U | ((m_config.pmtPid >> 8U) & 0x1FU));
@@ -123,7 +136,8 @@ std::vector<std::uint8_t> MpegTsKlvMuxer::buildPmtPacket() {
     const std::uint16_t metaEsEntryLen = static_cast<std::uint16_t>(5U + metaEsInfoLen);
 
     // Section length = 9 (header after length) + progInfoLen + videoEsEntryLen + metaEsEntryLen + 4 (CRC)
-    const std::uint16_t sectionLength = static_cast<std::uint16_t>(9U + progInfoLen + videoEsEntryLen + metaEsEntryLen + 4U);
+    const std::uint16_t sectionLength
+        = static_cast<std::uint16_t>(9U + progInfoLen + videoEsEntryLen + metaEsEntryLen + 4U);
 
     std::vector<std::uint8_t> section;
     section.reserve(3U + sectionLength);
@@ -147,9 +161,8 @@ std::vector<std::uint8_t> MpegTsKlvMuxer::buildPmtPacket() {
 
     // 1. Video Elementary stream entry (if enabled)
     if (hasVideo) {
-        const std::uint8_t videoStreamType = (m_config.videoCodec == VideoCodec::H264)
-                                                 ? 0x1BU   // AVC / H.264
-                                                 : 0x24U;  // HEVC / H.265
+        const std::uint8_t videoStreamType = (m_config.videoCodec == VideoCodec::H264) ? 0x1BU // AVC / H.264
+                                                                                       : 0x24U; // HEVC / H.265
         section.push_back(videoStreamType);
         section.push_back(static_cast<std::uint8_t>(0xE0U | ((m_config.videoPid >> 8U) & 0x1FU)));
         section.push_back(static_cast<std::uint8_t>(m_config.videoPid & 0xFFU));
@@ -175,9 +188,9 @@ std::vector<std::uint8_t> MpegTsKlvMuxer::buildPmtPacket() {
     return packet;
 }
 
-std::vector<std::uint8_t> MpegTsKlvMuxer::buildPesPacket(const std::uint8_t* klvData,
-                                                         std::size_t size,
-                                                         std::optional<std::uint64_t> timestampUs) {
+std::vector<std::uint8_t> MpegTsKlvMuxer::buildPesPacket(
+    const std::uint8_t* klvData, std::size_t size, std::optional<std::uint64_t> timestampUs)
+{
     std::vector<std::uint8_t> pes;
     if (klvData == nullptr || size == 0U) {
         return pes;
@@ -192,9 +205,7 @@ std::vector<std::uint8_t> MpegTsKlvMuxer::buildPesPacket(const std::uint8_t* klv
     const std::size_t pesHeaderDataLen = hasPts ? 5U : 0U;
     const std::size_t pesPacketLen = 3U + pesHeaderDataLen + size;
 
-    const std::uint16_t lengthField = (pesPacketLen <= 0xFFFFU)
-                                          ? static_cast<std::uint16_t>(pesPacketLen)
-                                          : 0x0000U;
+    const std::uint16_t lengthField = (pesPacketLen <= 0xFFFFU) ? static_cast<std::uint16_t>(pesPacketLen) : 0x0000U;
 
     pes.push_back(static_cast<std::uint8_t>((lengthField >> 8U) & 0xFFU));
     pes.push_back(static_cast<std::uint8_t>(lengthField & 0xFFU));
@@ -221,11 +232,9 @@ std::vector<std::uint8_t> MpegTsKlvMuxer::buildPesPacket(const std::uint8_t* klv
     return pes;
 }
 
-std::size_t MpegTsKlvMuxer::emitTsPacket(std::uint16_t pid,
-                                         bool pusi,
-                                         const std::uint8_t* payload,
-                                         std::size_t payloadSize,
-                                         std::optional<std::uint64_t> pcrUs) {
+std::size_t MpegTsKlvMuxer::emitTsPacket(std::uint16_t pid, bool pusi, const std::uint8_t* payload,
+    std::size_t payloadSize, std::optional<std::uint64_t> pcrUs)
+{
     std::vector<std::uint8_t> packet(kTsPacketSize, 0xFFU);
     packet[0] = kTsSyncByte;
     packet[1] = static_cast<std::uint8_t>((pusi ? 0x40U : 0x00U) | ((pid >> 8U) & 0x1FU));
@@ -265,11 +274,12 @@ std::size_t MpegTsKlvMuxer::emitTsPacket(std::uint16_t pid,
                 const std::uint64_t pcrBase = ((*pcrUs * 90ULL) / 1000ULL) & 0x1FFFFFFFFULL;
                 const auto pcrExt = static_cast<std::uint16_t>(((*pcrUs * 27ULL) % 300ULL) & 0x1FFULL);
 
-                packet[afOffset]     = static_cast<std::uint8_t>((pcrBase >> 25U) & 0xFFU);
+                packet[afOffset] = static_cast<std::uint8_t>((pcrBase >> 25U) & 0xFFU);
                 packet[afOffset + 1] = static_cast<std::uint8_t>((pcrBase >> 17U) & 0xFFU);
                 packet[afOffset + 2] = static_cast<std::uint8_t>((pcrBase >> 9U) & 0xFFU);
                 packet[afOffset + 3] = static_cast<std::uint8_t>((pcrBase >> 1U) & 0xFFU);
-                packet[afOffset + 4] = static_cast<std::uint8_t>(((pcrBase & 1U) << 7U) | 0x7EU | ((pcrExt >> 8U) & 1U));
+                packet[afOffset + 4]
+                    = static_cast<std::uint8_t>(((pcrBase & 1U) << 7U) | 0x7EU | ((pcrExt >> 8U) & 1U));
                 packet[afOffset + 5] = static_cast<std::uint8_t>(pcrExt & 0xFFU);
                 afOffset += 6U;
             }
@@ -290,9 +300,9 @@ std::size_t MpegTsKlvMuxer::emitTsPacket(std::uint16_t pid,
     return 1U;
 }
 
-std::size_t MpegTsKlvMuxer::emitPesStream(std::uint16_t pid,
-                                          const std::vector<std::uint8_t>& pesData,
-                                          std::optional<std::uint64_t> pcrUs) {
+std::size_t MpegTsKlvMuxer::emitPesStream(
+    std::uint16_t pid, const std::vector<std::uint8_t>& pesData, std::optional<std::uint64_t> pcrUs)
+{
     if (pesData.empty()) {
         return 0U;
     }
@@ -307,11 +317,8 @@ std::size_t MpegTsKlvMuxer::emitPesStream(std::uint16_t pid,
         const std::size_t maxPayload = includePcr ? (184U - 8U) : 184U;
         const std::size_t chunkSize = std::min(remaining, maxPayload);
 
-        emittedCount += emitTsPacket(pid,
-                                     isFirst,
-                                     pesData.data() + pesOffset,
-                                     chunkSize,
-                                     includePcr ? pcrUs : std::nullopt);
+        emittedCount
+            += emitTsPacket(pid, isFirst, pesData.data() + pesOffset, chunkSize, includePcr ? pcrUs : std::nullopt);
 
         pesOffset += chunkSize;
         isFirst = false;
@@ -320,7 +327,8 @@ std::size_t MpegTsKlvMuxer::emitPesStream(std::uint16_t pid,
     return emittedCount;
 }
 
-std::size_t MpegTsKlvMuxer::emitPsiTables() {
+std::size_t MpegTsKlvMuxer::emitPsiTables()
+{
     const auto pat = buildPatPacket();
     dispatchPacket(pat);
 
@@ -330,9 +338,9 @@ std::size_t MpegTsKlvMuxer::emitPsiTables() {
     return 2U;
 }
 
-std::size_t MpegTsKlvMuxer::muxKlvPacket(const std::uint8_t* klvData,
-                                         std::size_t size,
-                                         std::optional<std::uint64_t> timestampUs) {
+std::size_t MpegTsKlvMuxer::muxKlvPacket(
+    const std::uint8_t* klvData, std::size_t size, std::optional<std::uint64_t> timestampUs)
+{
     if (klvData == nullptr || size == 0U) {
         return 0U;
     }
@@ -360,12 +368,14 @@ std::size_t MpegTsKlvMuxer::muxKlvPacket(const std::uint8_t* klvData,
     return emittedCount;
 }
 
-std::size_t MpegTsKlvMuxer::muxMessage(const UasDatalinkMessage& message) {
+std::size_t MpegTsKlvMuxer::muxMessage(const UasDatalinkMessage& message)
+{
     const auto klvBytes = KlvEncoder::encode(message);
     return muxKlvPacket(klvBytes.data(), klvBytes.size(), message.precisionTimeStampUs);
 }
 
-std::size_t MpegTsKlvMuxer::muxVideoAccessUnit(const VideoAccessUnit& au) {
+std::size_t MpegTsKlvMuxer::muxVideoAccessUnit(const VideoAccessUnit& au)
+{
     if (au.data.empty()) {
         return 0U;
     }
@@ -392,11 +402,9 @@ std::size_t MpegTsKlvMuxer::muxVideoAccessUnit(const VideoAccessUnit& au) {
     return emittedCount;
 }
 
-std::size_t MpegTsKlvMuxer::muxVideoFrame(const std::uint8_t* data,
-                                          std::size_t size,
-                                          std::uint64_t ptsUs,
-                                          std::optional<std::uint64_t> dtsUs,
-                                          bool isKeyframe) {
+std::size_t MpegTsKlvMuxer::muxVideoFrame(const std::uint8_t* data, std::size_t size, std::uint64_t ptsUs,
+    std::optional<std::uint64_t> dtsUs, bool isKeyframe)
+{
     if (data == nullptr || size == 0U) {
         return 0U;
     }
@@ -422,8 +430,9 @@ std::size_t MpegTsKlvMuxer::muxVideoFrame(const std::uint8_t* data,
     return emittedCount;
 }
 
-std::size_t MpegTsKlvMuxer::muxSynchronizedFrame(const VideoAccessUnit& au,
-                                                 const std::optional<UasDatalinkMessage>& message) {
+std::size_t MpegTsKlvMuxer::muxSynchronizedFrame(
+    const VideoAccessUnit& au, const std::optional<UasDatalinkMessage>& message)
+{
     std::size_t emittedCount = 0U;
 
     // Emit KLV packet first if available so decoders receive metadata ahead of or at video PTS
@@ -435,15 +444,14 @@ std::size_t MpegTsKlvMuxer::muxSynchronizedFrame(const VideoAccessUnit& au,
     return emittedCount;
 }
 
-std::vector<std::uint8_t> MpegTsKlvMuxer::muxToBuffer(const std::uint8_t* klvData,
-                                                      std::size_t size,
-                                                      std::optional<std::uint64_t> timestampUs) {
+std::vector<std::uint8_t> MpegTsKlvMuxer::muxToBuffer(
+    const std::uint8_t* klvData, std::size_t size, std::optional<std::uint64_t> timestampUs)
+{
     std::vector<std::uint8_t> output;
     const auto originalCallback = m_callback;
 
-    setPacketCallback([&output](const std::uint8_t* packet, std::size_t sz) {
-        output.insert(output.end(), packet, packet + sz);
-    });
+    setPacketCallback(
+        [&output](const std::uint8_t* packet, std::size_t sz) { output.insert(output.end(), packet, packet + sz); });
 
     static_cast<void>(muxKlvPacket(klvData, size, timestampUs));
     setPacketCallback(originalCallback);
@@ -451,18 +459,19 @@ std::vector<std::uint8_t> MpegTsKlvMuxer::muxToBuffer(const std::uint8_t* klvDat
     return output;
 }
 
-std::vector<std::uint8_t> MpegTsKlvMuxer::muxMessageToBuffer(const UasDatalinkMessage& message) {
+std::vector<std::uint8_t> MpegTsKlvMuxer::muxMessageToBuffer(const UasDatalinkMessage& message)
+{
     const auto klvBytes = KlvEncoder::encode(message);
     return muxToBuffer(klvBytes.data(), klvBytes.size(), message.precisionTimeStampUs);
 }
 
-std::vector<std::uint8_t> MpegTsKlvMuxer::muxVideoToBuffer(const VideoAccessUnit& au) {
+std::vector<std::uint8_t> MpegTsKlvMuxer::muxVideoToBuffer(const VideoAccessUnit& au)
+{
     std::vector<std::uint8_t> output;
     const auto originalCallback = m_callback;
 
-    setPacketCallback([&output](const std::uint8_t* packet, std::size_t sz) {
-        output.insert(output.end(), packet, packet + sz);
-    });
+    setPacketCallback(
+        [&output](const std::uint8_t* packet, std::size_t sz) { output.insert(output.end(), packet, packet + sz); });
 
     static_cast<void>(muxVideoAccessUnit(au));
     setPacketCallback(originalCallback);
@@ -470,14 +479,14 @@ std::vector<std::uint8_t> MpegTsKlvMuxer::muxVideoToBuffer(const VideoAccessUnit
     return output;
 }
 
-std::vector<std::uint8_t> MpegTsKlvMuxer::muxSynchronizedToBuffer(const VideoAccessUnit& au,
-                                                                  const std::optional<UasDatalinkMessage>& message) {
+std::vector<std::uint8_t> MpegTsKlvMuxer::muxSynchronizedToBuffer(
+    const VideoAccessUnit& au, const std::optional<UasDatalinkMessage>& message)
+{
     std::vector<std::uint8_t> output;
     const auto originalCallback = m_callback;
 
-    setPacketCallback([&output](const std::uint8_t* packet, std::size_t sz) {
-        output.insert(output.end(), packet, packet + sz);
-    });
+    setPacketCallback(
+        [&output](const std::uint8_t* packet, std::size_t sz) { output.insert(output.end(), packet, packet + sz); });
 
     static_cast<void>(muxSynchronizedFrame(au, message));
     setPacketCallback(originalCallback);

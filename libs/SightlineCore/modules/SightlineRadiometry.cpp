@@ -2,41 +2,42 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 namespace Sightline {
 
 namespace {
 
-[[nodiscard]] constexpr float getSensorScale(RadiometricSensor sensor, float customScale) noexcept
-{
-    switch (sensor) {
-    case RadiometricSensor::FlirTau2LowRes:
-        return 0.4F;
-    case RadiometricSensor::FlirTau2HighRes:
-        return 0.04F;
-    case RadiometricSensor::FlirBosonHighGain:
-        return 0.01F;
-    case RadiometricSensor::FlirBosonLowGain:
-        return 0.02F;
-    case RadiometricSensor::DrsTamarisk:
-        return 1.0F / 32.0F; // 0.03125 K per count (11.5 fixed point)
-    case RadiometricSensor::CustomLinear:
-        return customScale;
-    default:
-        return 1.0F;
+    [[nodiscard]] constexpr float getSensorScale(RadiometricSensor sensor, float customScale) noexcept
+    {
+        switch (sensor) {
+        case RadiometricSensor::FlirTau2LowRes:
+            return 0.4F;
+        case RadiometricSensor::FlirTau2HighRes:
+            return 0.04F;
+        case RadiometricSensor::FlirBosonHighGain:
+            return 0.01F;
+        case RadiometricSensor::FlirBosonLowGain:
+            return 0.02F;
+        case RadiometricSensor::DrsTamarisk:
+            return 1.0F / 32.0F; // 0.03125 K per count (11.5 fixed point)
+        case RadiometricSensor::CustomLinear:
+            return customScale;
+        default:
+            return 1.0F;
+        }
     }
-}
 
-[[nodiscard]] constexpr std::uint16_t getMaxRawCounts(RadiometricSensor sensor) noexcept
-{
-    switch (sensor) {
-    case RadiometricSensor::FlirTau2LowRes:
-    case RadiometricSensor::FlirTau2HighRes:
-        return 16383U; // 14-bit unsigned
-    default:
-        return 65535U; // 16-bit unsigned
+    [[nodiscard]] constexpr std::uint16_t getMaxRawCounts(RadiometricSensor sensor) noexcept
+    {
+        switch (sensor) {
+        case RadiometricSensor::FlirTau2LowRes:
+        case RadiometricSensor::FlirTau2HighRes:
+            return 16383U; // 14-bit unsigned
+        default:
+            return 65535U; // 16-bit unsigned
+        }
     }
-}
 
 } // namespace
 
@@ -122,10 +123,9 @@ std::uint16_t SightlineRadiometry::kelvinToRaw(
 }
 
 RadiometricSpotStats SightlineRadiometry::calcSpotStats(
-    const MsgTrackingBoxPixelStats& stats, RadiometricSensor sensor,
-    float scaleA, float offsetB) noexcept
+    const MsgTrackingBoxPixelStats& stats, RadiometricSensor sensor, float scaleA, float offsetB) noexcept
 {
-    RadiometricSpotStats out {};
+    RadiometricSpotStats out { };
     out.cameraIndex = stats.cameraIndex;
     out.trackId = stats.trackId;
 
@@ -144,10 +144,9 @@ RadiometricSpotStats SightlineRadiometry::calcSpotStats(
 }
 
 IsothermAgcRange SightlineRadiometry::calcIsothermAgc(
-    float minKelvin, float maxKelvin, RadiometricSensor sensor,
-    float scaleA, float offsetB) noexcept
+    float minKelvin, float maxKelvin, RadiometricSensor sensor, float scaleA, float offsetB) noexcept
 {
-    IsothermAgcRange range {};
+    IsothermAgcRange range { };
 
     const float clampedMin = std::max(0.0F, minKelvin);
     const float clampedMax = std::max(clampedMin, maxKelvin);

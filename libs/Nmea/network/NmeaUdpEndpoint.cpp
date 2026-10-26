@@ -5,7 +5,11 @@
 
 #include <array>
 #include <chrono>
+#include <cstdint>
 #include <cstring>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace Nmea::Network {
 
@@ -38,7 +42,7 @@ bool NmeaUdpEndpoint::open()
     ::setsockopt(s, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
     ::setsockopt(s, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&opt), sizeof(opt));
 
-    sockaddr_in bindAddr {};
+    sockaddr_in bindAddr { };
     bindAddr.sin_family = AF_INET;
     bindAddr.sin_port = htons(m_rxPort);
     bindAddr.sin_addr.s_addr = INADDR_ANY;
@@ -84,7 +88,7 @@ bool NmeaUdpEndpoint::sendData(const std::vector<std::uint8_t>& data)
         return false;
     }
 
-    sockaddr_in targetAddr {};
+    sockaddr_in targetAddr { };
     targetAddr.sin_family = AF_INET;
     targetAddr.sin_port = htons(m_txPort);
     ::inet_pton(AF_INET, m_broadcastIp.c_str(), &targetAddr.sin_addr);
@@ -123,14 +127,14 @@ std::string NmeaUdpEndpoint::getBroadcastIp() const
 
 void NmeaUdpEndpoint::rxWorkerLoop()
 {
-    std::array<char, 2048> buf {};
+    std::array<char, 2048> buf { };
     while (m_running.load()) {
         const auto s = m_sockfd.load();
         if (s == Transport::Net::InvalidSocket) {
             break;
         }
 
-        sockaddr_in fromAddr {};
+        sockaddr_in fromAddr { };
         auto fromLen = static_cast<Transport::Net::SockOptLenType>(sizeof(fromAddr));
         const auto n = ::recvfrom(s, buf.data(), static_cast<Transport::Net::SockBufLenType>(buf.size()), 0,
             reinterpret_cast<sockaddr*>(&fromAddr), &fromLen);

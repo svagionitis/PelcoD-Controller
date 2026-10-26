@@ -6,6 +6,7 @@
 #include "IPanTiltUnit.h"
 #include "Nmea/FlirPfecDevice.h"
 
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -42,8 +43,8 @@ public:
     bool zeroGyroDrift() override;
 
     bool getLimits(double& minPan, double& maxPan, double& minTilt, double& maxTilt) const override;
-    bool savePreset(uint8_t presetId, const std::string& name = "") override;
-    bool recallPreset(uint8_t presetId) override;
+    bool savePreset(std::uint8_t presetId, const std::string& name = "") override;
+    bool recallPreset(std::uint8_t presetId) override;
 
     void registerTelemetryCallback(TelemetryCallback cb) override;
     [[nodiscard]] GimbalTelemetry currentTelemetry() const override;
@@ -61,9 +62,9 @@ private:
     std::size_t m_posSubscriptionId { 0U };
 
     mutable std::mutex m_mutex;
-    StateCallback m_stateCallback {};
-    TelemetryCallback m_telemetryCallback {};
-    GimbalTelemetry m_lastTelemetry {};
+    StateCallback m_stateCallback { };
+    TelemetryCallback m_telemetryCallback { };
+    GimbalTelemetry m_lastTelemetry { };
     DeviceState m_currentState { DeviceState::Disconnected };
 };
 

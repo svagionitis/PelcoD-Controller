@@ -9,6 +9,8 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <string>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -69,11 +71,11 @@ public:
 private:
     std::shared_ptr<Visca::Sony::SonyFCBDevice> m_device;
     mutable std::mutex m_mutex;
-    StateCallback m_stateCallback {};
-    TelemetryCallback m_telemetryCallback {};
-    CameraTelemetry m_telemetry {};
+    StateCallback m_stateCallback { };
+    TelemetryCallback m_telemetryCallback { };
+    CameraTelemetry m_telemetry { };
     bool m_connected { false };
-    std::map<VideoStreamProfile, std::string> m_streamUris {};
+    std::map<VideoStreamProfile, std::string> m_streamUris { };
 };
 
 } // namespace PayloadHal

@@ -1,7 +1,12 @@
 #include "NmeaSensorArbiter.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
+#include <mutex>
+#include <optional>
+#include <string>
 
 namespace Nmea::Arbiter {
 
@@ -288,7 +293,7 @@ void NmeaSensorArbiter::computeHeadingHealth(HeadingChannelStatus& st, std::chro
 void NmeaSensorArbiter::arbitrateGps(std::chrono::steady_clock::time_point /*now*/)
 {
     GpsSourceId target = m_activeGps;
-    std::string reason {};
+    std::string reason { };
 
     if (m_config.policy == FailoverPolicy::ManualOverride) {
         target = m_config.manualGpsSelection;
@@ -334,7 +339,7 @@ void NmeaSensorArbiter::arbitrateGps(std::chrono::steady_clock::time_point /*now
 void NmeaSensorArbiter::arbitrateHeading(std::chrono::steady_clock::time_point /*now*/)
 {
     HeadingSourceId target = m_activeHeading;
-    std::string reason {};
+    std::string reason { };
 
     if (m_config.policy == FailoverPolicy::ManualOverride) {
         target = m_config.manualHeadingSelection;
@@ -428,7 +433,7 @@ HeadingSourceId NmeaSensorArbiter::activeHeadingSource() const
 NmeaNavSnapshot NmeaSensorArbiter::activeNavSnapshot() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    NmeaNavSnapshot snapshot {};
+    NmeaNavSnapshot snapshot { };
 
     const GpsChannelStatus& gps = (m_activeGps == GpsSourceId::Primary) ? m_primaryGps : m_secondaryGps;
     if (gps.online && gps.positionValid) {

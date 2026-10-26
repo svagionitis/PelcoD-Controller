@@ -1,7 +1,14 @@
 #include "BaseVideoDecoder.h"
 
 #include <algorithm>
+#include <chrono>
+#include <cstdint>
 #include <cstring>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace Video {
 
@@ -208,7 +215,7 @@ std::string BaseVideoDecoder::maskCredentials(std::string_view uri)
     }
     const std::size_t colonPos { uri.find(':', schemePos + 3U) };
     if (colonPos != std::string_view::npos && colonPos < atPos) {
-        std::string masked {};
+        std::string masked { };
         masked.reserve(uri.size());
         masked.append(uri.substr(0U, colonPos + 1U));
         masked.append("***");
@@ -236,7 +243,7 @@ std::string BaseVideoDecoder::buildAuthenticatedUri(std::string_view uri) const
         return std::string(uri);
     }
 
-    std::string authUri {};
+    std::string authUri { };
     authUri.reserve(uri.size() + m_rtspUsername.size() + m_rtspPassword.size() + 2U);
     authUri.append(uri.substr(0U, schemePos + 3U));
     authUri.append(m_rtspUsername);

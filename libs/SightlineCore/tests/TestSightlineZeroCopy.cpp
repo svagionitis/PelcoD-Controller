@@ -5,6 +5,7 @@
 #include "SightlineProtocolBuilder.h"
 #include "SightlineTypes.h"
 
+#include <cstdint>
 #include <gtest/gtest.h>
 #include <vector>
 
@@ -56,7 +57,7 @@ namespace {
     /// @brief Verify empty payload extraction on messages without payload bytes.
     TEST(TestSightlineZeroCopy, ExtractEmptyPayload)
     {
-        const MsgSaveParameters msg {};
+        const MsgSaveParameters msg { };
         const auto savePkt = SightlineProtocolBuilder::buildSaveParameters(msg);
         const ByteView extracted = SightlineFraming::extractPayload(savePkt);
 
@@ -86,7 +87,7 @@ namespace {
     /// @brief Verify malformed or truncated packet buffers return empty view safely.
     TEST(TestSightlineZeroCopy, TruncatedPacketSafety)
     {
-        const std::vector<std::uint8_t> emptyPkt {};
+        const std::vector<std::uint8_t> emptyPkt { };
         EXPECT_TRUE(SightlineFraming::extractPayload(emptyPkt).empty());
 
         const std::vector<std::uint8_t> shortPkt { 0x51U, 0xACU };

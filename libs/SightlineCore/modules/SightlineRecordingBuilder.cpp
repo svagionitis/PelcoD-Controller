@@ -1,14 +1,16 @@
 /// @file SightlineRecordingBuilder.cpp
 /// @brief Implementation of Sightline Recording module builder.
 
+#include <cstdint>
+
 #include "SightlineRecordingBuilder.h"
+#include <vector>
 
 namespace Sightline {
 
-std::vector<std::uint8_t> SightlineRecordingBuilder::buildSetSDRecording(
-    const MsgSetSDRecordingParameters& msg)
+std::vector<std::uint8_t> SightlineRecordingBuilder::buildSetSDRecording(const MsgSetSDRecordingParameters& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(2U + msg.filenamePrefix.size() + 1U);
     payload.push_back(msg.recordingState);
     payload.push_back(msg.cameraIndex);
@@ -16,8 +18,7 @@ std::vector<std::uint8_t> SightlineRecordingBuilder::buildSetSDRecording(
     return SightlineFraming::buildPacket(MessageId::SetSDRecordingParameters, payload);
 }
 
-std::vector<std::uint8_t> SightlineRecordingBuilder::buildGetSnapShot(
-    std::uint8_t cameraIndex)
+std::vector<std::uint8_t> SightlineRecordingBuilder::buildGetSnapShot(std::uint8_t cameraIndex)
 {
     const std::vector<std::uint8_t> payload { cameraIndex };
     return SightlineFraming::buildPacket(MessageId::GetSnapShot, payload);
@@ -25,16 +26,13 @@ std::vector<std::uint8_t> SightlineRecordingBuilder::buildGetSnapShot(
 
 std::vector<std::uint8_t> SightlineRecordingBuilder::buildGetSDRecording()
 {
-    const std::vector<std::uint8_t> payload {
-        static_cast<std::uint8_t>(MessageId::SetSDRecordingParameters)
-    };
+    const std::vector<std::uint8_t> payload { static_cast<std::uint8_t>(MessageId::SetSDRecordingParameters) };
     return SightlineFraming::buildPacket(MessageId::GetParameters, payload);
 }
 
-std::vector<std::uint8_t> SightlineRecordingBuilder::buildCmdAck(
-    const MsgCommandAck& msg)
+std::vector<std::uint8_t> SightlineRecordingBuilder::buildCmdAck(const MsgCommandAck& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(9U);
     SightlineFraming::appendU16Le(payload, msg.sequenceId);
     payload.push_back(msg.originalMsgId);
@@ -44,10 +42,9 @@ std::vector<std::uint8_t> SightlineRecordingBuilder::buildCmdAck(
     return SightlineFraming::buildPacket(MessageId::CommandAck, payload);
 }
 
-std::vector<std::uint8_t> SightlineRecordingBuilder::buildSetFileRecordingV2(
-    const MsgSetFileRecordingParamsV2& msg)
+std::vector<std::uint8_t> SightlineRecordingBuilder::buildSetFileRecordingV2(const MsgSetFileRecordingParamsV2& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(12U + msg.baseFilename.size() + 1U);
     SightlineFraming::appendU16Le(payload, msg.sequenceId);
     payload.push_back(msg.cameraIndex);
@@ -60,10 +57,9 @@ std::vector<std::uint8_t> SightlineRecordingBuilder::buildSetFileRecordingV2(
     return SightlineFraming::buildPacket(MessageId::SetFileRecordingParamsV2, payload);
 }
 
-std::vector<std::uint8_t> SightlineRecordingBuilder::buildDoSnapShotV2(
-    const MsgDoSnapShotV2& msg)
+std::vector<std::uint8_t> SightlineRecordingBuilder::buildDoSnapShotV2(const MsgDoSnapShotV2& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(7U + msg.customFilename.size() + 1U);
     SightlineFraming::appendU16Le(payload, msg.sequenceId);
     payload.push_back(msg.cameraIndex);
@@ -77,10 +73,9 @@ std::vector<std::uint8_t> SightlineRecordingBuilder::buildDoSnapShotV2(
     return SightlineFraming::buildPacket(MessageId::DoSnapShotV2, payload);
 }
 
-std::vector<std::uint8_t> SightlineRecordingBuilder::buildRecordingEvent(
-    const MsgFileRecordingEvent& msg)
+std::vector<std::uint8_t> SightlineRecordingBuilder::buildRecordingEvent(const MsgFileRecordingEvent& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(19U + msg.eventPayload.size() + 1U);
     SightlineFraming::appendU64Le(payload, msg.timestampUs);
     payload.push_back(msg.cameraIndex);
@@ -94,10 +89,9 @@ std::vector<std::uint8_t> SightlineRecordingBuilder::buildRecordingEvent(
     return SightlineFraming::buildPacket(MessageId::FileRecordingEvent, payload);
 }
 
-std::vector<std::uint8_t> SightlineRecordingBuilder::buildRecordingStatusV2(
-    const MsgCurrentRecordingStatusV2& msg)
+std::vector<std::uint8_t> SightlineRecordingBuilder::buildRecordingStatusV2(const MsgCurrentRecordingStatusV2& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(27U + msg.activeFilename.size() + 1U);
     SightlineFraming::appendU16Le(payload, msg.sequenceId);
     payload.push_back(msg.cameraIndex);
@@ -115,10 +109,9 @@ std::vector<std::uint8_t> SightlineRecordingBuilder::buildRecordingStatusV2(
     return SightlineFraming::buildPacket(MessageId::CurrentRecordingStatusV2, payload);
 }
 
-std::vector<std::uint8_t> SightlineRecordingBuilder::buildGetDirListing(
-    const MsgGetDirectoryListing& msg)
+std::vector<std::uint8_t> SightlineRecordingBuilder::buildGetDirListing(const MsgGetDirectoryListing& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(6U + msg.pathFilter.size() + 1U);
     SightlineFraming::appendU16Le(payload, msg.sequenceId);
     payload.push_back(static_cast<std::uint8_t>(msg.destination));
@@ -130,10 +123,9 @@ std::vector<std::uint8_t> SightlineRecordingBuilder::buildGetDirListing(
     return SightlineFraming::buildPacket(MessageId::GetDirectoryListing, payload);
 }
 
-std::vector<std::uint8_t> SightlineRecordingBuilder::buildDirListingReply(
-    const MsgDirectoryListingReply& msg)
+std::vector<std::uint8_t> SightlineRecordingBuilder::buildDirListingReply(const MsgDirectoryListingReply& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(7U + msg.entries.size() * 32U);
     SightlineFraming::appendU16Le(payload, msg.sequenceId);
     SightlineFraming::appendU16Le(payload, msg.totalFiles);
@@ -151,10 +143,9 @@ std::vector<std::uint8_t> SightlineRecordingBuilder::buildDirListingReply(
     return SightlineFraming::buildPacket(MessageId::DirectoryListingReply, payload);
 }
 
-std::vector<std::uint8_t> SightlineRecordingBuilder::buildFileStorageMgmt(
-    const MsgFileStorageManagement& msg)
+std::vector<std::uint8_t> SightlineRecordingBuilder::buildFileStorageMgmt(const MsgFileStorageManagement& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(4U + msg.targetFilename.size() + 1U);
     SightlineFraming::appendU16Le(payload, msg.sequenceId);
     payload.push_back(static_cast<std::uint8_t>(msg.operation));

@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <gtest/gtest.h>
 
 #include "KlvCrc.h"
@@ -8,12 +9,15 @@
 #include "RvtTypes.h"
 
 #include <cmath>
+
+#include <array>
 #include <string>
 #include <vector>
 
 using namespace Klv;
 
-TEST(TestRvtLocalSet, Crc32MpegCalculation) {
+TEST(TestRvtLocalSet, Crc32MpegCalculation)
+{
     // Basic test string: "123456789"
     // Standard MPEG-2 CRC32 for "123456789" (ASCII) is 0x0376E6E7
     const std::string testStr = "123456789";
@@ -23,7 +27,8 @@ TEST(TestRvtLocalSet, Crc32MpegCalculation) {
     EXPECT_EQ(crc, 0x0376E6E7U);
 }
 
-TEST(TestRvtLocalSet, UniversalLabelsAndIdentification) {
+TEST(TestRvtLocalSet, UniversalLabelsAndIdentification)
+{
     EXPECT_TRUE(RvtParser::isRvt(kMisb0806UniversalLabel.data(), kMisb0806UniversalLabel.size()));
 
     std::array<std::uint8_t, 16> invalidLabel = kMisb0806UniversalLabel;
@@ -32,8 +37,9 @@ TEST(TestRvtLocalSet, UniversalLabelsAndIdentification) {
     EXPECT_FALSE(RvtParser::isRvt(nullptr, 0U));
 }
 
-TEST(TestRvtLocalSet, PoiEncodingAndParsing) {
-    PoiPack originalPoi {};
+TEST(TestRvtLocalSet, PoiEncodingAndParsing)
+{
+    PoiPack originalPoi { };
     originalPoi.poiNumber = 42U;
     originalPoi.latitudeDeg = 34.0522;
     originalPoi.longitudeDeg = -118.2437;
@@ -49,7 +55,7 @@ TEST(TestRvtLocalSet, PoiEncodingAndParsing) {
     RvtEncoder::encodePoi(originalPoi, encoded);
     ASSERT_FALSE(encoded.empty());
 
-    PoiPack decodedPoi {};
+    PoiPack decodedPoi { };
     ASSERT_TRUE(RvtParser::parsePoi(encoded.data(), encoded.size(), decodedPoi));
 
     EXPECT_EQ(decodedPoi.poiNumber, 42U);
@@ -71,8 +77,9 @@ TEST(TestRvtLocalSet, PoiEncodingAndParsing) {
     EXPECT_EQ(*decodedPoi.operationId, "OP-RESOLUTE");
 }
 
-TEST(TestRvtLocalSet, AoiEncodingAndParsing) {
-    AoiPack originalAoi {};
+TEST(TestRvtLocalSet, AoiEncodingAndParsing)
+{
+    AoiPack originalAoi { };
     originalAoi.aoiNumber = 7U;
     originalAoi.corner1Nw = GeoPoint2D { 35.120, -119.500 };
     originalAoi.corner3Se = GeoPoint2D { 35.080, -119.450 };
@@ -86,7 +93,7 @@ TEST(TestRvtLocalSet, AoiEncodingAndParsing) {
     RvtEncoder::encodeAoi(originalAoi, encoded);
     ASSERT_FALSE(encoded.empty());
 
-    AoiPack decodedAoi {};
+    AoiPack decodedAoi { };
     ASSERT_TRUE(RvtParser::parseAoi(encoded.data(), encoded.size(), decodedAoi));
 
     EXPECT_EQ(decodedAoi.aoiNumber, 7U);
@@ -105,8 +112,9 @@ TEST(TestRvtLocalSet, AoiEncodingAndParsing) {
     EXPECT_EQ(*decodedAoi.operationId, "OP-WATCHFUL");
 }
 
-TEST(TestRvtLocalSet, UserDefinedEncodingAndParsing) {
-    UserDefinedPack originalUserDef {};
+TEST(TestRvtLocalSet, UserDefinedEncodingAndParsing)
+{
+    UserDefinedPack originalUserDef { };
     originalUserDef.numericId = 15U;
     originalUserDef.dataType = RvtUserDataType::Uint;
     originalUserDef.data = { 0xDEU, 0xADU, 0xBEU, 0xEFU };
@@ -115,7 +123,7 @@ TEST(TestRvtLocalSet, UserDefinedEncodingAndParsing) {
     RvtEncoder::encodeUserDefined(originalUserDef, encoded);
     ASSERT_FALSE(encoded.empty());
 
-    UserDefinedPack decodedUserDef {};
+    UserDefinedPack decodedUserDef { };
     ASSERT_TRUE(RvtParser::parseUserDefined(encoded.data(), encoded.size(), decodedUserDef));
 
     EXPECT_EQ(decodedUserDef.numericId, 15U);
@@ -123,8 +131,9 @@ TEST(TestRvtLocalSet, UserDefinedEncodingAndParsing) {
     EXPECT_EQ(decodedUserDef.data, originalUserDef.data);
 }
 
-TEST(TestRvtLocalSet, StandalonePacketRoundTripWithCrc32) {
-    RvtLocalSet originalRvt {};
+TEST(TestRvtLocalSet, StandalonePacketRoundTripWithCrc32)
+{
+    RvtLocalSet originalRvt { };
     originalRvt.precisionTimeStampUs = 1700000000123456ULL;
     originalRvt.platformTrueAirspeedMps = static_cast<std::uint16_t>(145U);
     originalRvt.platformIndicatedAirspeedMps = static_cast<std::uint16_t>(138U);
@@ -135,28 +144,28 @@ TEST(TestRvtLocalSet, StandalonePacketRoundTripWithCrc32) {
     originalRvt.videoDataRate = 5000000U;
     originalRvt.digitalVideoFileFormat = "H.264";
 
-    RvtMgrsCoord acMgrs {};
+    RvtMgrsCoord acMgrs { };
     acMgrs.zone = static_cast<std::uint8_t>(11U);
     acMgrs.bandAndGridSquare = "SMT";
     acMgrs.eastingM = 12345U;
     acMgrs.northingM = 67890U;
     originalRvt.aircraftMgrs = acMgrs;
 
-    RvtMgrsCoord fcMgrs {};
+    RvtMgrsCoord fcMgrs { };
     fcMgrs.zone = static_cast<std::uint8_t>(11U);
     fcMgrs.bandAndGridSquare = "SMT";
     fcMgrs.eastingM = 12500U;
     fcMgrs.northingM = 68000U;
     originalRvt.frameCenterMgrs = fcMgrs;
 
-    PoiPack poi {};
+    PoiPack poi { };
     poi.poiNumber = 1U;
     poi.latitudeDeg = 36.1234;
     poi.longitudeDeg = -115.1234;
     poi.altitudeMslM = 750.0;
     originalRvt.pois.push_back(poi);
 
-    AoiPack aoi {};
+    AoiPack aoi { };
     aoi.aoiNumber = 2U;
     aoi.corner1Nw = GeoPoint2D { 36.200, -115.200 };
     aoi.corner3Se = GeoPoint2D { 36.100, -115.100 };
@@ -170,7 +179,7 @@ TEST(TestRvtLocalSet, StandalonePacketRoundTripWithCrc32) {
     EXPECT_TRUE(RvtParser::isRvt(packet.data(), packet.size()));
 
     // Decode with checksum validation
-    RvtLocalSet decodedRvt {};
+    RvtLocalSet decodedRvt { };
     const auto status = RvtParser::parse(packet.data(), packet.size(), decodedRvt, true);
     ASSERT_EQ(status, KlvStatus::Success);
 
@@ -208,24 +217,25 @@ TEST(TestRvtLocalSet, StandalonePacketRoundTripWithCrc32) {
     // Corrupt the CRC32 checksum byte and ensure CrcMismatch
     auto corrupted = packet;
     corrupted.back() ^= 0xFFU;
-    RvtLocalSet badRvt {};
+    RvtLocalSet badRvt { };
     EXPECT_EQ(RvtParser::parse(corrupted.data(), corrupted.size(), badRvt, true), KlvStatus::CrcMismatch);
 }
 
-TEST(TestRvtLocalSet, EmbeddedInUasDatalinkMessage) {
-    UasDatalinkMessage originalMsg {};
+TEST(TestRvtLocalSet, EmbeddedInUasDatalinkMessage)
+{
+    UasDatalinkMessage originalMsg { };
     originalMsg.precisionTimeStampUs = 1600000000000000ULL;
     originalMsg.platformHeadingDeg = 180.0;
     originalMsg.sensorLatitudeDeg = 32.5;
     originalMsg.sensorLongitudeDeg = -117.2;
     originalMsg.sensorTrueAltitudeM = 5000.0;
 
-    RvtLocalSet originalRvt {};
+    RvtLocalSet originalRvt { };
     originalRvt.precisionTimeStampUs = 1600000000000000ULL;
     originalRvt.platformTrueAirspeedMps = static_cast<std::uint16_t>(120U);
     originalRvt.version = static_cast<std::uint8_t>(2U);
 
-    PoiPack poi {};
+    PoiPack poi { };
     poi.poiNumber = 101U;
     poi.latitudeDeg = 32.51;
     poi.longitudeDeg = -117.21;
@@ -239,7 +249,7 @@ TEST(TestRvtLocalSet, EmbeddedInUasDatalinkMessage) {
     ASSERT_FALSE(klvBytes.empty());
 
     // Parse ST 0601 and verify nested RVT Local Set
-    UasDatalinkMessage decodedMsg {};
+    UasDatalinkMessage decodedMsg { };
     const auto status = KlvParser::parse(klvBytes.data(), klvBytes.size(), decodedMsg, true);
     ASSERT_EQ(status, KlvStatus::Success);
 

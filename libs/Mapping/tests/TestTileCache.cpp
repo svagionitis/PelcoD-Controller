@@ -1,11 +1,13 @@
 #include "TileCache.h"
+#include <cstdint>
 #include <gtest/gtest.h>
 #include <thread>
 #include <vector>
 
 using namespace Mapping;
 
-TEST(TestTileCache, PutAndGetHit) {
+TEST(TestTileCache, PutAndGetHit)
+{
     TileCache cache(10);
     const TileCoord coord { 10, 20, 5 };
 
@@ -26,7 +28,8 @@ TEST(TestTileCache, PutAndGetHit) {
     EXPECT_TRUE(retrieved->valid);
 }
 
-TEST(TestTileCache, MissReturnsNullopt) {
+TEST(TestTileCache, MissReturnsNullopt)
+{
     TileCache cache(10);
     const TileCoord coord { 99, 99, 5 };
 
@@ -34,7 +37,8 @@ TEST(TestTileCache, MissReturnsNullopt) {
     EXPECT_FALSE(cache.get(coord).has_value());
 }
 
-TEST(TestTileCache, LruEvictionPolicy) {
+TEST(TestTileCache, LruEvictionPolicy)
+{
     TileCache cache(3); // Capacity of 3 items
 
     const TileCoord c1 { 1, 0, 1 };
@@ -64,13 +68,14 @@ TEST(TestTileCache, LruEvictionPolicy) {
     EXPECT_FALSE(cache.contains(c2)); // c2 was evicted
 }
 
-TEST(TestTileCache, ClearAndRemove) {
+TEST(TestTileCache, ClearAndRemove)
+{
     TileCache cache(5);
     const TileCoord c1 { 1, 1, 1 };
     const TileCoord c2 { 2, 2, 2 };
 
-    cache.put(c1, TileData {});
-    cache.put(c2, TileData {});
+    cache.put(c1, TileData { });
+    cache.put(c2, TileData { });
     EXPECT_EQ(cache.size(), 2U);
 
     EXPECT_TRUE(cache.remove(c1));
@@ -81,7 +86,8 @@ TEST(TestTileCache, ClearAndRemove) {
     EXPECT_EQ(cache.size(), 0U);
 }
 
-TEST(TestTileCache, ThreadSafeConcurrentAccess) {
+TEST(TestTileCache, ThreadSafeConcurrentAccess)
+{
     TileCache cache(50);
     constexpr int kNumThreads = 4;
     constexpr int kOpsPerThread = 200;

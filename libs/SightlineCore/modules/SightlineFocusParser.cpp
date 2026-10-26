@@ -1,12 +1,14 @@
 /// @file SightlineFocusParser.cpp
 /// @brief Implementation of Sightline focus frame deserializers.
 
+#include <cstdint>
+
 #include "SightlineFocusParser.h"
+#include <vector>
 
 namespace Sightline {
 
-bool SightlineFocusParser::parseFocusStats(
-    const std::vector<std::uint8_t>& packet, MsgFocusParameters& out)
+bool SightlineFocusParser::parseFocusStats(const std::vector<std::uint8_t>& packet, MsgFocusParameters& out)
 {
     if (SightlineFraming::identifyMessage(packet) != MessageId::FocusStats) {
         return false;
@@ -26,13 +28,11 @@ bool SightlineFocusParser::parseFocusStats(
     return true;
 }
 
-bool SightlineFocusParser::parseLensParameters(
-    const std::vector<std::uint8_t>& packet, MsgSetLensParameters& out)
+bool SightlineFocusParser::parseLensParameters(const std::vector<std::uint8_t>& packet, MsgSetLensParameters& out)
 {
     const auto msgId { SightlineFraming::identifyMessage(packet) };
-    if (msgId != MessageId::SetLensParameters &&
-        msgId != MessageId::CurrentLensParameters &&
-        msgId != MessageId::LensParameters) {
+    if (msgId != MessageId::SetLensParameters && msgId != MessageId::CurrentLensParameters
+        && msgId != MessageId::LensParameters) {
         return false;
     }
 

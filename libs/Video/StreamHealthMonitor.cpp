@@ -4,7 +4,11 @@
 #include "StreamHealthMonitor.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
+#include <string>
+#include <vector>
 
 namespace Video {
 
@@ -51,7 +55,7 @@ void StreamHealthMonitor::ingestFrame(
     const double nowSec = (timestampSec >= 0.0) ? timestampSec : getSteadyNowSeconds();
 
     std::size_t gridStep = 8U;
-    std::vector<ExclusionZone> activeZones {};
+    std::vector<ExclusionZone> activeZones { };
     {
         std::scoped_lock lock(m_mutex);
         gridStep = (m_config.sampleGridStep > 0U) ? m_config.sampleGridStep : 8U;
@@ -103,7 +107,7 @@ void StreamHealthMonitor::ingestFrame(
     ReconnectCallback reconnToInvoke = nullptr;
     StreamHealthState oldState = StreamHealthState::Healthy;
     StreamHealthState newState = StreamHealthState::Healthy;
-    StreamHealthMetrics metricsSnapshot {};
+    StreamHealthMetrics metricsSnapshot { };
 
     {
         std::scoped_lock lock(m_mutex);
@@ -229,7 +233,7 @@ void StreamHealthMonitor::checkTimeout(double nowSec)
     ReconnectCallback reconnToInvoke = nullptr;
     StreamHealthState oldState = StreamHealthState::Healthy;
     StreamHealthState newState = StreamHealthState::Healthy;
-    StreamHealthMetrics metricsSnapshot {};
+    StreamHealthMetrics metricsSnapshot { };
 
     {
         std::scoped_lock lock(m_mutex);
@@ -354,7 +358,7 @@ void StreamHealthMonitor::setReconnectCallback(ReconnectCallback callback)
 void StreamHealthMonitor::reset()
 {
     std::scoped_lock lock(m_mutex);
-    m_metrics = StreamHealthMetrics {};
+    m_metrics = StreamHealthMetrics { };
     m_previousFingerprint.clear();
     m_previousFingerprintWidth = 0;
     m_previousFingerprintHeight = 0;

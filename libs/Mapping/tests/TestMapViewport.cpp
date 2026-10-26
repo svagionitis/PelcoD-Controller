@@ -1,9 +1,12 @@
 #include "MapViewport.h"
+
 #include <gtest/gtest.h>
+#include <vector>
 
 using namespace Mapping;
 
-TEST(TestMapViewport, CenterAlignsWithScreenCenter) {
+TEST(TestMapViewport, CenterAlignsWithScreenCenter)
+{
     const Klv::GeoPoint2D athens { 37.9838, 23.7275 };
     const double width = 800.0;
     const double height = 600.0;
@@ -22,17 +25,13 @@ TEST(TestMapViewport, CenterAlignsWithScreenCenter) {
     EXPECT_NEAR(recoveredGeo.longitudeDeg, athens.longitudeDeg, 1e-5);
 }
 
-TEST(TestMapViewport, ScreenToGeoRoundTrip) {
+TEST(TestMapViewport, ScreenToGeoRoundTrip)
+{
     const Klv::GeoPoint2D nyc { 40.7128, -74.0060 };
     MapViewport viewport(nyc, 14.25, 1024.0, 768.0);
 
-    const std::vector<ScreenPoint> testPixels {
-        { 0.0, 0.0 },
-        { 1024.0, 768.0 },
-        { 512.0, 384.0 },
-        { 120.5, 450.2 },
-        { 890.1, 710.9 }
-    };
+    const std::vector<ScreenPoint> testPixels { { 0.0, 0.0 }, { 1024.0, 768.0 }, { 512.0, 384.0 }, { 120.5, 450.2 },
+        { 890.1, 710.9 } };
 
     for (const auto& sp : testPixels) {
         const Klv::GeoPoint2D geo = viewport.screenToGeo(sp);
@@ -43,7 +42,8 @@ TEST(TestMapViewport, ScreenToGeoRoundTrip) {
     }
 }
 
-TEST(TestMapViewport, PanOperation) {
+TEST(TestMapViewport, PanOperation)
+{
     const Klv::GeoPoint2D origin { 0.0, 0.0 };
     MapViewport viewport(origin, 8.0, 800.0, 600.0);
 
@@ -56,7 +56,8 @@ TEST(TestMapViewport, PanOperation) {
     EXPECT_NEAR(shiftedOrigin.y, 250.0, 1e-3);
 }
 
-TEST(TestMapViewport, ZoomByAroundPivot) {
+TEST(TestMapViewport, ZoomByAroundPivot)
+{
     const Klv::GeoPoint2D center { 35.0, 25.0 };
     MapViewport viewport(center, 5.0, 800.0, 600.0);
 
@@ -75,7 +76,8 @@ TEST(TestMapViewport, ZoomByAroundPivot) {
     EXPECT_NEAR(afterZoom.y, pivot.y, 1e-3);
 }
 
-TEST(TestMapViewport, VisibleBoundingBox) {
+TEST(TestMapViewport, VisibleBoundingBox)
+{
     const Klv::GeoPoint2D center { 48.8566, 2.3522 }; // Paris
     MapViewport viewport(center, 10.0, 800.0, 600.0);
 
@@ -92,7 +94,8 @@ TEST(TestMapViewport, VisibleBoundingBox) {
     EXPECT_NEAR(bbox.west, tl.longitudeDeg, 1e-5);
 }
 
-TEST(TestMapViewport, VisibleTilesCalculation) {
+TEST(TestMapViewport, VisibleTilesCalculation)
+{
     const Klv::GeoPoint2D center { 37.9838, 23.7275 };
     MapViewport viewport(center, 10.0, 800.0, 600.0);
 

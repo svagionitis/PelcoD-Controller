@@ -2,11 +2,16 @@
 
 #if defined(PELCOD_HAS_FILTERS)
 
+#include <cstdint>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <vector>
 
 namespace Video::Filters {
 
@@ -15,91 +20,110 @@ MapRasterizerFilter::MapRasterizerFilter(int insetWidth, int insetHeight)
     , m_insetHeight(std::max(80, insetHeight))
     , m_viewport({ 37.9838, 23.7275 }, 12.0, static_cast<double>(m_insetWidth), static_cast<double>(m_insetHeight))
     , m_diskCache(nullptr)
-    , m_tileProvider(m_diskCache) {}
+    , m_tileProvider(m_diskCache)
+{
+}
 
-void MapRasterizerFilter::setEnabled(bool enabled) noexcept {
+void MapRasterizerFilter::setEnabled(bool enabled) noexcept
+{
     m_enabled = enabled;
 }
 
-bool MapRasterizerFilter::isEnabled() const noexcept {
+bool MapRasterizerFilter::isEnabled() const noexcept
+{
     return m_enabled;
 }
 
-void MapRasterizerFilter::setCorner(InsetCorner corner) noexcept {
+void MapRasterizerFilter::setCorner(InsetCorner corner) noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_corner = corner;
 }
 
-MapRasterizerFilter::InsetCorner MapRasterizerFilter::corner() const noexcept {
+MapRasterizerFilter::InsetCorner MapRasterizerFilter::corner() const noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_corner;
 }
 
-void MapRasterizerFilter::setCustomPosition(int x, int y) noexcept {
+void MapRasterizerFilter::setCustomPosition(int x, int y) noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_customX = x;
     m_customY = y;
 }
 
-void MapRasterizerFilter::setInsetSize(int width, int height) noexcept {
+void MapRasterizerFilter::setInsetSize(int width, int height) noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_insetWidth = std::max(100, width);
     m_insetHeight = std::max(80, height);
     m_viewport.setSize(static_cast<double>(m_insetWidth), static_cast<double>(m_insetHeight));
 }
 
-int MapRasterizerFilter::insetWidth() const noexcept {
+int MapRasterizerFilter::insetWidth() const noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_insetWidth;
 }
 
-int MapRasterizerFilter::insetHeight() const noexcept {
+int MapRasterizerFilter::insetHeight() const noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_insetHeight;
 }
 
-void MapRasterizerFilter::setOpacity(double alpha) noexcept {
+void MapRasterizerFilter::setOpacity(double alpha) noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_opacity = std::clamp(alpha, 0.05, 1.0);
 }
 
-double MapRasterizerFilter::opacity() const noexcept {
+double MapRasterizerFilter::opacity() const noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_opacity;
 }
 
-void MapRasterizerFilter::setTheme(ColorTheme theme) noexcept {
+void MapRasterizerFilter::setTheme(ColorTheme theme) noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_theme = theme;
 }
 
-MapRasterizerFilter::ColorTheme MapRasterizerFilter::theme() const noexcept {
+MapRasterizerFilter::ColorTheme MapRasterizerFilter::theme() const noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_theme;
 }
 
-void MapRasterizerFilter::setZoom(double zoom) noexcept {
+void MapRasterizerFilter::setZoom(double zoom) noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_viewport.setZoom(zoom);
 }
 
-double MapRasterizerFilter::zoom() const noexcept {
+double MapRasterizerFilter::zoom() const noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_viewport.zoom();
 }
 
-void MapRasterizerFilter::setOfflineDirectory(const std::string& directoryPath) {
+void MapRasterizerFilter::setOfflineDirectory(const std::string& directoryPath)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_diskCache = std::make_shared<Mapping::DiskTileCache>(directoryPath);
     m_tileProvider.setDiskCache(m_diskCache);
 }
 
-void MapRasterizerFilter::setOfflineOnly(bool offlineOnly) noexcept {
+void MapRasterizerFilter::setOfflineOnly(bool offlineOnly) noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_tileProvider.setOfflineOnly(offlineOnly);
 }
 
-void MapRasterizerFilter::setPlatformTelemetry(const Klv::GeoPoint2D& pos, double headingDeg) noexcept {
+void MapRasterizerFilter::setPlatformTelemetry(const Klv::GeoPoint2D& pos, double headingDeg) noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_platformPos = pos;
     m_platformHeading = headingDeg;
@@ -107,28 +131,33 @@ void MapRasterizerFilter::setPlatformTelemetry(const Klv::GeoPoint2D& pos, doubl
     m_viewport.setCenter(pos);
 }
 
-void MapRasterizerFilter::setTargetPosition(const Klv::GeoPoint2D& targetPos) noexcept {
+void MapRasterizerFilter::setTargetPosition(const Klv::GeoPoint2D& targetPos) noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_targetPos = targetPos;
 }
 
-void MapRasterizerFilter::clearTarget() noexcept {
+void MapRasterizerFilter::clearTarget() noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_targetPos.reset();
 }
 
-void MapRasterizerFilter::setFrustum(const Klv::FrustumCorners& frustum) noexcept {
+void MapRasterizerFilter::setFrustum(const Klv::FrustumCorners& frustum) noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_frustum = frustum;
     m_hasFrustum = true;
 }
 
-void MapRasterizerFilter::clearFrustum() noexcept {
+void MapRasterizerFilter::clearFrustum() noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_hasFrustum = false;
 }
 
-void MapRasterizerFilter::process(std::uint8_t* data, int width, int height, PixelFormat format) {
+void MapRasterizerFilter::process(std::uint8_t* data, int width, int height, PixelFormat format)
+{
     if (!m_enabled || data == nullptr || width <= 0 || height <= 0) {
         return;
     }
@@ -205,15 +234,15 @@ void MapRasterizerFilter::process(std::uint8_t* data, int width, int height, Pix
     // Render Frustum footprint
     if (m_hasFrustum) {
         const auto sf = Mapping::TacticalOverlay::projectFrustum(m_viewport, m_frustum);
-        const Mapping::ScreenRect vRect { 0.0, 0.0, static_cast<double>(m_insetWidth), static_cast<double>(m_insetHeight) };
+        const Mapping::ScreenRect vRect { 0.0, 0.0, static_cast<double>(m_insetWidth),
+            static_cast<double>(m_insetHeight) };
 
         if (Mapping::TacticalOverlay::isFrustumVisible(sf, vRect)) {
-            std::vector<cv::Point> pts {
-                cv::Point(static_cast<int>(sf.corners[0].x), static_cast<int>(sf.corners[0].y)),
+            std::vector<cv::Point> pts { cv::Point(
+                                             static_cast<int>(sf.corners[0].x), static_cast<int>(sf.corners[0].y)),
                 cv::Point(static_cast<int>(sf.corners[1].x), static_cast<int>(sf.corners[1].y)),
                 cv::Point(static_cast<int>(sf.corners[2].x), static_cast<int>(sf.corners[2].y)),
-                cv::Point(static_cast<int>(sf.corners[3].x), static_cast<int>(sf.corners[3].y))
-            };
+                cv::Point(static_cast<int>(sf.corners[3].x), static_cast<int>(sf.corners[3].y)) };
 
             // Transparent fill
             cv::Mat polyMat = miniMap.clone();
@@ -229,8 +258,8 @@ void MapRasterizerFilter::process(std::uint8_t* data, int width, int height, Pix
     // Render Platform and Heading vector
     if (m_hasPlatform) {
         const auto sp = m_viewport.geoToScreen(m_platformPos);
-        const auto sv = Mapping::TacticalOverlay::projectHeadingVector(
-            m_viewport, m_platformPos, m_platformHeading, 24.0);
+        const auto sv
+            = Mapping::TacticalOverlay::projectHeadingVector(m_viewport, m_platformPos, m_platformHeading, 24.0);
 
         const cv::Point origin(static_cast<int>(sv.origin.x), static_cast<int>(sv.origin.y));
         const cv::Point tip(static_cast<int>(sv.tip.x), static_cast<int>(sv.tip.y));
@@ -253,7 +282,8 @@ void MapRasterizerFilter::process(std::uint8_t* data, int width, int height, Pix
     cv::putText(miniMap, "TACTICAL MAP", cv::Point(6, 13), cv::FONT_HERSHEY_SIMPLEX, 0.38, themeColor, 1, cv::LINE_AA);
 
     const std::string zStr = "Z:" + std::to_string(static_cast<int>(m_viewport.zoom()));
-    cv::putText(miniMap, zStr, cv::Point(m_insetWidth - 36, 13), cv::FONT_HERSHEY_SIMPLEX, 0.35, themeColor, 1, cv::LINE_AA);
+    cv::putText(
+        miniMap, zStr, cv::Point(m_insetWidth - 36, 13), cv::FONT_HERSHEY_SIMPLEX, 0.35, themeColor, 1, cv::LINE_AA);
 
     cv::rectangle(miniMap, cv::Rect(0, 0, m_insetWidth, m_insetHeight), themeColor, 1, cv::LINE_AA);
 

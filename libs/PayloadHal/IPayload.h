@@ -5,8 +5,8 @@
 
 #include "GeoreferenceUtils.h"
 #include "ICameraPayload.h"
-#include "IDevice.h"
 #include "IDemProvider.h"
+#include "IDevice.h"
 #include "ILaserIlluminator.h"
 #include "ILaserRangeFinder.h"
 #include "IPanTiltUnit.h"
@@ -16,6 +16,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace PayloadHal {
@@ -238,7 +239,7 @@ public:
             return prim->videoStreamUri(profile);
         }
         const auto sec = secondaryCamera();
-        return sec ? sec->videoStreamUri(profile) : std::string {};
+        return sec ? sec->videoStreamUri(profile) : std::string { };
     }
 
     /// @brief Convenience accessor for thermal video stream URI.
@@ -283,9 +284,8 @@ public:
 
         const auto dem = demProvider();
         if (dem) {
-            return GeoreferenceUtils::computeFrustumCorners(*dem, platformPos, platformHeadingDeg,
-                ptuTelem.panAngleDeg, ptuTelem.tiltAngleDeg, camTelem.horizontalFovDeg, camTelem.verticalFovDeg,
-                ptuTelem.rollAngleDeg);
+            return GeoreferenceUtils::computeFrustumCorners(*dem, platformPos, platformHeadingDeg, ptuTelem.panAngleDeg,
+                ptuTelem.tiltAngleDeg, camTelem.horizontalFovDeg, camTelem.verticalFovDeg, ptuTelem.rollAngleDeg);
         }
 
         return GeoreferenceUtils::computeFrustumCorners(platformPos, platformHeadingDeg, ptuTelem.panAngleDeg,
@@ -377,11 +377,11 @@ public:
 
 protected:
     mutable std::mutex m_geoLockMutex;
-    std::optional<Klv::GeoPoint3D> m_geoLockTarget {};
+    std::optional<Klv::GeoPoint3D> m_geoLockTarget { };
     bool m_geoLockActive { false };
 
     mutable std::mutex m_demMutex;
-    std::shared_ptr<IDemProvider> m_dem {};
+    std::shared_ptr<IDemProvider> m_dem { };
 };
 
 } // namespace PayloadHal

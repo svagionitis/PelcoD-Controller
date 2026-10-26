@@ -1,22 +1,27 @@
 #include "ViscaFrame.h"
 
+#include <cstdint>
+
 #include <iomanip>
 #include <sstream>
+#include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 namespace Visca {
 
-ViscaFrame::ViscaFrame(std::vector<uint8_t> bytes)
+ViscaFrame::ViscaFrame(std::vector<std::uint8_t> bytes)
     : m_bytes(std::move(bytes))
 {
 }
 
-ViscaFrame::ViscaFrame(std::initializer_list<uint8_t> init)
+ViscaFrame::ViscaFrame(std::initializer_list<std::uint8_t> init)
     : m_bytes(init)
 {
 }
 
-ViscaFrame::ViscaFrame(const uint8_t* data, size_t length)
+ViscaFrame::ViscaFrame(const std::uint8_t* data, size_t length)
 {
     if (data != nullptr && length > 0) {
         m_bytes.assign(data, data + length);
@@ -29,20 +34,20 @@ bool ViscaFrame::isValid() const noexcept
         && m_bytes.back() == kViscaTerminator && (m_bytes[0] & 0x80) != 0;
 }
 
-uint8_t ViscaFrame::sourceAddress() const noexcept
+std::uint8_t ViscaFrame::sourceAddress() const noexcept
 {
     if (m_bytes.empty()) {
         return 0;
     }
-    return static_cast<uint8_t>((m_bytes[0] >> 4) & 0x07);
+    return static_cast<std::uint8_t>((m_bytes[0] >> 4) & 0x07);
 }
 
-uint8_t ViscaFrame::destinationAddress() const noexcept
+std::uint8_t ViscaFrame::destinationAddress() const noexcept
 {
     if (m_bytes.empty()) {
         return 0;
     }
-    return static_cast<uint8_t>(m_bytes[0] & 0x0F);
+    return static_cast<std::uint8_t>(m_bytes[0] & 0x0F);
 }
 
 bool ViscaFrame::isBroadcast() const noexcept
@@ -123,8 +128,8 @@ ViscaSocket ViscaFrame::socket() const noexcept
     if (m_bytes.size() < 2) {
         return ViscaSocket::None;
     }
-    const uint8_t highNibble = static_cast<uint8_t>(m_bytes[1] & 0xF0);
-    const uint8_t lowNibble = static_cast<uint8_t>(m_bytes[1] & 0x0F);
+    const std::uint8_t highNibble = static_cast<std::uint8_t>(m_bytes[1] & 0xF0);
+    const std::uint8_t lowNibble = static_cast<std::uint8_t>(m_bytes[1] & 0x0F);
 
     if (highNibble == 0x40 || highNibble == 0x50 || highNibble == 0x60) {
         if (lowNibble == 1) {
@@ -145,38 +150,38 @@ ViscaErrorCode ViscaFrame::errorCode() const noexcept
     return ViscaErrorCode::None;
 }
 
-std::vector<uint8_t> ViscaFrame::packWordNibbles(uint16_t value)
+std::vector<std::uint8_t> ViscaFrame::packWordNibbles(std::uint16_t value)
 {
-    return { static_cast<uint8_t>((value >> 12) & 0x0F), static_cast<uint8_t>((value >> 8) & 0x0F),
-        static_cast<uint8_t>((value >> 4) & 0x0F), static_cast<uint8_t>(value & 0x0F) };
+    return { static_cast<std::uint8_t>((value >> 12) & 0x0F), static_cast<std::uint8_t>((value >> 8) & 0x0F),
+        static_cast<std::uint8_t>((value >> 4) & 0x0F), static_cast<std::uint8_t>(value & 0x0F) };
 }
 
-uint16_t ViscaFrame::unpackWordNibbles(const uint8_t* data) noexcept
+std::uint16_t ViscaFrame::unpackWordNibbles(const std::uint8_t* data) noexcept
 {
     if (data == nullptr) {
         return 0;
     }
-    return static_cast<uint16_t>(
+    return static_cast<std::uint16_t>(
         ((data[0] & 0x0F) << 12) | ((data[1] & 0x0F) << 8) | ((data[2] & 0x0F) << 4) | (data[3] & 0x0F));
 }
 
-std::vector<uint8_t> ViscaFrame::packByteNibbles(uint8_t value)
+std::vector<std::uint8_t> ViscaFrame::packByteNibbles(std::uint8_t value)
 {
-    return { static_cast<uint8_t>((value >> 4) & 0x0F), static_cast<uint8_t>(value & 0x0F) };
+    return { static_cast<std::uint8_t>((value >> 4) & 0x0F), static_cast<std::uint8_t>(value & 0x0F) };
 }
 
-uint8_t ViscaFrame::unpackByteNibbles(const uint8_t* data) noexcept
+std::uint8_t ViscaFrame::unpackByteNibbles(const std::uint8_t* data) noexcept
 {
     if (data == nullptr) {
         return 0;
     }
-    return static_cast<uint8_t>(((data[0] & 0x0F) << 4) | (data[1] & 0x0F));
+    return static_cast<std::uint8_t>(((data[0] & 0x0F) << 4) | (data[1] & 0x0F));
 }
 
 std::string ViscaFrame::toHexString() const
 {
     if (m_bytes.empty()) {
-        return {};
+        return { };
     }
     std::ostringstream oss;
     oss << std::hex << std::uppercase << std::setfill('0');
@@ -191,25 +196,25 @@ std::string ViscaFrame::toHexString() const
 
 namespace {
 
-constexpr int hexCharToNibble(char c) noexcept
-{
-    if (c >= '0' && c <= '9') {
-        return c - '0';
+    constexpr int hexCharToNibble(char c) noexcept
+    {
+        if (c >= '0' && c <= '9') {
+            return c - '0';
+        }
+        if (c >= 'a' && c <= 'f') {
+            return c - 'a' + 10;
+        }
+        if (c >= 'A' && c <= 'F') {
+            return c - 'A' + 10;
+        }
+        return -1;
     }
-    if (c >= 'a' && c <= 'f') {
-        return c - 'a' + 10;
-    }
-    if (c >= 'A' && c <= 'F') {
-        return c - 'A' + 10;
-    }
-    return -1;
-}
 
 } // namespace
 
 ViscaFrame ViscaFrame::fromHexString(std::string_view hexStr)
 {
-    std::vector<uint8_t> bytes {};
+    std::vector<std::uint8_t> bytes { };
     int highNibble = -1;
 
     for (size_t i = 0; i < hexStr.size(); ++i) {
@@ -227,7 +232,7 @@ ViscaFrame ViscaFrame::fromHexString(std::string_view hexStr)
         if (highNibble < 0) {
             highNibble = val;
         } else {
-            bytes.push_back(static_cast<uint8_t>((highNibble << 4) | val));
+            bytes.push_back(static_cast<std::uint8_t>((highNibble << 4) | val));
             highNibble = -1;
         }
     }

@@ -1,7 +1,10 @@
 #include "ThermalTuningAdvisor.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <mutex>
+#include <optional>
 
 namespace Nmea {
 
@@ -11,10 +14,10 @@ void ThermalTuningAdvisor::ingestMtw(const MtwData& mtw)
         return;
     }
 
-    AdviceCallback adviceCb {};
-    SnapshotCallback snapCb {};
-    NmeaEnvironmentSnapshot snapCopy {};
-    ThermalTuningAdvice adviceCopy {};
+    AdviceCallback adviceCb { };
+    SnapshotCallback snapCb { };
+    NmeaEnvironmentSnapshot snapCopy { };
+    ThermalTuningAdvice adviceCopy { };
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -47,10 +50,10 @@ void ThermalTuningAdvisor::ingestMmb(const MmbData& mmb)
         return;
     }
 
-    AdviceCallback adviceCb {};
-    SnapshotCallback snapCb {};
-    NmeaEnvironmentSnapshot snapCopy {};
-    ThermalTuningAdvice adviceCopy {};
+    AdviceCallback adviceCb { };
+    SnapshotCallback snapCb { };
+    NmeaEnvironmentSnapshot snapCopy { };
+    ThermalTuningAdvice adviceCopy { };
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -80,10 +83,10 @@ void ThermalTuningAdvisor::ingestMda(const MdaData& mda)
         return;
     }
 
-    AdviceCallback adviceCb {};
-    SnapshotCallback snapCb {};
-    NmeaEnvironmentSnapshot snapCopy {};
-    ThermalTuningAdvice adviceCopy {};
+    AdviceCallback adviceCb { };
+    SnapshotCallback snapCb { };
+    NmeaEnvironmentSnapshot snapCopy { };
+    ThermalTuningAdvice adviceCopy { };
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -139,10 +142,10 @@ void ThermalTuningAdvisor::ingestMda(const MdaData& mda)
 void ThermalTuningAdvisor::updateEnvironment(std::optional<double> waterTempC, std::optional<double> airTempC,
     std::optional<double> relHumPercent, std::optional<double> dewPointC, std::optional<double> windSpeedKts)
 {
-    AdviceCallback adviceCb {};
-    SnapshotCallback snapCb {};
-    NmeaEnvironmentSnapshot snapCopy {};
-    ThermalTuningAdvice adviceCopy {};
+    AdviceCallback adviceCb { };
+    SnapshotCallback snapCb { };
+    NmeaEnvironmentSnapshot snapCopy { };
+    ThermalTuningAdvice adviceCopy { };
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -214,7 +217,7 @@ void ThermalTuningAdvisor::setSnapshotCallback(SnapshotCallback cb)
 
 void ThermalTuningAdvisor::recomputeAdviceLocked()
 {
-    ThermalTuningAdvice adv {};
+    ThermalTuningAdvice adv { };
     adv.timestamp = m_snapshot.timestamp;
 
     // 1. Calculate thermal crossover / washout risk

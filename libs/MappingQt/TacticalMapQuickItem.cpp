@@ -1,5 +1,9 @@
 #include "TacticalMapQuickItem.h"
 
+#include <cstddef>
+
+#include <memory>
+
 #include <QPainterPath>
 #include <QtQml>
 
@@ -9,18 +13,21 @@ TacticalMapQuickItem::TacticalMapQuickItem(QQuickItem* parent)
     : QQuickPaintedItem(parent)
     , m_viewport({ 37.9838, 23.7275 }, 12.0, 800.0, 600.0)
     , m_diskCache(nullptr)
-    , m_tileProvider(m_diskCache) {
+    , m_tileProvider(m_diskCache)
+{
     setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);
     setAcceptHoverEvents(true);
     setAntialiasing(true);
 }
 
-double TacticalMapQuickItem::centerLatitude() const noexcept {
+double TacticalMapQuickItem::centerLatitude() const noexcept
+{
     QMutexLocker locker(&m_mutex);
     return m_viewport.center().latitudeDeg;
 }
 
-void TacticalMapQuickItem::setCenterLatitude(double lat) noexcept {
+void TacticalMapQuickItem::setCenterLatitude(double lat) noexcept
+{
     {
         QMutexLocker locker(&m_mutex);
         auto c = m_viewport.center();
@@ -31,12 +38,14 @@ void TacticalMapQuickItem::setCenterLatitude(double lat) noexcept {
     update();
 }
 
-double TacticalMapQuickItem::centerLongitude() const noexcept {
+double TacticalMapQuickItem::centerLongitude() const noexcept
+{
     QMutexLocker locker(&m_mutex);
     return m_viewport.center().longitudeDeg;
 }
 
-void TacticalMapQuickItem::setCenterLongitude(double lon) noexcept {
+void TacticalMapQuickItem::setCenterLongitude(double lon) noexcept
+{
     {
         QMutexLocker locker(&m_mutex);
         auto c = m_viewport.center();
@@ -47,7 +56,8 @@ void TacticalMapQuickItem::setCenterLongitude(double lon) noexcept {
     update();
 }
 
-void TacticalMapQuickItem::setCenter(double lat, double lon) noexcept {
+void TacticalMapQuickItem::setCenter(double lat, double lon) noexcept
+{
     {
         QMutexLocker locker(&m_mutex);
         m_viewport.setCenter({ lat, lon });
@@ -56,12 +66,14 @@ void TacticalMapQuickItem::setCenter(double lat, double lon) noexcept {
     update();
 }
 
-double TacticalMapQuickItem::zoom() const noexcept {
+double TacticalMapQuickItem::zoom() const noexcept
+{
     QMutexLocker locker(&m_mutex);
     return m_viewport.zoom();
 }
 
-void TacticalMapQuickItem::setZoom(double z) noexcept {
+void TacticalMapQuickItem::setZoom(double z) noexcept
+{
     {
         QMutexLocker locker(&m_mutex);
         m_viewport.setZoom(z);
@@ -70,12 +82,14 @@ void TacticalMapQuickItem::setZoom(double z) noexcept {
     update();
 }
 
-bool TacticalMapQuickItem::isOfflineOnly() const noexcept {
+bool TacticalMapQuickItem::isOfflineOnly() const noexcept
+{
     QMutexLocker locker(&m_mutex);
     return m_tileProvider.isOfflineOnly();
 }
 
-void TacticalMapQuickItem::setOfflineOnly(bool offline) noexcept {
+void TacticalMapQuickItem::setOfflineOnly(bool offline) noexcept
+{
     {
         QMutexLocker locker(&m_mutex);
         m_tileProvider.setOfflineOnly(offline);
@@ -84,18 +98,21 @@ void TacticalMapQuickItem::setOfflineOnly(bool offline) noexcept {
     update();
 }
 
-void TacticalMapQuickItem::setOfflineDirectory(const QString& directoryPath) {
+void TacticalMapQuickItem::setOfflineDirectory(const QString& directoryPath)
+{
     QMutexLocker locker(&m_mutex);
     m_diskCache = std::make_shared<Mapping::DiskTileCache>(directoryPath.toStdString());
     m_tileProvider.setDiskCache(m_diskCache);
     update();
 }
 
-bool TacticalMapQuickItem::showFrustum() const noexcept {
+bool TacticalMapQuickItem::showFrustum() const noexcept
+{
     return m_showFrustum;
 }
 
-void TacticalMapQuickItem::setShowFrustum(bool show) noexcept {
+void TacticalMapQuickItem::setShowFrustum(bool show) noexcept
+{
     if (m_showFrustum != show) {
         m_showFrustum = show;
         emit showFrustumChanged();
@@ -103,11 +120,13 @@ void TacticalMapQuickItem::setShowFrustum(bool show) noexcept {
     }
 }
 
-bool TacticalMapQuickItem::showHeading() const noexcept {
+bool TacticalMapQuickItem::showHeading() const noexcept
+{
     return m_showHeading;
 }
 
-void TacticalMapQuickItem::setShowHeading(bool show) noexcept {
+void TacticalMapQuickItem::setShowHeading(bool show) noexcept
+{
     if (m_showHeading != show) {
         m_showHeading = show;
         emit showHeadingChanged();
@@ -115,11 +134,13 @@ void TacticalMapQuickItem::setShowHeading(bool show) noexcept {
     }
 }
 
-bool TacticalMapQuickItem::showGrid() const noexcept {
+bool TacticalMapQuickItem::showGrid() const noexcept
+{
     return m_showGrid;
 }
 
-void TacticalMapQuickItem::setShowGrid(bool show) noexcept {
+void TacticalMapQuickItem::setShowGrid(bool show) noexcept
+{
     if (m_showGrid != show) {
         m_showGrid = show;
         emit showGridChanged();
@@ -127,11 +148,13 @@ void TacticalMapQuickItem::setShowGrid(bool show) noexcept {
     }
 }
 
-double TacticalMapQuickItem::platformLatitude() const noexcept {
+double TacticalMapQuickItem::platformLatitude() const noexcept
+{
     return m_platformLat;
 }
 
-void TacticalMapQuickItem::setPlatformLatitude(double lat) noexcept {
+void TacticalMapQuickItem::setPlatformLatitude(double lat) noexcept
+{
     if (m_platformLat != lat) {
         m_platformLat = lat;
         emit platformChanged();
@@ -139,11 +162,13 @@ void TacticalMapQuickItem::setPlatformLatitude(double lat) noexcept {
     }
 }
 
-double TacticalMapQuickItem::platformLongitude() const noexcept {
+double TacticalMapQuickItem::platformLongitude() const noexcept
+{
     return m_platformLon;
 }
 
-void TacticalMapQuickItem::setPlatformLongitude(double lon) noexcept {
+void TacticalMapQuickItem::setPlatformLongitude(double lon) noexcept
+{
     if (m_platformLon != lon) {
         m_platformLon = lon;
         emit platformChanged();
@@ -151,11 +176,13 @@ void TacticalMapQuickItem::setPlatformLongitude(double lon) noexcept {
     }
 }
 
-double TacticalMapQuickItem::platformHeading() const noexcept {
+double TacticalMapQuickItem::platformHeading() const noexcept
+{
     return m_platformHeading;
 }
 
-void TacticalMapQuickItem::setPlatformHeading(double headingDeg) noexcept {
+void TacticalMapQuickItem::setPlatformHeading(double headingDeg) noexcept
+{
     if (m_platformHeading != headingDeg) {
         m_platformHeading = headingDeg;
         emit platformChanged();
@@ -163,7 +190,8 @@ void TacticalMapQuickItem::setPlatformHeading(double headingDeg) noexcept {
     }
 }
 
-void TacticalMapQuickItem::setPlatformPosition(double lat, double lon, double headingDeg) noexcept {
+void TacticalMapQuickItem::setPlatformPosition(double lat, double lon, double headingDeg) noexcept
+{
     m_platformLat = lat;
     m_platformLon = lon;
     m_platformHeading = headingDeg;
@@ -171,10 +199,9 @@ void TacticalMapQuickItem::setPlatformPosition(double lat, double lon, double he
     update();
 }
 
-void TacticalMapQuickItem::setFrustum(double tlLat, double tlLon,
-                                     double trLat, double trLon,
-                                     double brLat, double brLon,
-                                     double blLat, double blLon) noexcept {
+void TacticalMapQuickItem::setFrustum(double tlLat, double tlLon, double trLat, double trLon, double brLat,
+    double brLon, double blLat, double blLon) noexcept
+{
     m_frustum.topLeft = { tlLat, tlLon };
     m_frustum.topRight = { trLat, trLon };
     m_frustum.bottomRight = { brLat, brLon };
@@ -183,22 +210,26 @@ void TacticalMapQuickItem::setFrustum(double tlLat, double tlLon,
     update();
 }
 
-void TacticalMapQuickItem::setFrustum(const Klv::FrustumCorners& frustum) noexcept {
+void TacticalMapQuickItem::setFrustum(const Klv::FrustumCorners& frustum) noexcept
+{
     m_frustum = frustum;
     m_hasFrustum = true;
     update();
 }
 
-void TacticalMapQuickItem::clearFrustum() noexcept {
+void TacticalMapQuickItem::clearFrustum() noexcept
+{
     m_hasFrustum = false;
     update();
 }
 
-QColor TacticalMapQuickItem::themeColor() const noexcept {
+QColor TacticalMapQuickItem::themeColor() const noexcept
+{
     return m_themeColor;
 }
 
-void TacticalMapQuickItem::setThemeColor(const QColor& color) noexcept {
+void TacticalMapQuickItem::setThemeColor(const QColor& color) noexcept
+{
     if (m_themeColor != color) {
         m_themeColor = color;
         emit themeColorChanged();
@@ -206,26 +237,30 @@ void TacticalMapQuickItem::setThemeColor(const QColor& color) noexcept {
     }
 }
 
-QPointF TacticalMapQuickItem::geoToScreen(double lat, double lon) const noexcept {
+QPointF TacticalMapQuickItem::geoToScreen(double lat, double lon) const noexcept
+{
     QMutexLocker locker(&m_mutex);
     const auto sp = m_viewport.geoToScreen({ lat, lon });
     return QPointF(sp.x, sp.y);
 }
 
-QPointF TacticalMapQuickItem::screenToGeo(double x, double y) const noexcept {
+QPointF TacticalMapQuickItem::screenToGeo(double x, double y) const noexcept
+{
     QMutexLocker locker(&m_mutex);
     const auto geo = m_viewport.screenToGeo({ x, y });
     return QPointF(geo.latitudeDeg, geo.longitudeDeg);
 }
 
-void TacticalMapQuickItem::geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry) {
+void TacticalMapQuickItem::geometryChange(const QRectF& newGeometry, const QRectF& oldGeometry)
+{
     QQuickPaintedItem::geometryChange(newGeometry, oldGeometry);
     QMutexLocker locker(&m_mutex);
     m_viewport.setSize(newGeometry.width(), newGeometry.height());
     update();
 }
 
-void TacticalMapQuickItem::mousePressEvent(QMouseEvent* event) {
+void TacticalMapQuickItem::mousePressEvent(QMouseEvent* event)
+{
     if (event->button() == Qt::LeftButton) {
         m_isDragging = true;
         m_lastMousePos = event->position();
@@ -238,7 +273,8 @@ void TacticalMapQuickItem::mousePressEvent(QMouseEvent* event) {
     }
 }
 
-void TacticalMapQuickItem::mouseMoveEvent(QMouseEvent* event) {
+void TacticalMapQuickItem::mouseMoveEvent(QMouseEvent* event)
+{
     if (m_isDragging && (event->buttons() & Qt::LeftButton)) {
         const QPointF delta = event->position() - m_lastMousePos;
         m_lastMousePos = event->position();
@@ -255,7 +291,8 @@ void TacticalMapQuickItem::mouseMoveEvent(QMouseEvent* event) {
     }
 }
 
-void TacticalMapQuickItem::mouseReleaseEvent(QMouseEvent* event) {
+void TacticalMapQuickItem::mouseReleaseEvent(QMouseEvent* event)
+{
     if (event->button() == Qt::LeftButton) {
         m_isDragging = false;
         event->accept();
@@ -264,7 +301,8 @@ void TacticalMapQuickItem::mouseReleaseEvent(QMouseEvent* event) {
     }
 }
 
-void TacticalMapQuickItem::wheelEvent(QWheelEvent* event) {
+void TacticalMapQuickItem::wheelEvent(QWheelEvent* event)
+{
     const double delta = (static_cast<double>(event->angleDelta().y()) / 120.0) * 0.5;
     {
         QMutexLocker locker(&m_mutex);
@@ -276,7 +314,8 @@ void TacticalMapQuickItem::wheelEvent(QWheelEvent* event) {
     event->accept();
 }
 
-void TacticalMapQuickItem::paint(QPainter* painter) {
+void TacticalMapQuickItem::paint(QPainter* painter)
+{
     QMutexLocker locker(&m_mutex);
 
     painter->setRenderHint(QPainter::Antialiasing, true);
@@ -303,8 +342,7 @@ void TacticalMapQuickItem::paint(QPainter* painter) {
         const auto sf = Mapping::TacticalOverlay::projectFrustum(m_viewport, m_frustum);
         QPolygonF poly;
         for (int i = 0; i < 4; ++i) {
-            poly << QPointF(sf.corners[static_cast<std::size_t>(i)].x,
-                            sf.corners[static_cast<std::size_t>(i)].y);
+            poly << QPointF(sf.corners[static_cast<std::size_t>(i)].x, sf.corners[static_cast<std::size_t>(i)].y);
         }
 
         // Semi-transparent glowing tactical polygon
@@ -319,8 +357,7 @@ void TacticalMapQuickItem::paint(QPainter* painter) {
         // Corner reticles
         painter->setPen(QPen(Qt::white, 1.5));
         for (int i = 0; i < 4; ++i) {
-            const QPointF pt(sf.corners[static_cast<std::size_t>(i)].x,
-                             sf.corners[static_cast<std::size_t>(i)].y);
+            const QPointF pt(sf.corners[static_cast<std::size_t>(i)].x, sf.corners[static_cast<std::size_t>(i)].y);
             painter->drawLine(QPointF(pt.x() - 4, pt.y()), QPointF(pt.x() + 4, pt.y()));
             painter->drawLine(QPointF(pt.x(), pt.y() - 4), QPointF(pt.x(), pt.y() + 4));
         }
@@ -347,10 +384,10 @@ void TacticalMapQuickItem::paint(QPainter* painter) {
         constexpr double kHeadLen = 8.0;
         constexpr double kHeadAngle = 0.5;
 
-        const QPointF arrowP1(tip.x() - kHeadLen * std::cos(angle - kHeadAngle),
-                              tip.y() - kHeadLen * std::sin(angle - kHeadAngle));
-        const QPointF arrowP2(tip.x() - kHeadLen * std::cos(angle + kHeadAngle),
-                              tip.y() - kHeadLen * std::sin(angle + kHeadAngle));
+        const QPointF arrowP1(
+            tip.x() - kHeadLen * std::cos(angle - kHeadAngle), tip.y() - kHeadLen * std::sin(angle - kHeadAngle));
+        const QPointF arrowP2(
+            tip.x() - kHeadLen * std::cos(angle + kHeadAngle), tip.y() - kHeadLen * std::sin(angle + kHeadAngle));
 
         QPolygonF arrowHead;
         arrowHead << tip << arrowP1 << arrowP2;
@@ -359,7 +396,8 @@ void TacticalMapQuickItem::paint(QPainter* painter) {
     }
 }
 
-void registerQmlTypes() {
+void registerQmlTypes()
+{
     qmlRegisterType<TacticalMapQuickItem>("PelcoD.Mapping", 1, 0, "TacticalMap");
     qmlRegisterType<TacticalMapQuickItem>("PelcoD.Mapping", 1, 0, "TacticalMapQuickItem");
     qmlRegisterType<TacticalMapQuickItem>("MappingQt", 1, 0, "TacticalMap");

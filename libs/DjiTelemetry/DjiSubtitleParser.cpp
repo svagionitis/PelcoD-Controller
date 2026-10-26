@@ -6,6 +6,10 @@
 #include <array>
 #include <charconv>
 #include <cmath>
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <string_view>
 #include <system_error>
 #include <vector>
 
@@ -42,7 +46,7 @@ namespace {
     /// @return Non-empty token views into @p text.
     [[nodiscard]] std::vector<std::string_view> splitTokens(std::string_view text)
     {
-        std::vector<std::string_view> tokens {};
+        std::vector<std::string_view> tokens { };
         std::size_t pos { 0U };
         while (pos < text.size()) {
             while ((pos < text.size()) && isSeparator(text[pos])) {
@@ -70,7 +74,7 @@ namespace {
         double value { 0.0 };
         const char* const end { token.data() + token.size() };
         const auto result { std::from_chars(token.data(), end, value) };
-        if ((result.ec != std::errc {}) || (result.ptr != end) || !std::isfinite(value)) {
+        if ((result.ec != std::errc { }) || (result.ptr != end) || !std::isfinite(value)) {
             return std::nullopt;
         }
         return value;
@@ -87,7 +91,7 @@ namespace {
         std::uint64_t value { 0U };
         const char* const end { token.data() + token.size() };
         const auto result { std::from_chars(token.data(), end, value) };
-        if ((result.ec != std::errc {}) || (result.ptr != end)) {
+        if ((result.ec != std::errc { }) || (result.ptr != end)) {
             return std::nullopt;
         }
         return value;
@@ -260,7 +264,7 @@ namespace {
         std::size_t i { 0U };
         while (i < toks.size()) {
             const std::string_view t { toks[i] };
-            std::string_view key {};
+            std::string_view key { };
             if ((t.size() > 1U) && endsWithColon(t)) {
                 key = t.substr(0U, t.size() - 1U);
                 i += 1U;
@@ -304,7 +308,7 @@ namespace {
 
 std::optional<DjiTelemetrySample> parseDjiText(std::string_view text)
 {
-    DjiTelemetrySample sample {};
+    DjiTelemetrySample sample { };
 
     const std::size_t firstBracket { text.find('[') };
     parseHeader(text.substr(0U, firstBracket), sample);

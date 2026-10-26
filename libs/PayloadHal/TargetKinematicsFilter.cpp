@@ -1,32 +1,36 @@
 #include "TargetKinematicsFilter.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <mutex>
 
 namespace PayloadHal {
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
-constexpr double kDegToRad = kPi / 180.0;
-constexpr double kRadToDeg = 180.0 / kPi;
-constexpr double kEpsilon = 1e-6;
+    constexpr double kPi = 3.14159265358979323846;
+    constexpr double kDegToRad = kPi / 180.0;
+    constexpr double kRadToDeg = 180.0 / kPi;
+    constexpr double kEpsilon = 1e-6;
 
-double normalizeAzimuth(double deg) {
-    deg = std::fmod(deg, 360.0);
-    if (deg < 0.0) {
-        deg += 360.0;
+    double normalizeAzimuth(double deg)
+    {
+        deg = std::fmod(deg, 360.0);
+        if (deg < 0.0) {
+            deg += 360.0;
+        }
+        return deg;
     }
-    return deg;
-}
 
-double angleDifference(double targetDeg, double sourceDeg) {
-    double diff = std::fmod(targetDeg - sourceDeg + 180.0, 360.0);
-    if (diff < 0.0) {
-        diff += 360.0;
+    double angleDifference(double targetDeg, double sourceDeg)
+    {
+        double diff = std::fmod(targetDeg - sourceDeg + 180.0, 360.0);
+        if (diff < 0.0) {
+            diff += 360.0;
+        }
+        return diff - 180.0;
     }
-    return diff - 180.0;
-}
 
 } // namespace
 
@@ -34,17 +38,25 @@ double angleDifference(double targetDeg, double sourceDeg) {
 // Axis1DFilter Implementation
 // ============================================================================
 
-void TargetKinematicsFilter::Axis1DFilter::reset(double initPos, double initVel) {
+void TargetKinematicsFilter::Axis1DFilter::reset(double initPos, double initVel)
+{
     x[0] = initPos;
     x[1] = initVel;
     x[2] = 0.0;
 
-    P[0][0] = 50.0;  P[0][1] = 0.0;   P[0][2] = 0.0;
-    P[1][0] = 0.0;   P[1][1] = 25.0;  P[1][2] = 0.0;
-    P[2][0] = 0.0;   P[2][1] = 0.0;   P[2][2] = 5.0;
+    P[0][0] = 50.0;
+    P[0][1] = 0.0;
+    P[0][2] = 0.0;
+    P[1][0] = 0.0;
+    P[1][1] = 25.0;
+    P[1][2] = 0.0;
+    P[2][0] = 0.0;
+    P[2][1] = 0.0;
+    P[2][2] = 5.0;
 }
 
-void TargetKinematicsFilter::Axis1DFilter::predict(double dt, double qAcc) {
+void TargetKinematicsFilter::Axis1DFilter::predict(double dt, double qAcc)
+{
     if (dt <= kEpsilon) {
         return;
     }
@@ -96,7 +108,8 @@ void TargetKinematicsFilter::Axis1DFilter::predict(double dt, double qAcc) {
     P[2][2] = std::max(P[2][2], 1e-6);
 }
 
-void TargetKinematicsFilter::Axis1DFilter::update(double z, double r) {
+void TargetKinematicsFilter::Axis1DFilter::update(double z, double r)
+{
     const double y = z - x[0];
     const double S = P[0][0] + r;
 
@@ -144,23 +157,27 @@ void TargetKinematicsFilter::Axis1DFilter::update(double z, double r) {
 // ============================================================================
 
 TargetKinematicsFilter::TargetKinematicsFilter(TargetKinematicsConfig config)
-    : m_config(config),
-      m_lastMeasurementTime(std::chrono::steady_clock::now()),
-      m_lastPredictTime(std::chrono::steady_clock::now()) {
+    : m_config(config)
+    , m_lastMeasurementTime(std::chrono::steady_clock::now())
+    , m_lastPredictTime(std::chrono::steady_clock::now())
+{
     reset();
 }
 
-void TargetKinematicsFilter::setConfig(const TargetKinematicsConfig& config) {
+void TargetKinematicsFilter::setConfig(const TargetKinematicsConfig& config)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_config = config;
 }
 
-TargetKinematicsConfig TargetKinematicsFilter::config() const {
+TargetKinematicsConfig TargetKinematicsFilter::config() const
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_config;
 }
 
-void TargetKinematicsFilter::reset() {
+void TargetKinematicsFilter::reset()
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_state = TargetTrackState::Unacquired;
     m_hitCount = 0;
@@ -172,10 +189,9 @@ void TargetKinematicsFilter::reset() {
     m_lastPredictTime = std::chrono::steady_clock::now();
 }
 
-void TargetKinematicsFilter::updateFullMeasurement(
-    double azimuthDeg, double elevationDeg, double slantRangeMeters,
-    const Vector3D& platformPositionNed,
-    std::chrono::steady_clock::time_point timestamp) {
+void TargetKinematicsFilter::updateFullMeasurement(double azimuthDeg, double elevationDeg, double slantRangeMeters,
+    const Vector3D& platformPositionNed, std::chrono::steady_clock::time_point timestamp)
+{
 
     std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -254,10 +270,9 @@ void TargetKinematicsFilter::updateFullMeasurement(
     m_lastPredictTime = timestamp;
 }
 
-void TargetKinematicsFilter::updateBearingMeasurement(
-    double azimuthDeg, double elevationDeg,
-    const Vector3D& platformPositionNed,
-    std::chrono::steady_clock::time_point timestamp) {
+void TargetKinematicsFilter::updateBearingMeasurement(double azimuthDeg, double elevationDeg,
+    const Vector3D& platformPositionNed, std::chrono::steady_clock::time_point timestamp)
+{
 
     std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -308,7 +323,8 @@ void TargetKinematicsFilter::updateBearingMeasurement(
     m_lastPredictTime = timestamp;
 }
 
-void TargetKinematicsFilter::predict(std::chrono::steady_clock::time_point currentTime) {
+void TargetKinematicsFilter::predict(std::chrono::steady_clock::time_point currentTime)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
 
     if (m_state == TargetTrackState::Unacquired || m_state == TargetTrackState::Lost) {
@@ -326,7 +342,8 @@ void TargetKinematicsFilter::predict(std::chrono::steady_clock::time_point curre
     checkCoastingTimeout(currentTime);
 }
 
-void TargetKinematicsFilter::checkCoastingTimeout(std::chrono::steady_clock::time_point now) {
+void TargetKinematicsFilter::checkCoastingTimeout(std::chrono::steady_clock::time_point now)
+{
     if (m_state == TargetTrackState::Unacquired || m_state == TargetTrackState::Lost) {
         return;
     }
@@ -342,27 +359,29 @@ void TargetKinematicsFilter::checkCoastingTimeout(std::chrono::steady_clock::tim
     }
 }
 
-TargetTrackState TargetKinematicsFilter::trackState() const noexcept {
+TargetTrackState TargetKinematicsFilter::trackState() const noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_state;
 }
 
-bool TargetKinematicsFilter::isTracking() const noexcept {
+bool TargetKinematicsFilter::isTracking() const noexcept
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_state == TargetTrackState::Tracking || m_state == TargetTrackState::Coasting;
 }
 
-TargetKinematics3D TargetKinematicsFilter::currentKinematics(
-    const Vector3D& platformPositionNed) const {
+TargetKinematics3D TargetKinematicsFilter::currentKinematics(const Vector3D& platformPositionNed) const
+{
 
     std::lock_guard<std::mutex> lock(m_mutex);
     TargetKinematics3D state;
     state.trackState = m_state;
     state.timestamp = m_lastPredictTime;
 
-    state.positionNedMeters = {m_filterN.x[0], m_filterE.x[0], m_filterD.x[0]};
-    state.velocityNedMps = {m_filterN.x[1], m_filterE.x[1], m_filterD.x[1]};
-    state.accelerationNedMps2 = {m_filterN.x[2], m_filterE.x[2], m_filterD.x[2]};
+    state.positionNedMeters = { m_filterN.x[0], m_filterE.x[0], m_filterD.x[0] };
+    state.velocityNedMps = { m_filterN.x[1], m_filterE.x[1], m_filterD.x[1] };
+    state.accelerationNedMps2 = { m_filterN.x[2], m_filterE.x[2], m_filterD.x[2] };
 
     const double vx = state.velocityNedMps.x;
     const double vy = state.velocityNedMps.y;
@@ -389,18 +408,15 @@ TargetKinematics3D TargetKinematicsFilter::currentKinematics(
     state.elevationDeg = std::atan2(-dD, rHoriz) * kRadToDeg;
 
     // Uncertainties
-    state.positionUncertaintyMeters = std::sqrt(
-        (m_filterN.P[0][0] + m_filterE.P[0][0] + m_filterD.P[0][0]) / 3.0);
-    state.velocityUncertaintyMps = std::sqrt(
-        (m_filterN.P[1][1] + m_filterE.P[1][1] + m_filterD.P[1][1]) / 3.0);
+    state.positionUncertaintyMeters = std::sqrt((m_filterN.P[0][0] + m_filterE.P[0][0] + m_filterD.P[0][0]) / 3.0);
+    state.velocityUncertaintyMps = std::sqrt((m_filterN.P[1][1] + m_filterE.P[1][1] + m_filterD.P[1][1]) / 3.0);
 
     return state;
 }
 
 PredictiveLeadSolution TargetKinematicsFilter::computeLeadAngles(
-    double latencySec,
-    double projectileVelocityMps,
-    const Vector3D& platformPositionNed) const {
+    double latencySec, double projectileVelocityMps, const Vector3D& platformPositionNed) const
+{
 
     std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -410,9 +426,9 @@ PredictiveLeadSolution TargetKinematicsFilter::computeLeadAngles(
         return sol;
     }
 
-    const Vector3D pTarget{m_filterN.x[0], m_filterE.x[0], m_filterD.x[0]};
-    const Vector3D vTarget{m_filterN.x[1], m_filterE.x[1], m_filterD.x[1]};
-    const Vector3D aTarget{m_filterN.x[2], m_filterE.x[2], m_filterD.x[2]};
+    const Vector3D pTarget { m_filterN.x[0], m_filterE.x[0], m_filterD.x[0] };
+    const Vector3D vTarget { m_filterN.x[1], m_filterE.x[1], m_filterD.x[1] };
+    const Vector3D aTarget { m_filterN.x[2], m_filterE.x[2], m_filterD.x[2] };
 
     // Current LOS
     const double curDN = pTarget.x - platformPositionNed.x;
@@ -425,11 +441,8 @@ PredictiveLeadSolution TargetKinematicsFilter::computeLeadAngles(
 
     // Advance for latency
     const double lat = std::max(0.0, latencySec);
-    Vector3D r0{
-        pTarget.x + vTarget.x * lat - platformPositionNed.x,
-        pTarget.y + vTarget.y * lat - platformPositionNed.y,
-        pTarget.z + vTarget.z * lat - platformPositionNed.z
-    };
+    Vector3D r0 { pTarget.x + vTarget.x * lat - platformPositionNed.x,
+        pTarget.y + vTarget.y * lat - platformPositionNed.y, pTarget.z + vTarget.z * lat - platformPositionNed.z };
 
     double tauTof = 0.0;
     if (projectileVelocityMps > 1.0) {

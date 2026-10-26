@@ -3,13 +3,16 @@
 
 #include "network/NmeaJsonSerializer.h"
 
+#include <string>
+
 #include <gtest/gtest.h>
 
 using namespace Nmea::Network;
 
 TEST(TestNmeaJsonSerializer, SerializeVesselTelemetry)
 {
-    const std::string json = NmeaJsonSerializer::serializeVessel(37.7749, -122.4194, 14.5, 210.2, 209.8, 1.5, -0.7, 45.2);
+    const std::string json
+        = NmeaJsonSerializer::serializeVessel(37.7749, -122.4194, 14.5, 210.2, 209.8, 1.5, -0.7, 45.2);
     EXPECT_NE(json.find("\"type\":\"vessel\""), std::string::npos);
     EXPECT_NE(json.find("\"lat\":37.774900"), std::string::npos);
     EXPECT_NE(json.find("\"lon\":-122.419400"), std::string::npos);
@@ -39,7 +42,8 @@ TEST(TestNmeaJsonSerializer, SerializeTargetTelemetry)
 
 TEST(TestNmeaJsonSerializer, SerializeAlertTelemetry)
 {
-    const std::string json = NmeaJsonSerializer::serializeAlert(46001U, 1U, "Warning", "B", "ActiveUnack", "Unauthorized IP access");
+    const std::string json
+        = NmeaJsonSerializer::serializeAlert(46001U, 1U, "Warning", "B", "ActiveUnack", "Unauthorized IP access");
     EXPECT_NE(json.find("\"type\":\"alert\""), std::string::npos);
     EXPECT_NE(json.find("\"alertId\":46001"), std::string::npos);
     EXPECT_NE(json.find("\"desc\":\"Unauthorized IP access\""), std::string::npos);

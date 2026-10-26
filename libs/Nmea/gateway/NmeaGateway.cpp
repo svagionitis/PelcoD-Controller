@@ -1,6 +1,12 @@
 #include "NmeaGateway.h"
 
+#include <cstdint>
+
 #include <chrono>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <string_view>
 
 namespace Nmea::Gateway {
 
@@ -8,7 +14,7 @@ namespace {
     inline std::string extractSentenceMnemonic(std::string_view sentence)
     {
         if (sentence.empty()) {
-            return {};
+            return { };
         }
         std::size_t start = (sentence.front() == '$' || sentence.front() == '!') ? 1U : 0U;
         const std::size_t comma = sentence.find(',', start);
@@ -104,7 +110,7 @@ void NmeaGateway::onCanFrame(const N2k::CanFrame& frame)
         || header.pgn == static_cast<std::uint32_t>(N2k::Pgn::VesselHeading)
         || header.pgn == static_cast<std::uint32_t>(N2k::Pgn::Attitude)
         || header.pgn == static_cast<std::uint32_t>(N2k::Pgn::WindData)) {
-        N2k::N2kMessage msg {};
+        N2k::N2kMessage msg { };
         msg.header = header;
         msg.payload.assign(frame.data.begin(), frame.data.begin() + frame.dlc);
         msg.timestamp = std::chrono::steady_clock::now();
@@ -136,11 +142,11 @@ void NmeaGateway::processDecodedN2k(const N2k::N2kMessage& msg)
 
     switch (pgn) {
     case N2k::Pgn::PositionRapidUpdate: {
-        N2k::PositionRapid pos {};
+        N2k::PositionRapid pos { };
         if (N2k::N2kDecoder::parsePgn129025(msg.payload.data(), msg.payload.size(), pos)) {
             m_lastPos = pos;
             if (pos.isValid && shouldEmitPgn(msg.header.pgn, now) && m_sentenceCallback) {
-                GgaData gga {};
+                GgaData gga { };
                 gga.coordinates.latitudeDeg = pos.latitudeDeg;
                 gga.coordinates.longitudeDeg = pos.longitudeDeg;
                 gga.fixQuality = NmeaFixQuality::GpsFix;
@@ -154,7 +160,7 @@ void NmeaGateway::processDecodedN2k(const N2k::N2kMessage& msg)
 
                 // Also synthesize RMC if COG/SOG is cached
                 if (m_lastCogSog.has_value()) {
-                    RmcData rmc {};
+                    RmcData rmc { };
                     rmc.coordinates.latitudeDeg = pos.latitudeDeg;
                     rmc.coordinates.longitudeDeg = pos.longitudeDeg;
                     rmc.speedOverGroundKnots = m_lastCogSog->sogKnots;
@@ -172,12 +178,12 @@ void NmeaGateway::processDecodedN2k(const N2k::N2kMessage& msg)
     }
 
     case N2k::Pgn::CogSogRapidUpdate: {
-        N2k::CogSogRapid cogSog {};
+        N2k::CogSogRapid cogSog { };
         if (N2k::N2kDecoder::parsePgn129026(msg.payload.data(), msg.payload.size(), cogSog)) {
             m_lastCogSog = cogSog;
             if (m_lastPos.has_value() && m_lastPos->isValid && shouldEmitPgn(msg.header.pgn, now)
                 && m_sentenceCallback) {
-                RmcData rmc {};
+                RmcData rmc { };
                 rmc.coordinates.latitudeDeg = m_lastPos->latitudeDeg;
                 rmc.coordinates.longitudeDeg = m_lastPos->longitudeDeg;
                 rmc.speedOverGroundKnots = cogSog.sogKnots;
@@ -194,7 +200,7 @@ void NmeaGateway::processDecodedN2k(const N2k::N2kMessage& msg)
     }
 
     case N2k::Pgn::VesselHeading: {
-        N2k::VesselHeading hdg {};
+        N2k::VesselHeading hdg { };
         if (N2k::N2kDecoder::parsePgn127250(msg.payload.data(), msg.payload.size(), hdg)) {
             m_lastHeading = hdg;
             if (hdg.hasHeading && shouldEmitPgn(msg.header.pgn, now) && m_sentenceCallback) {
@@ -203,7 +209,7 @@ void NmeaGateway::processDecodedN2k(const N2k::N2kMessage& msg)
                 ++m_stats.sentencesEmitted;
 
                 if (hdg.hasDeviation || hdg.hasVariation) {
-                    HdgData hdgData {};
+                    HdgData hdgData { };
                     hdgData.magneticHeadingDeg = hdg.headingDegrees;
                     if (hdg.hasDeviation) {
                         hdgData.magneticDeviationDeg = hdg.deviationDegrees;
@@ -224,7 +230,7 @@ void NmeaGateway::processDecodedN2k(const N2k::N2kMessage& msg)
     }
 
     case N2k::Pgn::Attitude: {
-        N2k::Attitude att {};
+        N2k::Attitude att { };
         if (N2k::N2kDecoder::parsePgn127257(msg.payload.data(), msg.payload.size(), att)) {
             m_lastAttitude = att;
             if (shouldEmitPgn(msg.header.pgn, now) && m_sentenceCallback) {
@@ -239,11 +245,11 @@ void NmeaGateway::processDecodedN2k(const N2k::N2kMessage& msg)
     }
 
     case N2k::Pgn::WindData: {
-        N2k::WindData wind {};
+        N2k::WindData wind { };
         if (N2k::N2kDecoder::parsePgn130306(msg.payload.data(), msg.payload.size(), wind)) {
             m_lastWind = wind;
             if (shouldEmitPgn(msg.header.pgn, now) && m_sentenceCallback) {
-                MwvData mwv {};
+                MwvData mwv { };
                 mwv.windAngleDeg = wind.windAngleDegrees;
                 mwv.windSpeed = wind.windSpeedKnots;
                 mwv.speedUnits = 'N';
@@ -259,11 +265,11 @@ void NmeaGateway::processDecodedN2k(const N2k::N2kMessage& msg)
     }
 
     case N2k::Pgn::Rudder: {
-        N2k::RudderData rudder {};
+        N2k::RudderData rudder { };
         if (N2k::N2kDecoder::parsePgn127245(msg.payload.data(), msg.payload.size(), rudder)) {
             m_lastRudder = rudder;
             if (shouldEmitPgn(msg.header.pgn, now) && m_sentenceCallback) {
-                RsaData rsa {};
+                RsaData rsa { };
                 rsa.starboardRudderAngleDeg = rudder.positionDegrees;
                 rsa.starboardValid = rudder.hasPosition;
                 rsa.valid = rudder.hasPosition;
@@ -276,11 +282,11 @@ void NmeaGateway::processDecodedN2k(const N2k::N2kMessage& msg)
     }
 
     case N2k::Pgn::MagneticVariation: {
-        N2k::MagneticVariation magVar {};
+        N2k::MagneticVariation magVar { };
         if (N2k::N2kDecoder::parsePgn127258(msg.payload.data(), msg.payload.size(), magVar)) {
             m_lastMagVariation = magVar;
             if (magVar.hasVariation && shouldEmitPgn(msg.header.pgn, now) && m_sentenceCallback) {
-                HdgData hdgData {};
+                HdgData hdgData { };
                 if (m_lastHeading.has_value() && m_lastHeading->hasHeading) {
                     hdgData.magneticHeadingDeg = m_lastHeading->headingDegrees;
                 }
@@ -296,11 +302,11 @@ void NmeaGateway::processDecodedN2k(const N2k::N2kMessage& msg)
     }
 
     case N2k::Pgn::SystemTime: {
-        N2k::SystemTimeData sysTime {};
+        N2k::SystemTimeData sysTime { };
         if (N2k::N2kDecoder::parsePgn126992(msg.payload.data(), msg.payload.size(), sysTime)) {
             m_lastSystemTime = sysTime;
             if (shouldEmitPgn(msg.header.pgn, now) && m_sentenceCallback) {
-                ZdaData zda {};
+                ZdaData zda { };
                 int year = 1970;
                 unsigned month = 1;
                 unsigned day = 1;
@@ -313,8 +319,8 @@ void NmeaGateway::processDecodedN2k(const N2k::N2kMessage& msg)
                 zda.utcTime.hour = static_cast<std::uint8_t>(totalSec / 3600U);
                 zda.utcTime.minute = static_cast<std::uint8_t>((totalSec % 3600U) / 60U);
                 zda.utcTime.second = static_cast<std::uint8_t>(totalSec % 60U);
-                zda.utcTime.millisecond = static_cast<std::uint16_t>(
-                    (sysTime.secondsSinceMidnight - totalSec) * 1000.0);
+                zda.utcTime.millisecond
+                    = static_cast<std::uint16_t>((sysTime.secondsSinceMidnight - totalSec) * 1000.0);
                 zda.valid = true;
 
                 const auto sentence = NmeaSentenceBuilder::buildZda(zda, m_config.defaultTalkerId);
@@ -347,11 +353,11 @@ void NmeaGateway::onSentence(std::string_view sentence)
     const auto now = std::chrono::steady_clock::now();
 
     if (mnemonic == "GGA") {
-        GgaData gga {};
+        GgaData gga { };
         if (NmeaSentenceParser::parseGga(sentence, gga, true) && gga.valid) {
             ++m_stats.sentencesParsed;
             if (shouldEmitSentence(mnemonic, now)) {
-                N2k::PositionRapid pos {};
+                N2k::PositionRapid pos { };
                 pos.latitudeDeg = gga.coordinates.latitudeDeg;
                 pos.longitudeDeg = gga.coordinates.longitudeDeg;
                 pos.isValid = (gga.fixQuality != NmeaFixQuality::Invalid);
@@ -362,11 +368,11 @@ void NmeaGateway::onSentence(std::string_view sentence)
             }
         }
     } else if (mnemonic == "RMC") {
-        RmcData rmc {};
+        RmcData rmc { };
         if (NmeaSentenceParser::parseRmc(sentence, rmc, true) && rmc.valid) {
             ++m_stats.sentencesParsed;
             if (shouldEmitSentence(mnemonic, now)) {
-                N2k::PositionRapid pos {};
+                N2k::PositionRapid pos { };
                 pos.latitudeDeg = rmc.coordinates.latitudeDeg;
                 pos.longitudeDeg = rmc.coordinates.longitudeDeg;
                 pos.isValid = rmc.statusActive;
@@ -375,7 +381,7 @@ void NmeaGateway::onSentence(std::string_view sentence)
                 m_canCallback(posFrame);
                 ++m_stats.n2kFramesEmitted;
 
-                N2k::CogSogRapid cogSog {};
+                N2k::CogSogRapid cogSog { };
                 cogSog.cogDegrees = rmc.courseOverGroundDegrees;
                 cogSog.hasCog = true;
                 cogSog.sogKnots = rmc.speedOverGroundKnots;
@@ -387,11 +393,11 @@ void NmeaGateway::onSentence(std::string_view sentence)
             }
         }
     } else if (mnemonic == "HDT") {
-        HdtData hdt {};
+        HdtData hdt { };
         if (NmeaSentenceParser::parseHdt(sentence, hdt, true) && hdt.valid) {
             ++m_stats.sentencesParsed;
             if (shouldEmitSentence(mnemonic, now)) {
-                N2k::VesselHeading hdg {};
+                N2k::VesselHeading hdg { };
                 hdg.headingDegrees = hdt.headingDegrees;
                 hdg.hasHeading = true;
                 hdg.reference = N2k::HeadingReference::True;
@@ -402,11 +408,11 @@ void NmeaGateway::onSentence(std::string_view sentence)
             }
         }
     } else if (mnemonic == "THS") {
-        ThsData ths {};
+        ThsData ths { };
         if (NmeaSentenceParser::parseThs(sentence, ths, true) && ths.valid) {
             ++m_stats.sentencesParsed;
             if (shouldEmitSentence(mnemonic, now)) {
-                N2k::VesselHeading hdg {};
+                N2k::VesselHeading hdg { };
                 hdg.headingDegrees = ths.headingDegrees;
                 hdg.hasHeading = true;
                 hdg.reference = N2k::HeadingReference::True;
@@ -417,11 +423,11 @@ void NmeaGateway::onSentence(std::string_view sentence)
             }
         }
     } else if (mnemonic == "HDG") {
-        HdgData hdgData {};
+        HdgData hdgData { };
         if (NmeaSentenceParser::parseHdg(sentence, hdgData, true) && hdgData.valid) {
             ++m_stats.sentencesParsed;
             if (shouldEmitSentence(mnemonic, now)) {
-                N2k::VesselHeading hdg {};
+                N2k::VesselHeading hdg { };
                 hdg.headingDegrees = hdgData.magneticHeadingDeg;
                 hdg.hasHeading = true;
                 if (hdgData.hasDeviation) {
@@ -440,11 +446,11 @@ void NmeaGateway::onSentence(std::string_view sentence)
             }
         }
     } else if (mnemonic == "XDR") {
-        XdrData xdr {};
+        XdrData xdr { };
         if (NmeaSentenceParser::parseXdr(sentence, xdr, true) && xdr.valid) {
             ++m_stats.sentencesParsed;
             if (shouldEmitSentence(mnemonic, now)) {
-                N2k::Attitude att {};
+                N2k::Attitude att { };
                 for (const auto& tr : xdr.transducers) {
                     if (tr.id == "PITCH" || tr.id == "PTCH") {
                         att.pitchDegrees = tr.measurement;
@@ -462,11 +468,11 @@ void NmeaGateway::onSentence(std::string_view sentence)
             }
         }
     } else if (mnemonic == "MWV") {
-        MwvData mwv {};
+        MwvData mwv { };
         if (NmeaSentenceParser::parseMwv(sentence, mwv, true) && mwv.valid) {
             ++m_stats.sentencesParsed;
             if (shouldEmitSentence(mnemonic, now)) {
-                N2k::WindData wind {};
+                N2k::WindData wind { };
                 wind.windAngleDegrees = mwv.windAngleDeg;
                 wind.hasWindAngle = true;
 
@@ -490,11 +496,11 @@ void NmeaGateway::onSentence(std::string_view sentence)
             }
         }
     } else if (mnemonic == "RSA") {
-        RsaData rsa {};
+        RsaData rsa { };
         if (NmeaSentenceParser::parseRsa(sentence, rsa, true) && rsa.valid) {
             ++m_stats.sentencesParsed;
             if (shouldEmitSentence(mnemonic, now)) {
-                N2k::RudderData rudder {};
+                N2k::RudderData rudder { };
                 if (rsa.starboardValid) {
                     rudder.positionDegrees = rsa.starboardRudderAngleDeg;
                     rudder.hasPosition = true;
@@ -508,16 +514,14 @@ void NmeaGateway::onSentence(std::string_view sentence)
             }
         }
     } else if (mnemonic == "ZDA") {
-        ZdaData zda {};
+        ZdaData zda { };
         if (NmeaSentenceParser::parseZda(sentence, zda, true) && zda.valid) {
             ++m_stats.sentencesParsed;
             if (shouldEmitSentence(mnemonic, now)) {
-                N2k::SystemTimeData st {};
-                st.systemDateDays = daysFromCivil(
-                    static_cast<int>(zda.year), zda.month, zda.day);
+                N2k::SystemTimeData st { };
+                st.systemDateDays = daysFromCivil(static_cast<int>(zda.year), zda.month, zda.day);
                 st.secondsSinceMidnight = static_cast<double>(zda.utcTime.hour) * 3600.0
-                    + static_cast<double>(zda.utcTime.minute) * 60.0
-                    + static_cast<double>(zda.utcTime.second)
+                    + static_cast<double>(zda.utcTime.minute) * 60.0 + static_cast<double>(zda.utcTime.second)
                     + static_cast<double>(zda.utcTime.millisecond) / 1000.0;
                 st.hasDate = true;
                 st.hasTime = true;
@@ -619,7 +623,7 @@ GatewayStats NmeaGateway::stats() const
 void NmeaGateway::resetStats()
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_stats = GatewayStats {};
+    m_stats = GatewayStats { };
 }
 
 } // namespace Nmea::Gateway

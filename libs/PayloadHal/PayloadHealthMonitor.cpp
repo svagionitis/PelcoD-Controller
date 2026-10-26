@@ -1,6 +1,11 @@
 #include "PayloadHealthMonitor.h"
 
+#include <cstdint>
+
 #include <algorithm>
+#include <chrono>
+#include <mutex>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -157,7 +162,7 @@ void PayloadHealthMonitor::cbitWorkerLoop(std::chrono::milliseconds interval)
             // Thermal checks
             if (m_enclosureTempC > 75.0) {
                 m_thermalThrottlingActive = true;
-                DiagnosticFaultRecord rec {};
+                DiagnosticFaultRecord rec { };
                 rec.code = DiagnosticFaultCode::OverTemperatureCritical;
                 rec.component = SubsystemComponent::SystemMaster;
                 rec.severity = BitSeverity::Critical;
@@ -173,10 +178,11 @@ void PayloadHealthMonitor::cbitWorkerLoop(std::chrono::milliseconds interval)
                         break;
                     }
                 }
-                if (!exists) m_faults.push_back(rec);
+                if (!exists)
+                    m_faults.push_back(rec);
             } else if (m_enclosureTempC > 60.0) {
                 m_thermalThrottlingActive = true;
-                DiagnosticFaultRecord rec {};
+                DiagnosticFaultRecord rec { };
                 rec.code = DiagnosticFaultCode::OverTemperatureWarning;
                 rec.component = SubsystemComponent::SystemMaster;
                 rec.severity = BitSeverity::Warning;
@@ -192,12 +198,13 @@ void PayloadHealthMonitor::cbitWorkerLoop(std::chrono::milliseconds interval)
                         break;
                     }
                 }
-                if (!exists) m_faults.push_back(rec);
+                if (!exists)
+                    m_faults.push_back(rec);
             } else if (m_enclosureTempC <= 55.0) {
                 m_thermalThrottlingActive = false;
                 for (auto& f : m_faults) {
-                    if (f.code == DiagnosticFaultCode::OverTemperatureWarning ||
-                        f.code == DiagnosticFaultCode::OverTemperatureCritical) {
+                    if (f.code == DiagnosticFaultCode::OverTemperatureWarning
+                        || f.code == DiagnosticFaultCode::OverTemperatureCritical) {
                         f.active = false;
                     }
                 }
@@ -205,7 +212,7 @@ void PayloadHealthMonitor::cbitWorkerLoop(std::chrono::milliseconds interval)
 
             // Motor stall checks
             if (m_motorStallDetected) {
-                DiagnosticFaultRecord rec {};
+                DiagnosticFaultRecord rec { };
                 rec.code = DiagnosticFaultCode::MotorStallPan;
                 rec.component = SubsystemComponent::GimbalPtu;
                 rec.severity = BitSeverity::Fatal;
@@ -221,11 +228,11 @@ void PayloadHealthMonitor::cbitWorkerLoop(std::chrono::milliseconds interval)
                         break;
                     }
                 }
-                if (!exists) m_faults.push_back(rec);
+                if (!exists)
+                    m_faults.push_back(rec);
             } else {
                 for (auto& f : m_faults) {
-                    if (f.code == DiagnosticFaultCode::MotorStallPan ||
-                        f.code == DiagnosticFaultCode::MotorStallTilt) {
+                    if (f.code == DiagnosticFaultCode::MotorStallPan || f.code == DiagnosticFaultCode::MotorStallTilt) {
                         f.active = false;
                     }
                 }
@@ -292,13 +299,11 @@ void PayloadHealthMonitor::ibitWorkerLoop(bool intrusive)
         float progress;
     };
 
-    const std::vector<Step> steps = {
-        { "Transport Comm Bus Ping & Latency Verification", 0.20f },
+    const std::vector<Step> steps = { { "Transport Comm Bus Ping & Latency Verification", 0.20f },
         { "Gimbal Pan/Tilt Mechanical Travel & Encoder Limits", 0.45f },
         { "Daylight Camera Optical Zoom & Autofocus Drive", 0.70f },
         { "Thermal Sensor NUC Calibration Shutter", 0.85f },
-        { "Laser Capacitor Charge & Safety Interlock Loop", 1.00f }
-    };
+        { "Laser Capacitor Charge & Safety Interlock Loop", 1.00f } };
 
     (void)intrusive;
 
@@ -340,8 +345,8 @@ void PayloadHealthMonitor::ibitWorkerLoop(bool intrusive)
     dispatchHealthReportLocked();
 }
 
-void PayloadHealthMonitor::updateVitalSigns(double tempC, double motorCurrentA, double voltageV,
-                                            bool stall, std::uint32_t dropCount)
+void PayloadHealthMonitor::updateVitalSigns(
+    double tempC, double motorCurrentA, double voltageV, bool stall, std::uint32_t dropCount)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_enclosureTempC = tempC;
@@ -382,7 +387,7 @@ void PayloadHealthMonitor::evaluateOverallStateLocked()
 SystemHealthReport PayloadHealthMonitor::healthReport() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    SystemHealthReport rep {};
+    SystemHealthReport rep { };
     rep.overallState = m_overallState;
     rep.pbitStatus = m_pbitStatus;
     rep.cbitStatus = m_cbitStatus;
@@ -408,7 +413,7 @@ void PayloadHealthMonitor::dispatchHealthReportLocked()
     if (!m_healthCb) {
         return;
     }
-    SystemHealthReport rep {};
+    SystemHealthReport rep { };
     rep.overallState = m_overallState;
     rep.pbitStatus = m_pbitStatus;
     rep.cbitStatus = m_cbitStatus;

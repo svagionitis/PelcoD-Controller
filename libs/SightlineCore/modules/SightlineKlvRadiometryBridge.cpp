@@ -1,14 +1,18 @@
 #include "SightlineKlvRadiometryBridge.h"
-#include "SightlineKlvBuilder.h"
 #include "Klv/KlvEncoder.h"
+#include "SightlineKlvBuilder.h"
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
+#include <string>
+#include <vector>
 
 namespace Sightline {
 
-std::string SightlineKlvRadiometryBridge::sensorModelName(RadiometricSensor sensor) {
+std::string SightlineKlvRadiometryBridge::sensorModelName(RadiometricSensor sensor)
+{
     switch (sensor) {
     case RadiometricSensor::FlirTau2LowRes:
         return "FLIR Tau 2 (TLinear Low)";
@@ -27,10 +31,9 @@ std::string SightlineKlvRadiometryBridge::sensorModelName(RadiometricSensor sens
 }
 
 Klv::VTargetPack SightlineKlvRadiometryBridge::buildTargetPack(
-    const RadiometricSpotStats& stats,
-    const TrackCoordinate& track,
-    TemperatureScale scale) noexcept {
-    Klv::VTargetPack pack {};
+    const RadiometricSpotStats& stats, const TrackCoordinate& track, TemperatureScale scale) noexcept
+{
+    Klv::VTargetPack pack { };
     pack.targetId = static_cast<std::uint32_t>(track.trackId);
 
     const auto colRound = std::round(track.centerCol);
@@ -45,10 +48,7 @@ Klv::VTargetPack SightlineKlvRadiometryBridge::buildTargetPack(
     const auto tlRow = static_cast<std::uint32_t>(std::clamp(std::round(track.centerRow - halfH), 1.0, 65535.0));
     const auto brCol = static_cast<std::uint32_t>(std::clamp(std::round(track.centerCol + halfW), 1.0, 65535.0));
     const auto brRow = static_cast<std::uint32_t>(std::clamp(std::round(track.centerRow + halfH), 1.0, 65535.0));
-    pack.boundingBox = Klv::PixelBoundingBox {
-        Klv::PixelCoord { tlCol, tlRow },
-        Klv::PixelCoord { brCol, brRow }
-    };
+    pack.boundingBox = Klv::PixelBoundingBox { Klv::PixelCoord { tlCol, tlRow }, Klv::PixelCoord { brCol, brRow } };
 
     pack.confidence = track.confidence;
     pack.priority = track.isPrimary ? static_cast<std::uint8_t>(1U) : static_cast<std::uint8_t>(2U);
@@ -59,20 +59,17 @@ Klv::VTargetPack SightlineKlvRadiometryBridge::buildTargetPack(
     return pack;
 }
 
-Klv::VmtiLocalSet SightlineKlvRadiometryBridge::buildVmtiLocalSet(
-    const std::vector<RadiometricSpotStats>& statsList,
-    const std::vector<TrackCoordinate>& trackList,
-    std::uint32_t frameWidth,
-    std::uint32_t frameHeight,
-    std::uint64_t timestampUs,
-    TemperatureScale scale) noexcept {
-    Klv::VmtiLocalSet vmti {};
+Klv::VmtiLocalSet SightlineKlvRadiometryBridge::buildVmtiLocalSet(const std::vector<RadiometricSpotStats>& statsList,
+    const std::vector<TrackCoordinate>& trackList, std::uint32_t frameWidth, std::uint32_t frameHeight,
+    std::uint64_t timestampUs, TemperatureScale scale) noexcept
+{
+    Klv::VmtiLocalSet vmti { };
     if (timestampUs > 0ULL) {
         vmti.precisionTimeStampUs = timestampUs;
     } else {
         vmti.precisionTimeStampUs = static_cast<std::uint64_t>(
-            std::chrono::duration_cast<std::chrono::microseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count());
+            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch())
+                .count());
     }
     vmti.systemName = "Sightline SLA VMTI";
     vmti.version = 6U;
@@ -80,13 +77,12 @@ Klv::VmtiLocalSet SightlineKlvRadiometryBridge::buildVmtiLocalSet(
     vmti.frameHeight = frameHeight;
 
     for (const auto& trk : trackList) {
-        const auto it = std::find_if(statsList.begin(), statsList.end(), [&trk](const RadiometricSpotStats& s) {
-            return s.trackId == trk.trackId;
-        });
+        const auto it = std::find_if(statsList.begin(), statsList.end(),
+            [&trk](const RadiometricSpotStats& s) { return s.trackId == trk.trackId; });
         if (it != statsList.end()) {
             vmti.targets.push_back(buildTargetPack(*it, trk, scale));
         } else {
-            RadiometricSpotStats dummy {};
+            RadiometricSpotStats dummy { };
             dummy.trackId = trk.trackId;
             dummy.cameraIndex = 0U;
             vmti.targets.push_back(buildTargetPack(dummy, trk, scale));
@@ -99,17 +95,16 @@ Klv::VmtiLocalSet SightlineKlvRadiometryBridge::buildVmtiLocalSet(
 }
 
 Klv::UasDatalinkMessage SightlineKlvRadiometryBridge::buildUasMessage(
-    const std::vector<RadiometricSpotStats>& statsList,
-    const std::vector<TrackCoordinate>& trackList,
-    RadiometricSensor sensor,
-    std::uint32_t frameWidth,
-    std::uint32_t frameHeight,
-    std::uint64_t timestampUs,
-    TemperatureScale scale) noexcept {
-    Klv::UasDatalinkMessage msg {};
-    const auto ts = (timestampUs > 0ULL) ? timestampUs : static_cast<std::uint64_t>(
-        std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count());
+    const std::vector<RadiometricSpotStats>& statsList, const std::vector<TrackCoordinate>& trackList,
+    RadiometricSensor sensor, std::uint32_t frameWidth, std::uint32_t frameHeight, std::uint64_t timestampUs,
+    TemperatureScale scale) noexcept
+{
+    Klv::UasDatalinkMessage msg { };
+    const auto ts = (timestampUs > 0ULL)
+        ? timestampUs
+        : static_cast<std::uint64_t>(
+              std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch())
+                  .count());
 
     msg.precisionTimeStampUs = ts;
     msg.imageSourceSensor = sensorModelName(sensor);
@@ -119,14 +114,14 @@ Klv::UasDatalinkMessage SightlineKlvRadiometryBridge::buildUasMessage(
 }
 
 MsgSetVmti SightlineKlvRadiometryBridge::buildMsgSetVmti(
-    const std::vector<TrackCoordinate>& tracks,
-    std::uint16_t displayId) noexcept {
-    MsgSetVmti msg {};
+    const std::vector<TrackCoordinate>& tracks, std::uint16_t displayId) noexcept
+{
+    MsgSetVmti msg { };
     msg.displayId = displayId;
     msg.targets.reserve(tracks.size());
 
     for (const auto& trk : tracks) {
-        VmtiTargetPack tp {};
+        VmtiTargetPack tp { };
         tp.targetId = trk.trackId;
         tp.confidence = trk.confidence;
         tp.col = static_cast<std::uint16_t>(std::clamp(std::round(trk.centerCol), 0.0, 65535.0));
@@ -139,16 +134,14 @@ MsgSetVmti SightlineKlvRadiometryBridge::buildMsgSetVmti(
     return msg;
 }
 
-MsgSetVmti SightlineKlvRadiometryBridge::buildMsgSetVmti(
-    const TrackCoordinate& track,
-    std::uint16_t displayId) noexcept {
-    return buildMsgSetVmti(std::vector<TrackCoordinate>{ track }, displayId);
+MsgSetVmti SightlineKlvRadiometryBridge::buildMsgSetVmti(const TrackCoordinate& track, std::uint16_t displayId) noexcept
+{
+    return buildMsgSetVmti(std::vector<TrackCoordinate> { track }, displayId);
 }
 
-MsgTagData SightlineKlvRadiometryBridge::buildWavelengthTag(
-    RadiometricSensor sensor,
-    std::uint16_t displayId) noexcept {
-    MsgTagData msg {};
+MsgTagData SightlineKlvRadiometryBridge::buildWavelengthTag(RadiometricSensor sensor, std::uint16_t displayId) noexcept
+{
+    MsgTagData msg { };
     msg.reserved1 = 0U;
     msg.reserved2 = 0U;
     msg.tagId = static_cast<std::uint8_t>(Klv::Tag::WavelengthBands); // 95U
@@ -160,10 +153,9 @@ MsgTagData SightlineKlvRadiometryBridge::buildWavelengthTag(
 }
 
 MsgSetMetadataFrameValues SightlineKlvRadiometryBridge::buildFrameValues(
-    const TrackCoordinate& track,
-    double slantRangeM,
-    std::uint16_t displayId) noexcept {
-    MsgSetMetadataFrameValues msg {};
+    const TrackCoordinate& track, double slantRangeM, std::uint16_t displayId) noexcept
+{
+    MsgSetMetadataFrameValues msg { };
     msg.validDataMask = 0x001FU; // bits 0..4
     msg.targetTrackGateWidth = static_cast<std::uint8_t>(std::clamp(std::round(track.width), 0.0, 255.0));
     msg.targetTrackGateHeight = static_cast<std::uint8_t>(std::clamp(std::round(track.height), 0.0, 255.0));
@@ -172,23 +164,23 @@ MsgSetMetadataFrameValues SightlineKlvRadiometryBridge::buildFrameValues(
     return msg;
 }
 
-std::vector<std::uint8_t> SightlineKlvRadiometryBridge::buildSetVmtiPacket(
-    const MsgSetVmti& msg) {
+std::vector<std::uint8_t> SightlineKlvRadiometryBridge::buildSetVmtiPacket(const MsgSetVmti& msg)
+{
     return SightlineKlvBuilder::buildSetVmti(msg);
 }
 
-std::vector<std::uint8_t> SightlineKlvRadiometryBridge::buildTagDataPacket(
-    const MsgTagData& msg) {
+std::vector<std::uint8_t> SightlineKlvRadiometryBridge::buildTagDataPacket(const MsgTagData& msg)
+{
     return SightlineKlvBuilder::buildTagData(msg);
 }
 
-std::vector<std::uint8_t> SightlineKlvRadiometryBridge::buildFrameValuesPacket(
-    const MsgSetMetadataFrameValues& msg) {
+std::vector<std::uint8_t> SightlineKlvRadiometryBridge::buildFrameValuesPacket(const MsgSetMetadataFrameValues& msg)
+{
     return SightlineKlvBuilder::buildSetMetadataFrameValues(msg);
 }
 
-std::vector<std::uint8_t> SightlineKlvRadiometryBridge::encodeUasPacket(
-    const Klv::UasDatalinkMessage& msg) {
+std::vector<std::uint8_t> SightlineKlvRadiometryBridge::encodeUasPacket(const Klv::UasDatalinkMessage& msg)
+{
     return Klv::KlvEncoder::encode(msg);
 }
 

@@ -1,10 +1,15 @@
 #include "SonyFCBDevice.h"
+#include <cstdint>
+
 #include <ViscaBuilder.h>
 #include <ViscaParser.h>
+#include <memory>
+#include <mutex>
+#include <optional>
 
 namespace Visca::Sony {
 
-SonyFCBDevice::SonyFCBDevice(std::shared_ptr<::Transport::ITransport> transport, uint8_t cameraAddress)
+SonyFCBDevice::SonyFCBDevice(std::shared_ptr<::Transport::ITransport> transport, std::uint8_t cameraAddress)
     : m_device(std::move(transport), cameraAddress)
 {
     m_capabilities = SonyCameraModel::getCapabilities(SonyCameraModelType::Unknown);
@@ -52,7 +57,7 @@ bool SonyFCBDevice::pollStatus()
     bool allSuccess = true;
     SonyFCBStatus tempStatus = status();
 
-    for (uint8_t block = 0; block <= 4; ++block) {
+    for (std::uint8_t block = 0; block <= 4; ++block) {
         const ViscaFrame inq = SonyViscaBuilder::blockInquiry(m_device.cameraAddress(), block);
         const InquiryResult res = m_device.sendInquirySync(inq);
         if (res.success) {
@@ -69,19 +74,19 @@ bool SonyFCBDevice::pollStatus()
     return allSuccess;
 }
 
-bool SonyFCBDevice::setZoomDirect(uint16_t position)
+bool SonyFCBDevice::setZoomDirect(std::uint16_t position)
 {
     const ViscaFrame cmd = SonyViscaBuilder::zoomDirect(m_device.cameraAddress(), position);
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::zoomTele(uint8_t speed)
+bool SonyFCBDevice::zoomTele(std::uint8_t speed)
 {
     const ViscaFrame cmd = SonyViscaBuilder::zoomTeleVariable(m_device.cameraAddress(), speed);
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::zoomWide(uint8_t speed)
+bool SonyFCBDevice::zoomWide(std::uint8_t speed)
 {
     const ViscaFrame cmd = SonyViscaBuilder::zoomWideVariable(m_device.cameraAddress(), speed);
     return m_device.sendCommandSync(cmd).success;
@@ -99,19 +104,19 @@ bool SonyFCBDevice::setFocusAuto(bool autoMode)
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setFocusDirect(uint16_t position)
+bool SonyFCBDevice::setFocusDirect(std::uint16_t position)
 {
     const ViscaFrame cmd = SonyViscaBuilder::focusDirect(m_device.cameraAddress(), position);
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::focusFar(uint8_t speed)
+bool SonyFCBDevice::focusFar(std::uint8_t speed)
 {
     const ViscaFrame cmd = SonyViscaBuilder::focusFarVariable(m_device.cameraAddress(), speed);
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::focusNear(uint8_t speed)
+bool SonyFCBDevice::focusNear(std::uint8_t speed)
 {
     const ViscaFrame cmd = SonyViscaBuilder::focusNearVariable(m_device.cameraAddress(), speed);
     return m_device.sendCommandSync(cmd).success;
@@ -129,7 +134,7 @@ bool SonyFCBDevice::focusOnePush()
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setFocusNearLimit(uint16_t limit)
+bool SonyFCBDevice::setFocusNearLimit(std::uint16_t limit)
 {
     const ViscaFrame cmd = SonyViscaBuilder::focusNearLimit(m_device.cameraAddress(), limit);
     return m_device.sendCommandSync(cmd).success;
@@ -141,25 +146,25 @@ bool SonyFCBDevice::setExposureMode(SonyExposureMode mode)
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setShutter(uint8_t position)
+bool SonyFCBDevice::setShutter(std::uint8_t position)
 {
     const ViscaFrame cmd = SonyViscaBuilder::shutterDirect(m_device.cameraAddress(), position);
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setIris(uint8_t position)
+bool SonyFCBDevice::setIris(std::uint8_t position)
 {
     const ViscaFrame cmd = SonyViscaBuilder::irisDirect(m_device.cameraAddress(), position);
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setGain(uint8_t position)
+bool SonyFCBDevice::setGain(std::uint8_t position)
 {
     const ViscaFrame cmd = SonyViscaBuilder::gainDirect(m_device.cameraAddress(), position);
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setExposureCompensation(bool on, uint8_t position)
+bool SonyFCBDevice::setExposureCompensation(bool on, std::uint8_t position)
 {
     const ViscaFrame onCmd = SonyViscaBuilder::exposureComp(m_device.cameraAddress(), on);
     if (!m_device.sendCommandSync(onCmd).success) {
@@ -178,13 +183,13 @@ bool SonyFCBDevice::setWhiteBalance(SonyWhiteBalanceMode mode)
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setRgaiDirect(uint8_t position)
+bool SonyFCBDevice::setRgaiDirect(std::uint8_t position)
 {
     const ViscaFrame cmd = SonyViscaBuilder::rGainDirect(m_device.cameraAddress(), position);
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setBgainDirect(uint8_t position)
+bool SonyFCBDevice::setBgainDirect(std::uint8_t position)
 {
     const ViscaFrame cmd = SonyViscaBuilder::bGainDirect(m_device.cameraAddress(), position);
     return m_device.sendCommandSync(cmd).success;
@@ -220,7 +225,7 @@ bool SonyFCBDevice::setAutoIcr(bool on)
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setAperture(uint8_t level)
+bool SonyFCBDevice::setAperture(std::uint8_t level)
 {
     const ViscaFrame cmd = SonyViscaBuilder::apertureDirect(m_device.cameraAddress(), level);
     return m_device.sendCommandSync(cmd).success;
@@ -262,13 +267,13 @@ bool SonyFCBDevice::setHighSensitivity(bool on)
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setNoiseReduction2D(uint8_t level)
+bool SonyFCBDevice::setNoiseReduction2D(std::uint8_t level)
 {
     const ViscaFrame cmd = SonyViscaBuilder::noiseReduction2D(m_device.cameraAddress(), level);
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setNoiseReduction3D(uint8_t level)
+bool SonyFCBDevice::setNoiseReduction3D(std::uint8_t level)
 {
     const ViscaFrame cmd = SonyViscaBuilder::noiseReduction3D(m_device.cameraAddress(), level);
     return m_device.sendCommandSync(cmd).success;
@@ -298,37 +303,37 @@ bool SonyFCBDevice::setLrReverse(bool on)
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setColorGain(uint8_t gain)
+bool SonyFCBDevice::setColorGain(std::uint8_t gain)
 {
     const ViscaFrame cmd = SonyViscaBuilder::colorGain(m_device.cameraAddress(), gain);
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setColorHue(uint8_t hue)
+bool SonyFCBDevice::setColorHue(std::uint8_t hue)
 {
     const ViscaFrame cmd = SonyViscaBuilder::colorHue(m_device.cameraAddress(), hue);
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setChromaSuppress(uint8_t level)
+bool SonyFCBDevice::setChromaSuppress(std::uint8_t level)
 {
     const ViscaFrame cmd = SonyViscaBuilder::chromaSuppress(m_device.cameraAddress(), level);
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setGamma(uint8_t mode)
+bool SonyFCBDevice::setGamma(std::uint8_t mode)
 {
     const ViscaFrame cmd = SonyViscaBuilder::gamma(m_device.cameraAddress(), mode);
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::memorySet(uint8_t channel)
+bool SonyFCBDevice::memorySet(std::uint8_t channel)
 {
     const ViscaFrame cmd = SonyViscaBuilder::memorySet(m_device.cameraAddress(), channel);
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::memoryRecall(uint8_t channel)
+bool SonyFCBDevice::memoryRecall(std::uint8_t channel)
 {
     const ViscaFrame cmd = SonyViscaBuilder::memoryRecall(m_device.cameraAddress(), channel);
     const bool ok = m_device.sendCommandSync(cmd).success;
@@ -339,7 +344,7 @@ bool SonyFCBDevice::memoryRecall(uint8_t channel)
     return ok;
 }
 
-bool SonyFCBDevice::memoryReset(uint8_t channel)
+bool SonyFCBDevice::memoryReset(std::uint8_t channel)
 {
     const ViscaFrame cmd = SonyViscaBuilder::memoryReset(m_device.cameraAddress(), channel);
     return m_device.sendCommandSync(cmd).success;
@@ -356,7 +361,7 @@ bool SonyFCBDevice::setSpotAe(bool on)
     return ok;
 }
 
-bool SonyFCBDevice::setSpotAePosition(uint8_t x, uint8_t y)
+bool SonyFCBDevice::setSpotAePosition(std::uint8_t x, std::uint8_t y)
 {
     const ViscaFrame cmd = SonyViscaBuilder::spotAePosition(m_device.cameraAddress(), x, y);
     const bool ok = m_device.sendCommandSync(cmd).success;
@@ -368,7 +373,7 @@ bool SonyFCBDevice::setSpotAePosition(uint8_t x, uint8_t y)
     return ok;
 }
 
-bool SonyFCBDevice::setSpotFocusPosition(uint8_t x, uint8_t y)
+bool SonyFCBDevice::setSpotFocusPosition(std::uint8_t x, std::uint8_t y)
 {
     const ViscaFrame cmd = SonyViscaBuilder::spotFocusPosition(m_device.cameraAddress(), x, y);
     const bool ok = m_device.sendCommandSync(cmd).success;
@@ -380,7 +385,7 @@ bool SonyFCBDevice::setSpotFocusPosition(uint8_t x, uint8_t y)
     return ok;
 }
 
-bool SonyFCBDevice::setSpotAwbPosition(uint8_t x, uint8_t y)
+bool SonyFCBDevice::setSpotAwbPosition(std::uint8_t x, std::uint8_t y)
 {
     const ViscaFrame cmd = SonyViscaBuilder::spotAwbPosition(m_device.cameraAddress(), x, y);
     const bool ok = m_device.sendCommandSync(cmd).success;
@@ -392,14 +397,14 @@ bool SonyFCBDevice::setSpotAwbPosition(uint8_t x, uint8_t y)
     return ok;
 }
 
-std::optional<uint16_t> SonyFCBDevice::queryZoomPosition()
+std::optional<std::uint16_t> SonyFCBDevice::queryZoomPosition()
 {
     const ViscaFrame inq = SonyViscaBuilder::zoomPositionInquiry(m_device.cameraAddress());
     const auto res = m_device.sendInquirySync(inq);
     if (!res.success) {
         return std::nullopt;
     }
-    uint16_t val { 0 };
+    std::uint16_t val { 0 };
     if (SonyViscaParser::parseWordInquiry(res.responseFrame, val)) {
         std::lock_guard<std::mutex> lock(m_statusMutex);
         m_status.zoomPosition = val;
@@ -408,14 +413,14 @@ std::optional<uint16_t> SonyFCBDevice::queryZoomPosition()
     return std::nullopt;
 }
 
-std::optional<uint16_t> SonyFCBDevice::queryFocusPosition()
+std::optional<std::uint16_t> SonyFCBDevice::queryFocusPosition()
 {
     const ViscaFrame inq = SonyViscaBuilder::focusPositionInquiry(m_device.cameraAddress());
     const auto res = m_device.sendInquirySync(inq);
     if (!res.success) {
         return std::nullopt;
     }
-    uint16_t val { 0 };
+    std::uint16_t val { 0 };
     if (SonyViscaParser::parseWordInquiry(res.responseFrame, val)) {
         std::lock_guard<std::mutex> lock(m_statusMutex);
         m_status.focusPosition = val;
@@ -431,7 +436,7 @@ std::optional<SonyExposureMode> SonyFCBDevice::queryExposureMode()
     if (!res.success) {
         return std::nullopt;
     }
-    uint8_t mode { 0 };
+    std::uint8_t mode { 0 };
     if (SonyViscaParser::parseModeInquiry(res.responseFrame, mode)) {
         const auto expMode = static_cast<SonyExposureMode>(mode);
         std::lock_guard<std::mutex> lock(m_statusMutex);
@@ -441,14 +446,14 @@ std::optional<SonyExposureMode> SonyFCBDevice::queryExposureMode()
     return std::nullopt;
 }
 
-std::optional<uint8_t> SonyFCBDevice::queryShutterPosition()
+std::optional<std::uint8_t> SonyFCBDevice::queryShutterPosition()
 {
     const ViscaFrame inq = SonyViscaBuilder::shutterPositionInquiry(m_device.cameraAddress());
     const auto res = m_device.sendInquirySync(inq);
     if (!res.success) {
         return std::nullopt;
     }
-    uint8_t val { 0 };
+    std::uint8_t val { 0 };
     if (SonyViscaParser::parseByteInquiry(res.responseFrame, val)) {
         std::lock_guard<std::mutex> lock(m_statusMutex);
         m_status.shutterPosition = val;
@@ -457,14 +462,14 @@ std::optional<uint8_t> SonyFCBDevice::queryShutterPosition()
     return std::nullopt;
 }
 
-std::optional<uint8_t> SonyFCBDevice::queryIrisPosition()
+std::optional<std::uint8_t> SonyFCBDevice::queryIrisPosition()
 {
     const ViscaFrame inq = SonyViscaBuilder::irisPositionInquiry(m_device.cameraAddress());
     const auto res = m_device.sendInquirySync(inq);
     if (!res.success) {
         return std::nullopt;
     }
-    uint8_t val { 0 };
+    std::uint8_t val { 0 };
     if (SonyViscaParser::parseByteInquiry(res.responseFrame, val)) {
         std::lock_guard<std::mutex> lock(m_statusMutex);
         m_status.irisPosition = val;
@@ -473,14 +478,14 @@ std::optional<uint8_t> SonyFCBDevice::queryIrisPosition()
     return std::nullopt;
 }
 
-std::optional<uint8_t> SonyFCBDevice::queryGainPosition()
+std::optional<std::uint8_t> SonyFCBDevice::queryGainPosition()
 {
     const ViscaFrame inq = SonyViscaBuilder::gainPositionInquiry(m_device.cameraAddress());
     const auto res = m_device.sendInquirySync(inq);
     if (!res.success) {
         return std::nullopt;
     }
-    uint8_t val { 0 };
+    std::uint8_t val { 0 };
     if (SonyViscaParser::parseByteInquiry(res.responseFrame, val)) {
         std::lock_guard<std::mutex> lock(m_statusMutex);
         m_status.gainPosition = val;
@@ -496,7 +501,7 @@ std::optional<SonyWhiteBalanceMode> SonyFCBDevice::queryWhiteBalanceMode()
     if (!res.success) {
         return std::nullopt;
     }
-    uint8_t mode { 0 };
+    std::uint8_t mode { 0 };
     if (SonyViscaParser::parseModeInquiry(res.responseFrame, mode)) {
         const auto wb = static_cast<SonyWhiteBalanceMode>(mode);
         std::lock_guard<std::mutex> lock(m_statusMutex);
@@ -506,14 +511,14 @@ std::optional<SonyWhiteBalanceMode> SonyFCBDevice::queryWhiteBalanceMode()
     return std::nullopt;
 }
 
-std::optional<uint8_t> SonyFCBDevice::queryAperture()
+std::optional<std::uint8_t> SonyFCBDevice::queryAperture()
 {
     const ViscaFrame inq = SonyViscaBuilder::apertureInquiry(m_device.cameraAddress());
     const auto res = m_device.sendInquirySync(inq);
     if (!res.success) {
         return std::nullopt;
     }
-    uint8_t val { 0 };
+    std::uint8_t val { 0 };
     if (SonyViscaParser::parseByteInquiry(res.responseFrame, val)) {
         std::lock_guard<std::mutex> lock(m_statusMutex);
         m_status.apertureGain = val;
@@ -522,14 +527,14 @@ std::optional<uint8_t> SonyFCBDevice::queryAperture()
     return std::nullopt;
 }
 
-std::optional<uint8_t> SonyFCBDevice::queryLastMemoryChannel()
+std::optional<std::uint8_t> SonyFCBDevice::queryLastMemoryChannel()
 {
     const ViscaFrame inq = SonyViscaBuilder::memoryInquiry(m_device.cameraAddress());
     const auto res = m_device.sendInquirySync(inq);
     if (!res.success) {
         return std::nullopt;
     }
-    uint8_t val { 0 };
+    std::uint8_t val { 0 };
     if (SonyViscaParser::parseModeInquiry(res.responseFrame, val)) {
         std::lock_guard<std::mutex> lock(m_statusMutex);
         m_status.lastMemoryChannel = val;
@@ -543,7 +548,7 @@ bool SonyFCBDevice::setDistortionCompensation(bool on)
     if (!m_capabilities.supportsDistortionCompensation) {
         return false;
     }
-    const uint8_t val = on ? 0x01 : 0x00;
+    const std::uint8_t val = on ? 0x01 : 0x00;
     const ViscaFrame cmd = SonyViscaBuilder::writeRegister(m_device.cameraAddress(), Register::kDistortionComp, val);
     return m_device.sendCommandSync(cmd).success;
 }
@@ -553,12 +558,12 @@ bool SonyFCBDevice::setOpticalAxisGapCompensation(bool on)
     if (!m_capabilities.supportsOpticalAxisGapCompensation) {
         return false;
     }
-    const uint8_t val = on ? 0x01 : 0x00;
+    const std::uint8_t val = on ? 0x01 : 0x00;
     const ViscaFrame cmd = SonyViscaBuilder::writeRegister(m_device.cameraAddress(), Register::kOpticalAxisGap, val);
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setOperatingMode(uint8_t mode)
+bool SonyFCBDevice::setOperatingMode(std::uint8_t mode)
 {
     if (mode >= 0x25 && !m_capabilities.supports4K) {
         // Mode requires 4K UHD capability which this camera does not support
@@ -568,7 +573,7 @@ bool SonyFCBDevice::setOperatingMode(uint8_t mode)
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setLvdsMode(uint8_t mode)
+bool SonyFCBDevice::setLvdsMode(std::uint8_t mode)
 {
     if (!m_capabilities.supportsLvdsMode) {
         return false;
@@ -577,7 +582,7 @@ bool SonyFCBDevice::setLvdsMode(uint8_t mode)
     return m_device.sendCommandSync(cmd).success;
 }
 
-bool SonyFCBDevice::setDigitalOutputMode(uint8_t mode)
+bool SonyFCBDevice::setDigitalOutputMode(std::uint8_t mode)
 {
     if (!m_capabilities.supportsTmdsOutput) {
         return false;

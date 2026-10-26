@@ -5,7 +5,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <numeric>
+#include <vector>
 
 namespace Math {
 
@@ -103,7 +105,7 @@ SpectrogramFrame Stft::getLatestFrame() const
 {
     std::scoped_lock lock(m_mutex);
     if (m_history.empty()) {
-        return SpectrogramFrame {};
+        return SpectrogramFrame { };
     }
     return m_history.back();
 }

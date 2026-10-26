@@ -3,6 +3,8 @@
 
 #include "SightlineCalibrationParser.h"
 
+#include <cstddef>
+
 namespace Sightline {
 
 namespace {

@@ -1,8 +1,10 @@
 /// @file SightlineProtocolBuilder.cpp
 /// @brief Facade implementation delegating to modular domain builders.
 
-#include "SightlineProtocolBuilder.h"
+#include <cstdint>
+
 #include "SightlineFraming.h"
+#include "SightlineProtocolBuilder.h"
 #include "modules/SightlineBlendingBuilder.h"
 #include "modules/SightlineCalibrationBuilder.h"
 #include "modules/SightlineCaptureBuilder.h"
@@ -24,6 +26,8 @@
 #include "modules/SightlineStabilizationBuilder.h"
 #include "modules/SightlineTelemetryBuilder.h"
 #include "modules/SightlineTrackingBuilder.h"
+#include <string>
+#include <vector>
 
 namespace Sightline {
 
@@ -350,8 +354,7 @@ std::vector<std::uint8_t> SightlineProtocolBuilder::buildGetCameraCapabilities(s
     return SightlineCaptureBuilder::buildGetCameraCapabilities(cameraIndex);
 }
 
-std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetDigitalCameraParams(
-    const MsgDigitalCameraParameters& msg)
+std::vector<std::uint8_t> SightlineProtocolBuilder::buildSetDigitalCameraParams(const MsgDigitalCameraParameters& msg)
 {
     return SightlineCaptureBuilder::buildSetDigitalCameraParams(msg);
 }

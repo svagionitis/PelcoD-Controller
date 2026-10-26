@@ -1,7 +1,8 @@
+#include <cstdint>
 #include <gtest/gtest.h>
 
-#include "Misb0805.h"
 #include "KlvTypes.h"
+#include "Misb0805.h"
 #include "RvtTypes.h"
 
 #include <string>
@@ -9,7 +10,8 @@
 
 using namespace Klv;
 
-TEST(TestMisb0805, Iso8601Formatting) {
+TEST(TestMisb0805, Iso8601Formatting)
+{
     // 2023-11-14 22:13:20.123 UTC -> 1700000000123000 microseconds
     const std::uint64_t ts = 1700000000123000ULL;
     const std::string iso = Misb0805::formatIso8601(ts);
@@ -20,7 +22,8 @@ TEST(TestMisb0805, Iso8601Formatting) {
     EXPECT_NE(iso.find(".123Z"), std::string::npos);
 }
 
-TEST(TestMisb0805, ErrorEstimatesConversion) {
+TEST(TestMisb0805, ErrorEstimatesConversion)
+{
     // CE90 = 21.46 m -> 1-sigma CE = 10.0 m
     EXPECT_NEAR(Misb0805::ce90ToSigma1(21.46), 10.0, 1e-3);
 
@@ -28,8 +31,9 @@ TEST(TestMisb0805, ErrorEstimatesConversion) {
     EXPECT_NEAR(Misb0805::le90ToSigma1(16.45), 10.0, 1e-3);
 }
 
-TEST(TestMisb0805, PlatformPositionMessageConversion) {
-    UasDatalinkMessage msg {};
+TEST(TestMisb0805, PlatformPositionMessageConversion)
+{
+    UasDatalinkMessage msg { };
     msg.platformDesignation = "PREDATOR";
     msg.missionId = "RECON_01";
     msg.precisionTimeStampUs = 1700000000000000ULL;
@@ -63,8 +67,9 @@ TEST(TestMisb0805, PlatformPositionMessageConversion) {
     EXPECT_NE(xml.find("range=\"4500.00\""), std::string::npos);
 }
 
-TEST(TestMisb0805, SensorPointOfInterestConversion) {
-    UasDatalinkMessage msg {};
+TEST(TestMisb0805, SensorPointOfInterestConversion)
+{
+    UasDatalinkMessage msg { };
     msg.platformDesignation = "REAPER";
     msg.missionId = "OVERWATCH_42";
     msg.imageSourceSensor = "FLIR_MTS_B";
@@ -92,8 +97,9 @@ TEST(TestMisb0805, SensorPointOfInterestConversion) {
     EXPECT_NE(xml.find("uid=\"REAPER_OVERWATCH_42\""), std::string::npos);
 }
 
-TEST(TestMisb0805, RvtPoiToCotConversion) {
-    PoiPack poi {};
+TEST(TestMisb0805, RvtPoiToCotConversion)
+{
+    PoiPack poi { };
     poi.poiNumber = 12U;
     poi.latitudeDeg = 35.5000;
     poi.longitudeDeg = -117.8000;
@@ -118,18 +124,19 @@ TEST(TestMisb0805, RvtPoiToCotConversion) {
     EXPECT_NE(xml.find("relation=\"p-p\""), std::string::npos);
 }
 
-TEST(TestMisb0805, RvtLocalSetBatchConversion) {
-    RvtLocalSet rvt {};
+TEST(TestMisb0805, RvtLocalSetBatchConversion)
+{
+    RvtLocalSet rvt { };
     rvt.precisionTimeStampUs = 1700000000000000ULL;
 
-    PoiPack p1 {};
+    PoiPack p1 { };
     p1.poiNumber = 1U;
     p1.latitudeDeg = 36.1;
     p1.longitudeDeg = -115.1;
     p1.type = RvtTargetType::Friendly;
     rvt.pois.push_back(p1);
 
-    PoiPack p2 {};
+    PoiPack p2 { };
     p2.poiNumber = 2U;
     p2.latitudeDeg = 36.2;
     p2.longitudeDeg = -115.2;

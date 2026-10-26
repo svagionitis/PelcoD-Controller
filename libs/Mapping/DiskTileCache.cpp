@@ -1,18 +1,28 @@
 #include "DiskTileCache.h"
 
+#include <cstddef>
+
 #include <fstream>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace Mapping {
 
 DiskTileCache::DiskTileCache(std::filesystem::path primaryCacheDir)
-    : m_primaryDir(std::move(primaryCacheDir)) {}
+    : m_primaryDir(std::move(primaryCacheDir))
+{
+}
 
-void DiskTileCache::addSearchDirectory(std::filesystem::path offlineDir) {
+void DiskTileCache::addSearchDirectory(std::filesystem::path offlineDir)
+{
     std::lock_guard<std::mutex> lock(m_ioMutex);
     m_searchDirs.push_back(std::move(offlineDir));
 }
 
-std::optional<std::filesystem::path> DiskTileCache::findTileFile(const TileCoord& coord) const noexcept {
+std::optional<std::filesystem::path> DiskTileCache::findTileFile(const TileCoord& coord) const noexcept
+{
     const std::string zStr = std::to_string(coord.zoom);
     const std::string xStr = std::to_string(coord.x);
     const std::string yStr = std::to_string(coord.y);
@@ -47,12 +57,14 @@ std::optional<std::filesystem::path> DiskTileCache::findTileFile(const TileCoord
     return std::nullopt;
 }
 
-bool DiskTileCache::hasTile(const TileCoord& coord) const noexcept {
+bool DiskTileCache::hasTile(const TileCoord& coord) const noexcept
+{
     std::lock_guard<std::mutex> lock(m_ioMutex);
     return findTileFile(coord).has_value();
 }
 
-std::optional<TileData> DiskTileCache::getTile(const TileCoord& coord) {
+std::optional<TileData> DiskTileCache::getTile(const TileCoord& coord)
+{
     std::lock_guard<std::mutex> lock(m_ioMutex);
 
     const auto filePath = findTileFile(coord);
@@ -89,7 +101,8 @@ std::optional<TileData> DiskTileCache::getTile(const TileCoord& coord) {
     return data;
 }
 
-bool DiskTileCache::storeTile(const TileCoord& coord, const TileData& data) {
+bool DiskTileCache::storeTile(const TileCoord& coord, const TileData& data)
+{
     if (data.bytes.empty()) {
         return false;
     }

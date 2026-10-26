@@ -1,8 +1,10 @@
 /// @file SightlineProtocolParser.cpp
 /// @brief Facade implementation delegating to modular domain parsers.
 
-#include "SightlineProtocolParser.h"
+#include <cstdint>
+
 #include "SightlineFraming.h"
+#include "SightlineProtocolParser.h"
 #include "modules/SightlineBlendingParser.h"
 #include "modules/SightlineCalibrationParser.h"
 #include "modules/SightlineCaptureParser.h"
@@ -24,6 +26,7 @@
 #include "modules/SightlineStabilizationParser.h"
 #include "modules/SightlineTelemetryParser.h"
 #include "modules/SightlineTrackingParser.h"
+#include <vector>
 
 namespace Sightline {
 
@@ -182,14 +185,12 @@ bool SightlineProtocolParser::parseCurrentRate(const std::vector<std::uint8_t>& 
     return SightlineKlvParser::parseCurrentRate(packet, out);
 }
 
-bool SightlineProtocolParser::parseCurrentValues(
-    const std::vector<std::uint8_t>& packet, MsgCurrentMetadataValues& out)
+bool SightlineProtocolParser::parseCurrentValues(const std::vector<std::uint8_t>& packet, MsgCurrentMetadataValues& out)
 {
     return SightlineKlvParser::parseCurrentValues(packet, out);
 }
 
-bool SightlineProtocolParser::parseFrameValues(
-    const std::vector<std::uint8_t>& packet, MsgSetMetadataFrameValues& out)
+bool SightlineProtocolParser::parseFrameValues(const std::vector<std::uint8_t>& packet, MsgSetMetadataFrameValues& out)
 {
     return SightlineKlvParser::parseFrameValues(packet, out);
 }
@@ -210,14 +211,12 @@ bool SightlineProtocolParser::parseTagDataRate(const std::vector<std::uint8_t>& 
     return SightlineKlvParser::parseTagDataRate(packet, out);
 }
 
-bool SightlineProtocolParser::parseTagSourceSelector(
-    const std::vector<std::uint8_t>& packet, MsgTagSourceSelector& out)
+bool SightlineProtocolParser::parseTagSourceSelector(const std::vector<std::uint8_t>& packet, MsgTagSourceSelector& out)
 {
     return SightlineKlvParser::parseTagSourceSelector(packet, out);
 }
 
-bool SightlineProtocolParser::parseCursorOnTarget(
-    const std::vector<std::uint8_t>& packet, MsgCursorOnTarget& out)
+bool SightlineProtocolParser::parseCursorOnTarget(const std::vector<std::uint8_t>& packet, MsgCursorOnTarget& out)
 {
     return SightlineKlvParser::parseCursorOnTarget(packet, out);
 }
@@ -232,8 +231,7 @@ bool SightlineProtocolParser::parseVmtiFields(const std::vector<std::uint8_t>& p
     return SightlineKlvParser::parseVmtiFields(packet, out);
 }
 
-bool SightlineProtocolParser::parseAncillaryText(
-    const std::vector<std::uint8_t>& packet, MsgAncillaryTextMetadata& out)
+bool SightlineProtocolParser::parseAncillaryText(const std::vector<std::uint8_t>& packet, MsgAncillaryTextMetadata& out)
 {
     return SightlineKlvParser::parseAncillaryText(packet, out);
 }
@@ -271,7 +269,8 @@ bool SightlineProtocolParser::parseCmdAck(const std::vector<std::uint8_t>& packe
     return SightlineRecordingParser::parseCmdAck(packet, out);
 }
 
-bool SightlineProtocolParser::parseSetFileRecordingV2(const std::vector<std::uint8_t>& packet, MsgSetFileRecordingParamsV2& out)
+bool SightlineProtocolParser::parseSetFileRecordingV2(
+    const std::vector<std::uint8_t>& packet, MsgSetFileRecordingParamsV2& out)
 {
     return SightlineRecordingParser::parseSetFileRecordingV2(packet, out);
 }
@@ -286,7 +285,8 @@ bool SightlineProtocolParser::parseRecordingEvent(const std::vector<std::uint8_t
     return SightlineRecordingParser::parseRecordingEvent(packet, out);
 }
 
-bool SightlineProtocolParser::parseRecordingStatusV2(const std::vector<std::uint8_t>& packet, MsgCurrentRecordingStatusV2& out)
+bool SightlineProtocolParser::parseRecordingStatusV2(
+    const std::vector<std::uint8_t>& packet, MsgCurrentRecordingStatusV2& out)
 {
     return SightlineRecordingParser::parseRecordingStatusV2(packet, out);
 }
@@ -296,12 +296,14 @@ bool SightlineProtocolParser::parseGetDirListing(const std::vector<std::uint8_t>
     return SightlineRecordingParser::parseGetDirListing(packet, out);
 }
 
-bool SightlineProtocolParser::parseDirListingReply(const std::vector<std::uint8_t>& packet, MsgDirectoryListingReply& out)
+bool SightlineProtocolParser::parseDirListingReply(
+    const std::vector<std::uint8_t>& packet, MsgDirectoryListingReply& out)
 {
     return SightlineRecordingParser::parseDirListingReply(packet, out);
 }
 
-bool SightlineProtocolParser::parseFileStorageMgmt(const std::vector<std::uint8_t>& packet, MsgFileStorageManagement& out)
+bool SightlineProtocolParser::parseFileStorageMgmt(
+    const std::vector<std::uint8_t>& packet, MsgFileStorageManagement& out)
 {
     return SightlineRecordingParser::parseFileStorageMgmt(packet, out);
 }

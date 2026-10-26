@@ -1,7 +1,10 @@
 /// @file SightlineClassificationBuilder.cpp
 /// @brief Implementation of Sightline AI classification command serializers.
 
+#include <cstdint>
+
 #include "SightlineClassificationBuilder.h"
+#include <vector>
 
 namespace Sightline {
 
@@ -19,7 +22,7 @@ std::vector<std::uint8_t> SightlineClassificationBuilder::buildGetCustomAIDetect
 
 std::vector<std::uint8_t> SightlineClassificationBuilder::buildVMTIChips(const MsgVMTIChips& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(8U + msg.chipData.size());
     payload.push_back(msg.cameraIndex);
     payload.push_back(msg.trackId);
@@ -33,7 +36,7 @@ std::vector<std::uint8_t> SightlineClassificationBuilder::buildVMTIChips(const M
 
 std::vector<std::uint8_t> SightlineClassificationBuilder::buildSetVMTIFields(const MsgVMTIFields& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(6U);
     payload.push_back(msg.cameraIndex);
     SightlineFraming::appendU32Le(payload, msg.enabledFieldsMask);
@@ -49,7 +52,7 @@ std::vector<std::uint8_t> SightlineClassificationBuilder::buildGetVMTIFields(std
 
 std::vector<std::uint8_t> SightlineClassificationBuilder::buildSetKlvClassFilters(const MsgKlvClassFilters& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(4U);
     payload.push_back(msg.cameraIndex);
     SightlineFraming::appendU16Le(payload, msg.classMask);
@@ -84,7 +87,7 @@ std::vector<std::uint8_t> SightlineClassificationBuilder::buildGetCustomClassifi
 
 std::vector<std::uint8_t> SightlineClassificationBuilder::buildSetClassifierParams(const MsgClassifierParameters& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(5U);
     payload.push_back(msg.cameraIndex);
     payload.push_back(msg.modelIndex);
@@ -101,7 +104,7 @@ std::vector<std::uint8_t> SightlineClassificationBuilder::buildGetClassifierPara
 
 std::vector<std::uint8_t> SightlineClassificationBuilder::buildSetKlvMetricFilters(const MsgKlvMetricFilters& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(50U);
     payload.push_back(msg.cameraIndex);
     SightlineFraming::appendFloat32Le(payload, msg.minTargetWidthM);
@@ -126,7 +129,7 @@ std::vector<std::uint8_t> SightlineClassificationBuilder::buildGetKlvMetricFilte
 
 std::vector<std::uint8_t> SightlineClassificationBuilder::buildSetClassifierConfig(const MsgClassifierConfig& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(12U + msg.customModelName.size());
     payload.push_back(msg.cameraIndex);
     payload.push_back(static_cast<std::uint8_t>(msg.model));

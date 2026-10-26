@@ -15,13 +15,13 @@ namespace Visca {
 /// @enum ScanError
 /// @brief Error and diagnostic status classifications during VISCA bus enumeration.
 enum class ScanError {
-    None,                     ///< No error occurred.
-    TransportNotOpen,         ///< Transport interface is null or not open.
-    AddressSetSendFailed,     ///< Failed to transmit AddressSet broadcast frame.
-    AddressSetTimeout,        ///< Timeout waiting for AddressSet response from cameras.
+    None, ///< No error occurred.
+    TransportNotOpen, ///< Transport interface is null or not open.
+    AddressSetSendFailed, ///< Failed to transmit AddressSet broadcast frame.
+    AddressSetTimeout, ///< Timeout waiting for AddressSet response from cameras.
     VersionInquirySendFailed, ///< Failed to transmit CAM_VersionInq frame for a camera address.
-    VersionInquiryTimeout,    ///< Timeout waiting for CAM_VersionInq response from camera.
-    Cancelled                 ///< Scan was aborted by cancellation predicate.
+    VersionInquiryTimeout, ///< Timeout waiting for CAM_VersionInq response from camera.
+    Cancelled ///< Scan was aborted by cancellation predicate.
 };
 
 /// @brief Converts a @ref ScanError enum value to a human-readable diagnostic string.
@@ -51,11 +51,11 @@ enum class ScanError {
 /// @struct DiscoveredCamera
 /// @brief Raw camera identification retrieved during VISCA bus enumeration.
 struct DiscoveredCamera {
-    uint8_t address { 1 };   ///< Bus address assigned to camera (1..7)
-    uint16_t vendorId { 0 }; ///< Vendor ID (e.g. 0x0020 for Sony)
-    uint16_t modelId { 0 };  ///< Model ID
-    uint16_t romVersion { 0 }; ///< Firmware ROM version
-    uint8_t maxSockets { 2 }; ///< Maximum concurrent sockets supported
+    std::uint8_t address { 1 }; ///< Bus address assigned to camera (1..7)
+    std::uint16_t vendorId { 0 }; ///< Vendor ID (e.g. 0x0020 for Sony)
+    std::uint16_t modelId { 0 }; ///< Model ID
+    std::uint16_t romVersion { 0 }; ///< Firmware ROM version
+    std::uint8_t maxSockets { 2 }; ///< Maximum concurrent sockets supported
 };
 
 /// @class ViscaBusScanner
@@ -86,10 +86,8 @@ public:
     /// @param[in] onError Optional error and diagnostic reporting callback.
     /// @param[in] isCancelled Optional cancellation check callback returning true to abort.
     /// @return Vector of discovered cameras on the bus.
-    [[nodiscard]] std::vector<DiscoveredCamera> scanBus(
-        ProgressCallback onProgress = nullptr,
-        CameraDiscoveredCallback onFound = nullptr,
-        ErrorCallback onError = nullptr,
+    [[nodiscard]] std::vector<DiscoveredCamera> scanBus(ProgressCallback onProgress = nullptr,
+        CameraDiscoveredCallback onFound = nullptr, ErrorCallback onError = nullptr,
         CancellationPredicate isCancelled = nullptr);
 
 private:

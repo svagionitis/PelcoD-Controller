@@ -25,9 +25,14 @@
 #include "modules/StorageRetentionManager.h"
 #include "modules/TransactionalStorageWriter.h"
 #include <Transport/SdpGenerator.h>
+#include <cstdint>
 
 #include <filesystem>
 #include <gtest/gtest.h>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace Sightline {
 namespace {
@@ -35,7 +40,7 @@ namespace {
     /// @brief Verify video pipeline and H.264 streaming commands serialization.
     TEST(TestSightlineVideoPipeline, BuildVideoPipeline)
     {
-        MsgSetVideoParameters vidMsg {};
+        MsgSetVideoParameters vidMsg { };
         vidMsg.autoChop = 1U;
         vidMsg.chopTop = 16U;
         vidMsg.chopBottom = 16U;
@@ -61,7 +66,7 @@ namespace {
         const auto facadeVidPkt = SightlineProtocolBuilder::buildSetVideoParameters(vidMsg);
         EXPECT_EQ(vidPkt, facadeVidPkt);
 
-        MsgSetVideoMode modeMsg {};
+        MsgSetVideoMode modeMsg { };
         modeMsg.cameraIndex = 0U;
         modeMsg.freeze = 0U;
         modeMsg.digitalZoom = 150U;
@@ -70,7 +75,7 @@ namespace {
         const auto modePkt = SightlineCaptureBuilder::buildSetVideoMode(modeMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(modePkt), MessageId::SetVideoMode);
 
-        MsgSetVideoEnhancement enhMsg {};
+        MsgSetVideoEnhancement enhMsg { };
         enhMsg.cameraIndex = 0U;
         enhMsg.contrast = 65U;
         enhMsg.brightness = 55U;
@@ -79,7 +84,7 @@ namespace {
         const auto enhPkt = SightlineEnhancementBuilder::buildSetVideoEnhance(enhMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(enhPkt), MessageId::SetVideoEnhancementParameters);
 
-        MsgSetDisplayParameters dispMsg {};
+        MsgSetDisplayParameters dispMsg { };
         dispMsg.displayIndex = 0U;
         dispMsg.cameraIndex = 0U;
         dispMsg.xOffset = 100U;
@@ -89,7 +94,7 @@ namespace {
         const auto dispPkt = SightlineDisplayBuilder::buildSetDisplayParams(dispMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(dispPkt), MessageId::SetDisplayParameters);
 
-        MsgSetEthernetVideoParameters ethMsg {};
+        MsgSetEthernetVideoParameters ethMsg { };
         ethMsg.quality = 85U;
         ethMsg.foveal = 10U;
         ethMsg.frameStep = 2U;
@@ -108,7 +113,7 @@ namespace {
         EXPECT_EQ(ethPayload[4], 0x02U);
         EXPECT_EQ(ethPayload[5], 0x00U);
 
-        MsgSetEthernetDisplayParameters dispEthMsg {};
+        MsgSetEthernetDisplayParameters dispEthMsg { };
         dispEthMsg.protocol = 1U;
         dispEthMsg.ipAddress = 0xE0000001U;
         dispEthMsg.port = 15004U;
@@ -125,7 +130,7 @@ namespace {
         EXPECT_EQ(dispEthPayload[3], 0x00U);
         EXPECT_EQ(dispEthPayload[4], 0x01U);
 
-        MsgSetH264Parameters h264Msg {};
+        MsgSetH264Parameters h264Msg { };
         h264Msg.targetBitrateBps = 8000000U;
         h264Msg.intraFrameInterval = 60U;
         h264Msg.lfDisableIdc = 0U;
@@ -140,14 +145,14 @@ namespace {
         const auto h264Payload = SightlineFraming::extractPayload(h264Pkt);
         ASSERT_EQ(h264Payload.size(), 13U);
 
-        MsgSetSDRecordingParameters sdMsg {};
+        MsgSetSDRecordingParameters sdMsg { };
         sdMsg.recordingState = 1U;
         sdMsg.cameraIndex = 0U;
         sdMsg.filenamePrefix = "MISSION_01";
         const auto sdPkt = SightlineRecordingBuilder::buildSetSDRecording(sdMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(sdPkt), MessageId::SetSDRecordingParameters);
 
-        MsgStreamingControl streamMsg {};
+        MsgStreamingControl streamMsg { };
         streamMsg.streamIndex = 0U;
         streamMsg.action = 1U;
         const auto streamPkt = SightlineCompressionBuilder::buildStreamingControl(streamMsg);
@@ -169,7 +174,7 @@ namespace {
         };
         const auto pkt = SightlineFraming::buildPacket(MessageId::CurrentVideoParameters, payload);
 
-        MsgSetVideoParameters out {};
+        MsgSetVideoParameters out { };
         ASSERT_TRUE(SightlineCaptureParser::parseVideoParameters(pkt, out));
         EXPECT_EQ(out.autoChop, 1U);
         EXPECT_EQ(out.chopTop, 16U);
@@ -181,7 +186,7 @@ namespace {
         EXPECT_EQ(out.cameraIndex, 0U);
 
         // Verify facade equivalence
-        MsgSetVideoParameters facadeOut {};
+        MsgSetVideoParameters facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseVideoParameters(pkt, facadeOut));
         EXPECT_EQ(facadeOut.autoChop, 1U);
     }
@@ -189,7 +194,7 @@ namespace {
     /// @brief Verify current H.264 parameters deserialization (0x56).
     TEST(TestSightlineVideoPipeline, ParseH264Parameters)
     {
-        std::vector<std::uint8_t> payload {};
+        std::vector<std::uint8_t> payload { };
         // targetBitrateBps = 4000000 (0x003D0900)
         payload.push_back(0x00U);
         payload.push_back(0x09U);
@@ -207,7 +212,7 @@ namespace {
 
         const auto pkt = SightlineFraming::buildPacket(MessageId::CurrentH264Parameters, payload);
 
-        MsgSetH264Parameters out {};
+        MsgSetH264Parameters out { };
         ASSERT_TRUE(SightlineCompressionParser::parseH264Parameters(pkt, out));
         EXPECT_EQ(out.targetBitrateBps, 4000000U);
         EXPECT_EQ(out.intraFrameInterval, 30U);
@@ -220,7 +225,7 @@ namespace {
         EXPECT_EQ(out.maxQp, 40U);
 
         // Verify facade equivalence
-        MsgSetH264Parameters facadeOut {};
+        MsgSetH264Parameters facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseH264Parameters(pkt, facadeOut));
         EXPECT_EQ(facadeOut.targetBitrateBps, 4000000U);
     }
@@ -241,20 +246,20 @@ namespace {
         EXPECT_EQ(getSnapPkt, SightlineProtocolBuilder::buildGetSnapShot(0U));
 
         // Snapshot parsing
-        std::vector<std::uint8_t> payload {};
+        std::vector<std::uint8_t> payload { };
         payload.push_back(0U); // cameraIndex
         payload.push_back(1U); // status: Success
         const std::string fn = "snap001.jpg";
         SightlineFraming::appendString(payload, fn);
 
         const auto snapPkt = SightlineFraming::buildPacket(MessageId::CurrentSnapShot, payload);
-        MsgCurrentSnapShot snapOut {};
+        MsgCurrentSnapShot snapOut { };
         ASSERT_TRUE(SightlineRecordingParser::parseSnapShot(snapPkt, snapOut));
         EXPECT_EQ(snapOut.cameraIndex, 0U);
         EXPECT_EQ(snapOut.status, 1U);
         EXPECT_EQ(snapOut.fileName, "snap001.jpg");
 
-        MsgCurrentSnapShot facadeSnapOut {};
+        MsgCurrentSnapShot facadeSnapOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseSnapShot(snapPkt, facadeSnapOut));
         EXPECT_EQ(facadeSnapOut.fileName, "snap001.jpg");
     }
@@ -262,7 +267,7 @@ namespace {
     /// @brief Verify camera switch command serialization and parsing.
     TEST(TestSightlineVideoPipeline, BuildAndParseCameraSwitch)
     {
-        MsgCameraSwitch msg {};
+        MsgCameraSwitch msg { };
         msg.cameraIndex = 2U;
         msg.switchType = 1U; // Smooth dissolve
         msg.flags = 0x05U;
@@ -271,13 +276,13 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::CameraSwitch);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildCameraSwitch(msg));
 
-        MsgCameraSwitch out {};
+        MsgCameraSwitch out { };
         ASSERT_TRUE(SightlineCaptureParser::parseCameraSwitch(pkt, out));
         EXPECT_EQ(out.cameraIndex, 2U);
         EXPECT_EQ(out.switchType, 1U);
         EXPECT_EQ(out.flags, 0x05U);
 
-        MsgCameraSwitch facadeOut {};
+        MsgCameraSwitch facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseCameraSwitch(pkt, facadeOut));
         EXPECT_EQ(facadeOut.switchType, 1U);
     }
@@ -285,7 +290,7 @@ namespace {
     /// @brief Verify advanced capture parameters serialization, parsing, and query.
     TEST(TestSightlineVideoPipeline, BuildAndParseAdvCapture)
     {
-        MsgAdvancedCaptureParameters msg {};
+        MsgAdvancedCaptureParameters msg { };
         msg.cameraIndex = 1U;
         msg.bitDepth = 12U;
         msg.laneCount = 4U;
@@ -296,7 +301,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::AdvancedCaptureParameters);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetAdvCaptureParams(msg));
 
-        MsgAdvancedCaptureParameters out {};
+        MsgAdvancedCaptureParameters out { };
         ASSERT_TRUE(SightlineCaptureParser::parseAdvCaptureParams(pkt, out));
         EXPECT_EQ(out.cameraIndex, 1U);
         EXPECT_EQ(out.bitDepth, 12U);
@@ -304,7 +309,7 @@ namespace {
         EXPECT_EQ(out.pixelClockHz, 74250000U);
         EXPECT_EQ(out.syncFlags, 0x03U);
 
-        MsgAdvancedCaptureParameters facadeOut {};
+        MsgAdvancedCaptureParameters facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseAdvCaptureParams(pkt, facadeOut));
         EXPECT_EQ(facadeOut.pixelClockHz, 74250000U);
 
@@ -316,7 +321,7 @@ namespace {
     /// @brief Verify digital video framing parser parameters serialization, parsing, and query.
     TEST(TestSightlineVideoPipeline, BuildAndParseDigiVideoParser)
     {
-        MsgDigitalVideoParserParameters msg {};
+        MsgDigitalVideoParserParameters msg { };
         msg.cameraIndex = 0U;
         msg.videoStandard = 2U; // BT.1120
         msg.embeddedSync = 1U;
@@ -327,7 +332,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::DigitalVideoParserParameters);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetDigiVideoParser(msg));
 
-        MsgDigitalVideoParserParameters out {};
+        MsgDigitalVideoParserParameters out { };
         ASSERT_TRUE(SightlineCaptureParser::parseDigiVideoParser(pkt, out));
         EXPECT_EQ(out.cameraIndex, 0U);
         EXPECT_EQ(out.videoStandard, 2U);
@@ -335,7 +340,7 @@ namespace {
         EXPECT_EQ(out.clockEdge, 1U);
         EXPECT_EQ(out.flags, 0x08U);
 
-        MsgDigitalVideoParserParameters facadeOut {};
+        MsgDigitalVideoParserParameters facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseDigiVideoParser(pkt, facadeOut));
         EXPECT_EQ(facadeOut.videoStandard, 2U);
 
@@ -351,7 +356,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(queryPkt), MessageId::GetParameters);
         EXPECT_EQ(queryPkt, SightlineProtocolBuilder::buildGetCameraCapabilities(1U));
 
-        std::vector<std::uint8_t> payload {};
+        std::vector<std::uint8_t> payload { };
         payload.push_back(1U); // cameraIndex
         SightlineFraming::appendU16Le(payload, 3840U); // maxWidth
         SightlineFraming::appendU16Le(payload, 2160U); // maxHeight
@@ -361,7 +366,7 @@ namespace {
 
         const auto pkt = SightlineFraming::buildPacket(MessageId::CameraCapabilities, payload);
 
-        MsgCameraCapabilities out {};
+        MsgCameraCapabilities out { };
         ASSERT_TRUE(SightlineCaptureParser::parseCameraCapabilities(pkt, out));
         EXPECT_EQ(out.cameraIndex, 1U);
         EXPECT_EQ(out.maxWidth, 3840U);
@@ -370,7 +375,7 @@ namespace {
         EXPECT_EQ(out.supportsZoom, 1U);
         EXPECT_EQ(out.flags, 0x10U);
 
-        MsgCameraCapabilities facadeOut {};
+        MsgCameraCapabilities facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseCameraCapabilities(pkt, facadeOut));
         EXPECT_EQ(facadeOut.maxWidth, 3840U);
     }
@@ -379,7 +384,7 @@ namespace {
     /// 0x70 / 0x71).
     TEST(TestSightlineVideoPipeline, BuildAndParseDigitalCameraParams)
     {
-        MsgDigitalCameraParameters msg {};
+        MsgDigitalCameraParameters msg { };
         msg.cameraIndex = 1U;
         msg.mode = AutoGainMode::Manual;
         msg.agHoldmax = 20271U;
@@ -402,7 +407,7 @@ namespace {
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetDigitalCameraParams(msg));
 
         // Test parser on SetDigitalCameraParameters (0x70)
-        MsgDigitalCameraParameters out {};
+        MsgDigitalCameraParameters out { };
         ASSERT_TRUE(SightlineCaptureParser::parseDigitalCameraParams(pkt, out));
         EXPECT_EQ(out.cameraIndex, 1U);
         EXPECT_EQ(out.mode, AutoGainMode::Manual);
@@ -422,7 +427,7 @@ namespace {
         EXPECT_EQ(out.highBitDepthFlags, 0x00000001U);
 
         // Test facade parser
-        MsgDigitalCameraParameters facadeOut {};
+        MsgDigitalCameraParameters facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseDigitalCameraParams(pkt, facadeOut));
         EXPECT_EQ(facadeOut.agHoldmax, 20271U);
         EXPECT_EQ(facadeOut.agHoldmin, 18870U);
@@ -430,19 +435,19 @@ namespace {
         // Test parser on CurrentDigitalCameraParameters (0x71)
         const auto payload = SightlineFraming::extractPayload(pkt);
         const auto currPkt = SightlineFraming::buildPacket(MessageId::CurrentDigitalCameraParameters, payload);
-        MsgDigitalCameraParameters currOut {};
+        MsgDigitalCameraParameters currOut { };
         ASSERT_TRUE(SightlineCaptureParser::parseDigitalCameraParams(currPkt, currOut));
         EXPECT_EQ(currOut.cameraIndex, 1U);
         EXPECT_EQ(currOut.agHoldmax, 20271U);
 
         // Test partial/minimum payload parsing (6 bytes)
-        std::vector<std::uint8_t> shortPayload {};
+        std::vector<std::uint8_t> shortPayload { };
         shortPayload.push_back(0U); // cameraIndex
         shortPayload.push_back(static_cast<std::uint8_t>(AutoGainMode::HighBitDepthAuto));
         SightlineFraming::appendU16Le(shortPayload, 50000U); // agHoldmax
         SightlineFraming::appendU16Le(shortPayload, 1000U); // agHoldmin
         const auto shortPkt = SightlineFraming::buildPacket(MessageId::CurrentDigitalCameraParameters, shortPayload);
-        MsgDigitalCameraParameters shortOut {};
+        MsgDigitalCameraParameters shortOut { };
         ASSERT_TRUE(SightlineCaptureParser::parseDigitalCameraParams(shortPkt, shortOut));
         EXPECT_EQ(shortOut.cameraIndex, 0U);
         EXPECT_EQ(shortOut.mode, AutoGainMode::HighBitDepthAuto);
@@ -458,7 +463,7 @@ namespace {
     /// @brief Verify 4-point projective homography calibration serialization, parsing, and query.
     TEST(TestSightlineVideoPipeline, BuildAndParseFourAlignPoints)
     {
-        MsgFourAlignPoints msg {};
+        MsgFourAlignPoints msg { };
         msg.index = 2U; // Preset slot index [0..4]
         msg.points[0] = { 10, 20, 12, 22 };
         msg.points[1] = { 600, 25, 602, 27 };
@@ -471,7 +476,7 @@ namespace {
         const auto payload = SightlineFraming::extractPayload(pkt);
         ASSERT_EQ(payload.size(), 33U); // 1 byte index + 4 * 8 bytes = 33 bytes
 
-        MsgFourAlignPoints out {};
+        MsgFourAlignPoints out { };
         ASSERT_TRUE(SightlineBlendingParser::parseFourAlignPoints(pkt, out));
         EXPECT_EQ(out.index, 2U);
         EXPECT_EQ(out.points[0].leftCol, 10);
@@ -481,7 +486,7 @@ namespace {
         EXPECT_EQ(out.points[2].leftCol, 610);
         EXPECT_EQ(out.points[2].rightRow, 452);
 
-        MsgFourAlignPoints facadeOut {};
+        MsgFourAlignPoints facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseFourAlignPoints(pkt, facadeOut));
         EXPECT_EQ(facadeOut.points[1].leftCol, 600);
 
@@ -493,7 +498,7 @@ namespace {
     /// @brief Verify fine-tune blend alignment serialization, parsing, and query.
     TEST(TestSightlineVideoPipeline, BuildAndParseBlendAlign)
     {
-        MsgBlendAlign msg {};
+        MsgBlendAlign msg { };
         msg.index = 1U;
         msg.vertical = -15;
         msg.horizontal = 8;
@@ -507,7 +512,7 @@ namespace {
         const auto payload = SightlineFraming::extractPayload(pkt);
         ASSERT_EQ(payload.size(), 11U); // 1 byte index + 5 * 2 bytes = 11 bytes
 
-        MsgBlendAlign out {};
+        MsgBlendAlign out { };
         ASSERT_TRUE(SightlineBlendingParser::parseBlendAlign(pkt, out));
         EXPECT_EQ(out.index, 1U);
         EXPECT_EQ(out.vertical, -15);
@@ -516,7 +521,7 @@ namespace {
         EXPECT_EQ(out.zoom, 4096U);
         EXPECT_EQ(out.hzoom, 4096U);
 
-        MsgBlendAlign facadeOut {};
+        MsgBlendAlign facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseBlendAlign(pkt, facadeOut));
         EXPECT_EQ(facadeOut.zoom, 4096U);
 
@@ -530,28 +535,28 @@ namespace {
     {
         const std::vector<std::uint8_t> payload {
             0x01U, // absOffZoom
-            10U,   // up
-            25U,   // right
-            4U,    // down
-            5U,    // left
-            128U,  // rotation
-            100U,  // zoom
+            10U, // up
+            25U, // right
+            4U, // down
+            5U, // left
+            128U, // rotation
+            100U, // zoom
             static_cast<std::uint8_t>(BlendMode::ThermalBlendWarpEo), // mode
-            200U,  // amt
-            64U,   // hue
+            200U, // amt
+            64U, // hue
             0x02U, // flags (UseHueForColor)
             0x00U, // reserved
-            0U,    // warpIndex
-            1U,    // fixedIndex
-            1U,    // usePresetAlign
-            2U,    // presetAlignIndex
-            110U,  // hzoom
-            150U,  // hotStart
-            50U    // coldEnd
+            0U, // warpIndex
+            1U, // fixedIndex
+            1U, // usePresetAlign
+            2U, // presetAlignIndex
+            110U, // hzoom
+            150U, // hotStart
+            50U // coldEnd
         };
         const auto pkt = SightlineFraming::buildPacket(MessageId::CurrentBlendParameters, payload);
 
-        MsgCurrentBlendParameters current {};
+        MsgCurrentBlendParameters current { };
         ASSERT_TRUE(SightlineBlendingParser::parseCurrentBlendParameters(pkt, current));
         EXPECT_EQ(current.absOffZoom, 0x01U);
         EXPECT_EQ(current.up, 10U);
@@ -566,9 +571,9 @@ namespace {
         EXPECT_EQ(current.coldEnd, 50U);
 
         // Also test mapping via parseBlendParameters facade
-        MsgSetBlendParameters mapped {};
+        MsgSetBlendParameters mapped { };
         ASSERT_TRUE(SightlineProtocolParser::parseBlendParameters(pkt, mapped));
-        EXPECT_EQ(mapped.vertical, 6);   // up - down = 10 - 4 = 6
+        EXPECT_EQ(mapped.vertical, 6); // up - down = 10 - 4 = 6
         EXPECT_EQ(mapped.horizontal, 20); // right - left = 25 - 5 = 20
         EXPECT_EQ(mapped.mode, BlendMode::ThermalBlendWarpEo);
         EXPECT_EQ(mapped.amt, 200U);
@@ -577,7 +582,7 @@ namespace {
     /// @brief Verify 26-byte MultipleAlignment serialization, parsing, and query.
     TEST(TestSightlineVideoPipeline, BuildAndParseMultipleAlignment)
     {
-        MsgSetMultipleAlignment msg {};
+        MsgSetMultipleAlignment msg { };
         msg.nAlignments = 2U;
         msg.alignment[0] = { 10U, 12U, 5U, 100U, 105U };
         msg.alignment[1] = { 20U, 22U, 10U, 110U, 115U };
@@ -588,7 +593,7 @@ namespace {
         const auto payload = SightlineFraming::extractPayload(pkt);
         ASSERT_EQ(payload.size(), 26U); // 1 + 5*5 = 26 bytes
 
-        MsgSetMultipleAlignment out {};
+        MsgSetMultipleAlignment out { };
         ASSERT_TRUE(SightlineBlendingParser::parseMultipleAlignment(pkt, out));
         EXPECT_EQ(out.nAlignments, 2U);
         EXPECT_EQ(out.alignment[0].vertical, 10U);
@@ -596,7 +601,7 @@ namespace {
         EXPECT_EQ(out.alignment[0].rotate, 5U);
         EXPECT_EQ(out.alignment[1].zoom, 110U);
 
-        MsgSetMultipleAlignment facadeOut {};
+        MsgSetMultipleAlignment facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseMultipleAlignment(pkt, facadeOut));
         EXPECT_EQ(facadeOut.alignment[1].hzoom, 115U);
 
@@ -608,7 +613,7 @@ namespace {
     /// @brief Verify video display routing serialization, parsing, and query.
     TEST(TestSightlineVideoPipeline, BuildAndParseVideoDisplay)
     {
-        MsgVideoDisplay msg {};
+        MsgVideoDisplay msg { };
         msg.displayIndex = 0U;
         msg.cameraIndex = 1U;
         msg.aspectRatio = 2U; // 16:9
@@ -619,7 +624,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::VideoDisplay);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetVideoDisplay(msg));
 
-        MsgVideoDisplay out {};
+        MsgVideoDisplay out { };
         ASSERT_TRUE(SightlineDisplayParser::parseVideoDisplay(pkt, out));
         EXPECT_EQ(out.displayIndex, 0U);
         EXPECT_EQ(out.cameraIndex, 1U);
@@ -627,7 +632,7 @@ namespace {
         EXPECT_EQ(out.rotation, 1U);
         EXPECT_EQ(out.mirror, 0U);
 
-        MsgVideoDisplay facadeOut {};
+        MsgVideoDisplay facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseVideoDisplay(pkt, facadeOut));
         EXPECT_EQ(facadeOut.aspectRatio, 2U);
 
@@ -639,7 +644,7 @@ namespace {
     /// @brief Verify multi-display PiP split screen serialization, parsing, and query.
     TEST(TestSightlineVideoPipeline, BuildAndParseMultiDisplay)
     {
-        MsgMultiDisplay msg {};
+        MsgMultiDisplay msg { };
         msg.displayIndex = 0U;
         msg.layout = 1U; // PiP
         msg.pipCameraIndex = 2U;
@@ -652,7 +657,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::MultiDisplay);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetMultiDisplay(msg));
 
-        MsgMultiDisplay out {};
+        MsgMultiDisplay out { };
         ASSERT_TRUE(SightlineDisplayParser::parseMultiDisplay(pkt, out));
         EXPECT_EQ(out.displayIndex, 0U);
         EXPECT_EQ(out.layout, 1U);
@@ -662,7 +667,7 @@ namespace {
         EXPECT_EQ(out.pipWidth, 480U);
         EXPECT_EQ(out.pipHeight, 270U);
 
-        MsgMultiDisplay facadeOut {};
+        MsgMultiDisplay facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseMultiDisplay(pkt, facadeOut));
         EXPECT_EQ(facadeOut.pipWidth, 480U);
 
@@ -673,7 +678,7 @@ namespace {
 
     TEST(SightlineEnhancementTest, FullEnhancementEncodingAndDecoding)
     {
-        MsgSetVideoEnhancementFull msg {};
+        MsgSetVideoEnhancementFull msg { };
         msg.cameraIndex = 1U;
         msg.mode = ContrastMode::Lap16;
         msg.sharpening = 12U;
@@ -704,7 +709,7 @@ namespace {
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetVideoEnhanceFull(msg));
 
         // Test parser
-        MsgSetVideoEnhancementFull parsed {};
+        MsgSetVideoEnhancementFull parsed { };
         ASSERT_TRUE(SightlineEnhancementParser::parseVideoEnhanceFull(pkt, parsed));
         EXPECT_EQ(parsed.cameraIndex, 1U);
         EXPECT_EQ(parsed.mode, ContrastMode::Lap16);
@@ -731,12 +736,12 @@ namespace {
         EXPECT_TRUE(parsed.normalizeKernel);
 
         // Test facade parser
-        MsgSetVideoEnhancementFull facadeParsed {};
+        MsgSetVideoEnhancementFull facadeParsed { };
         ASSERT_TRUE(SightlineProtocolParser::parseVideoEnhanceFull(pkt, facadeParsed));
         EXPECT_EQ(facadeParsed.mode, ContrastMode::Lap16);
 
         // Test legacy parser interoperability
-        MsgSetVideoEnhancement legacyParsed {};
+        MsgSetVideoEnhancement legacyParsed { };
         ASSERT_TRUE(SightlineEnhancementParser::parseVideoEnhance(pkt, legacyParsed));
         EXPECT_EQ(legacyParsed.cameraIndex, 1U);
         EXPECT_EQ(legacyParsed.sharpening, 12U);
@@ -759,14 +764,14 @@ namespace {
 
     TEST(SightlineEnhancementTest, CustomKernelSizes)
     {
-        MsgSetVideoEnhancementFull msg {};
+        MsgSetVideoEnhancementFull msg { };
         msg.cameraIndex = 0U;
         // 5x5 kernel (25 elements)
         msg.customKernel.assign(25U, 1);
         msg.normalizeKernel = false;
 
         const auto pkt = SightlineEnhancementBuilder::buildSetVideoEnhanceFull(msg);
-        MsgSetVideoEnhancementFull parsed {};
+        MsgSetVideoEnhancementFull parsed { };
         ASSERT_TRUE(SightlineEnhancementParser::parseVideoEnhanceFull(pkt, parsed));
         ASSERT_EQ(parsed.customKernel.size(), 25U);
         EXPECT_FALSE(parsed.normalizeKernel);
@@ -826,7 +831,7 @@ namespace {
 
     TEST(RecordingValidatorTest, SnapshotValidation)
     {
-        MsgDoSnapShotV2 msg {};
+        MsgDoSnapShotV2 msg { };
         msg.sequenceId = 1U;
         msg.cameraIndex = 0U;
         msg.format = SnapshotFormat::Jpeg;
@@ -880,7 +885,7 @@ namespace {
 
     TEST(TestSightlineVideoPipeline, CommandAckRoundTrip)
     {
-        MsgCommandAck inAck {};
+        MsgCommandAck inAck { };
         inAck.sequenceId = 0x1A2BU;
         inAck.originalMsgId = static_cast<std::uint8_t>(MessageId::SetFileRecordingParamsV2);
         inAck.statusCode = RecordingStatusCode::Success;
@@ -891,7 +896,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::CommandAck);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildCmdAck(inAck));
 
-        MsgCommandAck outAck {};
+        MsgCommandAck outAck { };
         ASSERT_TRUE(SightlineRecordingParser::parseCmdAck(pkt, outAck));
         EXPECT_EQ(outAck.sequenceId, 0x1A2BU);
         EXPECT_EQ(outAck.originalMsgId, static_cast<std::uint8_t>(MessageId::SetFileRecordingParamsV2));
@@ -900,14 +905,14 @@ namespace {
         EXPECT_EQ(outAck.subsystemState, 0x03U);
 
         // Facade equivalence
-        MsgCommandAck facadeAck {};
+        MsgCommandAck facadeAck { };
         ASSERT_TRUE(SightlineProtocolParser::parseCmdAck(pkt, facadeAck));
         EXPECT_EQ(facadeAck.sequenceId, 0x1A2BU);
     }
 
     TEST(TestSightlineVideoPipeline, SetFileRecordingV2RoundTrip)
     {
-        MsgSetFileRecordingParamsV2 inMsg {};
+        MsgSetFileRecordingParamsV2 inMsg { };
         inMsg.sequenceId = 42U;
         inMsg.cameraIndex = 1U;
         inMsg.action = RecordingAction::Start;
@@ -921,7 +926,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetFileRecordingParamsV2);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetFileRecordingV2(inMsg));
 
-        MsgSetFileRecordingParamsV2 outMsg {};
+        MsgSetFileRecordingParamsV2 outMsg { };
         ASSERT_TRUE(SightlineRecordingParser::parseSetFileRecordingV2(pkt, outMsg));
         EXPECT_EQ(outMsg.sequenceId, 42U);
         EXPECT_EQ(outMsg.cameraIndex, 1U);
@@ -933,14 +938,14 @@ namespace {
         EXPECT_EQ(outMsg.baseFilename, "Flight_Record");
 
         // Facade equivalence
-        MsgSetFileRecordingParamsV2 facadeMsg {};
+        MsgSetFileRecordingParamsV2 facadeMsg { };
         ASSERT_TRUE(SightlineProtocolParser::parseSetFileRecordingV2(pkt, facadeMsg));
         EXPECT_EQ(facadeMsg.baseFilename, "Flight_Record");
     }
 
     TEST(TestSightlineVideoPipeline, DoSnapShotV2RoundTrip)
     {
-        MsgDoSnapShotV2 inSnap {};
+        MsgDoSnapShotV2 inSnap { };
         inSnap.sequenceId = 99U;
         inSnap.cameraIndex = 0xFFU; // All cameras
         inSnap.format = SnapshotFormat::Slraw;
@@ -953,7 +958,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::DoSnapShotV2);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildDoSnapShotV2(inSnap));
 
-        MsgDoSnapShotV2 outSnap {};
+        MsgDoSnapShotV2 outSnap { };
         ASSERT_TRUE(SightlineRecordingParser::parseDoSnapShotV2(pkt, outSnap));
         EXPECT_EQ(outSnap.sequenceId, 99U);
         EXPECT_EQ(outSnap.cameraIndex, 0xFFU);
@@ -964,7 +969,7 @@ namespace {
         EXPECT_EQ(outSnap.customFilename, "RawBurst");
 
         // Facade equivalence
-        MsgDoSnapShotV2 facadeSnap {};
+        MsgDoSnapShotV2 facadeSnap { };
         ASSERT_TRUE(SightlineProtocolParser::parseDoSnapShotV2(pkt, facadeSnap));
         EXPECT_EQ(facadeSnap.customFilename, "RawBurst");
     }
@@ -979,18 +984,18 @@ namespace {
         EXPECT_EQ(ringBuffer.droppedCount(), 0U);
         EXPECT_EQ(ringBuffer.utilizationPercent(), 0U);
 
-        RecordingChunk c1 {};
+        RecordingChunk c1 { };
         c1.timestampUs = 1000U;
         c1.cameraIndex = 0U;
         c1.data = { 0x01, 0x02 };
 
-        RecordingChunk c2 {};
+        RecordingChunk c2 { };
         c2.timestampUs = 2000U;
 
-        RecordingChunk c3 {};
+        RecordingChunk c3 { };
         c3.timestampUs = 3000U;
 
-        RecordingChunk c4 {};
+        RecordingChunk c4 { };
         c4.timestampUs = 4000U;
 
         EXPECT_TRUE(ringBuffer.push(std::move(c1)));
@@ -1005,7 +1010,7 @@ namespace {
         EXPECT_EQ(ringBuffer.size(), 4U);
 
         // Buffer full - next push must drop
-        RecordingChunk c5 {};
+        RecordingChunk c5 { };
         c5.timestampUs = 5000U;
         EXPECT_FALSE(ringBuffer.push(std::move(c5)));
         EXPECT_EQ(ringBuffer.droppedCount(), 1U);
@@ -1018,12 +1023,12 @@ namespace {
         EXPECT_EQ(ringBuffer.size(), 3U);
         EXPECT_FALSE(ringBuffer.full());
 
-        RecordingChunk c6 {};
+        RecordingChunk c6 { };
         c6.timestampUs = 6000U;
         EXPECT_TRUE(ringBuffer.push(std::move(c6)));
         EXPECT_TRUE(ringBuffer.full());
 
-        std::vector<RecordingChunk> drained {};
+        std::vector<RecordingChunk> drained { };
         while (auto opt = ringBuffer.pop()) {
             drained.push_back(std::move(*opt));
         }
@@ -1040,7 +1045,7 @@ namespace {
 
     TEST(TestSightlineVideoPipeline, StorageRetentionManagerPrune)
     {
-        StorageRetentionManager manager {};
+        StorageRetentionManager manager { };
 
         std::vector<FileMetadataEntry> entries { { "video_001.ts", 100000000ULL, 1000U, false },
             { "video_002.ts", 200000000ULL, 2000U, false }, { "video_003.ts", 300000000ULL, 3000U, false },
@@ -1077,7 +1082,7 @@ namespace {
 
     TEST(TestSightlineVideoPipeline, RecordingEventRoundTrip)
     {
-        MsgFileRecordingEvent inEvt {};
+        MsgFileRecordingEvent inEvt { };
         inEvt.timestampUs = 987654321ULL;
         inEvt.cameraIndex = 1U;
         inEvt.eventType = RecordingEventType::Stopped;
@@ -1090,7 +1095,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::FileRecordingEvent);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildRecordingEvent(inEvt));
 
-        MsgFileRecordingEvent outEvt {};
+        MsgFileRecordingEvent outEvt { };
         ASSERT_TRUE(SightlineRecordingParser::parseRecordingEvent(pkt, outEvt));
         EXPECT_EQ(outEvt.timestampUs, 987654321ULL);
         EXPECT_EQ(outEvt.cameraIndex, 1U);
@@ -1101,14 +1106,14 @@ namespace {
         EXPECT_EQ(outEvt.eventPayload, "Mission_01_0001.ts");
 
         // Facade equivalence
-        MsgFileRecordingEvent facadeEvt {};
+        MsgFileRecordingEvent facadeEvt { };
         ASSERT_TRUE(SightlineProtocolParser::parseRecordingEvent(pkt, facadeEvt));
         EXPECT_EQ(facadeEvt.eventPayload, "Mission_01_0001.ts");
     }
 
     TEST(TestSightlineVideoPipeline, RecordingStatusV2RoundTrip)
     {
-        MsgCurrentRecordingStatusV2 inStatus {};
+        MsgCurrentRecordingStatusV2 inStatus { };
         inStatus.sequenceId = 200U;
         inStatus.cameraIndex = 2U;
         inStatus.recordingState = 1U;
@@ -1125,7 +1130,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::CurrentRecordingStatusV2);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildRecordingStatusV2(inStatus));
 
-        MsgCurrentRecordingStatusV2 outStatus {};
+        MsgCurrentRecordingStatusV2 outStatus { };
         ASSERT_TRUE(SightlineRecordingParser::parseRecordingStatusV2(pkt, outStatus));
         EXPECT_EQ(outStatus.sequenceId, 200U);
         EXPECT_EQ(outStatus.cameraIndex, 2U);
@@ -1140,14 +1145,14 @@ namespace {
         EXPECT_EQ(outStatus.activeFilename, "ActiveRec.ts");
 
         // Facade equivalence
-        MsgCurrentRecordingStatusV2 facadeStatus {};
+        MsgCurrentRecordingStatusV2 facadeStatus { };
         ASSERT_TRUE(SightlineProtocolParser::parseRecordingStatusV2(pkt, facadeStatus));
         EXPECT_EQ(facadeStatus.activeFilename, "ActiveRec.ts");
     }
 
     TEST(TestSightlineVideoPipeline, MetadataXmpBuilderRdfAndJpegInjection)
     {
-        XmpGeospatialMetadata meta {};
+        XmpGeospatialMetadata meta { };
         meta.latitudeDeg = 37.774900;
         meta.longitudeDeg = -122.419400;
         meta.absoluteAltitudeM = 125.5;
@@ -1169,7 +1174,7 @@ namespace {
         EXPECT_NE(rdfXml.find("Camera:HorizFOV"), std::string::npos);
         EXPECT_NE(rdfXml.find("Sightline SLA-3000"), std::string::npos);
 
-        XmpGeospatialMetadata parsedMeta {};
+        XmpGeospatialMetadata parsedMeta { };
         ASSERT_TRUE(MetadataXmpBuilder::parseRdfXml(rdfXml, parsedMeta));
         EXPECT_NEAR(parsedMeta.latitudeDeg, 37.774900, 0.0001);
         EXPECT_NEAR(parsedMeta.longitudeDeg, -122.419400, 0.0001);
@@ -1186,7 +1191,7 @@ namespace {
         ASSERT_TRUE(MetadataXmpBuilder::injectXmpIntoJpeg(jpegDummy, meta));
         EXPECT_GT(jpegDummy.size(), 50U);
 
-        std::string extractedXml {};
+        std::string extractedXml { };
         ASSERT_TRUE(MetadataXmpBuilder::extractXmpFromJpeg(jpegDummy, extractedXml));
         EXPECT_EQ(extractedXml, rdfXml);
     }
@@ -1195,10 +1200,10 @@ namespace {
     {
         const auto tempPath = std::filesystem::temp_directory_path() / "sightline_test_tx.mp4";
 
-        std::error_code ec {};
+        std::error_code ec { };
         std::filesystem::remove(tempPath, ec);
 
-        TransactionalStorageWriter writer {};
+        TransactionalStorageWriter writer { };
         ASSERT_TRUE(writer.startTransaction(tempPath.string()));
         EXPECT_TRUE(writer.isActive());
         EXPECT_EQ(writer.destinationPath(), tempPath.string());
@@ -1237,7 +1242,7 @@ namespace {
     TEST(TestSightlineVideoPipeline, RemoteFileSystemMessagesRoundTrip)
     {
         // 1. GetDirectoryListing (0xC8)
-        MsgGetDirectoryListing inGet {};
+        MsgGetDirectoryListing inGet { };
         inGet.sequenceId = 0x5101U;
         inGet.destination = StorageDestination::MicroSD;
         inGet.startIndex = 16U;
@@ -1248,7 +1253,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(getPkt), MessageId::GetDirectoryListing);
         EXPECT_EQ(getPkt, SightlineProtocolBuilder::buildGetDirListing(inGet));
 
-        MsgGetDirectoryListing outGet {};
+        MsgGetDirectoryListing outGet { };
         ASSERT_TRUE(SightlineRecordingParser::parseGetDirListing(getPkt, outGet));
         EXPECT_EQ(outGet.sequenceId, 0x5101U);
         EXPECT_EQ(outGet.destination, StorageDestination::MicroSD);
@@ -1256,24 +1261,24 @@ namespace {
         EXPECT_EQ(outGet.maxEntries, 8U);
         EXPECT_EQ(outGet.pathFilter, "Flight_");
 
-        MsgGetDirectoryListing facadeGet {};
+        MsgGetDirectoryListing facadeGet { };
         ASSERT_TRUE(SightlineProtocolParser::parseGetDirListing(getPkt, facadeGet));
         EXPECT_EQ(facadeGet.pathFilter, "Flight_");
 
         // 2. DirectoryListingReply (0xC9)
-        MsgDirectoryListingReply inReply {};
+        MsgDirectoryListingReply inReply { };
         inReply.sequenceId = 0x5101U;
         inReply.totalFiles = 120U;
         inReply.startIndex = 16U;
 
-        DirListEntry e1 {};
+        DirListEntry e1 { };
         e1.filename = "Flight_0016.ts";
         e1.fileSizeBytes = 1048576000ULL;
         e1.timestampUs = 1609459200000000ULL;
         e1.isPinned = true;
         e1.formatType = 0U;
 
-        DirListEntry e2 {};
+        DirListEntry e2 { };
         e2.filename = "Flight_0017.mp4";
         e2.fileSizeBytes = 524288000ULL;
         e2.timestampUs = 1609459300000000ULL;
@@ -1287,7 +1292,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(replyPkt), MessageId::DirectoryListingReply);
         EXPECT_EQ(replyPkt, SightlineProtocolBuilder::buildDirListingReply(inReply));
 
-        MsgDirectoryListingReply outReply {};
+        MsgDirectoryListingReply outReply { };
         ASSERT_TRUE(SightlineRecordingParser::parseDirListingReply(replyPkt, outReply));
         EXPECT_EQ(outReply.sequenceId, 0x5101U);
         EXPECT_EQ(outReply.totalFiles, 120U);
@@ -1299,12 +1304,12 @@ namespace {
         EXPECT_EQ(outReply.entries[1].filename, "Flight_0017.mp4");
         EXPECT_FALSE(outReply.entries[1].isPinned);
 
-        MsgDirectoryListingReply facadeReply {};
+        MsgDirectoryListingReply facadeReply { };
         ASSERT_TRUE(SightlineProtocolParser::parseDirListingReply(replyPkt, facadeReply));
         EXPECT_EQ(facadeReply.entries.size(), 2U);
 
         // 3. FileStorageManagement (0xCA)
-        MsgFileStorageManagement inMgmt {};
+        MsgFileStorageManagement inMgmt { };
         inMgmt.sequenceId = 0x5102U;
         inMgmt.operation = FileStorageOp::Pin;
         inMgmt.destination = StorageDestination::MicroSD;
@@ -1314,14 +1319,14 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(mgmtPkt), MessageId::FileStorageManagement);
         EXPECT_EQ(mgmtPkt, SightlineProtocolBuilder::buildFileStorageMgmt(inMgmt));
 
-        MsgFileStorageManagement outMgmt {};
+        MsgFileStorageManagement outMgmt { };
         ASSERT_TRUE(SightlineRecordingParser::parseFileStorageMgmt(mgmtPkt, outMgmt));
         EXPECT_EQ(outMgmt.sequenceId, 0x5102U);
         EXPECT_EQ(outMgmt.operation, FileStorageOp::Pin);
         EXPECT_EQ(outMgmt.destination, StorageDestination::MicroSD);
         EXPECT_EQ(outMgmt.targetFilename, "Flight_0016.ts");
 
-        MsgFileStorageManagement facadeMgmt {};
+        MsgFileStorageManagement facadeMgmt { };
         ASSERT_TRUE(SightlineProtocolParser::parseFileStorageMgmt(mgmtPkt, facadeMgmt));
         EXPECT_EQ(facadeMgmt.targetFilename, "Flight_0016.ts");
     }
@@ -1331,7 +1336,7 @@ namespace {
         class MockSecureStorageSink : public ISecureStorageSink {
         public:
             bool failTransfer { false };
-            std::vector<std::pair<std::string, std::string>> uploads {};
+            std::vector<std::pair<std::string, std::string>> uploads { };
 
             [[nodiscard]] bool uploadFile(std::string_view localPath, std::string_view remotePath) override
             {
@@ -1348,7 +1353,7 @@ namespace {
     TEST(TestSightlineVideoPipeline, SecureStorageSyncServiceQueueAndOffload)
     {
         auto mockSink = std::make_shared<MockSecureStorageSink>();
-        SecureSyncConfig cfg {};
+        SecureSyncConfig cfg { };
         cfg.serverHost = "vault.enterprise.internal";
         cfg.serverPort = 22U;
         cfg.remoteDirectory = "/var/recordings/uav_01";
@@ -1512,7 +1517,7 @@ namespace {
         const std::string ha2 = SightlineDigestAuth::computeHa2("DESCRIBE", uri);
         const std::string response = SightlineDigestAuth::computeResponse(ha1, challenge.nonce, ha2);
 
-        DigestResponseParams params {};
+        DigestResponseParams params { };
         params.username = "admin";
         params.realm = challenge.realm;
         params.nonce = challenge.nonce;
@@ -1548,7 +1553,7 @@ namespace {
     TEST(TestSightlineVideoPipeline, DynamicSdpEanCompliance)
     {
         // 1. Multicast RTP MPEG2-TS SDP (EAN-RTSP Section 7)
-        Transport::SdpStreamParams tsParams {};
+        Transport::SdpStreamParams tsParams { };
         tsParams.sessionName = "Sightline Net0 Stream";
         tsParams.originAddress = "192.168.1.15";
         tsParams.destinationIp = "239.255.0.1";
@@ -1569,7 +1574,7 @@ namespace {
         EXPECT_NE(tsSdp.find("b=AS:4000\r\n"), std::string::npos);
 
         // 2. Unicast RTP H.264 SDP (EAN-RTSP Section 8)
-        Transport::SdpStreamParams h264Params {};
+        Transport::SdpStreamParams h264Params { };
         h264Params.sessionName = "Sightline Net1 Stream";
         h264Params.originAddress = "192.168.1.15";
         h264Params.destinationIp = "192.168.1.100";

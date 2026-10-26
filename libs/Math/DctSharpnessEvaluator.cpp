@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 namespace Math {
 
@@ -35,7 +36,7 @@ double DctSharpnessEvaluator::evaluateBlock(const std::uint8_t* block, int strid
         return 0.0;
     }
 
-    double dct[8][8] {};
+    double dct[8][8] { };
     Math::dct8x8(block, stride, dct);
 
     double blockAc = 0.0;
@@ -74,7 +75,7 @@ SharpnessResult DctSharpnessEvaluator::evaluate(
     const std::uint8_t* grayPixels, int width, int height, int stride) const noexcept
 {
     if (!grayPixels || width < 8 || height < 8) {
-        return {};
+        return { };
     }
 
     if (stride <= 0) {
@@ -95,7 +96,7 @@ SharpnessResult DctSharpnessEvaluator::evaluate(
     for (int y = roiY; y + 8 <= roiY + roiH; y += step) {
         for (int x = roiX; x + 8 <= roiX + roiW; x += step) {
             const std::uint8_t* blockPtr = grayPixels + (y * stride) + x;
-            double dct[8][8] {};
+            double dct[8][8] { };
             Math::dct8x8(blockPtr, stride, dct);
 
             // DC component: dct[0][0]
@@ -136,7 +137,7 @@ SharpnessResult DctSharpnessEvaluator::evaluate(
         }
     }
 
-    SharpnessResult result {};
+    SharpnessResult result { };
     if (blockCount > 0U) {
         result.blocksEvaluated = blockCount;
         result.rawScore = totalScore / static_cast<double>(blockCount);

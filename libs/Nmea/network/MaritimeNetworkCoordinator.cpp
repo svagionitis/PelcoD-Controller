@@ -1,15 +1,18 @@
 /// @file MaritimeNetworkCoordinator.cpp
 /// @brief Implementation of MaritimeNetworkCoordinator for multi-transport management and IEC 61162-460 security.
 
+#include <cstdint>
+
 #include "MaritimeNetworkCoordinator.h"
+#include <memory>
+#include <mutex>
+#include <string_view>
+#include <vector>
 
 namespace Nmea::Network {
 
 MaritimeNetworkCoordinator::MaritimeNetworkCoordinator(std::shared_ptr<Iec61162_460Firewall> firewall,
-                                                       std::shared_ptr<Bam::BridgeAlertManager> bam,
-                                                       std::uint16_t tcpPort,
-                                                       std::uint16_t udpPort,
-                                                       std::uint16_t wsPort)
+    std::shared_ptr<Bam::BridgeAlertManager> bam, std::uint16_t tcpPort, std::uint16_t udpPort, std::uint16_t wsPort)
     : m_firewall { std::move(firewall) }
     , m_bam { std::move(bam) }
     , m_tcpServer { std::make_shared<NmeaTcpServer>(tcpPort) }

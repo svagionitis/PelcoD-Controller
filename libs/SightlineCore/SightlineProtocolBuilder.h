@@ -8,6 +8,8 @@
 #include "SightlineTypes.h"
 
 #include <cstdint>
+
+#include <string>
 #include <vector>
 
 namespace Sightline {
@@ -332,8 +334,7 @@ public:
     /// @brief Encodes digital camera auto gain parameters (Message ID 0x70).
     /// @param[in] msg Digital camera AGC parameters.
     /// @return Framed binary packet.
-    [[nodiscard]] static std::vector<std::uint8_t> buildSetDigitalCameraParams(
-        const MsgDigitalCameraParameters& msg);
+    [[nodiscard]] static std::vector<std::uint8_t> buildSetDigitalCameraParams(const MsgDigitalCameraParameters& msg);
 
     /// @brief Encodes query for digital camera parameters (Message ID 0x28 query 0x70).
     /// @param[in] cameraIndex Target camera index.

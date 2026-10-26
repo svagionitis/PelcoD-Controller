@@ -1,15 +1,24 @@
-#include "ViscaDevice.h"
+#include <cstdint>
+
 #include "ViscaBuilder.h"
+#include "ViscaDevice.h"
 #include "ViscaParser.h"
+#include <chrono>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace Visca {
 
-ViscaDevice::ViscaDevice(std::shared_ptr<::Transport::ITransport> transport, uint8_t cameraAddress)
+ViscaDevice::ViscaDevice(std::shared_ptr<::Transport::ITransport> transport, std::uint8_t cameraAddress)
     : m_transport(std::move(transport))
     , m_cameraAddress(cameraAddress)
 {
     if (m_transport) {
-        m_transport->setDataCallback([this](const std::vector<uint8_t>& data) { m_accumulator.addData(data); });
+        m_transport->setDataCallback([this](const std::vector<std::uint8_t>& data) { m_accumulator.addData(data); });
     }
     m_accumulator.setFrameCallback([this](const ViscaFrame& frame) { onFrameReceived(frame); });
 }
@@ -34,25 +43,25 @@ ViscaDevice::~ViscaDevice()
                     CommandResult { false, slot.id, ViscaErrorCode::CommandCanceled, "Device destroying" });
             }
             slot.state = ViscaSocketState::Idle;
-            slot.command = {};
+            slot.command = { };
         }
     }
 
     for (auto& inq : m_inquiryQueue) {
         if (inq.callback) {
-            inq.callback(InquiryResult { false, ViscaFrame {}, "Device destroying" });
+            inq.callback(InquiryResult { false, ViscaFrame { }, "Device destroying" });
         }
     }
     m_inquiryQueue.clear();
 }
 
-void ViscaDevice::setCameraAddress(uint8_t address) noexcept
+void ViscaDevice::setCameraAddress(std::uint8_t address) noexcept
 {
     std::scoped_lock lock(m_mutex);
     m_cameraAddress = address;
 }
 
-uint8_t ViscaDevice::cameraAddress() const noexcept
+std::uint8_t ViscaDevice::cameraAddress() const noexcept
 {
     std::scoped_lock lock(m_mutex);
     return m_cameraAddress;
@@ -88,7 +97,7 @@ CommandResult ViscaDevice::sendCommandSync(const ViscaFrame& command, std::chron
         for (auto& slot : m_sockets) {
             if (slot.state != ViscaSocketState::Idle && slot.command.frame == command) {
                 slot.state = ViscaSocketState::Idle;
-                slot.command = InFlightCommand {};
+                slot.command = InFlightCommand { };
                 collectFramesToSendLocked(framesToSend);
                 break;
             }
@@ -133,7 +142,7 @@ InquiryResult ViscaDevice::sendInquirySync(const ViscaFrame& inquiry, std::chron
     }
 
     m_timeouts.fetch_add(1U, std::memory_order_relaxed);
-    return InquiryResult { false, ViscaFrame {}, "Inquiry timed out waiting for camera response" };
+    return InquiryResult { false, ViscaFrame { }, "Inquiry timed out waiting for camera response" };
 }
 
 void ViscaDevice::sendInquiryAsync(const ViscaFrame& inquiry, std::function<void(const InquiryResult&)> onComplete)
@@ -212,9 +221,9 @@ void ViscaDevice::onFrameReceived(const ViscaFrame& frame)
 {
     TrafficCallback trafficCb { nullptr };
     std::function<void(const CommandResult&)> cmdCallback { nullptr };
-    CommandResult cmdRes {};
+    CommandResult cmdRes { };
     std::function<void(const InquiryResult&)> inqCallback { nullptr };
-    InquiryResult inqRes {};
+    InquiryResult inqRes { };
     std::vector<ViscaFrame> framesToSend;
 
     {
@@ -239,16 +248,17 @@ void ViscaDevice::onFrameReceived(const ViscaFrame& frame)
                 } else if (slot->id == ViscaSocket::Socket2) {
                     m_socket2Processed.fetch_add(1U, std::memory_order_relaxed);
                 }
-                const auto turnaroundUs = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::steady_clock::now() - slot->command.sendTime)
-                                                                    .count());
+                const auto turnaroundUs
+                    = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - slot->command.sendTime)
+                            .count());
                 m_totalTurnaroundUs.fetch_add(turnaroundUs, std::memory_order_relaxed);
                 m_lastTurnaroundUs.store(turnaroundUs, std::memory_order_relaxed);
 
                 slot->state = ViscaSocketState::Idle;
                 cmdCallback = std::move(slot->command.callback);
                 cmdRes = CommandResult { true, slot->id, ViscaErrorCode::None, "" };
-                slot->command = {};
+                slot->command = { };
                 collectFramesToSendLocked(framesToSend);
                 m_cv.notify_all();
             }
@@ -294,7 +304,7 @@ void ViscaDevice::onFrameReceived(const ViscaFrame& frame)
                 slot->state = ViscaSocketState::Idle;
                 cmdCallback = std::move(slot->command.callback);
                 cmdRes = CommandResult { false, slot->id, code, std::string(errStr) };
-                slot->command = {};
+                slot->command = { };
                 collectFramesToSendLocked(framesToSend);
                 m_cv.notify_all();
             } else if (!m_inquiryQueue.empty()) {
@@ -324,49 +334,51 @@ void ViscaDevice::onFrameReceived(const ViscaFrame& frame)
 }
 
 CommandResult ViscaDevice::panTiltDrive(
-    uint8_t panSpeed, uint8_t tiltSpeed, ViscaPanDirection panDir, ViscaTiltDirection tiltDir)
+    std::uint8_t panSpeed, std::uint8_t tiltSpeed, ViscaPanDirection panDir, ViscaTiltDirection tiltDir)
 {
     const ViscaFrame cmd = ViscaBuilder::panTiltDrive(cameraAddress(), panSpeed, tiltSpeed, panDir, tiltDir);
     return sendCommandSync(cmd);
 }
 
-CommandResult ViscaDevice::panTiltStop(uint8_t panSpeed, uint8_t tiltSpeed)
+CommandResult ViscaDevice::panTiltStop(std::uint8_t panSpeed, std::uint8_t tiltSpeed)
 {
     const ViscaFrame cmd = ViscaBuilder::panTiltStop(cameraAddress(), panSpeed, tiltSpeed);
     return sendCommandSync(cmd);
 }
 
-CommandResult ViscaDevice::panTiltUp(uint8_t tiltSpeed)
+CommandResult ViscaDevice::panTiltUp(std::uint8_t tiltSpeed)
 {
     const ViscaFrame cmd = ViscaBuilder::panTiltUp(cameraAddress(), tiltSpeed);
     return sendCommandSync(cmd);
 }
 
-CommandResult ViscaDevice::panTiltDown(uint8_t tiltSpeed)
+CommandResult ViscaDevice::panTiltDown(std::uint8_t tiltSpeed)
 {
     const ViscaFrame cmd = ViscaBuilder::panTiltDown(cameraAddress(), tiltSpeed);
     return sendCommandSync(cmd);
 }
 
-CommandResult ViscaDevice::panTiltLeft(uint8_t panSpeed)
+CommandResult ViscaDevice::panTiltLeft(std::uint8_t panSpeed)
 {
     const ViscaFrame cmd = ViscaBuilder::panTiltLeft(cameraAddress(), panSpeed);
     return sendCommandSync(cmd);
 }
 
-CommandResult ViscaDevice::panTiltRight(uint8_t panSpeed)
+CommandResult ViscaDevice::panTiltRight(std::uint8_t panSpeed)
 {
     const ViscaFrame cmd = ViscaBuilder::panTiltRight(cameraAddress(), panSpeed);
     return sendCommandSync(cmd);
 }
 
-CommandResult ViscaDevice::panTiltAbsolute(uint8_t panSpeed, uint8_t tiltSpeed, int16_t panPos, int16_t tiltPos)
+CommandResult ViscaDevice::panTiltAbsolute(
+    std::uint8_t panSpeed, std::uint8_t tiltSpeed, std::int16_t panPos, std::int16_t tiltPos)
 {
     const ViscaFrame cmd = ViscaBuilder::panTiltAbsolute(cameraAddress(), panSpeed, tiltSpeed, panPos, tiltPos);
     return sendCommandSync(cmd);
 }
 
-CommandResult ViscaDevice::panTiltRelative(uint8_t panSpeed, uint8_t tiltSpeed, int16_t deltaPan, int16_t deltaTilt)
+CommandResult ViscaDevice::panTiltRelative(
+    std::uint8_t panSpeed, std::uint8_t tiltSpeed, std::int16_t deltaPan, std::int16_t deltaTilt)
 {
     const ViscaFrame cmd = ViscaBuilder::panTiltRelative(cameraAddress(), panSpeed, tiltSpeed, deltaPan, deltaTilt);
     return sendCommandSync(cmd);
@@ -384,7 +396,7 @@ CommandResult ViscaDevice::panTiltReset()
     return sendCommandSync(cmd);
 }
 
-CommandResult ViscaDevice::panTiltLimitSet(ViscaPanTiltCorner corner, int16_t panPos, int16_t tiltPos)
+CommandResult ViscaDevice::panTiltLimitSet(ViscaPanTiltCorner corner, std::int16_t panPos, std::int16_t tiltPos)
 {
     const ViscaFrame cmd = ViscaBuilder::panTiltLimitSet(cameraAddress(), corner, panPos, tiltPos);
     return sendCommandSync(cmd);
@@ -418,7 +430,7 @@ std::optional<ViscaPanTiltStatus> ViscaDevice::queryPanTiltStatus(std::chrono::m
 
 ViscaProtocolStats ViscaDevice::getProtocolStats() const
 {
-    ViscaProtocolStats stats {};
+    ViscaProtocolStats stats { };
     {
         std::scoped_lock lock(m_mutex);
         for (const auto& slot : m_sockets) {
@@ -441,8 +453,8 @@ ViscaProtocolStats ViscaDevice::getProtocolStats() const
     stats.executionErrors = m_executionErrors.load(std::memory_order_relaxed);
     stats.timeouts = m_timeouts.load(std::memory_order_relaxed);
 
-    const uint64_t totalCompleted = stats.socket1Processed + stats.socket2Processed;
-    const uint64_t totalUs = m_totalTurnaroundUs.load(std::memory_order_relaxed);
+    const std::uint64_t totalCompleted = stats.socket1Processed + stats.socket2Processed;
+    const std::uint64_t totalUs = m_totalTurnaroundUs.load(std::memory_order_relaxed);
     if (totalCompleted > 0U) {
         stats.avgTurnaroundMs = static_cast<double>(totalUs) / (1000.0 * static_cast<double>(totalCompleted));
     }

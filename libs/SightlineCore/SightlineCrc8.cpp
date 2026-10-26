@@ -1,7 +1,10 @@
 /// @file SightlineCrc8.cpp
 /// @brief Implementation of Sightline CRC-8 lookup table and calculation.
 
+#include <cstdint>
+
 #include "SightlineCrc8.h"
+#include <array>
 
 namespace Sightline {
 

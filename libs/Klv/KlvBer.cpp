@@ -1,8 +1,12 @@
+#include <cstdint>
+
 #include "KlvBer.h"
+#include <vector>
 
 namespace Klv {
 
-std::size_t KlvBer::encodedLengthSize(std::size_t length) noexcept {
+std::size_t KlvBer::encodedLengthSize(std::size_t length) noexcept
+{
     if (length < 128U) {
         return 1U;
     }
@@ -18,7 +22,8 @@ std::size_t KlvBer::encodedLengthSize(std::size_t length) noexcept {
     return 5U; // 0x84 + 4 bytes
 }
 
-void KlvBer::encodeLength(std::size_t length, std::vector<std::uint8_t>& out) {
+void KlvBer::encodeLength(std::size_t length, std::vector<std::uint8_t>& out)
+{
     if (length < 128U) {
         out.push_back(static_cast<std::uint8_t>(length));
     } else if (length <= 0xFFU) {
@@ -42,10 +47,9 @@ void KlvBer::encodeLength(std::size_t length, std::vector<std::uint8_t>& out) {
     }
 }
 
-bool KlvBer::decodeLength(const std::uint8_t* data,
-                          std::size_t size,
-                          std::size_t& decodedLength,
-                          std::size_t& bytesConsumed) noexcept {
+bool KlvBer::decodeLength(
+    const std::uint8_t* data, std::size_t size, std::size_t& decodedLength, std::size_t& bytesConsumed) noexcept
+{
     if (data == nullptr || size == 0U) {
         return false;
     }
@@ -78,7 +82,8 @@ bool KlvBer::decodeLength(const std::uint8_t* data,
     return true;
 }
 
-std::size_t KlvBer::encodedTagSize(std::uint32_t tag) noexcept {
+std::size_t KlvBer::encodedTagSize(std::uint32_t tag) noexcept
+{
     if (tag < 128U) {
         return 1U;
     }
@@ -94,7 +99,8 @@ std::size_t KlvBer::encodedTagSize(std::uint32_t tag) noexcept {
     return 5U;
 }
 
-void KlvBer::encodeTag(std::uint32_t tag, std::vector<std::uint8_t>& out) {
+void KlvBer::encodeTag(std::uint32_t tag, std::vector<std::uint8_t>& out)
+{
     if (tag < 128U) {
         out.push_back(static_cast<std::uint8_t>(tag));
         return;
@@ -115,10 +121,9 @@ void KlvBer::encodeTag(std::uint32_t tag, std::vector<std::uint8_t>& out) {
     }
 }
 
-bool KlvBer::decodeTag(const std::uint8_t* data,
-                       std::size_t size,
-                       std::uint32_t& decodedTag,
-                       std::size_t& bytesConsumed) noexcept {
+bool KlvBer::decodeTag(
+    const std::uint8_t* data, std::size_t size, std::uint32_t& decodedTag, std::size_t& bytesConsumed) noexcept
+{
     if (data == nullptr || size == 0U) {
         return false;
     }

@@ -1,13 +1,16 @@
 /// @file SightlineSerialBuilder.cpp
 /// @brief Implementation of Sightline serial port, passthrough, and GPIO serializers.
 
+#include <cstdint>
+
 #include "SightlineSerialBuilder.h"
+#include <vector>
 
 namespace Sightline {
 
 std::vector<std::uint8_t> SightlineSerialBuilder::buildSetPortConfiguration(const MsgSetPortConfiguration& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(6U);
     payload.push_back(msg.portIndex);
     SightlineFraming::appendU32Le(payload, msg.baudRate);
@@ -17,7 +20,7 @@ std::vector<std::uint8_t> SightlineSerialBuilder::buildSetPortConfiguration(cons
 
 std::vector<std::uint8_t> SightlineSerialBuilder::buildCommandPassThrough(const MsgCommandPassThrough& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(1U + msg.data.size());
     payload.push_back(msg.destPort);
     payload.insert(payload.end(), msg.data.begin(), msg.data.end());
@@ -44,7 +47,7 @@ std::vector<std::uint8_t> SightlineSerialBuilder::buildGetGPIO()
 
 std::vector<std::uint8_t> SightlineSerialBuilder::buildI2CCommand(const MsgI2CCommand& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     const auto writeLen { msg.writeLength > 0U ? msg.writeLength : static_cast<std::uint8_t>(msg.data.size()) };
     payload.reserve(5U + msg.data.size());
     payload.push_back(msg.busIndex);
@@ -58,7 +61,7 @@ std::vector<std::uint8_t> SightlineSerialBuilder::buildI2CCommand(const MsgI2CCo
 
 std::vector<std::uint8_t> SightlineSerialBuilder::buildSendToBTS(const MsgSendToBTS& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(1U + msg.data.size());
     payload.push_back(msg.btsPort);
     payload.insert(payload.end(), msg.data.begin(), msg.data.end());

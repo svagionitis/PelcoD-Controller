@@ -11,7 +11,10 @@
 #include "modules/SightlineTrackingBuilder.h"
 #include "modules/SightlineTrackingParser.h"
 
+#include <cstdint>
+
 #include <gtest/gtest.h>
+#include <vector>
 
 namespace Sightline {
 namespace {
@@ -19,7 +22,7 @@ namespace {
     /// @brief Verify start tracking command serialization.
     TEST(TestSightlineTracking, BuildStartTracking)
     {
-        MsgStartTracking msg {};
+        MsgStartTracking msg { };
         msg.cameraIndex = 1U;
         msg.centerCol = 640U;
         msg.centerRow = 480U;
@@ -47,7 +50,7 @@ namespace {
     /// @brief Verify stop tracking command serialization.
     TEST(TestSightlineTracking, BuildStopTracking)
     {
-        MsgStopTracking msg {};
+        MsgStopTracking msg { };
         msg.cameraIndex = 2U;
         msg.trackId = 5U;
 
@@ -62,7 +65,7 @@ namespace {
         EXPECT_EQ(payload[3], 2U);
 
         // Individual track stopping uses buildModifyTrackIndex
-        MsgModifyTrackIndex modMsg {};
+        MsgModifyTrackIndex modMsg { };
         modMsg.trackIndex = 5U;
         modMsg.flags = 0U; // Stop
         modMsg.cameraIndex = 2U;
@@ -78,21 +81,21 @@ namespace {
     /// @brief Verify tracking, motion and detection builder serialization.
     TEST(TestSightlineTracking, BuildTrackingMotion)
     {
-        MsgNudgeTrackingCoordinate nudgeMsg {};
+        MsgNudgeTrackingCoordinate nudgeMsg { };
         nudgeMsg.cameraIndex = 0U;
         nudgeMsg.deltaCol = -2;
         nudgeMsg.deltaRow = 3;
         const auto nudgePkt = SightlineTrackingBuilder::buildNudgeTracking(nudgeMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(nudgePkt), MessageId::NudgeTrackingCoordinate);
 
-        MsgCoordinateReportingMode repMsg {};
+        MsgCoordinateReportingMode repMsg { };
         repMsg.cameraIndex = 1U;
         repMsg.framePeriod = 2U;
         repMsg.reportingFlags = 0x07U;
         const auto repPkt = SightlineTrackingBuilder::buildSetReportingMode(repMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(repPkt), MessageId::CoordinateReportingMode);
 
-        MsgStartTracking startMsg {};
+        MsgStartTracking startMsg { };
         startMsg.cameraIndex = 0U;
         startMsg.centerCol = 320U;
         startMsg.centerRow = 240U;
@@ -110,7 +113,7 @@ namespace {
         EXPECT_EQ(startPayload[9], 0x01U);
         EXPECT_EQ(startPayload[12], 5U);
 
-        MsgSetTrackingParameters trkParams {};
+        MsgSetTrackingParameters trkParams { };
         trkParams.objectSize = 32U;
         trkParams.mode = 1U;
         trkParams.cameraIndex = 0U;
@@ -126,13 +129,13 @@ namespace {
         EXPECT_EQ(trkPayload[6], 0U); // cameraIndex
         EXPECT_EQ(trkPayload[15], 0x02U); // flags
 
-        MsgDesignateSelectedTrackPrimary desMsg {};
+        MsgDesignateSelectedTrackPrimary desMsg { };
         desMsg.cameraIndex = 0U;
         desMsg.trackId = 3U;
         const auto desPkt = SightlineTrackingBuilder::buildDesignatePrimary(desMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(desPkt), MessageId::DesignateSelectedTrackPrimary);
 
-        MsgShiftSelectedTrack shiftMsg {};
+        MsgShiftSelectedTrack shiftMsg { };
         shiftMsg.cameraIndex = 0U;
         shiftMsg.trackId = 2U;
         shiftMsg.shiftCol = 5;
@@ -140,13 +143,13 @@ namespace {
         const auto shiftPkt = SightlineTrackingBuilder::buildShiftSelectedTrack(shiftMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(shiftPkt), MessageId::ShiftSelectedTrack);
 
-        MsgStopSelectedTrack stopMsg {};
+        MsgStopSelectedTrack stopMsg { };
         stopMsg.cameraIndex = 1U;
         stopMsg.trackId = 4U;
         const auto stopPkt = SightlineTrackingBuilder::buildStopSelectedTrack(stopMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(stopPkt), MessageId::StopSelectedTrack);
 
-        MsgSetDetectionParameters detMsg {};
+        MsgSetDetectionParameters detMsg { };
         detMsg.cameraIndex = 0U;
         detMsg.mode = DetectionMode::Drone;
         detMsg.threshold = 30U;
@@ -155,7 +158,7 @@ namespace {
         const auto detPkt = SightlineTrackingBuilder::buildSetDetectionParams(detMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(detPkt), MessageId::SetDetectionParameters);
 
-        MsgCustomAIDetect aiMsg {};
+        MsgCustomAIDetect aiMsg { };
         aiMsg.cameraIndex = 0U;
         aiMsg.modelId = 1U;
         aiMsg.confidenceThreshold = 75U;
@@ -167,7 +170,7 @@ namespace {
     /// @brief Verify tracking positions telemetry parsing (0x51).
     TEST(TestSightlineTracking, ParseTrackingPositions)
     {
-        std::vector<std::uint8_t> payload {};
+        std::vector<std::uint8_t> payload { };
         payload.push_back(0U); // byte 0: cameraIndex
         payload.push_back(1U); // byte 1: numTracks = 1
 
@@ -201,7 +204,7 @@ namespace {
 
         const auto pkt = SightlineFraming::buildPacket(MessageId::TrackingPositions, payload);
 
-        MsgTrackingPositions out {};
+        MsgTrackingPositions out { };
         ASSERT_TRUE(SightlineTrackingParser::parseTrackingPositions(pkt, out));
         EXPECT_EQ(out.cameraIndex, 0U);
         EXPECT_EQ(out.timestampUs, 1000000ULL);
@@ -218,7 +221,7 @@ namespace {
         EXPECT_TRUE(out.tracks[0].isPrimary);
 
         // Verify facade equivalence
-        MsgTrackingPositions facadeOut {};
+        MsgTrackingPositions facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseTrackingPositions(pkt, facadeOut));
         EXPECT_EQ(facadeOut.frameNumber, 42U);
     }
@@ -226,7 +229,7 @@ namespace {
     /// @brief Verify single tracking position telemetry parsing (0x43).
     TEST(TestSightlineTracking, ParseTrackingPosition)
     {
-        std::vector<std::uint8_t> payload {};
+        std::vector<std::uint8_t> payload { };
         // col: 320 (0x0140) (bytes 0..1)
         payload.push_back(0x40U);
         payload.push_back(0x01U);
@@ -269,7 +272,7 @@ namespace {
 
         const auto pkt = SightlineFraming::buildPacket(MessageId::TrackingPosition, payload);
 
-        MsgTrackingPosition out {};
+        MsgTrackingPosition out { };
         ASSERT_TRUE(SightlineTrackingParser::parseTrackingPosition(pkt, out));
         EXPECT_EQ(out.cameraIndex, 0U);
         EXPECT_DOUBLE_EQ(out.col, 320.0);
@@ -281,7 +284,7 @@ namespace {
         EXPECT_EQ(out.confidence, 99U);
 
         // Verify facade equivalence
-        MsgTrackingPosition facadeOut {};
+        MsgTrackingPosition facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseTrackingPosition(pkt, facadeOut));
         EXPECT_DOUBLE_EQ(facadeOut.col, 320.0);
     }
@@ -289,7 +292,7 @@ namespace {
     /// @brief Verify extended tracking positions with AI class telemetry parsing (0xA0).
     TEST(TestSightlineTracking, ParsePositionsExtended)
     {
-        std::vector<std::uint8_t> payload {};
+        std::vector<std::uint8_t> payload { };
         payload.push_back(0U); // byte 0: cameraIndex
         payload.push_back(1U); // byte 1: numTracks = 1
 
@@ -329,7 +332,7 @@ namespace {
 
         const auto pkt = SightlineFraming::buildPacket(MessageId::TrackingPositionsExtended, payload);
 
-        MsgTrackingPositionsExtended out {};
+        MsgTrackingPositionsExtended out { };
         ASSERT_TRUE(SightlineTrackingParser::parsePositionsExtended(pkt, out));
         EXPECT_EQ(out.timestampUs, 2000000ULL);
         EXPECT_EQ(out.frameNumber, 100U);
@@ -343,7 +346,7 @@ namespace {
         EXPECT_EQ(out.classIds[0], 3U);
 
         // Verify facade equivalence
-        MsgTrackingPositionsExtended facadeOut {};
+        MsgTrackingPositionsExtended facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parsePositionsExtended(pkt, facadeOut));
         EXPECT_EQ(facadeOut.frameNumber, 100U);
     }
@@ -359,7 +362,7 @@ namespace {
     /// @brief Verify VMTI configuration builder and parser roundtrip.
     TEST(TestSightlineTracking, BuildAndParseVMTI)
     {
-        MsgSetVMTI msg {};
+        MsgSetVMTI msg { };
         msg.cameraIndex = 1U;
         msg.enable = 1U;
         msg.sensitivity = 75U;
@@ -371,7 +374,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetVMTI);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetVMTI(msg));
 
-        MsgSetVMTI out {};
+        MsgSetVMTI out { };
         ASSERT_TRUE(SightlineDetectionParser::parseVMTI(pkt, out));
         EXPECT_EQ(out.cameraIndex, 1U);
         EXPECT_EQ(out.enable, 1U);
@@ -380,7 +383,7 @@ namespace {
         EXPECT_EQ(out.maxTargetArea, 1024U);
         EXPECT_EQ(out.mode, 2U);
 
-        MsgSetVMTI facadeOut {};
+        MsgSetVMTI facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseVMTI(pkt, facadeOut));
         EXPECT_EQ(facadeOut.sensitivity, 75U);
 
@@ -392,7 +395,7 @@ namespace {
     /// @brief Verify detection ROI builder and parser roundtrip.
     TEST(TestSightlineTracking, BuildAndParseDetectionROI)
     {
-        MsgDetectionROI msg {};
+        MsgDetectionROI msg { };
         msg.cameraIndex = 0U;
         msg.roiIndex = 2U;
         msg.roiType = 1U; // Exclusion
@@ -405,7 +408,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetDetectionRegionOfInterestParameters);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetDetectionROI(msg));
 
-        MsgDetectionROI out {};
+        MsgDetectionROI out { };
         ASSERT_TRUE(SightlineDetectionParser::parseDetectionROI(pkt, out));
         EXPECT_EQ(out.cameraIndex, 0U);
         EXPECT_EQ(out.roiIndex, 2U);
@@ -415,7 +418,7 @@ namespace {
         EXPECT_EQ(out.width, 400U);
         EXPECT_EQ(out.height, 300U);
 
-        MsgDetectionROI facadeOut {};
+        MsgDetectionROI facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseDetectionROI(pkt, facadeOut));
         EXPECT_EQ(facadeOut.width, 400U);
 
@@ -427,7 +430,7 @@ namespace {
     /// @brief Verify advanced detection parameters roundtrip.
     TEST(TestSightlineTracking, BuildAndParseAdvDetection)
     {
-        MsgAdvancedDetectionParameters msg {};
+        MsgAdvancedDetectionParameters msg { };
         msg.cameraIndex = 1U;
         msg.minVelocity = 50U;
         msg.maxVelocity = 5000U;
@@ -438,7 +441,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetAdvancedDetectionParameters);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetAdvDetectionParams(msg));
 
-        MsgAdvancedDetectionParameters out {};
+        MsgAdvancedDetectionParameters out { };
         ASSERT_TRUE(SightlineDetectionParser::parseAdvDetectionParams(pkt, out));
         EXPECT_EQ(out.cameraIndex, 1U);
         EXPECT_EQ(out.minVelocity, 50U);
@@ -446,7 +449,7 @@ namespace {
         EXPECT_EQ(out.persistenceFrames, 5U);
         EXPECT_EQ(out.mergeDistance, 25U);
 
-        MsgAdvancedDetectionParameters facadeOut {};
+        MsgAdvancedDetectionParameters facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseAdvDetectionParams(pkt, facadeOut));
         EXPECT_EQ(facadeOut.maxVelocity, 5000U);
 
@@ -458,7 +461,7 @@ namespace {
     /// @brief Verify tracking gate pixel statistics parser and query builder.
     TEST(TestSightlineTracking, BuildAndParseTrackingPixelStats)
     {
-        std::vector<std::uint8_t> payload {};
+        std::vector<std::uint8_t> payload { };
         payload.push_back(0U); // cameraIndex
         payload.push_back(3U); // trackId
         SightlineFraming::appendU16Le(payload, 32768U); // meanIntensity
@@ -468,7 +471,7 @@ namespace {
 
         const auto pkt = SightlineFraming::buildPacket(MessageId::TrackingBoxPixelStats, payload);
 
-        MsgTrackingBoxPixelStats out {};
+        MsgTrackingBoxPixelStats out { };
         ASSERT_TRUE(SightlineDetectionParser::parseTrackingPixelStats(pkt, out));
         EXPECT_EQ(out.cameraIndex, 0U);
         EXPECT_EQ(out.trackId, 3U);
@@ -477,7 +480,7 @@ namespace {
         EXPECT_EQ(out.minIntensity, 10U);
         EXPECT_EQ(out.maxIntensity, 250U);
 
-        MsgTrackingBoxPixelStats facadeOut {};
+        MsgTrackingBoxPixelStats facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseTrackingPixelStats(pkt, facadeOut));
         EXPECT_EQ(facadeOut.meanIntensity, 32768U);
 
@@ -489,17 +492,17 @@ namespace {
     /// @brief Verify parsing of high-bit-depth (14-bit / 16-bit) tracking box pixel statistics.
     TEST(TestSightlineTracking, ParseHighBitDepthTrackingPixelStats)
     {
-        std::vector<std::uint8_t> payload {};
+        std::vector<std::uint8_t> payload { };
         payload.push_back(1U); // cameraIndex
         payload.push_back(2U); // trackId
         SightlineFraming::appendU16Le(payload, 19500U); // meanIntensity
-        SightlineFraming::appendU16Le(payload, 300U);   // stdDevIntensity
+        SightlineFraming::appendU16Le(payload, 300U); // stdDevIntensity
         SightlineFraming::appendU16Le(payload, 18870U); // minIntensity (high-bit depth 16-bit)
         SightlineFraming::appendU16Le(payload, 20271U); // maxIntensity (high-bit depth 16-bit)
 
         const auto pkt = SightlineFraming::buildPacket(MessageId::TrackingBoxPixelStats, payload);
 
-        MsgTrackingBoxPixelStats out {};
+        MsgTrackingBoxPixelStats out { };
         ASSERT_TRUE(SightlineDetectionParser::parseTrackingPixelStats(pkt, out));
         EXPECT_EQ(out.cameraIndex, 1U);
         EXPECT_EQ(out.trackId, 2U);
@@ -509,11 +512,10 @@ namespace {
         EXPECT_EQ(out.maxIntensity, static_cast<std::uint16_t>(20271U));
     }
 
-
     /// @brief Verify automated detection snapshot command builder.
     TEST(TestSightlineTracking, BuildDoDetectSnapShot)
     {
-        MsgDoDetectSnapShot msg {};
+        MsgDoDetectSnapShot msg { };
         msg.cameraIndex = 1U;
         msg.detectionIndex = 4U;
 
@@ -530,7 +532,7 @@ namespace {
     /// @brief Verify VMTI thumbnail chips builder and parser roundtrip.
     TEST(TestSightlineTracking, BuildAndParseVMTIChips)
     {
-        MsgVMTIChips msg {};
+        MsgVMTIChips msg { };
         msg.cameraIndex = 0U;
         msg.trackId = 7U;
         msg.chipIndex = 0U;
@@ -543,7 +545,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::VMTIChips);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildVMTIChips(msg));
 
-        MsgVMTIChips out {};
+        MsgVMTIChips out { };
         ASSERT_TRUE(SightlineClassificationParser::parseVMTIChips(pkt, out));
         EXPECT_EQ(out.cameraIndex, 0U);
         EXPECT_EQ(out.trackId, 7U);
@@ -553,7 +555,7 @@ namespace {
         EXPECT_EQ(out.chipHeight, 32U);
         EXPECT_EQ(out.chipData, msg.chipData);
 
-        MsgVMTIChips facadeOut {};
+        MsgVMTIChips facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseVMTIChips(pkt, facadeOut));
         EXPECT_EQ(facadeOut.chipWidth, 32U);
     }
@@ -561,7 +563,7 @@ namespace {
     /// @brief Verify VMTI fields configuration builder and parser roundtrip.
     TEST(TestSightlineTracking, BuildAndParseVMTIFields)
     {
-        MsgVMTIFields msg {};
+        MsgVMTIFields msg { };
         msg.cameraIndex = 1U;
         msg.enabledFieldsMask = 0x0000000FU;
         msg.reportRate = 2U;
@@ -570,13 +572,13 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::VMTIFields);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetVMTIFields(msg));
 
-        MsgVMTIFields out {};
+        MsgVMTIFields out { };
         ASSERT_TRUE(SightlineClassificationParser::parseVMTIFields(pkt, out));
         EXPECT_EQ(out.cameraIndex, 1U);
         EXPECT_EQ(out.enabledFieldsMask, 0x0000000FU);
         EXPECT_EQ(out.reportRate, 2U);
 
-        MsgVMTIFields facadeOut {};
+        MsgVMTIFields facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseVMTIFields(pkt, facadeOut));
         EXPECT_EQ(facadeOut.reportRate, 2U);
 
@@ -588,7 +590,7 @@ namespace {
     /// @brief Verify KLV class filter rules builder and parser roundtrip.
     TEST(TestSightlineTracking, BuildAndParseKlvClassFilters)
     {
-        MsgKlvClassFilters msg {};
+        MsgKlvClassFilters msg { };
         msg.cameraIndex = 0U;
         msg.classMask = 0x003FU;
         msg.minConfidence = 70U;
@@ -597,13 +599,13 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::KlvClassFilters);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetKlvClassFilters(msg));
 
-        MsgKlvClassFilters out {};
+        MsgKlvClassFilters out { };
         ASSERT_TRUE(SightlineClassificationParser::parseKlvClassFilters(pkt, out));
         EXPECT_EQ(out.cameraIndex, 0U);
         EXPECT_EQ(out.classMask, 0x003FU);
         EXPECT_EQ(out.minConfidence, 70U);
 
-        MsgKlvClassFilters facadeOut {};
+        MsgKlvClassFilters facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseKlvClassFilters(pkt, facadeOut));
         EXPECT_EQ(facadeOut.minConfidence, 70U);
 
@@ -615,7 +617,7 @@ namespace {
     /// @brief Verify multi-class tracking telemetry builder and parser roundtrip.
     TEST(TestSightlineTracking, BuildAndParseTrackingMultiClass)
     {
-        MsgTrackingMultiClass msg {};
+        MsgTrackingMultiClass msg { };
         msg.cameraIndex = 1U;
         msg.trackId = 5U;
         msg.primaryClass = 2U; // Person
@@ -626,7 +628,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::TrackingMultiClass);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildTrackingMultiClass(msg));
 
-        MsgTrackingMultiClass out {};
+        MsgTrackingMultiClass out { };
         ASSERT_TRUE(SightlineClassificationParser::parseTrackingMultiClass(pkt, out));
         EXPECT_EQ(out.cameraIndex, 1U);
         EXPECT_EQ(out.trackId, 5U);
@@ -634,7 +636,7 @@ namespace {
         EXPECT_EQ(out.confidence, 88U);
         EXPECT_EQ(out.flags, 0x01U);
 
-        MsgTrackingMultiClass facadeOut {};
+        MsgTrackingMultiClass facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseTrackingMultiClass(pkt, facadeOut));
         EXPECT_EQ(facadeOut.confidence, 88U);
     }
@@ -642,7 +644,7 @@ namespace {
     /// @brief Verify custom neural classifier builder and parser roundtrip.
     TEST(TestSightlineTracking, BuildAndParseCustomClassifier)
     {
-        MsgCustomClassifier msg {};
+        MsgCustomClassifier msg { };
         msg.cameraIndex = 0U;
         msg.classifierType = 3U;
         msg.enable = 1U;
@@ -652,14 +654,14 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::CustomClassifier);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetCustomClassifier(msg));
 
-        MsgCustomClassifier out {};
+        MsgCustomClassifier out { };
         ASSERT_TRUE(SightlineClassificationParser::parseCustomClassifier(pkt, out));
         EXPECT_EQ(out.cameraIndex, 0U);
         EXPECT_EQ(out.classifierType, 3U);
         EXPECT_EQ(out.enable, 1U);
         EXPECT_EQ(out.confidence, 65U);
 
-        MsgCustomClassifier facadeOut {};
+        MsgCustomClassifier facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseCustomClassifier(pkt, facadeOut));
         EXPECT_EQ(facadeOut.classifierType, 3U);
 
@@ -671,7 +673,7 @@ namespace {
     /// @brief Verify classifier parameters builder and parser roundtrip.
     TEST(TestSightlineTracking, BuildAndParseClassifierParams)
     {
-        MsgClassifierParameters msg {};
+        MsgClassifierParameters msg { };
         msg.cameraIndex = 1U;
         msg.modelIndex = 2U;
         msg.nmsThreshold = 40U;
@@ -681,14 +683,14 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::ClassifierParameters);
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildSetClassifierParams(msg));
 
-        MsgClassifierParameters out {};
+        MsgClassifierParameters out { };
         ASSERT_TRUE(SightlineClassificationParser::parseClassifierParams(pkt, out));
         EXPECT_EQ(out.cameraIndex, 1U);
         EXPECT_EQ(out.modelIndex, 2U);
         EXPECT_EQ(out.nmsThreshold, 40U);
         EXPECT_EQ(out.maxDetections, 50U);
 
-        MsgClassifierParameters facadeOut {};
+        MsgClassifierParameters facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseClassifierParams(pkt, facadeOut));
         EXPECT_EQ(facadeOut.maxDetections, 50U);
 
@@ -700,7 +702,7 @@ namespace {
     /// @brief Verify extended detection parameters roundtrip with Phase 1 enums and manual sensitivity.
     TEST(TestSightlineTracking, BuildAndParseDetectionParamsExt)
     {
-        MsgSetDetectionParameters msg {};
+        MsgSetDetectionParameters msg { };
         msg.cameraIndex = 2U;
         msg.detectionIndex = 1U;
         msg.mode = DetectionMode::Gas;
@@ -715,7 +717,7 @@ namespace {
         const auto pkt = SightlineDetectionBuilder::buildSetDetectionParams(msg);
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetDetectionParameters);
 
-        MsgSetDetectionParameters out {};
+        MsgSetDetectionParameters out { };
         ASSERT_TRUE(SightlineDetectionParser::parseDetectionParams(pkt, out));
         EXPECT_EQ(out.cameraIndex, 2U);
         EXPECT_EQ(out.detectionIndex, 1U);
@@ -732,7 +734,7 @@ namespace {
     /// @brief Verify extended advanced detection parameters roundtrip for Staring, Aerial, Gas and Overlap.
     TEST(TestSightlineTracking, BuildAndParseAdvDetectionExt)
     {
-        MsgAdvancedDetectionParameters msg {};
+        MsgAdvancedDetectionParameters msg { };
         msg.cameraIndex = 1U;
         msg.detectionIndex = 1U;
         msg.minVelocity = 100U;
@@ -758,7 +760,7 @@ namespace {
         const auto pkt = SightlineDetectionBuilder::buildSetAdvDetectionParams(msg);
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetAdvancedDetectionParameters);
 
-        MsgAdvancedDetectionParameters out {};
+        MsgAdvancedDetectionParameters out { };
         ASSERT_TRUE(SightlineDetectionParser::parseAdvDetectionParams(pkt, out));
         EXPECT_EQ(out.cameraIndex, 1U);
         EXPECT_EQ(out.detectionIndex, 1U);
@@ -786,7 +788,7 @@ namespace {
     /// @brief Verify line and masked grid detection ROI geometries.
     TEST(TestSightlineTracking, BuildAndParseDetectionRoiExt)
     {
-        MsgDetectionROI lineMsg {};
+        MsgDetectionROI lineMsg { };
         lineMsg.cameraIndex = 0U;
         lineMsg.detectionIndex = 1U;
         lineMsg.roiIndex = 1U;
@@ -798,7 +800,7 @@ namespace {
         lineMsg.lineSide = LineReportSide::Above;
 
         const auto linePkt = SightlineDetectionBuilder::buildSetDetectionROI(lineMsg);
-        MsgDetectionROI lineOut {};
+        MsgDetectionROI lineOut { };
         ASSERT_TRUE(SightlineDetectionParser::parseDetectionROI(linePkt, lineOut));
         EXPECT_EQ(lineOut.cameraIndex, 0U);
         EXPECT_EQ(lineOut.detectionIndex, 1U);
@@ -810,7 +812,7 @@ namespace {
         EXPECT_EQ(lineOut.lineRightY, 350U);
         EXPECT_EQ(lineOut.lineSide, LineReportSide::Above);
 
-        MsgDetectionROI gridMsg {};
+        MsgDetectionROI gridMsg { };
         gridMsg.cameraIndex = 1U;
         gridMsg.detectionIndex = 0U;
         gridMsg.roiIndex = 0U;
@@ -824,7 +826,7 @@ namespace {
         gridMsg.showRegions = true;
 
         const auto gridPkt = SightlineDetectionBuilder::buildSetDetectionROI(gridMsg);
-        MsgDetectionROI gridOut {};
+        MsgDetectionROI gridOut { };
         ASSERT_TRUE(SightlineDetectionParser::parseDetectionROI(gridPkt, gridOut));
         EXPECT_EQ(gridOut.geometryMode, RoiGeometryMode::MaskedGrid);
         EXPECT_EQ(gridOut.blocksWide, 16U);
@@ -845,7 +847,7 @@ namespace {
     /// @brief Verify KLV metric dimension filters builder and parser roundtrip.
     TEST(TestSightlineTracking, BuildAndParseKlvMetricFilters)
     {
-        MsgKlvMetricFilters msg {};
+        MsgKlvMetricFilters msg { };
         msg.cameraIndex = 1U;
         msg.minTargetWidthM = 0.8F;
         msg.maxTargetWidthM = 2.5F;
@@ -862,7 +864,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(setPkt), MessageId::KlvClassFilters);
         EXPECT_EQ(setPkt, SightlineProtocolBuilder::buildSetKlvMetricFilters(msg));
 
-        MsgKlvMetricFilters out {};
+        MsgKlvMetricFilters out { };
         ASSERT_TRUE(SightlineClassificationParser::parseKlvMetricFilters(setPkt, out));
         EXPECT_EQ(out.cameraIndex, 1U);
         EXPECT_NEAR(out.minTargetWidthM, 0.8F, 1e-4F);
@@ -876,7 +878,7 @@ namespace {
         EXPECT_NEAR(out.minLongitude, -117.2, 1e-4);
         EXPECT_NEAR(out.maxLongitude, -115.1, 1e-4);
 
-        MsgKlvMetricFilters facadeOut {};
+        MsgKlvMetricFilters facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseKlvMetricFilters(setPkt, facadeOut));
         EXPECT_EQ(facadeOut.cameraIndex, 1U);
 
@@ -888,7 +890,7 @@ namespace {
     /// @brief Verify classifier configuration builder and parser roundtrip.
     TEST(TestSightlineTracking, BuildAndParseClassifierConfig)
     {
-        MsgClassifierConfig msg {};
+        MsgClassifierConfig msg { };
         msg.cameraIndex = 0U;
         msg.model = PretrainedClassifierModel::Drone;
         msg.maxPerFrame = 8U;
@@ -904,7 +906,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(setPkt), MessageId::ClassifierParameters);
         EXPECT_EQ(setPkt, SightlineProtocolBuilder::buildSetClassifierConfig(msg));
 
-        MsgClassifierConfig out {};
+        MsgClassifierConfig out { };
         ASSERT_TRUE(SightlineClassificationParser::parseClassifierConfig(setPkt, out));
         EXPECT_EQ(out.cameraIndex, 0U);
         EXPECT_EQ(out.model, PretrainedClassifierModel::Drone);
@@ -917,7 +919,7 @@ namespace {
         EXPECT_TRUE(out.asyncExecution);
         EXPECT_EQ(out.customModelName, "drone_v2.bin");
 
-        MsgClassifierConfig facadeOut {};
+        MsgClassifierConfig facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseClassifierConfig(setPkt, facadeOut));
         EXPECT_EQ(facadeOut.customModelName, "drone_v2.bin");
 
@@ -929,7 +931,7 @@ namespace {
     /// @brief Verify sub-pixel fractional coordinates extraction from 0x43.
     TEST(TestSightlineTracking, ParseSubpixelTrackingPosition)
     {
-        std::vector<std::uint8_t> payload {};
+        std::vector<std::uint8_t> payload { };
         // col: 320 (bytes 0..1)
         payload.push_back(0x40U);
         payload.push_back(0x01U);
@@ -972,7 +974,7 @@ namespace {
         payload.push_back(0x01U);
 
         const auto pkt = SightlineFraming::buildPacket(MessageId::TrackingPosition, payload);
-        MsgTrackingPosition out {};
+        MsgTrackingPosition out { };
         ASSERT_TRUE(SightlineTrackingParser::parseTrackingPosition(pkt, out));
 
         EXPECT_DOUBLE_EQ(out.col, 320.5);
@@ -986,27 +988,34 @@ namespace {
     /// @brief Verify coasting state extraction from single tracking position (0x43).
     TEST(TestSightlineTracking, ParseCoastingStateSingleTrack)
     {
-        std::vector<std::uint8_t> payload {};
+        std::vector<std::uint8_t> payload { };
         // col: 100, row: 150
-        payload.push_back(0x64U); payload.push_back(0x00U);
-        payload.push_back(0x96U); payload.push_back(0x00U);
+        payload.push_back(0x64U);
+        payload.push_back(0x00U);
+        payload.push_back(0x96U);
+        payload.push_back(0x00U);
         // translationCol: 0, translationRow: 0
-        payload.push_back(0x00U); payload.push_back(0x00U);
-        payload.push_back(0x00U); payload.push_back(0x00U);
+        payload.push_back(0x00U);
+        payload.push_back(0x00U);
+        payload.push_back(0x00U);
+        payload.push_back(0x00U);
         // offsetCol: 0, offsetRow: 0
-        payload.push_back(0x00U); payload.push_back(0x00U);
-        payload.push_back(0x00U); payload.push_back(0x00U);
+        payload.push_back(0x00U);
+        payload.push_back(0x00U);
+        payload.push_back(0x00U);
+        payload.push_back(0x00U);
         // confidence with coasting MSB bit 7 set: 0x80 | 75 = 203
         payload.push_back(0x80U | 75U);
         // sceneConfidence: 50
         payload.push_back(50U);
         // rotation: 0
-        payload.push_back(0x00U); payload.push_back(0x00U);
+        payload.push_back(0x00U);
+        payload.push_back(0x00U);
         // cameraIndex: 0
         payload.push_back(0U);
 
         const auto pkt = SightlineFraming::buildPacket(MessageId::TrackingPosition, payload);
-        MsgTrackingPosition out {};
+        MsgTrackingPosition out { };
         ASSERT_TRUE(SightlineTrackingParser::parseTrackingPosition(pkt, out));
 
         EXPECT_TRUE(out.isCoasting);
@@ -1016,34 +1025,46 @@ namespace {
     /// @brief Verify coasting state extraction from multi-target tracking telemetry (0x51).
     TEST(TestSightlineTracking, ParseCoastingStateMultiTracks)
     {
-        std::vector<std::uint8_t> payload {};
+        std::vector<std::uint8_t> payload { };
         payload.push_back(0U); // cameraIndex
         payload.push_back(2U); // numTracks = 2
 
         // Track 0: locked (confidence: 92, isCoasting: false)
         payload.push_back(1U); // trackId
-        payload.push_back(0x40U); payload.push_back(0x01U); // col 320
-        payload.push_back(0xF0U); payload.push_back(0x00U); // row 240
-        payload.push_back(64U); payload.push_back(0U);      // width 64
-        payload.push_back(48U); payload.push_back(0U);      // height 48
-        payload.push_back(0U); payload.push_back(0U);       // velCol
-        payload.push_back(0U); payload.push_back(0U);       // velRow
-        payload.push_back(92U);                              // confidence 92
-        payload.push_back(0x01U);                            // primary flag
+        payload.push_back(0x40U);
+        payload.push_back(0x01U); // col 320
+        payload.push_back(0xF0U);
+        payload.push_back(0x00U); // row 240
+        payload.push_back(64U);
+        payload.push_back(0U); // width 64
+        payload.push_back(48U);
+        payload.push_back(0U); // height 48
+        payload.push_back(0U);
+        payload.push_back(0U); // velCol
+        payload.push_back(0U);
+        payload.push_back(0U); // velRow
+        payload.push_back(92U); // confidence 92
+        payload.push_back(0x01U); // primary flag
 
         // Track 1: occluded coasting (confidence: 0x80 | 60, isCoasting: true)
         payload.push_back(2U); // trackId
-        payload.push_back(0x80U); payload.push_back(0x01U); // col 384
-        payload.push_back(0x00U); payload.push_back(0x01U); // row 256
-        payload.push_back(32U); payload.push_back(0U);      // width 32
-        payload.push_back(32U); payload.push_back(0U);      // height 32
-        payload.push_back(0U); payload.push_back(0U);       // velCol
-        payload.push_back(0U); payload.push_back(0U);       // velRow
-        payload.push_back(0x80U | 60U);                      // confidence 60 with coast bit
-        payload.push_back(0x00U);                            // secondary flag
+        payload.push_back(0x80U);
+        payload.push_back(0x01U); // col 384
+        payload.push_back(0x00U);
+        payload.push_back(0x01U); // row 256
+        payload.push_back(32U);
+        payload.push_back(0U); // width 32
+        payload.push_back(32U);
+        payload.push_back(0U); // height 32
+        payload.push_back(0U);
+        payload.push_back(0U); // velCol
+        payload.push_back(0U);
+        payload.push_back(0U); // velRow
+        payload.push_back(0x80U | 60U); // confidence 60 with coast bit
+        payload.push_back(0x00U); // secondary flag
 
         const auto pkt = SightlineFraming::buildPacket(MessageId::TrackingPositions, payload);
-        MsgTrackingPositions out {};
+        MsgTrackingPositions out { };
         ASSERT_TRUE(SightlineTrackingParser::parseTrackingPositions(pkt, out));
         ASSERT_EQ(out.tracks.size(), 2U);
 
@@ -1057,26 +1078,32 @@ namespace {
     /// @brief Verify coasting state extraction from extended positions with AI classification (0xA0).
     TEST(TestSightlineTracking, ParseCoastingPositionsExtended)
     {
-        std::vector<std::uint8_t> payload {};
+        std::vector<std::uint8_t> payload { };
         payload.push_back(0U); // cameraIndex
         payload.push_back(1U); // numTracks = 1
 
         payload.push_back(5U); // trackId
-        payload.push_back(0x00U); payload.push_back(0x01U); // col 256
-        payload.push_back(0x80U); payload.push_back(0x00U); // row 128
-        payload.push_back(50U); payload.push_back(0U);      // width
-        payload.push_back(50U); payload.push_back(0U);      // height
-        payload.push_back(0U); payload.push_back(0U);       // velCol
-        payload.push_back(0U); payload.push_back(0U);       // velRow
-        payload.push_back(0x80U | 68U);                      // confidence 68 with coast bit
-        payload.push_back(0x01U);                            // primary
-        payload.push_back(2U);                               // classId: vehicle
+        payload.push_back(0x00U);
+        payload.push_back(0x01U); // col 256
+        payload.push_back(0x80U);
+        payload.push_back(0x00U); // row 128
+        payload.push_back(50U);
+        payload.push_back(0U); // width
+        payload.push_back(50U);
+        payload.push_back(0U); // height
+        payload.push_back(0U);
+        payload.push_back(0U); // velCol
+        payload.push_back(0U);
+        payload.push_back(0U); // velRow
+        payload.push_back(0x80U | 68U); // confidence 68 with coast bit
+        payload.push_back(0x01U); // primary
+        payload.push_back(2U); // classId: vehicle
         for (std::size_t i { 0U }; i < 5U; ++i) {
-            payload.push_back(0U);                           // padding to 21 bytes
+            payload.push_back(0U); // padding to 21 bytes
         }
 
         const auto pkt = SightlineFraming::buildPacket(MessageId::TrackingPositionsExtended, payload);
-        MsgTrackingPositionsExtended out {};
+        MsgTrackingPositionsExtended out { };
         ASSERT_TRUE(SightlineTrackingParser::parsePositionsExtended(pkt, out));
         ASSERT_EQ(out.tracks.size(), 1U);
 
@@ -1087,7 +1114,7 @@ namespace {
     /// @brief Verify default parameters compliance with Sightline EAN-Target-Tracking specifications.
     TEST(TestSightlineTracking, TrackingParametersDefaultCompliance)
     {
-        const MsgSetTrackingParameters params {};
+        const MsgSetTrackingParameters params { };
         // Section 7.2: Default max misses is 45 frames (1.5 seconds at 30 fps)
         EXPECT_EQ(params.maxMisses, 45U);
         // Section 5.2: Default smoothing values are 5
@@ -1100,7 +1127,7 @@ namespace {
     /// @brief Verify round-trip serialization of maxPauseTime in SetTrackingParameters.
     TEST(TestSightlineTracking, BuildAndParseMaxPauseTime)
     {
-        MsgSetTrackingParameters params {};
+        MsgSetTrackingParameters params { };
         params.cameraIndex = 1U;
         params.objectSize = 48U;
         params.mode = static_cast<std::uint8_t>(TrackingMode::Drone);
@@ -1113,7 +1140,7 @@ namespace {
         const auto pkt = SightlineTrackingBuilder::buildSetTrackingParameters(params);
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetTrackingParameters);
 
-        MsgSetTrackingParameters parsed {};
+        MsgSetTrackingParameters parsed { };
         ASSERT_TRUE(SightlineTrackingParser::parseTrackingParameters(pkt, parsed));
         EXPECT_EQ(parsed.cameraIndex, 1U);
         EXPECT_EQ(parsed.objectSize, 48U);
@@ -1125,14 +1152,13 @@ namespace {
     /// @brief Verify precision acquisition with MISB timestamp serialization (0x08).
     TEST(TestSightlineTracking, BuildAndParseStartPrecision)
     {
-        const auto pkt = SightlineTrackingBuilder::buildStartPrecision(
-            2U, 640U, 480U, 80U, 60U, 987654321ULL, 0x01U);
+        const auto pkt = SightlineTrackingBuilder::buildStartPrecision(2U, 640U, 480U, 80U, 60U, 987654321ULL, 0x01U);
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::StartTracking);
 
         const auto payload = SightlineFraming::extractPayload(pkt);
         ASSERT_EQ(payload.size(), 21U);
 
-        MsgStartTracking parsed {};
+        MsgStartTracking parsed { };
         ASSERT_TRUE(SightlineTrackingParser::parseStartTracking(pkt, parsed));
         EXPECT_EQ(parsed.cameraIndex, 2U);
         EXPECT_EQ(parsed.centerCol, 640U);
@@ -1153,7 +1179,7 @@ namespace {
         const auto payload = SightlineFraming::extractPayload(pkt);
         ASSERT_EQ(payload.size(), 10U);
 
-        MsgModifyTracking parsed {};
+        MsgModifyTracking parsed { };
         ASSERT_TRUE(SightlineTrackingParser::parseModifyTracking(pkt, parsed));
         EXPECT_EQ(parsed.cameraIndex, 1U);
         EXPECT_EQ(parsed.col, 500U);
@@ -1170,7 +1196,7 @@ namespace {
         // 1. None / Clear coasting
         {
             const auto pkt = SightlineTrackingBuilder::buildForcedCoasting(0U, 1U, ForcedCoastingMode::None);
-            MsgModifyTrackIndex parsed {};
+            MsgModifyTrackIndex parsed { };
             ASSERT_TRUE(SightlineTrackingParser::parseModifyTrackIndex(pkt, parsed));
             EXPECT_EQ(parsed.trackIndex, 1U);
             EXPECT_EQ(parsed.flags, static_cast<std::uint8_t>(TrackIndexAction::CoastNone));
@@ -1179,7 +1205,7 @@ namespace {
         // 2. Freeze Updates
         {
             const auto pkt = SightlineTrackingBuilder::buildForcedCoasting(0U, 2U, ForcedCoastingMode::FreezeUpdates);
-            MsgModifyTrackIndex parsed {};
+            MsgModifyTrackIndex parsed { };
             ASSERT_TRUE(SightlineTrackingParser::parseModifyTrackIndex(pkt, parsed));
             EXPECT_EQ(parsed.trackIndex, 2U);
             EXPECT_EQ(parsed.flags, static_cast<std::uint8_t>(TrackIndexAction::CoastFreezeUpdates));
@@ -1188,7 +1214,7 @@ namespace {
         // 3. Freeze Search
         {
             const auto pkt = SightlineTrackingBuilder::buildForcedCoasting(0U, 3U, ForcedCoastingMode::FreezeSearch);
-            MsgModifyTrackIndex parsed {};
+            MsgModifyTrackIndex parsed { };
             ASSERT_TRUE(SightlineTrackingParser::parseModifyTrackIndex(pkt, parsed));
             EXPECT_EQ(parsed.trackIndex, 3U);
             EXPECT_EQ(parsed.flags, static_cast<std::uint8_t>(TrackIndexAction::CoastFreezeSearch));
@@ -1196,8 +1222,9 @@ namespace {
 
         // 4. Freeze Propagation
         {
-            const auto pkt = SightlineTrackingBuilder::buildForcedCoasting(0U, 4U, ForcedCoastingMode::FreezePropagation);
-            MsgModifyTrackIndex parsed {};
+            const auto pkt
+                = SightlineTrackingBuilder::buildForcedCoasting(0U, 4U, ForcedCoastingMode::FreezePropagation);
+            MsgModifyTrackIndex parsed { };
             ASSERT_TRUE(SightlineTrackingParser::parseModifyTrackIndex(pkt, parsed));
             EXPECT_EQ(parsed.trackIndex, 4U);
             EXPECT_EQ(parsed.flags, static_cast<std::uint8_t>(TrackIndexAction::CoastFreezePropagation));
@@ -1212,7 +1239,7 @@ namespace {
             1U, 2U, TrackIndexAction::ResizeWithAcquisitionAssist, 80U, 60U);
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::ModifyTrackIndex);
 
-        MsgModifyTrackIndex parsed {};
+        MsgModifyTrackIndex parsed { };
         ASSERT_TRUE(SightlineTrackingParser::parseModifyTrackIndex(pkt, parsed));
         EXPECT_EQ(parsed.cameraIndex, 1U);
         EXPECT_EQ(parsed.trackIndex, 2U);
@@ -1224,11 +1251,11 @@ namespace {
     /// @brief Verify display-frame rotated nudge coordinates (0x0A).
     TEST(TestSightlineTracking, BuildAndParseNudgeDisplayRotated)
     {
-        const auto pkt = SightlineTrackingBuilder::buildNudgeTrackingRotated(
-            0U, -15, 25, NudgeCoordinateMode::DisplayCoordinates);
+        const auto pkt
+            = SightlineTrackingBuilder::buildNudgeTrackingRotated(0U, -15, 25, NudgeCoordinateMode::DisplayCoordinates);
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::NudgeTrackingCoordinate);
 
-        MsgNudgeTrackingCoordinate parsed {};
+        MsgNudgeTrackingCoordinate parsed { };
         ASSERT_TRUE(SightlineTrackingParser::parseNudgeTracking(pkt, parsed));
         EXPECT_EQ(parsed.cameraIndex, 0U);
         EXPECT_EQ(parsed.rotate, 1U);
@@ -1239,7 +1266,7 @@ namespace {
     /// @brief Verify track shift relative to centroid (0x33).
     TEST(TestSightlineTracking, BuildAndParseShiftSelectedTrack)
     {
-        MsgShiftSelectedTrack msg {};
+        MsgShiftSelectedTrack msg { };
         msg.cameraIndex = 1U;
         msg.trackId = 3U;
         msg.shiftCol = -10;
@@ -1248,7 +1275,7 @@ namespace {
         const auto pkt = SightlineTrackingBuilder::buildShiftSelectedTrack(msg);
         EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::ShiftSelectedTrack);
 
-        MsgShiftSelectedTrack parsed {};
+        MsgShiftSelectedTrack parsed { };
         ASSERT_TRUE(SightlineTrackingParser::parseShiftSelectedTrack(pkt, parsed));
         EXPECT_EQ(parsed.cameraIndex, 1U);
         EXPECT_EQ(parsed.trackId, 3U);
@@ -1259,7 +1286,7 @@ namespace {
     /// @brief Verify TrackCoordinate normalized conversions for closed-loop PTZ auto-tracking.
     TEST(TestSightlineTracking, TrackCoordinateNormalizedConversions)
     {
-        TrackCoordinate track {};
+        TrackCoordinate track { };
         track.trackId = 1U;
         track.centerCol = 960.0;
         track.centerRow = 540.0;

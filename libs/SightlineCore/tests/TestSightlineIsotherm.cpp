@@ -1,23 +1,30 @@
 /// @file TestSightlineIsotherm.cpp
 /// @brief Unit tests for Isotherm Color LUT Builder, BT.601 conversions, and AGC limits.
 
-#include "modules/SightlineIsothermBuilder.h"
-#include "modules/SightlinePaletteParser.h"
 #include "SightlineDevice.h"
 #include "SightlineFraming.h"
+#include "modules/SightlineIsothermBuilder.h"
+#include "modules/SightlinePaletteParser.h"
 
+#include <cstdint>
 #include <gtest/gtest.h>
 
 #include <cmath>
 #include <cstdio>
+
+#include <string>
 #include <vector>
 
 using namespace Sightline;
 
 class TestSightlineIsotherm : public ::testing::Test {
 protected:
-    void SetUp() override {}
-    void TearDown() override {}
+    void SetUp() override
+    {
+    }
+    void TearDown() override
+    {
+    }
 };
 
 TEST_F(TestSightlineIsotherm, ColorConversions)
@@ -60,7 +67,7 @@ TEST_F(TestSightlineIsotherm, ColorConversions)
 
 TEST_F(TestSightlineIsotherm, BasePaletteGeneration)
 {
-    SightlineIsothermBuilder builder {};
+    SightlineIsothermBuilder builder { };
 
     // 1. Grayscale White Hot
     builder.setBasePalette(BasePaletteType::GrayscaleWhiteHot);
@@ -98,9 +105,8 @@ TEST_F(TestSightlineIsotherm, EanInfraredTemperatureExample)
     // Human body (80°F - 100°F) -> mapped to index 0..16 -> Green
     // Electrical wires (150°F - 200°F) -> mapped to index 56..96 -> Yellow
     // Fire / hotspot (> 400°F) -> index 255 -> Red
-    SightlineIsothermBuilder builder {};
-    builder.setBasePalette(BasePaletteType::GrayscaleWhiteHot)
-           .setAgcRange(80.0F, 400.0F, TemperatureScale::Fahrenheit);
+    SightlineIsothermBuilder builder { };
+    builder.setBasePalette(BasePaletteType::GrayscaleWhiteHot).setAgcRange(80.0F, 400.0F, TemperatureScale::Fahrenheit);
 
     // Verify index mapping calculations from EAN
     EXPECT_EQ(builder.mapTempToIndex(80.0F, TemperatureScale::Fahrenheit), 0U);
@@ -111,8 +117,8 @@ TEST_F(TestSightlineIsotherm, EanInfraredTemperatureExample)
 
     // Add isotherm bands using physical temperature calls
     builder.addBandTemp(80.0F, 100.0F, TemperatureScale::Fahrenheit, RgbColor::green())
-           .addBandTemp(150.0F, 200.0F, TemperatureScale::Fahrenheit, RgbColor::yellow())
-           .addBandIndex(255U, 255U, RgbColor::red());
+        .addBandTemp(150.0F, 200.0F, TemperatureScale::Fahrenheit, RgbColor::yellow())
+        .addBandIndex(255U, 255U, RgbColor::red());
 
     const auto lut = builder.buildLut();
 
@@ -145,7 +151,7 @@ TEST_F(TestSightlineIsotherm, EanInfraredTemperatureExample)
 
 TEST_F(TestSightlineIsotherm, GradientAndAlphaBlend)
 {
-    SightlineIsothermBuilder builder {};
+    SightlineIsothermBuilder builder { };
     builder.setBasePalette(BasePaletteType::GrayscaleWhiteHot);
 
     // Add gradient from Blue to Red across 100..200
@@ -172,7 +178,7 @@ TEST_F(TestSightlineIsotherm, GradientAndAlphaBlend)
 
 TEST_F(TestSightlineIsotherm, SerializationAndPacket)
 {
-    SightlineIsothermBuilder builder {};
+    SightlineIsothermBuilder builder { };
     builder.setBasePalette(BasePaletteType::GrayscaleWhiteHot);
     builder.addBandIndex(10U, 20U, RgbColor::red());
 
@@ -187,7 +193,7 @@ TEST_F(TestSightlineIsotherm, SerializationAndPacket)
     const auto pkt = builder.buildPacket(0U);
     EXPECT_EQ(SightlineFraming::identifyMessage(pkt), MessageId::SetUserPalette);
 
-    MsgUserPalette parsed {};
+    MsgUserPalette parsed { };
     ASSERT_TRUE(SightlinePaletteParser::parseUserPalette(pkt, parsed));
     EXPECT_EQ(parsed.paletteIndex, 0U);
     EXPECT_EQ(parsed.lutData.size(), 768U);
@@ -196,7 +202,7 @@ TEST_F(TestSightlineIsotherm, SerializationAndPacket)
 
 TEST_F(TestSightlineIsotherm, BinaryFilePersistence)
 {
-    SightlineIsothermBuilder builder {};
+    SightlineIsothermBuilder builder { };
     builder.setBasePalette(BasePaletteType::Ironbow);
     builder.addBandIndex(50U, 80U, RgbColor::green());
 
@@ -207,7 +213,7 @@ TEST_F(TestSightlineIsotherm, BinaryFilePersistence)
     ASSERT_TRUE(originalLut.saveToFile(testFilePath, true));
 
     // Load back
-    IsothermColorLut loadedLut {};
+    IsothermColorLut loadedLut { };
     ASSERT_TRUE(IsothermColorLut::loadFromFile(testFilePath, loadedLut, true));
 
     // Compare entries

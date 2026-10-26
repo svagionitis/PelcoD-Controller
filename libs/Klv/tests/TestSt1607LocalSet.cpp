@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <gtest/gtest.h>
 
 #include "GeoRegistrationTypes.h"
@@ -13,7 +14,8 @@
 
 using namespace Klv;
 
-TEST(TestSt1607LocalSet, UniversalLabelIdentification) {
+TEST(TestSt1607LocalSet, UniversalLabelIdentification)
+{
     EXPECT_TRUE(St1607Parser::isAmendLocalSet(AmendLocalSetUl.data(), AmendLocalSetUl.size()));
     EXPECT_TRUE(St1607Parser::isSegmentLocalSet(SegmentLocalSetUl.data(), SegmentLocalSetUl.size()));
 
@@ -24,15 +26,16 @@ TEST(TestSt1607LocalSet, UniversalLabelIdentification) {
     EXPECT_FALSE(St1607Parser::isSegmentLocalSet(nullptr, 15U));
 }
 
-TEST(TestSt1607LocalSet, MsidPackLocalIdRoundTrip) {
-    MetadataSubstreamId msid {};
+TEST(TestSt1607LocalSet, MsidPackLocalIdRoundTrip)
+{
+    MetadataSubstreamId msid { };
     msid.localId = 42U; // Local ID > 0, UUID truncated
 
-    std::vector<std::uint8_t> encoded {};
+    std::vector<std::uint8_t> encoded { };
     ASSERT_TRUE(St1607Encoder::encodeMsid(msid, encoded));
     EXPECT_FALSE(encoded.empty());
 
-    MetadataSubstreamId decoded {};
+    MetadataSubstreamId decoded { };
     std::size_t bytesRead { 0U };
     ASSERT_TRUE(St1607Parser::parseMsid(encoded.data(), encoded.size(), decoded, bytesRead));
     EXPECT_EQ(decoded.localId, 42U);
@@ -40,19 +43,18 @@ TEST(TestSt1607LocalSet, MsidPackLocalIdRoundTrip) {
     EXPECT_EQ(bytesRead, encoded.size());
 }
 
-TEST(TestSt1607LocalSet, MsidPackUniversalIdRoundTrip) {
-    MetadataSubstreamId msid {};
+TEST(TestSt1607LocalSet, MsidPackUniversalIdRoundTrip)
+{
+    MetadataSubstreamId msid { };
     msid.localId = 0U; // Universal ID active
-    msid.universalId = std::array<std::uint8_t, 16> {
-        0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-        0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF
-    };
+    msid.universalId = std::array<std::uint8_t, 16> { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA,
+        0xBB, 0xCC, 0xDD, 0xEE, 0xFF };
 
-    std::vector<std::uint8_t> encoded {};
+    std::vector<std::uint8_t> encoded { };
     ASSERT_TRUE(St1607Encoder::encodeMsid(msid, encoded));
     EXPECT_EQ(encoded.size(), 17U); // 1 byte localId (0) + 16 bytes UUID
 
-    MetadataSubstreamId decoded {};
+    MetadataSubstreamId decoded { };
     std::size_t bytesRead { 0U };
     ASSERT_TRUE(St1607Parser::parseMsid(encoded.data(), encoded.size(), decoded, bytesRead));
     EXPECT_EQ(decoded.localId, 0U);
@@ -61,21 +63,22 @@ TEST(TestSt1607LocalSet, MsidPackUniversalIdRoundTrip) {
     EXPECT_EQ(bytesRead, 17U);
 }
 
-TEST(TestSt1607LocalSet, StandaloneAmendLocalSetPacket) {
-    AmendLocalSet amendSet {};
+TEST(TestSt1607LocalSet, StandaloneAmendLocalSetPacket)
+{
+    AmendLocalSet amendSet { };
     amendSet.msid.localId = 1U;
     amendSet.sensorLatitudeDeg = 34.0522;
     amendSet.sensorLongitudeDeg = -118.2437;
     amendSet.sensorTrueAltitudeM = 1250.0;
     amendSet.sensorHfovDeg = 15.5;
 
-    std::vector<std::uint8_t> packet {};
+    std::vector<std::uint8_t> packet { };
     ASSERT_EQ(St1607Encoder::encodePacket(amendSet, packet), KlvStatus::Success);
     EXPECT_FALSE(packet.empty());
 
     EXPECT_TRUE(St1607Parser::isAmendLocalSet(packet.data(), packet.size()));
 
-    AmendLocalSet decodedSet {};
+    AmendLocalSet decodedSet { };
     ASSERT_EQ(St1607Parser::parsePacket(packet.data(), packet.size(), decodedSet), KlvStatus::Success);
 
     EXPECT_EQ(decodedSet.msid.localId, 1U);
@@ -89,20 +92,21 @@ TEST(TestSt1607LocalSet, StandaloneAmendLocalSetPacket) {
     EXPECT_NEAR(*decodedSet.sensorHfovDeg, 15.5, 0.01);
 }
 
-TEST(TestSt1607LocalSet, StandaloneSegmentLocalSetPacket) {
-    SegmentLocalSet segSet {};
+TEST(TestSt1607LocalSet, StandaloneSegmentLocalSetPacket)
+{
+    SegmentLocalSet segSet { };
     segSet.msid.localId = 5U;
     segSet.sensorHfovDeg = 30.0;
     segSet.sensorVfovDeg = 20.0;
     segSet.imageSourceSensor = "EO-Wide";
 
-    std::vector<std::uint8_t> packet {};
+    std::vector<std::uint8_t> packet { };
     ASSERT_EQ(St1607Encoder::encodePacket(segSet, packet), KlvStatus::Success);
     EXPECT_FALSE(packet.empty());
 
     EXPECT_TRUE(St1607Parser::isSegmentLocalSet(packet.data(), packet.size()));
 
-    SegmentLocalSet decodedSet {};
+    SegmentLocalSet decodedSet { };
     ASSERT_EQ(St1607Parser::parsePacket(packet.data(), packet.size(), decodedSet), KlvStatus::Success);
 
     EXPECT_EQ(decodedSet.msid.localId, 5U);
@@ -114,22 +118,23 @@ TEST(TestSt1607LocalSet, StandaloneSegmentLocalSetPacket) {
     EXPECT_EQ(*decodedSet.imageSourceSensor, "EO-Wide");
 }
 
-TEST(TestSt1607LocalSet, AmendLocalSetWithGeoRegistration) {
-    AmendLocalSet amendSet {};
+TEST(TestSt1607LocalSet, AmendLocalSetWithGeoRegistration)
+{
+    AmendLocalSet amendSet { };
     amendSet.msid.localId = 9U;
     amendSet.sensorLatitudeDeg = 32.1234;
 
-    GeoRegistrationLocalSet geoReg {};
+    GeoRegistrationLocalSet geoReg { };
     geoReg.documentVersion = 2U;
     geoReg.algorithmName = "SIFT_MATCH";
     geoReg.algorithmVersion = "2.1";
     geoReg.pixelPoints = { { 100U, 200U, 102U, 204U } };
     amendSet.geoRegistration = geoReg;
 
-    std::vector<std::uint8_t> encoded {};
+    std::vector<std::uint8_t> encoded { };
     ASSERT_EQ(St1607Encoder::encodeAmend(amendSet, encoded), KlvStatus::Success);
 
-    AmendLocalSet decodedSet {};
+    AmendLocalSet decodedSet { };
     ASSERT_EQ(St1607Parser::parseAmend(encoded.data(), encoded.size(), decodedSet), KlvStatus::Success);
 
     EXPECT_EQ(decodedSet.msid.localId, 9U);
@@ -138,21 +143,22 @@ TEST(TestSt1607LocalSet, AmendLocalSetWithGeoRegistration) {
     EXPECT_EQ(decodedSet.geoRegistration->pixelPoints.size(), 1U);
 }
 
-TEST(TestSt1607LocalSet, St1607RulesValidation) {
+TEST(TestSt1607LocalSet, St1607RulesValidation)
+{
     // ST 1607.2-08: Parent Amend LS cannot nest a Segment LS
-    AmendLocalSet parentAmend {};
+    AmendLocalSet parentAmend { };
     parentAmend.msid.localId = 1U;
 
-    AmendLocalSet childAmend {};
+    AmendLocalSet childAmend { };
     childAmend.msid.localId = 2U;
     parentAmend.childAmends.push_back(childAmend);
     EXPECT_TRUE(parentAmend.validate());
 
     // ST 1607.2-07 & ST 1607.2-08 compliance on Segment LS
-    SegmentLocalSet parentSegment {};
+    SegmentLocalSet parentSegment { };
     parentSegment.msid.localId = 10U;
 
-    SegmentLocalSet childSegment {};
+    SegmentLocalSet childSegment { };
     childSegment.msid.localId = 11U;
     parentSegment.childSegments.push_back(childSegment);
 
@@ -161,14 +167,15 @@ TEST(TestSt1607LocalSet, St1607RulesValidation) {
     EXPECT_TRUE(parentSegment.validate());
 }
 
-TEST(TestSt1607LocalSet, UnionAndOverrideResolution) {
-    UasDatalinkMessage baseMsg {};
+TEST(TestSt1607LocalSet, UnionAndOverrideResolution)
+{
+    UasDatalinkMessage baseMsg { };
     baseMsg.platformHeadingDeg = 90.0;
     baseMsg.sensorLatitudeDeg = 35.0;
     baseMsg.sensorLongitudeDeg = -120.0;
     baseMsg.sensorHfovDeg = 25.0;
 
-    AmendLocalSet amendSet {};
+    AmendLocalSet amendSet { };
     amendSet.msid.localId = 1U;
     amendSet.sensorLatitudeDeg = 35.001; // Amended corrected latitude
     amendSet.sensorLongitudeDeg = -120.002; // Amended corrected longitude
@@ -189,20 +196,21 @@ TEST(TestSt1607LocalSet, UnionAndOverrideResolution) {
     EXPECT_NEAR(*effectiveMsg.sensorLongitudeDeg, -120.002, 1e-4);
 }
 
-TEST(TestSt1607LocalSet, Misb0601IntegrationTags100And101) {
-    UasDatalinkMessage msg {};
+TEST(TestSt1607LocalSet, Misb0601IntegrationTags100And101)
+{
+    UasDatalinkMessage msg { };
     msg.precisionTimeStampUs = 1700000000000000ULL;
     msg.sensorLatitudeDeg = 30.0;
     msg.sensorLongitudeDeg = -100.0;
 
     // Add Tag 100 Segment
-    SegmentLocalSet seg {};
+    SegmentLocalSet seg { };
     seg.msid.localId = 2U;
     seg.sensorHfovDeg = 12.0;
     msg.segments.push_back(seg);
 
     // Add Tag 101 Amend
-    AmendLocalSet amend {};
+    AmendLocalSet amend { };
     amend.msid.localId = 3U;
     amend.sensorLatitudeDeg = 30.0005;
     msg.amends.push_back(amend);
@@ -210,7 +218,7 @@ TEST(TestSt1607LocalSet, Misb0601IntegrationTags100And101) {
     const auto encodedPacket = KlvEncoder::encode(msg);
     ASSERT_FALSE(encodedPacket.empty());
 
-    UasDatalinkMessage decodedMsg {};
+    UasDatalinkMessage decodedMsg { };
     ASSERT_EQ(KlvParser::parse(encodedPacket.data(), encodedPacket.size(), decodedMsg), KlvStatus::Success);
 
     ASSERT_EQ(decodedMsg.segments.size(), 1U);

@@ -1,21 +1,22 @@
 /// @file SightlineLandingBuilder.cpp
 /// @brief Implementation of Sightline visual landing aid command serializers.
 
+#include <cstdint>
+
 #include "SightlineLandingBuilder.h"
+#include <vector>
 
 namespace Sightline {
 
-std::vector<std::uint8_t> SightlineLandingBuilder::buildLandingAid(
-    const MsgLandingAid& msg)
+std::vector<std::uint8_t> SightlineLandingBuilder::buildLandingAid(const MsgLandingAid& msg)
 {
     const std::vector<std::uint8_t> payload { msg.cameraIndex, msg.mode, msg.patternType };
     return SightlineFraming::buildPacket(MessageId::LandingAid, payload);
 }
 
-std::vector<std::uint8_t> SightlineLandingBuilder::buildLandingPosition(
-    const MsgLandingPosition& msg)
+std::vector<std::uint8_t> SightlineLandingBuilder::buildLandingPosition(const MsgLandingPosition& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(50U);
     payload.push_back(msg.cameraIndex);
     SightlineFraming::appendDouble64Le(payload, msg.relativeX);
@@ -30,9 +31,7 @@ std::vector<std::uint8_t> SightlineLandingBuilder::buildLandingPosition(
 
 std::vector<std::uint8_t> SightlineLandingBuilder::buildGetLandingAid()
 {
-    const std::vector<std::uint8_t> payload {
-        static_cast<std::uint8_t>(MessageId::LandingAid)
-    };
+    const std::vector<std::uint8_t> payload { static_cast<std::uint8_t>(MessageId::LandingAid) };
     return SightlineFraming::buildPacket(MessageId::GetParameters, payload);
 }
 

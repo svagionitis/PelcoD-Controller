@@ -1,6 +1,7 @@
 #include "Misb1201.h"
-#include <gtest/gtest.h>
 #include <cmath>
+#include <cstdint>
+#include <gtest/gtest.h>
 #include <limits>
 #include <vector>
 
@@ -9,7 +10,8 @@ using namespace Klv;
 // =============================================================================
 // MISB ST 1201.5 Appendix A - Test 1: IMAPA(0.0, 100.0, 1E-5)
 // =============================================================================
-TEST(TestMisb1201, AppendixATest1StartingPointA) {
+TEST(TestMisb1201, AppendixATest1StartingPointA)
+{
     const double minVal = 0.0;
     const double maxVal = 100.0;
     const double precision = 1.0e-5;
@@ -33,8 +35,8 @@ TEST(TestMisb1201, AppendixATest1StartingPointA) {
     EXPECT_EQ(Misb1201::encode(std::numeric_limits<double>::infinity(), params), 0xC8000000ULL);
     EXPECT_EQ(Misb1201::encode(-std::numeric_limits<double>::infinity(), params), 0xE8000000ULL);
     EXPECT_EQ(Misb1201::encode(std::numeric_limits<double>::quiet_NaN(), params), 0xD0000000ULL);
-    EXPECT_EQ(Misb1201::encode(-1.0, params), 0xE0000000ULL);    // IMAP_BELOW_MINIMUM
-    EXPECT_EQ(Misb1201::encode(101.0, params), 0xE1000000ULL);   // IMAP_ABOVE_MAXIMUM
+    EXPECT_EQ(Misb1201::encode(-1.0, params), 0xE0000000ULL); // IMAP_BELOW_MINIMUM
+    EXPECT_EQ(Misb1201::encode(101.0, params), 0xE1000000ULL); // IMAP_ABOVE_MAXIMUM
 
     // Reverse mapping validations
     const auto res0 = Misb1201::decode(0x00000000ULL, params);
@@ -71,7 +73,8 @@ TEST(TestMisb1201, AppendixATest1StartingPointA) {
 // =============================================================================
 // MISB ST 1201.5 Appendix A - Test 2: IMAPB(0.0, 100.0, 3)
 // =============================================================================
-TEST(TestMisb1201, AppendixATest2StartingPointB) {
+TEST(TestMisb1201, AppendixATest2StartingPointB)
+{
     const double minVal = 0.0;
     const double maxVal = 100.0;
     const std::size_t len = 3U;
@@ -101,7 +104,8 @@ TEST(TestMisb1201, AppendixATest2StartingPointB) {
 // =============================================================================
 // MISB ST 1201.5 Appendix A - Test 3: IMAPB(-9.9, 110.0, 3)
 // =============================================================================
-TEST(TestMisb1201, AppendixATest3ZeroOffset) {
+TEST(TestMisb1201, AppendixATest3ZeroOffset)
+{
     const double minVal = -9.9;
     const double maxVal = 110.0;
     const std::size_t len = 3U;
@@ -124,7 +128,8 @@ TEST(TestMisb1201, AppendixATest3ZeroOffset) {
 // =============================================================================
 // Byte serialization and deserialization
 // =============================================================================
-TEST(TestMisb1201, ByteSerializationRoundTrip) {
+TEST(TestMisb1201, ByteSerializationRoundTrip)
+{
     const double minVal = -900.0;
     const double maxVal = 19000.0;
     const std::size_t len = 2U;
@@ -141,7 +146,8 @@ TEST(TestMisb1201, ByteSerializationRoundTrip) {
 // =============================================================================
 // Edge Cases & Parameter Validation
 // =============================================================================
-TEST(TestMisb1201, EdgeCases) {
+TEST(TestMisb1201, EdgeCases)
+{
     // Negative zero handling
     const auto encNegZero = Misb1201::encode(-0.0, -100.0, 100.0, 2U);
     const auto encPosZero = Misb1201::encode(0.0, -100.0, 100.0, 2U);

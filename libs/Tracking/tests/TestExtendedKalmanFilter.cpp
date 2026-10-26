@@ -6,6 +6,7 @@
 #include "MatrixMath.h"
 
 #include <cmath>
+#include <cstddef>
 #include <gtest/gtest.h>
 #include <iostream>
 
@@ -30,7 +31,7 @@ Vector<2> linearH(const Vector<6>& x)
 /// @brief Jacobian of the linear measurement function: H = [[1,0,0,0,0,0],[0,1,0,0,0,0]]
 Matrix<2, 6> linearJacobian(const Vector<6>&)
 {
-    Matrix<2, 6> H {};
+    Matrix<2, 6> H { };
     H(0, 0) = 1.0;
     H(1, 1) = 1.0;
     return H;
@@ -50,8 +51,8 @@ TEST(ExtendedKalmanFilterTest, InitMarksInitialized)
 {
     std::cout << "[Test] testInitMarksInitialized\n";
     ExtendedKalmanFilter ekf;
-    Vector<6> x0 {};
-    Matrix<6, 6> P0 {};
+    Vector<6> x0 { };
+    Matrix<6, 6> P0 { };
     for (std::size_t i = 0U; i < 6U; ++i) {
         P0(i, i) = 1.0;
     }
@@ -68,10 +69,10 @@ TEST(ExtendedKalmanFilterTest, PredictAdvancesState)
 {
     std::cout << "[Test] testPredictAdvancesState\n";
     ExtendedKalmanFilter ekf;
-    Vector<6> x0 {};
+    Vector<6> x0 { };
     x0[0] = 1.0; // position x
     x0[2] = 0.5; // velocity x
-    Matrix<6, 6> P0 {};
+    Matrix<6, 6> P0 { };
     for (std::size_t i = 0U; i < 6U; ++i) {
         P0(i, i) = 0.1;
     }
@@ -92,8 +93,8 @@ TEST(ExtendedKalmanFilterTest, UpdateReducesCovariance)
 {
     std::cout << "[Test] testUpdateReducesCovariance\n";
     ExtendedKalmanFilter ekf;
-    Vector<6> x0 {};
-    Matrix<6, 6> P0 {};
+    Vector<6> x0 { };
+    Matrix<6, 6> P0 { };
     for (std::size_t i = 0U; i < 6U; ++i) {
         P0(i, i) = 1.0;
     }
@@ -105,7 +106,7 @@ TEST(ExtendedKalmanFilterTest, UpdateReducesCovariance)
     }
 
     Vector<2> z { 0.0, 0.0 };
-    Matrix<2, 2> R {};
+    Matrix<2, 2> R { };
     R(0, 0) = 0.01;
     R(1, 1) = 0.01;
 
@@ -124,17 +125,17 @@ TEST(ExtendedKalmanFilterTest, GetInnovationAfterUpdate)
 {
     std::cout << "[Test] testGetInnovationAfterUpdate\n";
     ExtendedKalmanFilter ekf;
-    Vector<6> x0 {};
+    Vector<6> x0 { };
     x0[0] = 2.0;
     x0[1] = 3.0;
-    Matrix<6, 6> P0 {};
+    Matrix<6, 6> P0 { };
     for (std::size_t i = 0U; i < 6U; ++i) {
         P0(i, i) = 0.5;
     }
     ekf.init(x0, P0);
 
     Vector<2> z { 2.5, 3.5 };
-    Matrix<2, 2> R {};
+    Matrix<2, 2> R { };
     R(0, 0) = 0.1;
     R(1, 1) = 0.1;
 
@@ -151,15 +152,15 @@ TEST(ExtendedKalmanFilterTest, MahalanobisDistanceIsPositive)
 {
     std::cout << "[Test] testMahalanobisDistanceIsPositive\n";
     ExtendedKalmanFilter ekf;
-    Vector<6> x0 {};
-    Matrix<6, 6> P0 {};
+    Vector<6> x0 { };
+    Matrix<6, 6> P0 { };
     for (std::size_t i = 0U; i < 6U; ++i) {
         P0(i, i) = 1.0;
     }
     ekf.init(x0, P0);
 
     Vector<2> z { 1.0, 2.0 };
-    Matrix<2, 2> R {};
+    Matrix<2, 2> R { };
     R(0, 0) = 0.1;
     R(1, 1) = 0.1;
     ekf.update(z, linearH, linearJacobian, R);
@@ -172,9 +173,9 @@ TEST(ExtendedKalmanFilterTest, ResetClearsState)
 {
     std::cout << "[Test] testResetClearsState\n";
     ExtendedKalmanFilter ekf;
-    Vector<6> x0 {};
+    Vector<6> x0 { };
     x0[0] = 5.0;
-    Matrix<6, 6> P0 {};
+    Matrix<6, 6> P0 { };
     for (std::size_t i = 0U; i < 6U; ++i) {
         P0(i, i) = 1.0;
     }
@@ -190,8 +191,8 @@ TEST(ExtendedKalmanFilterTest, SetProcessNoise)
 {
     std::cout << "[Test] testSetProcessNoise\n";
     ExtendedKalmanFilter ekf;
-    Vector<6> x0 {};
-    Matrix<6, 6> P0 {};
+    Vector<6> x0 { };
+    Matrix<6, 6> P0 { };
     for (std::size_t i = 0U; i < 6U; ++i) {
         P0(i, i) = 1.0;
     }
@@ -210,15 +211,15 @@ TEST(ExtendedKalmanFilterTest, PredictUpdateCycleConverges)
 {
     std::cout << "[Test] testPredictUpdateCycleConverges\n";
     ExtendedKalmanFilter ekf;
-    Vector<6> x0 {};
-    Matrix<6, 6> P0 {};
+    Vector<6> x0 { };
+    Matrix<6, 6> P0 { };
     for (std::size_t i = 0U; i < 6U; ++i) {
         P0(i, i) = 1.0;
     }
     ekf.init(x0, P0);
     ekf.setProcessNoise(1e-4, 1e-3, 1e-2);
 
-    Matrix<2, 2> R {};
+    Matrix<2, 2> R { };
     R(0, 0) = 0.01;
     R(1, 1) = 0.01;
 

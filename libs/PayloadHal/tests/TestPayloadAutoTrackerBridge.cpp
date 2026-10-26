@@ -9,6 +9,7 @@
 #include <cmath>
 #include <gtest/gtest.h>
 #include <memory>
+#include <optional>
 #include <thread>
 
 namespace PayloadHal {

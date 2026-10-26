@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <optional>
+#include <vector>
 
 namespace Klv {
 
@@ -57,14 +60,10 @@ void TelemetryTimeIndex::finalize()
     }
 
     std::stable_sort(m_videoEntries.begin(), m_videoEntries.end(),
-        [](const VideoIndexEntry& a, const VideoIndexEntry& b) noexcept {
-            return a.ptsTicks < b.ptsTicks;
-        });
+        [](const VideoIndexEntry& a, const VideoIndexEntry& b) noexcept { return a.ptsTicks < b.ptsTicks; });
 
     std::stable_sort(m_klvEntries.begin(), m_klvEntries.end(),
-        [](const KlvIndexEntry& a, const KlvIndexEntry& b) noexcept {
-            return a.ptsTicks < b.ptsTicks;
-        });
+        [](const KlvIndexEntry& a, const KlvIndexEntry& b) noexcept { return a.ptsTicks < b.ptsTicks; });
 
     m_keyframeIndices.clear();
     for (std::size_t i = 0U; i < m_videoEntries.size(); ++i) {
@@ -127,9 +126,7 @@ std::optional<VideoIndexEntry> TelemetryTimeIndex::findPrecedingKeyframe(std::ui
     }
 
     auto it = std::upper_bound(m_keyframeIndices.begin(), m_keyframeIndices.end(), pts,
-        [this](std::uint64_t target, std::size_t kfIdx) noexcept {
-            return target < m_videoEntries[kfIdx].ptsTicks;
-        });
+        [this](std::uint64_t target, std::size_t kfIdx) noexcept { return target < m_videoEntries[kfIdx].ptsTicks; });
 
     if (it == m_keyframeIndices.begin()) {
         return m_videoEntries[m_keyframeIndices.front()];
@@ -146,9 +143,7 @@ std::optional<VideoIndexEntry> TelemetryTimeIndex::findVideoFrame(std::uint64_t 
     }
 
     auto it = std::lower_bound(m_videoEntries.begin(), m_videoEntries.end(), pts,
-        [](const VideoIndexEntry& entry, std::uint64_t target) noexcept {
-            return entry.ptsTicks < target;
-        });
+        [](const VideoIndexEntry& entry, std::uint64_t target) noexcept { return entry.ptsTicks < target; });
 
     if (it == m_videoEntries.end()) {
         return m_videoEntries.back();
@@ -163,17 +158,15 @@ std::optional<VideoIndexEntry> TelemetryTimeIndex::findVideoFrame(std::uint64_t 
     return (delta1 <= delta2) ? *prev : *it;
 }
 
-std::optional<KlvIndexEntry> TelemetryTimeIndex::findTelemetry(std::uint64_t pts,
-                                                              std::uint64_t maxDeltaUs) const noexcept
+std::optional<KlvIndexEntry> TelemetryTimeIndex::findTelemetry(
+    std::uint64_t pts, std::uint64_t maxDeltaUs) const noexcept
 {
     if (m_klvEntries.empty()) {
         return std::nullopt;
     }
 
     auto it = std::lower_bound(m_klvEntries.begin(), m_klvEntries.end(), pts,
-        [](const KlvIndexEntry& entry, std::uint64_t target) noexcept {
-            return entry.ptsTicks < target;
-        });
+        [](const KlvIndexEntry& entry, std::uint64_t target) noexcept { return entry.ptsTicks < target; });
 
     KlvIndexEntry candidate = m_klvEntries.back();
     if (it == m_klvEntries.begin()) {
@@ -185,9 +178,7 @@ std::optional<KlvIndexEntry> TelemetryTimeIndex::findTelemetry(std::uint64_t pts
         candidate = (deltaPrev <= deltaCurr) ? *prev : *it;
     }
 
-    const std::uint64_t ptsDiff = (pts >= candidate.ptsTicks)
-        ? (pts - candidate.ptsTicks)
-        : (candidate.ptsTicks - pts);
+    const std::uint64_t ptsDiff = (pts >= candidate.ptsTicks) ? (pts - candidate.ptsTicks) : (candidate.ptsTicks - pts);
     const std::uint64_t deltaUs = (ptsDiff * 1000000U) / 90000U;
 
     if (deltaUs <= maxDeltaUs) {
@@ -197,9 +188,8 @@ std::optional<KlvIndexEntry> TelemetryTimeIndex::findTelemetry(std::uint64_t pts
     return std::nullopt;
 }
 
-bool TelemetryTimeIndex::findTelemetryBounds(std::uint64_t pts,
-                                             KlvIndexEntry& before,
-                                             KlvIndexEntry& after) const noexcept
+bool TelemetryTimeIndex::findTelemetryBounds(
+    std::uint64_t pts, KlvIndexEntry& before, KlvIndexEntry& after) const noexcept
 {
     if (m_klvEntries.empty()) {
         return false;
@@ -224,32 +214,25 @@ bool TelemetryTimeIndex::findTelemetryBounds(std::uint64_t pts,
     }
 
     auto it = std::upper_bound(m_klvEntries.begin(), m_klvEntries.end(), pts,
-        [](std::uint64_t target, const KlvIndexEntry& entry) noexcept {
-            return target < entry.ptsTicks;
-        });
+        [](std::uint64_t target, const KlvIndexEntry& entry) noexcept { return target < entry.ptsTicks; });
 
     after = *it;
     before = *(it - 1);
     return true;
 }
 
-std::vector<KlvIndexEntry> TelemetryTimeIndex::findWindow(std::uint64_t startPts,
-                                                         std::uint64_t endPts) const
+std::vector<KlvIndexEntry> TelemetryTimeIndex::findWindow(std::uint64_t startPts, std::uint64_t endPts) const
 {
-    std::vector<KlvIndexEntry> result {};
+    std::vector<KlvIndexEntry> result { };
     if (m_klvEntries.empty() || startPts > endPts) {
         return result;
     }
 
     auto startIt = std::lower_bound(m_klvEntries.begin(), m_klvEntries.end(), startPts,
-        [](const KlvIndexEntry& entry, std::uint64_t target) noexcept {
-            return entry.ptsTicks < target;
-        });
+        [](const KlvIndexEntry& entry, std::uint64_t target) noexcept { return entry.ptsTicks < target; });
 
     auto endIt = std::upper_bound(m_klvEntries.begin(), m_klvEntries.end(), endPts,
-        [](std::uint64_t target, const KlvIndexEntry& entry) noexcept {
-            return target < entry.ptsTicks;
-        });
+        [](std::uint64_t target, const KlvIndexEntry& entry) noexcept { return target < entry.ptsTicks; });
 
     if (startIt < endIt) {
         result.assign(startIt, endIt);

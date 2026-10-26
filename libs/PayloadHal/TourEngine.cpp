@@ -4,32 +4,39 @@
 #include "TourEngine.h"
 
 #include <cmath>
+#include <cstdint>
+
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace PayloadHal {
 
 namespace {
 
-double normalizeAngleDeg(double angle)
-{
-    while (angle > 180.0) {
-        angle -= 360.0;
+    double normalizeAngleDeg(double angle)
+    {
+        while (angle > 180.0) {
+            angle -= 360.0;
+        }
+        while (angle < -180.0) {
+            angle += 360.0;
+        }
+        return angle;
     }
-    while (angle < -180.0) {
-        angle += 360.0;
-    }
-    return angle;
-}
 
-double angularDiffDeg(double a, double b)
-{
-    return std::abs(normalizeAngleDeg(a - b));
-}
+    double angularDiffDeg(double a, double b)
+    {
+        return std::abs(normalizeAngleDeg(a - b));
+    }
 
 } // namespace
 
-TourEngine::TourEngine(std::shared_ptr<IPanTiltUnit> ptu,
-                       std::shared_ptr<ICameraPayload> camera,
-                       std::shared_ptr<IPtzPresetManager> presetMgr)
+TourEngine::TourEngine(std::shared_ptr<IPanTiltUnit> ptu, std::shared_ptr<ICameraPayload> camera,
+    std::shared_ptr<IPtzPresetManager> presetMgr)
     : m_ptu(std::move(ptu))
     , m_camera(std::move(camera))
     , m_presetMgr(std::move(presetMgr))
@@ -259,8 +266,9 @@ void TourEngine::executionLoop()
     while (m_running) {
         std::unique_lock<std::mutex> lock(m_mutex);
         m_cv.wait_for(lock, std::chrono::milliseconds(50), [this] {
-            return !m_running || (m_status.state != TourState::Idle && m_status.state != TourState::Paused
-                                  && m_status.state != TourState::Completed);
+            return !m_running
+                || (m_status.state != TourState::Idle && m_status.state != TourState::Paused
+                    && m_status.state != TourState::Completed);
         });
 
         if (!m_running) {

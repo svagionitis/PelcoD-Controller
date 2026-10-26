@@ -3,7 +3,15 @@
 
 #include "LocalPresetManager.h"
 
+#include <cstdint>
+
 #include <algorithm>
+#include <chrono>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -42,12 +50,12 @@ bool LocalPresetManager::saveCurrentPosition(std::uint32_t id, const std::string
     }
 
     const auto ptuTelem = ptu->currentTelemetry();
-    CameraTelemetry camTelem {};
+    CameraTelemetry camTelem { };
     if (camera) {
         camTelem = camera->currentTelemetry();
     }
 
-    PtzPreset p {};
+    PtzPreset p { };
     p.id = id;
     p.name = name.empty() ? ("Preset " + std::to_string(id)) : name;
     p.panAngleDeg = ptuTelem.panAngleDeg;
@@ -67,7 +75,7 @@ bool LocalPresetManager::saveCurrentPosition(std::uint32_t id, const std::string
 bool LocalPresetManager::recallPreset(std::uint32_t id, float speedRatio)
 {
     (void)speedRatio;
-    PtzPreset preset {};
+    PtzPreset preset { };
     std::shared_ptr<IPanTiltUnit> ptu;
     std::shared_ptr<ICameraPayload> camera;
     {

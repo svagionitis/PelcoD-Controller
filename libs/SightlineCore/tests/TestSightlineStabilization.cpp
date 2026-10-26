@@ -9,7 +9,10 @@
 #include "modules/SightlineStabilizationBuilder.h"
 #include "modules/SightlineStabilizationParser.h"
 
+#include <cstdint>
+
 #include <gtest/gtest.h>
+#include <vector>
 
 namespace Sightline {
 namespace {
@@ -17,7 +20,7 @@ namespace {
     /// @brief Verify stabilization and multi-sensor blending serialization.
     TEST(TestSightlineStabilization, BuildStabilizationRegistration)
     {
-        MsgSetStabilizationParameters stabMsg {};
+        MsgSetStabilizationParameters stabMsg { };
         stabMsg.mode = 1U;
         stabMsg.rate = 30U;
         stabMsg.translationLimit = 64U;
@@ -45,7 +48,7 @@ namespace {
         const auto facadeStabPkt = SightlineProtocolBuilder::buildSetStabilization(stabMsg);
         EXPECT_EQ(stabPkt, facadeStabPkt);
 
-        MsgResetStabilizationParameters resetStab {};
+        MsgResetStabilizationParameters resetStab { };
         resetStab.resetType = 0U;
         resetStab.cameraIndex = 1U;
         const auto resetPkt = SightlineStabilizationBuilder::buildResetStabilization(resetStab);
@@ -55,7 +58,7 @@ namespace {
         EXPECT_EQ(resetPayload[0], 0U);
         EXPECT_EQ(resetPayload[1], 1U);
 
-        MsgSetStabilizationBias biasMsg {};
+        MsgSetStabilizationBias biasMsg { };
         biasMsg.cameraIndex = 0U;
         biasMsg.biasCol = 10;
         biasMsg.biasRow = -15;
@@ -71,7 +74,7 @@ namespace {
         EXPECT_EQ(biasPayload[5], 1U);
         EXPECT_EQ(biasPayload[6], 50U);
 
-        MsgSetRegistrationParameters regMsg {};
+        MsgSetRegistrationParameters regMsg { };
         regMsg.cameraIndex = 0U;
         regMsg.maxTranslation = 60U;
         regMsg.maxRotation = 5U;
@@ -97,7 +100,7 @@ namespace {
         EXPECT_EQ(regPayload[13], 100U);
         EXPECT_EQ(regPayload[14], 0U);
 
-        MsgSetBlendParameters blendMsg {};
+        MsgSetBlendParameters blendMsg { };
         blendMsg.absOffZoom = 1U;
         blendMsg.vertical = 5;
         blendMsg.horizontal = -10;
@@ -136,7 +139,7 @@ namespace {
         };
         const auto pkt = SightlineFraming::buildPacket(MessageId::CurrentStabilizationParameters, payload);
 
-        MsgSetStabilizationParameters out {};
+        MsgSetStabilizationParameters out { };
         ASSERT_TRUE(SightlineStabilizationParser::parseStabilizationParams(pkt, out));
         EXPECT_EQ(out.mode, 1U);
         EXPECT_EQ(out.rate, 30U);
@@ -149,7 +152,7 @@ namespace {
         EXPECT_EQ(out.edgeV, 0x80U);
 
         // Verify facade equivalence
-        MsgSetStabilizationParameters facadeOut {};
+        MsgSetStabilizationParameters facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseStabilizationParams(pkt, facadeOut));
         EXPECT_EQ(facadeOut.maxStabOff, 48U);
     }
@@ -157,7 +160,7 @@ namespace {
     /// @brief Verify registration parameters deserialization (0x9E).
     TEST(TestSightlineStabilization, ParseRegistrationParams)
     {
-        MsgSetRegistrationParameters in {};
+        MsgSetRegistrationParameters in { };
         in.cameraIndex = 1U;
         in.maxTranslation = 80U;
         in.maxRotation = 3U;
@@ -170,7 +173,7 @@ namespace {
         in.flags = 2U;
 
         const auto pkt = SightlineStabilizationBuilder::buildSetRegistration(in);
-        MsgSetRegistrationParameters out {};
+        MsgSetRegistrationParameters out { };
         ASSERT_TRUE(SightlineStabilizationParser::parseRegistration(pkt, out));
         EXPECT_EQ(out.cameraIndex, 1U);
         EXPECT_EQ(out.maxTranslation, 80U);
@@ -184,7 +187,7 @@ namespace {
         EXPECT_EQ(out.flags, 2U);
 
         // Facade test
-        MsgSetRegistrationParameters facadeOut {};
+        MsgSetRegistrationParameters facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseRegistration(pkt, facadeOut));
         EXPECT_EQ(facadeOut.left, 120U);
     }
@@ -192,7 +195,7 @@ namespace {
     /// @brief Verify stabilization bias deserialization (0x9F).
     TEST(TestSightlineStabilization, ParseStabilizationBias)
     {
-        MsgSetStabilizationBias in {};
+        MsgSetStabilizationBias in { };
         in.cameraIndex = 2U;
         in.biasCol = -42;
         in.biasRow = 88;
@@ -200,7 +203,7 @@ namespace {
         in.updateRate = 60U;
 
         const auto pkt = SightlineStabilizationBuilder::buildSetStabilizationBias(in);
-        MsgSetStabilizationBias out {};
+        MsgSetStabilizationBias out { };
         ASSERT_TRUE(SightlineStabilizationParser::parseStabilizationBias(pkt, out));
         EXPECT_EQ(out.cameraIndex, 2U);
         EXPECT_EQ(out.biasCol, -42);
@@ -209,7 +212,7 @@ namespace {
         EXPECT_EQ(out.updateRate, 60U);
 
         // Facade test
-        MsgSetStabilizationBias facadeOut {};
+        MsgSetStabilizationBias facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseStabilizationBias(pkt, facadeOut));
         EXPECT_EQ(facadeOut.biasRow, 88);
     }

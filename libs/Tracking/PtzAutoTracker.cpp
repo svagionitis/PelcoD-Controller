@@ -3,6 +3,7 @@
 
 #include "PtzAutoTracker.h"
 #include <cmath>
+#include <cstdint>
 
 namespace Tracking {
 
@@ -225,8 +226,8 @@ PtzAutoTracker::TrackingCommand PtzAutoTracker::update(double errorX, double err
 }
 
 PtzAutoTracker::TrackingCommand PtzAutoTracker::updateAngular(double errorAzimuthDeg, double errorElevationDeg,
-    double omegaAzimuthDegPerSec, double omegaElevationDegPerSec, bool isLocked, bool isCoasting,
-    double dt, double targetNormHeight, double currentZoom)
+    double omegaAzimuthDegPerSec, double omegaElevationDegPerSec, bool isLocked, bool isCoasting, double dt,
+    double targetNormHeight, double currentZoom)
 {
     TrackingCommand cmd;
 
@@ -350,11 +351,7 @@ PtzAutoTracker::TrackingCommand PtzAutoTracker::updateAngular(double errorAzimut
 }
 
 PtzAutoTracker::TrackingCommand PtzAutoTracker::updateFromVmti(
-    const Klv::VTargetPack& pack,
-    std::uint32_t frameWidth,
-    std::uint32_t frameHeight,
-    double dt,
-    double currentZoom)
+    const Klv::VTargetPack& pack, std::uint32_t frameWidth, std::uint32_t frameHeight, double dt, double currentZoom)
 {
     if (frameWidth == 0U || frameHeight == 0U) {
         return update(0.0, 0.0, 0.0, 0.0, false, true, dt, 0.0, currentZoom);

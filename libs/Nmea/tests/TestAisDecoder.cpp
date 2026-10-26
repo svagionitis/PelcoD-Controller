@@ -1,5 +1,8 @@
 #include "AisDecoder.h"
 
+#include <chrono>
+#include <string>
+
 #include <gtest/gtest.h>
 
 namespace Nmea {
@@ -7,10 +10,10 @@ namespace {
 
     TEST(TestAisDecoder, SinglePartClassAPositionReport)
     {
-        AisDecoder decoder {};
+        AisDecoder decoder { };
         const std::string sentence = "!AIVDM,1,1,,B,177KQJ001p5nk70GwLF85jww0+RA,0*67\r\n";
 
-        AisVesselTarget target {};
+        AisVesselTarget target { };
         ASSERT_TRUE(decoder.decodeSentence(sentence, target, true));
 
         EXPECT_EQ(target.messageType, AisMessageType::ClassAPosition1);
@@ -26,14 +29,14 @@ namespace {
 
     TEST(TestAisDecoder, MultiPartClassAStaticVoyageData)
     {
-        AisDecoder decoder {};
+        AisDecoder decoder { };
 
         // 2-part message for Type 5
         const std::string part1
             = "!AIVDM,2,1,3,A,539Lg1h2;=`048?7;?@t<D4r0EQ0hu8E80000016BhN<=7<jNEDSm51DQ0C@,0*19\r\n";
         const std::string part2 = "!AIVDM,2,2,3,A,00000000000,2*27\r\n";
 
-        AisVesselTarget target {};
+        AisVesselTarget target { };
 
         // Part 1 should buffer and return false
         EXPECT_FALSE(decoder.decodeSentence(part1, target, true));
@@ -63,10 +66,10 @@ namespace {
 
     TEST(TestAisDecoder, SinglePartClassBPositionReport)
     {
-        AisDecoder decoder {};
+        AisDecoder decoder { };
         const std::string sentence = "!AIVDM,1,1,,B,B39i700000?4;7Wd:d403w<00000,0*25\r\n";
 
-        AisVesselTarget target {};
+        AisVesselTarget target { };
         ASSERT_TRUE(decoder.decodeSentence(sentence, target, true));
 
         EXPECT_EQ(target.messageType, AisMessageType::ClassBPosition18);
@@ -80,22 +83,22 @@ namespace {
 
     TEST(TestAisDecoder, RejectInvalidChecksum)
     {
-        AisDecoder decoder {};
+        AisDecoder decoder { };
         // Corrupt checksum from *67 to *99
         const std::string badSentence = "!AIVDM,1,1,,B,177KQJ001p5nk70GwLF85jww0+RA,0*99\r\n";
 
-        AisVesselTarget target {};
+        AisVesselTarget target { };
         EXPECT_FALSE(decoder.decodeSentence(badSentence, target, true));
     }
 
     TEST(TestAisDecoder, MultiPartFragmentTimeoutAndReset)
     {
-        AisDecoder decoder {};
+        AisDecoder decoder { };
         decoder.setFragmentTtl(std::chrono::milliseconds(50));
 
         const std::string part1
             = "!AIVDM,2,1,3,A,539Lg1h2;=`048?7;?@t<D4r0EQ0hu8E80000016BhN<=7<jNEDSm51DQ0C@,0*19\r\n";
-        AisVesselTarget target {};
+        AisVesselTarget target { };
         EXPECT_FALSE(decoder.decodeSentence(part1, target, true));
 
         // Reset should clear cache

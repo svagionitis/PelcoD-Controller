@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <vector>
 
 namespace Math {
@@ -28,17 +29,15 @@ MotionResult PhaseCorrelationEstimator::estimateMotion(
     const std::uint8_t* refPixels, const std::uint8_t* curPixels, int width, int height, int stride) const
 {
     if (refPixels == nullptr || curPixels == nullptr || width <= 0 || height <= 0) {
-        return MotionResult {};
+        return MotionResult { };
     }
 
     const std::size_t uWidth = static_cast<std::size_t>(width);
     const std::size_t uHeight = static_cast<std::size_t>(height);
     const std::size_t actualStride = (stride > 0) ? static_cast<std::size_t>(stride) : uWidth;
 
-    std::size_t gw
-        = isPowerOfTwo(m_config.gridWidth) ? m_config.gridWidth : nextPowerOfTwo(m_config.gridWidth);
-    std::size_t gh
-        = isPowerOfTwo(m_config.gridHeight) ? m_config.gridHeight : nextPowerOfTwo(m_config.gridHeight);
+    std::size_t gw = isPowerOfTwo(m_config.gridWidth) ? m_config.gridWidth : nextPowerOfTwo(m_config.gridWidth);
+    std::size_t gh = isPowerOfTwo(m_config.gridHeight) ? m_config.gridHeight : nextPowerOfTwo(m_config.gridHeight);
     if (gw < 2U) {
         gw = 64U;
     }
@@ -178,7 +177,7 @@ MotionResult PhaseCorrelationEstimator::estimateMotion(
     const double finalDeltaX = shiftX * scaleX;
     const double finalDeltaY = shiftY * scaleY;
 
-    MotionResult result {};
+    MotionResult result { };
     result.deltaX = finalDeltaX;
     result.deltaY = finalDeltaY;
     result.peakCorrelation = std::clamp(maxVal, 0.0, 1.0);

@@ -1,7 +1,10 @@
 /// @file SightlineStabilizationParser.cpp
 /// @brief Implementation of Sightline SLA stabilization frame deserializers.
 
+#include <cstdint>
+
 #include "SightlineStabilizationParser.h"
+#include <vector>
 
 namespace Sightline {
 

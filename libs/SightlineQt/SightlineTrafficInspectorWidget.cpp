@@ -3,9 +3,12 @@
 
 #include "SightlineTrafficInspectorWidget.h"
 
+#include <cstdint>
+
 #include <SightlineCore/SightlineCrc8.h>
 #include <SightlineCore/SightlineProtocolParser.h>
 #include <SightlineCore/SightlineTypes.h>
+#include <vector>
 
 #include <QDateTime>
 #include <QHBoxLayout>
@@ -164,17 +167,17 @@ void SightlineTrafficInspectorWidget::clearLog()
 void SightlineTrafficInspectorWidget::updateTransportStats(const Transport::TransportStatsSnapshot& stats)
 {
     lblTransportStats->setText(tr("Bandwidth: TX %1 B/s | RX %2 B/s | Total TX: %3 B | Total RX: %4 B")
-                                   .arg(stats.generic.txBytesPerSec, 0, 'f', 1)
-                                   .arg(stats.generic.rxBytesPerSec, 0, 'f', 1)
-                                   .arg(stats.generic.bytesSent)
-                                   .arg(stats.generic.bytesReceived));
+            .arg(stats.generic.txBytesPerSec, 0, 'f', 1)
+            .arg(stats.generic.rxBytesPerSec, 0, 'f', 1)
+            .arg(stats.generic.bytesSent)
+            .arg(stats.generic.bytesReceived));
 
     if (stats.udp.has_value() && stats.udp->supported) {
         lblKernelStats->setText(tr("Kernel Socket: RX Queue: %1 B | RX Buf: %2 B | TX Buf: %3 B | Drops: %4")
-                                    .arg(stats.udp->queuedRxBytes)
-                                    .arg(stats.udp->socketRxBufferSize)
-                                    .arg(stats.udp->socketTxBufferSize)
-                                    .arg(stats.udp->rxDroppedPackets));
+                .arg(stats.udp->queuedRxBytes)
+                .arg(stats.udp->socketRxBufferSize)
+                .arg(stats.udp->socketTxBufferSize)
+                .arg(stats.udp->rxDroppedPackets));
     } else {
         lblKernelStats->setText(tr("Kernel Socket: Queues: N/A"));
     }

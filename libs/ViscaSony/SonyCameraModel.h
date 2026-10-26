@@ -7,7 +7,7 @@
 namespace Visca::Sony {
 
 /// @brief Identification of supported Sony camera models.
-enum class SonyCameraModelType : uint8_t {
+enum class SonyCameraModelType : std::uint8_t {
     Unknown, ///< Unrecognized device
     GenericSony, ///< Generic Sony VISCA camera
     FCB_EV9520L, ///< Sony FCB-EV9520L (1/2.8" STARVIS 2 FHD, LVDS)
@@ -29,13 +29,13 @@ struct CameraCapabilities {
     double maxFocalLengthMm { 0.0 }; ///< Optical tele end focal length in mm
     double maxOpticalZoomRatio { 30.0 }; ///< Maximum optical zoom multiplier (e.g. 30x)
     double maxDigitalZoomRatio { 12.0 }; ///< Maximum digital zoom multiplier (e.g. 12x)
-    uint16_t minWorkingDistanceWideMm { 10 }; ///< Minimum working distance at wide end in mm
-    uint16_t minWorkingDistanceTeleMm { 1200 }; ///< Minimum working distance at tele end in mm
+    std::uint16_t minWorkingDistanceWideMm { 10 }; ///< Minimum working distance at wide end in mm
+    std::uint16_t minWorkingDistanceTeleMm { 1200 }; ///< Minimum working distance at tele end in mm
 
     /// @brief Calculates optical focal length in mm for a given raw optical zoom position.
     /// @param[in] zoomPos Raw zoom position (0x0000 wide to 0x4000 tele).
     /// @return Focal length in millimeters.
-    [[nodiscard]] double calculateFocalLength(uint16_t zoomPos) const noexcept
+    [[nodiscard]] double calculateFocalLength(std::uint16_t zoomPos) const noexcept
     {
         const double clamped = static_cast<double>(zoomPos > 0x4000 ? 0x4000 : zoomPos);
         const double ratio = clamped / static_cast<double>(0x4000);
@@ -48,19 +48,19 @@ struct CameraCapabilities {
 class SonyCameraModel {
 public:
     /// @brief Vendor ID for Sony Corporation devices.
-    static constexpr uint16_t kSonyVendorId { 0x0020 };
+    static constexpr std::uint16_t kSonyVendorId { 0x0020 };
 
     /// @brief Model ID for Sony FCB-EV9520L.
-    static constexpr uint16_t kModelIdEV9520L { 0x0711 };
+    static constexpr std::uint16_t kModelIdEV9520L { 0x0711 };
 
     /// @brief Model ID for Sony FCB-EW9500H.
-    static constexpr uint16_t kModelIdEW9500H { 0x070F };
+    static constexpr std::uint16_t kModelIdEW9500H { 0x070F };
 
     /// @brief Identifies model type from vendor and model IDs.
     /// @param[in] vendorId 16-bit Vendor ID.
     /// @param[in] modelId 16-bit Model ID.
     /// @return The identified @ref SonyCameraModelType.
-    [[nodiscard]] static SonyCameraModelType identify(uint16_t vendorId, uint16_t modelId) noexcept
+    [[nodiscard]] static SonyCameraModelType identify(std::uint16_t vendorId, std::uint16_t modelId) noexcept
     {
         if (vendorId == kSonyVendorId) {
             if (modelId == kModelIdEV9520L) {

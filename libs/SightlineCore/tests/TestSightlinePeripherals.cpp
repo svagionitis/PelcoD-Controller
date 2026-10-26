@@ -4,19 +4,22 @@
 #include "SightlineFraming.h"
 #include "SightlineProtocolBuilder.h"
 #include "SightlineProtocolParser.h"
+#include "modules/SightlineCalibrationBuilder.h"
+#include "modules/SightlineCalibrationParser.h"
 #include "modules/SightlineCompressionBuilder.h"
 #include "modules/SightlineCompressionParser.h"
 #include "modules/SightlineLandingBuilder.h"
 #include "modules/SightlineLandingParser.h"
 #include "modules/SightlineNetworkParser.h"
-#include "modules/SightlineCalibrationBuilder.h"
-#include "modules/SightlineCalibrationParser.h"
 #include "modules/SightlinePaletteBuilder.h"
 #include "modules/SightlinePaletteParser.h"
 #include "modules/SightlineSerialBuilder.h"
 #include "modules/SightlineSerialParser.h"
 
+#include <cstdint>
+
 #include <gtest/gtest.h>
+#include <vector>
 
 namespace Sightline {
 namespace {
@@ -25,7 +28,7 @@ namespace {
     TEST(TestSightlinePeripherals, BuildAndParseSerial)
     {
         // 1. Port Configuration (0x3E / 0x53)
-        MsgSetPortConfiguration portMsg {};
+        MsgSetPortConfiguration portMsg { };
         portMsg.portIndex = 1U;
         portMsg.baudRate = 115200U;
         portMsg.mode = 2U;
@@ -33,21 +36,21 @@ namespace {
         const auto portPkt = SightlineSerialBuilder::buildSetPortConfiguration(portMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(portPkt), MessageId::SetPortConfiguration);
 
-        MsgSetPortConfiguration portOut {};
+        MsgSetPortConfiguration portOut { };
         ASSERT_TRUE(SightlineSerialParser::parsePortConfiguration(portPkt, portOut));
         EXPECT_EQ(portOut.portIndex, 1U);
         EXPECT_EQ(portOut.baudRate, 115200U);
         EXPECT_EQ(portOut.mode, 2U);
 
         // 2. Command Pass-Through (0x3D)
-        MsgCommandPassThrough passMsg {};
+        MsgCommandPassThrough passMsg { };
         passMsg.destPort = 3U;
         passMsg.data = { 0xDEU, 0xADU, 0xBEU, 0xEFU };
 
         const auto passPkt = SightlineSerialBuilder::buildCommandPassThrough(passMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(passPkt), MessageId::CommandPassThrough);
 
-        MsgCommandPassThrough passOut {};
+        MsgCommandPassThrough passOut { };
         ASSERT_TRUE(SightlineSerialParser::parseCommandPassThrough(passPkt, passOut));
         EXPECT_EQ(passOut.destPort, 3U);
         ASSERT_EQ(passOut.data.size(), 4U);
@@ -55,7 +58,7 @@ namespace {
         EXPECT_EQ(passOut.data[3], 0xEFU);
 
         // 3. GPIO (0xB6)
-        MsgGPIO gpioMsg {};
+        MsgGPIO gpioMsg { };
         gpioMsg.pinMask = 0x0FU;
         gpioMsg.pinValues = 0x05U;
         gpioMsg.directionMask = 0x0FU;
@@ -63,7 +66,7 @@ namespace {
         const auto gpioPkt = SightlineSerialBuilder::buildGPIO(gpioMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(gpioPkt), MessageId::GPIO);
 
-        MsgGPIO gpioOut {};
+        MsgGPIO gpioOut { };
         ASSERT_TRUE(SightlineSerialParser::parseGPIO(gpioPkt, gpioOut));
         EXPECT_EQ(gpioOut.pinMask, 0x0FU);
         EXPECT_EQ(gpioOut.pinValues, 0x05U);
@@ -74,7 +77,7 @@ namespace {
     TEST(TestSightlinePeripherals, BuildAndParseLanding)
     {
         // 1. Landing Aid (0x81)
-        MsgLandingAid aidMsg {};
+        MsgLandingAid aidMsg { };
         aidMsg.cameraIndex = 0U;
         aidMsg.mode = 1U;
         aidMsg.patternType = 1U;
@@ -82,14 +85,14 @@ namespace {
         const auto aidPkt = SightlineLandingBuilder::buildLandingAid(aidMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(aidPkt), MessageId::LandingAid);
 
-        MsgLandingAid aidOut {};
+        MsgLandingAid aidOut { };
         ASSERT_TRUE(SightlineLandingParser::parseLandingAid(aidPkt, aidOut));
         EXPECT_EQ(aidOut.cameraIndex, 0U);
         EXPECT_EQ(aidOut.mode, 1U);
         EXPECT_EQ(aidOut.patternType, 1U);
 
         // 2. Landing Position (0x83)
-        MsgLandingPosition posMsg {};
+        MsgLandingPosition posMsg { };
         posMsg.cameraIndex = 0U;
         posMsg.relativeX = 12.5;
         posMsg.relativeY = -4.2;
@@ -102,7 +105,7 @@ namespace {
         const auto posPkt = SightlineLandingBuilder::buildLandingPosition(posMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(posPkt), MessageId::LandingPosition);
 
-        MsgLandingPosition posOut {};
+        MsgLandingPosition posOut { };
         ASSERT_TRUE(SightlineLandingParser::parseLandingPosition(posPkt, posOut));
         EXPECT_EQ(posOut.cameraIndex, 0U);
         EXPECT_DOUBLE_EQ(posOut.relativeX, 12.5);
@@ -120,20 +123,20 @@ namespace {
     TEST(TestSightlinePeripherals, BuildAndParseThermalAux)
     {
         // 1. User Thermal Palette (0x72)
-        MsgUserPalette palMsg {};
+        MsgUserPalette palMsg { };
         palMsg.paletteIndex = 1U;
         palMsg.lutData = { 0x10U, 0x20U, 0x30U, 0x40U, 0x50U };
 
         const auto palPkt = SightlinePaletteBuilder::buildSetUserPalette(palMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(palPkt), MessageId::SetUserPalette);
 
-        MsgUserPalette palOut {};
+        MsgUserPalette palOut { };
         ASSERT_TRUE(SightlinePaletteParser::parseUserPalette(palPkt, palOut));
         EXPECT_EQ(palOut.paletteIndex, 1U);
         EXPECT_EQ(palOut.lutData, palMsg.lutData);
 
         // 2. Camera Calibration (0xC0)
-        MsgCameraCalibration calibMsg {};
+        MsgCameraCalibration calibMsg { };
         calibMsg.cameraIndex = 0U;
         calibMsg.focalLengthX = 1000.5F;
         calibMsg.focalLengthY = 1000.8F;
@@ -147,7 +150,7 @@ namespace {
         const auto calibPkt = SightlineCalibrationBuilder::buildCameraCalibration(calibMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(calibPkt), MessageId::CameraCalibration);
 
-        MsgCameraCalibration calibOut {};
+        MsgCameraCalibration calibOut { };
         ASSERT_TRUE(SightlineCalibrationParser::parseCameraCalibration(calibPkt, calibOut));
         EXPECT_EQ(calibOut.cameraIndex, 0U);
         EXPECT_FLOAT_EQ(calibOut.focalLengthX, 1000.5F);
@@ -160,7 +163,7 @@ namespace {
         EXPECT_FLOAT_EQ(calibOut.tangentialP2, -0.002F);
 
         // 3. Camera Parameter File (0xC2)
-        MsgCameraParameterFile paramFileMsg {};
+        MsgCameraParameterFile paramFileMsg { };
         paramFileMsg.cameraIndex = 1U;
         paramFileMsg.action = 0U; // Load
         paramFileMsg.filename = "boson640_calib.bin";
@@ -168,7 +171,7 @@ namespace {
         const auto filePkt = SightlineCalibrationBuilder::buildCameraParameterFile(paramFileMsg);
         EXPECT_EQ(SightlineFraming::identifyMessage(filePkt), MessageId::CameraParameterFile);
 
-        MsgCameraParameterFile fileOut {};
+        MsgCameraParameterFile fileOut { };
         ASSERT_TRUE(SightlineCalibrationParser::parseCameraParameterFile(filePkt, fileOut));
         EXPECT_EQ(fileOut.cameraIndex, 1U);
         EXPECT_EQ(fileOut.action, 0U);
@@ -181,7 +184,7 @@ namespace {
     TEST(TestSightlinePeripherals, NetworkList)
     {
         // Network list parsing (0x67)
-        std::vector<std::uint8_t> payload {};
+        std::vector<std::uint8_t> payload { };
         payload.push_back(2U); // 2 interfaces
         // "eth0\0"
         payload.push_back('e');
@@ -198,7 +201,7 @@ namespace {
         payload.push_back('\0');
 
         const auto netListPkt = SightlineFraming::buildPacket(MessageId::CurrentNetworkList, payload);
-        MsgCurrentNetworkList netList {};
+        MsgCurrentNetworkList netList { };
         ASSERT_TRUE(SightlineNetworkParser::parseNetworkList(netListPkt, netList));
         EXPECT_EQ(netList.numInterfaces, 2U);
         ASSERT_EQ(netList.interfaceNames.size(), 2U);
@@ -206,7 +209,7 @@ namespace {
         EXPECT_EQ(netList.interfaceNames[1], "wlan0");
 
         // Facade equivalence
-        MsgCurrentNetworkList facadeNetList {};
+        MsgCurrentNetworkList facadeNetList { };
         ASSERT_TRUE(SightlineProtocolParser::parseNetworkList(netListPkt, facadeNetList));
         EXPECT_EQ(facadeNetList.numInterfaces, 2U);
     }
@@ -214,7 +217,7 @@ namespace {
     /// @brief Verify I2C master transaction (0x94) builder and parser.
     TEST(TestSightlinePeripherals, BuildAndParseI2CCommand)
     {
-        MsgI2CCommand i2cIn {};
+        MsgI2CCommand i2cIn { };
         i2cIn.busIndex = 1U;
         i2cIn.deviceAddress = 0x48U;
         i2cIn.subAddress = 0x02U;
@@ -228,7 +231,7 @@ namespace {
         // Facade builder equivalence
         EXPECT_EQ(pkt, SightlineProtocolBuilder::buildI2CCommand(i2cIn));
 
-        MsgI2CCommand i2cOut {};
+        MsgI2CCommand i2cOut { };
         ASSERT_TRUE(SightlineSerialParser::parseI2CCommand(pkt, i2cOut));
         EXPECT_EQ(i2cOut.busIndex, 1U);
         EXPECT_EQ(i2cOut.deviceAddress, 0x48U);
@@ -241,7 +244,7 @@ namespace {
         EXPECT_EQ(i2cOut.data[2], 0x33U);
 
         // Facade parser equivalence
-        MsgI2CCommand facadeOut {};
+        MsgI2CCommand facadeOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseI2CCommand(pkt, facadeOut));
         EXPECT_EQ(facadeOut.busIndex, 1U);
         EXPECT_EQ(facadeOut.deviceAddress, 0x48U);
@@ -252,7 +255,7 @@ namespace {
     TEST(TestSightlinePeripherals, BuildAndParsePhase5Peripherals)
     {
         // 1. Decoder Parameters (0x99)
-        MsgDecoderParameters decIn {};
+        MsgDecoderParameters decIn { };
         decIn.decoderIndex = 1U;
         decIn.enable = 1U;
         decIn.codec = 1U; // H.265
@@ -268,7 +271,7 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(getDecPkt), MessageId::GetParameters);
         EXPECT_EQ(getDecPkt, SightlineProtocolBuilder::buildGetDecoderParameters(1U));
 
-        MsgDecoderParameters decOut {};
+        MsgDecoderParameters decOut { };
         ASSERT_TRUE(SightlineCompressionParser::parseDecoderParameters(decPkt, decOut));
         EXPECT_EQ(decOut.decoderIndex, 1U);
         EXPECT_EQ(decOut.enable, 1U);
@@ -277,12 +280,12 @@ namespace {
         EXPECT_EQ(decOut.bufferDepthMs, 150U);
         EXPECT_EQ(decOut.multicastIp, 0xE0000101U);
 
-        MsgDecoderParameters facadeDecOut {};
+        MsgDecoderParameters facadeDecOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseDecoderParameters(decPkt, facadeDecOut));
         EXPECT_EQ(facadeDecOut.networkPort, 15008U);
 
         // 2. SendToBTS (0xBE)
-        MsgSendToBTS btsIn {};
+        MsgSendToBTS btsIn { };
         btsIn.btsPort = 2U;
         btsIn.data = { 0xDEU, 0xADU, 0xBEU, 0xEFU, 0x01U, 0x02U };
 
@@ -290,20 +293,20 @@ namespace {
         EXPECT_EQ(SightlineFraming::identifyMessage(btsPkt), MessageId::SendToBTS);
         EXPECT_EQ(btsPkt, SightlineProtocolBuilder::buildSendToBTS(btsIn));
 
-        MsgSendToBTS btsOut {};
+        MsgSendToBTS btsOut { };
         ASSERT_TRUE(SightlineSerialParser::parseSendToBTS(btsPkt, btsOut));
         EXPECT_EQ(btsOut.btsPort, 2U);
         ASSERT_EQ(btsOut.data.size(), 6U);
         EXPECT_EQ(btsOut.data[0], 0xDEU);
         EXPECT_EQ(btsOut.data[3], 0xEFU);
 
-        MsgSendToBTS facadeBtsOut {};
+        MsgSendToBTS facadeBtsOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseSendToBTS(btsPkt, facadeBtsOut));
         EXPECT_EQ(facadeBtsOut.btsPort, 2U);
         EXPECT_EQ(facadeBtsOut.data.size(), 6U);
 
         // 3. Landing Aid Facades (0x81 / 0x83)
-        MsgLandingAid aidIn {};
+        MsgLandingAid aidIn { };
         aidIn.cameraIndex = 2U;
         aidIn.mode = 1U;
         aidIn.patternType = 0U;
@@ -311,11 +314,11 @@ namespace {
         const auto aidPkt = SightlineProtocolBuilder::buildLandingAid(aidIn);
         EXPECT_EQ(SightlineFraming::identifyMessage(aidPkt), MessageId::LandingAid);
 
-        MsgLandingAid aidOut {};
+        MsgLandingAid aidOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseLandingAid(aidPkt, aidOut));
         EXPECT_EQ(aidOut.cameraIndex, 2U);
 
-        MsgLandingPosition posIn {};
+        MsgLandingPosition posIn { };
         posIn.cameraIndex = 1U;
         posIn.relativeX = 5.0;
         posIn.relativeY = -2.0;
@@ -328,7 +331,7 @@ namespace {
         const auto posPkt = SightlineProtocolBuilder::buildLandingPosition(posIn);
         EXPECT_EQ(SightlineFraming::identifyMessage(posPkt), MessageId::LandingPosition);
 
-        MsgLandingPosition posOut {};
+        MsgLandingPosition posOut { };
         ASSERT_TRUE(SightlineProtocolParser::parseLandingPosition(posPkt, posOut));
         EXPECT_EQ(posOut.cameraIndex, 1U);
         EXPECT_DOUBLE_EQ(posOut.relativeX, 5.0);

@@ -9,6 +9,8 @@
 #include "SightlineTypes.h"
 
 #include <cstdint>
+
+#include <string>
 #include <vector>
 
 namespace Sightline {

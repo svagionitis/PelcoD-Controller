@@ -6,79 +6,59 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
+#include <string>
 
 namespace Math {
 
 namespace {
 
-struct ColorStop {
-    double position { 0.0 };
-    RgbColor color {};
-};
+    struct ColorStop {
+        double position { 0.0 };
+        RgbColor color { };
+    };
 
-RgbColor interpolateStops(double val, const ColorStop* stops, std::size_t count) noexcept
-{
-    const double t = std::clamp(val, 0.0, 1.0);
+    RgbColor interpolateStops(double val, const ColorStop* stops, std::size_t count) noexcept
+    {
+        const double t = std::clamp(val, 0.0, 1.0);
 
-    if (t <= stops[0].position) {
-        return stops[0].color;
-    }
-    if (t >= stops[count - 1].position) {
+        if (t <= stops[0].position) {
+            return stops[0].color;
+        }
+        if (t >= stops[count - 1].position) {
+            return stops[count - 1].color;
+        }
+
+        for (std::size_t i = 0; i < count - 1; ++i) {
+            if (t >= stops[i].position && t <= stops[i + 1].position) {
+                const double span = stops[i + 1].position - stops[i].position;
+                const double alpha = (span > 1e-6) ? ((t - stops[i].position) / span) : 0.0;
+
+                const double r = (1.0 - alpha) * stops[i].color.r + alpha * stops[i + 1].color.r;
+                const double g = (1.0 - alpha) * stops[i].color.g + alpha * stops[i + 1].color.g;
+                const double b = (1.0 - alpha) * stops[i].color.b + alpha * stops[i + 1].color.b;
+
+                return RgbColor { static_cast<std::uint8_t>(std::clamp(std::round(r), 0.0, 255.0)),
+                    static_cast<std::uint8_t>(std::clamp(std::round(g), 0.0, 255.0)),
+                    static_cast<std::uint8_t>(std::clamp(std::round(b), 0.0, 255.0)) };
+            }
+        }
+
         return stops[count - 1].color;
     }
 
-    for (std::size_t i = 0; i < count - 1; ++i) {
-        if (t >= stops[i].position && t <= stops[i + 1].position) {
-            const double span = stops[i + 1].position - stops[i].position;
-            const double alpha = (span > 1e-6) ? ((t - stops[i].position) / span) : 0.0;
+    constexpr std::array<ColorStop, 6> INFERNO_STOPS { { { 0.00, { 0, 0, 4 } }, { 0.20, { 40, 11, 84 } },
+        { 0.40, { 101, 21, 110 } }, { 0.60, { 186, 54, 85 } }, { 0.80, { 249, 140, 10 } },
+        { 1.00, { 252, 255, 164 } } } };
 
-            const double r = (1.0 - alpha) * stops[i].color.r + alpha * stops[i + 1].color.r;
-            const double g = (1.0 - alpha) * stops[i].color.g + alpha * stops[i + 1].color.g;
-            const double b = (1.0 - alpha) * stops[i].color.b + alpha * stops[i + 1].color.b;
+    constexpr std::array<ColorStop, 5> VIRIDIS_STOPS { { { 0.00, { 68, 1, 84 } }, { 0.25, { 59, 82, 139 } },
+        { 0.50, { 33, 145, 140 } }, { 0.75, { 94, 201, 98 } }, { 1.00, { 253, 231, 37 } } } };
 
-            return RgbColor {
-                static_cast<std::uint8_t>(std::clamp(std::round(r), 0.0, 255.0)),
-                static_cast<std::uint8_t>(std::clamp(std::round(g), 0.0, 255.0)),
-                static_cast<std::uint8_t>(std::clamp(std::round(b), 0.0, 255.0))
-            };
-        }
-    }
+    constexpr std::array<ColorStop, 5> TACTICAL_GREEN_STOPS { { { 0.00, { 0, 0, 0 } }, { 0.30, { 0, 45, 15 } },
+        { 0.60, { 0, 140, 50 } }, { 0.85, { 50, 220, 110 } }, { 1.00, { 200, 255, 230 } } } };
 
-    return stops[count - 1].color;
-}
-
-constexpr std::array<ColorStop, 6> INFERNO_STOPS { {
-    { 0.00, { 0, 0, 4 } },
-    { 0.20, { 40, 11, 84 } },
-    { 0.40, { 101, 21, 110 } },
-    { 0.60, { 186, 54, 85 } },
-    { 0.80, { 249, 140, 10 } },
-    { 1.00, { 252, 255, 164 } }
-} };
-
-constexpr std::array<ColorStop, 5> VIRIDIS_STOPS { {
-    { 0.00, { 68, 1, 84 } },
-    { 0.25, { 59, 82, 139 } },
-    { 0.50, { 33, 145, 140 } },
-    { 0.75, { 94, 201, 98 } },
-    { 1.00, { 253, 231, 37 } }
-} };
-
-constexpr std::array<ColorStop, 5> TACTICAL_GREEN_STOPS { {
-    { 0.00, { 0, 0, 0 } },
-    { 0.30, { 0, 45, 15 } },
-    { 0.60, { 0, 140, 50 } },
-    { 0.85, { 50, 220, 110 } },
-    { 1.00, { 200, 255, 230 } }
-} };
-
-constexpr std::array<ColorStop, 5> JET_STOPS { {
-    { 0.00, { 0, 0, 140 } },
-    { 0.25, { 0, 140, 255 } },
-    { 0.50, { 0, 255, 140 } },
-    { 0.75, { 255, 220, 0 } },
-    { 1.00, { 255, 0, 0 } }
-} };
+    constexpr std::array<ColorStop, 5> JET_STOPS { { { 0.00, { 0, 0, 140 } }, { 0.25, { 0, 140, 255 } },
+        { 0.50, { 0, 255, 140 } }, { 0.75, { 255, 220, 0 } }, { 1.00, { 255, 0, 0 } } } };
 
 } // namespace
 

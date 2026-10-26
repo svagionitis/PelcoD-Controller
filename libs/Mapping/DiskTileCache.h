@@ -7,6 +7,8 @@
 
 #include <filesystem>
 #include <mutex>
+#include <optional>
+#include <string>
 #include <vector>
 
 namespace Mapping {
@@ -41,10 +43,16 @@ public:
     bool storeTile(const TileCoord& coord, const TileData& data);
 
     /// @brief Returns provider identification name.
-    [[nodiscard]] std::string providerName() const override { return "DiskTileCache"; }
+    [[nodiscard]] std::string providerName() const override
+    {
+        return "DiskTileCache";
+    }
 
     /// @brief Returns the primary cache directory.
-    [[nodiscard]] const std::filesystem::path& primaryDirectory() const noexcept { return m_primaryDir; }
+    [[nodiscard]] const std::filesystem::path& primaryDirectory() const noexcept
+    {
+        return m_primaryDir;
+    }
 
 private:
     [[nodiscard]] std::optional<std::filesystem::path> findTileFile(const TileCoord& coord) const noexcept;

@@ -1,9 +1,11 @@
 #include "MasterTimeBase.h"
+#include <cstdint>
 #include <gtest/gtest.h>
 
 using namespace Klv;
 
-TEST(TestMasterTimeBase, SystemEpochNowAndPts) {
+TEST(TestMasterTimeBase, SystemEpochNowAndPts)
+{
     SystemMasterTimeBase tb(TimeBaseMode::SystemEpoch);
     EXPECT_EQ(tb.mode(), TimeBaseMode::SystemEpoch);
 
@@ -19,7 +21,8 @@ TEST(TestMasterTimeBase, SystemEpochNowAndPts) {
     EXPECT_EQ(roundTripUs, kTimestampUs);
 }
 
-TEST(TestMasterTimeBase, MonotonicOffsetCalibration) {
+TEST(TestMasterTimeBase, MonotonicOffsetCalibration)
+{
     SystemMasterTimeBase tb(TimeBaseMode::MonotonicOffset);
     EXPECT_EQ(tb.mode(), TimeBaseMode::MonotonicOffset);
 
@@ -30,7 +33,8 @@ TEST(TestMasterTimeBase, MonotonicOffsetCalibration) {
     EXPECT_GE(nowUs, static_cast<std::uint64_t>(kArbitraryOffset));
 }
 
-TEST(TestMasterTimeBase, RolloverAt33Bits) {
+TEST(TestMasterTimeBase, RolloverAt33Bits)
+{
     SystemMasterTimeBase tb;
     // 2^33 - 1 in 90 kHz ticks is approximately 95,443,717,677,777 us (~95,443 seconds = ~26.5 hours)
     constexpr std::uint64_t kRolloverPts = 0x1FFFFFFFFULL; // Max 33-bit value

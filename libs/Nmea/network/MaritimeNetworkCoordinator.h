@@ -9,6 +9,7 @@
 #include "NmeaWebSocketServer.h"
 #include "bam/BridgeAlertManager.h"
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -24,10 +25,8 @@ public:
     using InboundCommandCallback = std::function<void(std::uint32_t clientId, std::string_view jsonCommand)>;
 
     MaritimeNetworkCoordinator(std::shared_ptr<Iec61162_460Firewall> firewall,
-                               std::shared_ptr<Bam::BridgeAlertManager> bam,
-                               std::uint16_t tcpPort = 10110U,
-                               std::uint16_t udpPort = 10110U,
-                               std::uint16_t wsPort = 8088U);
+        std::shared_ptr<Bam::BridgeAlertManager> bam, std::uint16_t tcpPort = 10110U, std::uint16_t udpPort = 10110U,
+        std::uint16_t wsPort = 8088U);
     ~MaritimeNetworkCoordinator();
 
     // Non-copyable, non-movable
@@ -65,15 +64,15 @@ public:
     [[nodiscard]] std::shared_ptr<NmeaWebSocketServer> webSocketServer() const noexcept;
 
 private:
-    std::shared_ptr<Iec61162_460Firewall> m_firewall {};
-    std::shared_ptr<Bam::BridgeAlertManager> m_bam {};
-    std::shared_ptr<NmeaTcpServer> m_tcpServer {};
-    std::shared_ptr<NmeaUdpEndpoint> m_udpEndpoint {};
-    std::shared_ptr<NmeaWebSocketServer> m_wsServer {};
+    std::shared_ptr<Iec61162_460Firewall> m_firewall { };
+    std::shared_ptr<Bam::BridgeAlertManager> m_bam { };
+    std::shared_ptr<NmeaTcpServer> m_tcpServer { };
+    std::shared_ptr<NmeaUdpEndpoint> m_udpEndpoint { };
+    std::shared_ptr<NmeaWebSocketServer> m_wsServer { };
 
-    mutable std::mutex m_mutex {};
-    InboundSentenceCallback m_sentenceCallback {};
-    InboundCommandCallback m_commandCallback {};
+    mutable std::mutex m_mutex { };
+    InboundSentenceCallback m_sentenceCallback { };
+    InboundCommandCallback m_commandCallback { };
 };
 
 } // namespace Nmea::Network

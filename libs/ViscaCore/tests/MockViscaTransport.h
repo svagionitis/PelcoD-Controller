@@ -16,7 +16,7 @@ namespace Visca::Testing {
 /// @brief Standard simulated VISCA transport for core unit testing.
 class MockViscaTransport : public ::Transport::ITransport {
 public:
-    explicit MockViscaTransport(uint8_t cameraAddress = 1)
+    explicit MockViscaTransport(std::uint8_t cameraAddress = 1)
         : m_address(cameraAddress)
     {
         m_accumulator.setFrameCallback([this](const ViscaFrame& frame) { handleFrame(frame); });
@@ -54,7 +54,7 @@ public:
         m_dropAddressSet.store(drop);
     }
 
-    bool sendData(const std::vector<uint8_t>& data) override
+    bool sendData(const std::vector<std::uint8_t>& data) override
     {
         if (!m_open.load() || m_sendFailure.load()) {
             return false;
@@ -75,13 +75,13 @@ public:
         m_stateCallback = std::move(callback);
     }
 
-    bool setBaudRate(uint32_t baudRate) override
+    bool setBaudRate(std::uint32_t baudRate) override
     {
         m_baudRate = baudRate;
         return true;
     }
 
-    [[nodiscard]] uint32_t getBaudRate() const noexcept override
+    [[nodiscard]] std::uint32_t getBaudRate() const noexcept override
     {
         return m_baudRate;
     }
@@ -101,12 +101,12 @@ private:
         // AddressSet broadcast (88 30 01 FF)
         if (frame.size() == 4 && frame[0] == 0x88 && frame[1] == 0x30 && frame[2] == 0x01) {
             if (!m_dropAddressSet.load()) {
-                sendResponse(ViscaFrame { 0x88, 0x30, static_cast<uint8_t>(m_address + 1), kViscaTerminator });
+                sendResponse(ViscaFrame { 0x88, 0x30, static_cast<std::uint8_t>(m_address + 1), kViscaTerminator });
             }
             return;
         }
 
-        const uint8_t respHdr = static_cast<uint8_t>(0x80 | ((m_address & 0x07) << 4));
+        const std::uint8_t respHdr = static_cast<std::uint8_t>(0x80 | ((m_address & 0x07) << 4));
 
         // IF_Clear (8x 01 00 01 FF)
         if ((frame.isBroadcast() || frame.destinationAddress() == m_address) && frame.size() == 5 && frame[1] == 0x01
@@ -123,12 +123,12 @@ private:
 
         // Cancel command (8x 2s FF)
         if (frame.size() == 3 && (frame[1] & 0xF0) == 0x20) {
-            const uint8_t s = static_cast<uint8_t>(frame[1] & 0x0F);
+            const std::uint8_t s = static_cast<std::uint8_t>(frame[1] & 0x0F);
             if (s == 1)
                 m_socket1Busy = false;
             if (s == 2)
                 m_socket2Busy = false;
-            sendResponse(ViscaFrame { respHdr, static_cast<uint8_t>(0x60 | s), 0x04, kViscaTerminator });
+            sendResponse(ViscaFrame { respHdr, static_cast<std::uint8_t>(0x60 | s), 0x04, kViscaTerminator });
             return;
         }
 
@@ -144,10 +144,10 @@ private:
 
         // Pan_TiltPosInq (8x 09 06 12 FF)
         if (frame.size() == 5 && frame[1] == 0x09 && frame[2] == 0x06 && frame[3] == 0x12) {
-            const auto pNibbles = ViscaFrame::packWordNibbles(static_cast<uint16_t>(m_panPos));
-            const auto tNibbles = ViscaFrame::packWordNibbles(static_cast<uint16_t>(m_tiltPos));
-            sendResponse(ViscaFrame { respHdr, 0x50, pNibbles[0], pNibbles[1], pNibbles[2], pNibbles[3],
-                tNibbles[0], tNibbles[1], tNibbles[2], tNibbles[3], kViscaTerminator });
+            const auto pNibbles = ViscaFrame::packWordNibbles(static_cast<std::uint16_t>(m_panPos));
+            const auto tNibbles = ViscaFrame::packWordNibbles(static_cast<std::uint16_t>(m_tiltPos));
+            sendResponse(ViscaFrame { respHdr, 0x50, pNibbles[0], pNibbles[1], pNibbles[2], pNibbles[3], tNibbles[0],
+                tNibbles[1], tNibbles[2], tNibbles[3], kViscaTerminator });
             return;
         }
 
@@ -160,13 +160,16 @@ private:
         // Update simulated Pan/Tilt state for commands
         if (frame.size() == 15 && frame[1] == 0x01 && frame[2] == 0x06 && frame[3] == 0x02) {
             // Absolute position
-            m_panPos = static_cast<int16_t>(ViscaFrame::unpackWordNibbles(frame.data() + 6));
-            m_tiltPos = static_cast<int16_t>(ViscaFrame::unpackWordNibbles(frame.data() + 10));
+            m_panPos = static_cast<std::int16_t>(ViscaFrame::unpackWordNibbles(frame.data() + 6));
+            m_tiltPos = static_cast<std::int16_t>(ViscaFrame::unpackWordNibbles(frame.data() + 10));
         } else if (frame.size() == 15 && frame[1] == 0x01 && frame[2] == 0x06 && frame[3] == 0x03) {
             // Relative position
-            m_panPos = static_cast<int16_t>(m_panPos + static_cast<int16_t>(ViscaFrame::unpackWordNibbles(frame.data() + 6)));
-            m_tiltPos = static_cast<int16_t>(m_tiltPos + static_cast<int16_t>(ViscaFrame::unpackWordNibbles(frame.data() + 10)));
-        } else if (frame.size() == 5 && frame[1] == 0x01 && frame[2] == 0x06 && (frame[3] == 0x04 || frame[3] == 0x05)) {
+            m_panPos = static_cast<std::int16_t>(
+                m_panPos + static_cast<std::int16_t>(ViscaFrame::unpackWordNibbles(frame.data() + 6)));
+            m_tiltPos = static_cast<std::int16_t>(
+                m_tiltPos + static_cast<std::int16_t>(ViscaFrame::unpackWordNibbles(frame.data() + 10)));
+        } else if (frame.size() == 5 && frame[1] == 0x01 && frame[2] == 0x06
+            && (frame[3] == 0x04 || frame[3] == 0x05)) {
             // Home / Reset
             m_panPos = 0;
             m_tiltPos = 0;
@@ -186,7 +189,7 @@ private:
         }
 
         // Send ACK
-        const uint8_t ackByte = (sock == ViscaSocket::Socket1) ? 0x41 : 0x42;
+        const std::uint8_t ackByte = (sock == ViscaSocket::Socket1) ? 0x41 : 0x42;
         sendResponse(ViscaFrame { respHdr, ackByte, kViscaTerminator });
 
         // Release socket and send completion
@@ -195,26 +198,25 @@ private:
         else
             m_socket2Busy = false;
 
-        const uint8_t compByte = (sock == ViscaSocket::Socket1) ? 0x51 : 0x52;
+        const std::uint8_t compByte = (sock == ViscaSocket::Socket1) ? 0x51 : 0x52;
         sendResponse(ViscaFrame { respHdr, compByte, kViscaTerminator });
     }
 
-    uint8_t m_address { 1 };
-    mutable std::mutex m_mutex {};
+    std::uint8_t m_address { 1 };
+    mutable std::mutex m_mutex { };
     std::atomic<bool> m_open { true };
-    uint32_t m_baudRate { 9600 };
+    std::uint32_t m_baudRate { 9600 };
     DataReceivedCallback m_dataCallback { nullptr };
     StateChangedCallback m_stateCallback { nullptr };
-    ViscaRxAccumulator m_accumulator {};
+    ViscaRxAccumulator m_accumulator { };
 
     bool m_socket1Busy { false };
     bool m_socket2Busy { false };
     std::atomic<bool> m_sendFailure { false };
     std::atomic<bool> m_dropAddressSet { false };
 
-    int16_t m_panPos { 0 };
-    int16_t m_tiltPos { 0 };
+    std::int16_t m_panPos { 0 };
+    std::int16_t m_tiltPos { 0 };
 };
 
 } // namespace Visca::Testing
-

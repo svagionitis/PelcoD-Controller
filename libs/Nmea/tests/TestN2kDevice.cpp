@@ -1,7 +1,10 @@
 #include "n2k/N2kDecoder.h"
 #include "n2k/N2kDevice.h"
 
+#include <array>
 #include <atomic>
+#include <chrono>
+#include <cstdint>
 #include <cstring>
 #include <gtest/gtest.h>
 #include <thread>
@@ -14,30 +17,30 @@ TEST(TestN2kDevice, PositionAndHeadingDispatch)
     N2kDevice device;
 
     std::atomic<bool> posCalled { false };
-    PositionRapid rxPos {};
+    PositionRapid rxPos { };
     const auto posSubId = device.addPositionCallback([&](const PositionRapid& p) {
         rxPos = p;
         posCalled = true;
     });
 
     std::atomic<bool> hdgCalled { false };
-    VesselHeading rxHdg {};
+    VesselHeading rxHdg { };
     const auto hdgSubId = device.addHeadingCallback([&](const VesselHeading& h) {
         rxHdg = h;
         hdgCalled = true;
     });
 
     // 1. Send Position Rapid Update
-    PositionRapid pIn {};
+    PositionRapid pIn { };
     pIn.latitudeDeg = 25.1234567;
     pIn.longitudeDeg = 55.7654321;
     pIn.isValid = true;
 
-    N2kHeader posHdr {};
+    N2kHeader posHdr { };
     posHdr.pgn = static_cast<std::uint32_t>(Pgn::PositionRapidUpdate);
     posHdr.sourceAddress = 22U;
 
-    CanFrame posFrame {};
+    CanFrame posFrame { };
     posFrame.id = posHdr.toCanId();
     posFrame.dlc = 8U;
     const auto posBytes = N2kDecoder::encodePgn129025(pIn);
@@ -52,17 +55,17 @@ TEST(TestN2kDevice, PositionAndHeadingDispatch)
     EXPECT_NEAR(device.position()->latitudeDeg, 25.1234567, 1e-6);
 
     // 2. Send Heading
-    VesselHeading hIn {};
+    VesselHeading hIn { };
     hIn.sid = 1U;
     hIn.headingDegrees = 89.5;
     hIn.reference = HeadingReference::True;
     hIn.hasHeading = true;
 
-    N2kHeader hdgHdr {};
+    N2kHeader hdgHdr { };
     hdgHdr.pgn = static_cast<std::uint32_t>(Pgn::VesselHeading);
     hdgHdr.sourceAddress = 22U;
 
-    CanFrame hdgFrame {};
+    CanFrame hdgFrame { };
     hdgFrame.id = hdgHdr.toCanId();
     hdgFrame.dlc = 8U;
     const auto hdgBytes = N2kDecoder::encodePgn127250(hIn);
@@ -89,7 +92,7 @@ TEST(TestN2kDevice, AttitudeAndWindDispatch)
     N2kDevice device;
 
     std::atomic<bool> attCalled { false };
-    Attitude rxAtt {};
+    Attitude rxAtt { };
     const auto attSub = device.addAttitudeCallback([&](const Attitude& a) {
         rxAtt = a;
         attCalled = true;
@@ -97,7 +100,7 @@ TEST(TestN2kDevice, AttitudeAndWindDispatch)
     (void)attSub;
 
     std::atomic<bool> windCalled { false };
-    WindData rxWind {};
+    WindData rxWind { };
     const auto windSub = device.addWindCallback([&](const WindData& w) {
         rxWind = w;
         windCalled = true;
@@ -105,7 +108,7 @@ TEST(TestN2kDevice, AttitudeAndWindDispatch)
     (void)windSub;
 
     // 1. Send Attitude
-    Attitude attIn {};
+    Attitude attIn { };
     attIn.yawDegrees = 180.0;
     attIn.pitchDegrees = 4.2;
     attIn.rollDegrees = -1.8;
@@ -113,11 +116,11 @@ TEST(TestN2kDevice, AttitudeAndWindDispatch)
     attIn.hasPitch = true;
     attIn.hasRoll = true;
 
-    N2kHeader attHdr {};
+    N2kHeader attHdr { };
     attHdr.pgn = static_cast<std::uint32_t>(Pgn::Attitude);
     attHdr.sourceAddress = 30U;
 
-    CanFrame attFrame {};
+    CanFrame attFrame { };
     attFrame.id = attHdr.toCanId();
     attFrame.dlc = 8U;
     const auto attBytes = N2kDecoder::encodePgn127257(attIn);
@@ -132,18 +135,18 @@ TEST(TestN2kDevice, AttitudeAndWindDispatch)
     EXPECT_NEAR(device.attitude()->pitchDegrees, 4.2, 0.1);
 
     // 2. Send Wind Data
-    WindData windIn {};
+    WindData windIn { };
     windIn.windSpeedMps = 15.0;
     windIn.windAngleDegrees = 45.0;
     windIn.reference = WindReference::Apparent;
     windIn.hasWindSpeed = true;
     windIn.hasWindAngle = true;
 
-    N2kHeader windHdr {};
+    N2kHeader windHdr { };
     windHdr.pgn = static_cast<std::uint32_t>(Pgn::WindData);
     windHdr.sourceAddress = 30U;
 
-    CanFrame windFrame {};
+    CanFrame windFrame { };
     windFrame.id = windHdr.toCanId();
     windFrame.dlc = 6U;
     const auto windBytes = N2kDecoder::encodePgn130306(windIn);
@@ -170,19 +173,19 @@ TEST(TestN2kDevice, SocketCanRawIngestion)
     });
     (void)posSub;
 
-    PositionRapid pIn {};
+    PositionRapid pIn { };
     pIn.latitudeDeg = 10.0;
     pIn.longitudeDeg = 20.0;
     pIn.isValid = true;
 
-    N2kHeader posHdr {};
+    N2kHeader posHdr { };
     posHdr.pgn = static_cast<std::uint32_t>(Pgn::PositionRapidUpdate);
     posHdr.sourceAddress = 50U;
 
     const auto payload = N2kDecoder::encodePgn129025(pIn);
 
     // Build 16-byte SocketCAN frame
-    std::array<std::uint8_t, 16> socketCanFrame {};
+    std::array<std::uint8_t, 16> socketCanFrame { };
     const std::uint32_t canId = posHdr.toCanId();
     std::memcpy(socketCanFrame.data(), &canId, sizeof(canId));
     socketCanFrame[4] = 8U; // DLC
@@ -214,7 +217,7 @@ TEST(TestN2kDevice, AisTargetManagementAndPruning)
     std::memcpy(&payload[6], &lonRaw, sizeof(lonRaw));
     std::memcpy(&payload[10], &latRaw, sizeof(latRaw));
 
-    N2kHeader hdr {};
+    N2kHeader hdr { };
     hdr.pgn = static_cast<std::uint32_t>(Pgn::AisClassAPositionReport);
     hdr.sourceAddress = 88U;
 
@@ -248,14 +251,14 @@ TEST(TestN2kDevice, MultithreadedSubscriptionSafety)
 
     // Thread 1: Ingest CAN frames rapidly
     std::thread producer([&]() {
-        PositionRapid p {};
+        PositionRapid p { };
         p.latitudeDeg = 1.0;
         p.longitudeDeg = 1.0;
         p.isValid = true;
-        N2kHeader hdr {};
+        N2kHeader hdr { };
         hdr.pgn = static_cast<std::uint32_t>(Pgn::PositionRapidUpdate);
 
-        CanFrame cf {};
+        CanFrame cf { };
         cf.id = hdr.toCanId();
         cf.dlc = 8U;
         const auto bytes = N2kDecoder::encodePgn129025(p);
@@ -269,7 +272,7 @@ TEST(TestN2kDevice, MultithreadedSubscriptionSafety)
     // Thread 2: Continuously register and unregister callbacks
     std::thread subscriber([&]() {
         for (int i = 0; i < 50; ++i) {
-            auto id = device.addPositionCallback([](const PositionRapid&) {});
+            auto id = device.addPositionCallback([](const PositionRapid&) { });
             std::this_thread::yield();
             device.removePositionCallback(id);
         }
@@ -288,7 +291,7 @@ TEST(TestN2kDevice, RudderAndMagVarDispatch)
     N2kDevice device;
 
     std::atomic<bool> rudderCalled { false };
-    RudderData rxRudder {};
+    RudderData rxRudder { };
     const auto rSub = device.addRudderCallback([&](const RudderData& r) {
         rxRudder = r;
         rudderCalled = true;
@@ -296,7 +299,7 @@ TEST(TestN2kDevice, RudderAndMagVarDispatch)
     (void)rSub;
 
     std::atomic<bool> magVarCalled { false };
-    MagneticVariation rxMagVar {};
+    MagneticVariation rxMagVar { };
     const auto mSub = device.addMagVariationCallback([&](const MagneticVariation& m) {
         rxMagVar = m;
         magVarCalled = true;
@@ -304,16 +307,16 @@ TEST(TestN2kDevice, RudderAndMagVarDispatch)
     (void)mSub;
 
     // 1. Send Rudder
-    RudderData rIn {};
+    RudderData rIn { };
     rIn.instance = 0U;
     rIn.positionDegrees = -12.5;
     rIn.hasPosition = true;
 
-    N2kHeader rHdr {};
+    N2kHeader rHdr { };
     rHdr.pgn = static_cast<std::uint32_t>(Pgn::Rudder);
     rHdr.sourceAddress = 40U;
 
-    CanFrame rFrame {};
+    CanFrame rFrame { };
     rFrame.id = rHdr.toCanId();
     rFrame.dlc = 8U;
     const auto rBytes = N2kDecoder::encodePgn127245(rIn);
@@ -327,15 +330,15 @@ TEST(TestN2kDevice, RudderAndMagVarDispatch)
     EXPECT_NEAR(device.rudder()->positionDegrees, -12.5, 0.05);
 
     // 2. Send MagVar
-    MagneticVariation mIn {};
+    MagneticVariation mIn { };
     mIn.variationDegrees = 3.8;
     mIn.hasVariation = true;
 
-    N2kHeader mHdr {};
+    N2kHeader mHdr { };
     mHdr.pgn = static_cast<std::uint32_t>(Pgn::MagneticVariation);
     mHdr.sourceAddress = 40U;
 
-    CanFrame mFrame {};
+    CanFrame mFrame { };
     mFrame.id = mHdr.toCanId();
     mFrame.dlc = 8U;
     const auto mBytes = N2kDecoder::encodePgn127258(mIn);
@@ -354,7 +357,7 @@ TEST(TestN2kDevice, SystemTimeAndHeartbeatDispatch)
     N2kDevice device;
 
     std::atomic<bool> timeCalled { false };
-    SystemTimeData rxTime {};
+    SystemTimeData rxTime { };
     const auto tSub = device.addSystemTimeCallback([&](const SystemTimeData& t) {
         rxTime = t;
         timeCalled = true;
@@ -362,7 +365,7 @@ TEST(TestN2kDevice, SystemTimeAndHeartbeatDispatch)
     (void)tSub;
 
     std::atomic<bool> hbCalled { false };
-    HeartbeatData rxHb {};
+    HeartbeatData rxHb { };
     const auto hbSub = device.addHeartbeatCallback([&](const HeartbeatData& h) {
         rxHb = h;
         hbCalled = true;
@@ -370,17 +373,17 @@ TEST(TestN2kDevice, SystemTimeAndHeartbeatDispatch)
     (void)hbSub;
 
     // 1. Send System Time
-    SystemTimeData tIn {};
+    SystemTimeData tIn { };
     tIn.systemDateDays = 20000U;
     tIn.secondsSinceMidnight = 36000.0;
     tIn.hasTime = true;
     tIn.hasDate = true;
 
-    N2kHeader tHdr {};
+    N2kHeader tHdr { };
     tHdr.pgn = static_cast<std::uint32_t>(Pgn::SystemTime);
     tHdr.sourceAddress = 50U;
 
-    CanFrame tFrame {};
+    CanFrame tFrame { };
     tFrame.id = tHdr.toCanId();
     tFrame.dlc = 8U;
     const auto tBytes = N2kDecoder::encodePgn126992(tIn);
@@ -394,16 +397,16 @@ TEST(TestN2kDevice, SystemTimeAndHeartbeatDispatch)
     EXPECT_EQ(device.systemTime()->systemDateDays, 20000U);
 
     // 2. Send Heartbeat
-    HeartbeatData hIn {};
+    HeartbeatData hIn { };
     hIn.transmitIntervalMs = 500U;
     hIn.sequenceCounter = 12U;
     hIn.valid = true;
 
-    N2kHeader hHdr {};
+    N2kHeader hHdr { };
     hHdr.pgn = static_cast<std::uint32_t>(Pgn::Heartbeat);
     hHdr.sourceAddress = 50U;
 
-    CanFrame hFrame {};
+    CanFrame hFrame { };
     hFrame.id = hHdr.toCanId();
     hFrame.dlc = 8U;
     const auto hBytes = N2kDecoder::encodePgn126993(hIn);

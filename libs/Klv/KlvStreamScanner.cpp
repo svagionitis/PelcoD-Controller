@@ -2,6 +2,7 @@
 #include "KlvBer.h"
 #include "KlvCrc.h"
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 
 namespace Klv {
@@ -107,7 +108,7 @@ std::size_t KlvStreamScanner::scanAndDispatch()
             }
 
             if (m_messageCallback) {
-                UasDatalinkMessage msg {};
+                UasDatalinkMessage msg { };
                 if (KlvParser::parse(packetData, totalPacketSize, msg, false) == KlvStatus::Success) {
                     m_messageCallback(msg);
                 }

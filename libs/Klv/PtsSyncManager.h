@@ -5,10 +5,14 @@
 
 #include "MasterTimeBase.h"
 #include "PtsSyncTypes.h"
+#include <cstdint>
+
 #include <deque>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
+#include <vector>
 
 namespace Klv {
 
@@ -24,8 +28,7 @@ public:
     /// @brief Constructs a PTS synchronization manager with configuration and optional time base.
     /// @param[in] config Initial sync configuration.
     /// @param[in] timeBase Shared master time base reference (nullptr to use default system time base).
-    explicit PtsSyncManager(const PtsSyncConfig& config = {},
-                            std::shared_ptr<IMasterTimeBase> timeBase = nullptr);
+    explicit PtsSyncManager(const PtsSyncConfig& config = { }, std::shared_ptr<IMasterTimeBase> timeBase = nullptr);
 
     /// @brief Destructor.
     ~PtsSyncManager() = default;
@@ -63,11 +66,8 @@ public:
     /// @param[in] ptsUs Presentation timestamp in microseconds.
     /// @param[in] dtsUs Optional decode timestamp in microseconds.
     /// @param[in] isKeyframe True if frame is an IDR/keyframe.
-    void pushVideoFrame(const std::uint8_t* data,
-                        std::size_t size,
-                        std::uint64_t ptsUs,
-                        std::optional<std::uint64_t> dtsUs = std::nullopt,
-                        bool isKeyframe = false);
+    void pushVideoFrame(const std::uint8_t* data, std::size_t size, std::uint64_t ptsUs,
+        std::optional<std::uint64_t> dtsUs = std::nullopt, bool isKeyframe = false);
 
     /// @brief Ingests a high-level UasDatalinkMessage into the synchronization queue.
     /// @param[in] message Telemetry message.
@@ -77,9 +77,7 @@ public:
     /// @param[in] data Pointer to raw KLV bytes.
     /// @param[in] size Size of KLV packet in bytes.
     /// @param[in] timestampUs Microsecond timestamp.
-    void pushRawKlv(const std::uint8_t* data,
-                    std::size_t size,
-                    std::uint64_t timestampUs);
+    void pushRawKlv(const std::uint8_t* data, std::size_t size, std::uint64_t timestampUs);
 
     /// @brief Flushes all queued video frames and pairs them with available telemetry.
     /// @return Number of synchronized frames emitted.
@@ -91,19 +89,19 @@ public:
 private:
     struct QueuedTelemetry {
         std::uint64_t timestampUs { 0U };
-        std::optional<UasDatalinkMessage> message {};
-        std::vector<std::uint8_t> rawBytes {};
+        std::optional<UasDatalinkMessage> message { };
+        std::vector<std::uint8_t> rawBytes { };
     };
 
-    mutable std::mutex m_mutex {};
-    PtsSyncConfig m_config {};
-    std::shared_ptr<IMasterTimeBase> m_timeBase {};
-    SyncOutputCallback m_callback {};
+    mutable std::mutex m_mutex { };
+    PtsSyncConfig m_config { };
+    std::shared_ptr<IMasterTimeBase> m_timeBase { };
+    SyncOutputCallback m_callback { };
     MpegTsKlvMuxer* m_boundMuxer { nullptr };
 
-    std::deque<VideoAccessUnit> m_videoQueue {};
-    std::deque<QueuedTelemetry> m_telemetryQueue {};
-    PtsSyncStats m_stats {};
+    std::deque<VideoAccessUnit> m_videoQueue { };
+    std::deque<QueuedTelemetry> m_telemetryQueue { };
+    PtsSyncStats m_stats { };
 
     void processQueuesLocked();
     void dispatchSynchronized(const SynchronizedAccessUnit& syncd);

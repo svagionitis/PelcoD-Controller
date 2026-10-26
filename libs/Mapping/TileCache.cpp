@@ -1,11 +1,19 @@
 #include "TileCache.h"
 
+#include <cstddef>
+
+#include <mutex>
+#include <optional>
+
 namespace Mapping {
 
 TileCache::TileCache(std::size_t capacity) noexcept
-    : m_capacity(capacity > 0 ? capacity : kDefaultCapacity) {}
+    : m_capacity(capacity > 0 ? capacity : kDefaultCapacity)
+{
+}
 
-std::optional<TileData> TileCache::get(const TileCoord& coord) {
+std::optional<TileData> TileCache::get(const TileCoord& coord)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     auto it = m_cacheMap.find(coord);
     if (it == m_cacheMap.end()) {
@@ -17,7 +25,8 @@ std::optional<TileData> TileCache::get(const TileCoord& coord) {
     return it->second->second;
 }
 
-void TileCache::put(const TileCoord& coord, TileData data) {
+void TileCache::put(const TileCoord& coord, TileData data)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
 
     auto it = m_cacheMap.find(coord);
@@ -40,12 +49,14 @@ void TileCache::put(const TileCoord& coord, TileData data) {
     m_cacheMap[coord] = m_lruList.begin();
 }
 
-bool TileCache::contains(const TileCoord& coord) const {
+bool TileCache::contains(const TileCoord& coord) const
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_cacheMap.find(coord) != m_cacheMap.end();
 }
 
-bool TileCache::remove(const TileCoord& coord) {
+bool TileCache::remove(const TileCoord& coord)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     auto it = m_cacheMap.find(coord);
     if (it == m_cacheMap.end()) {
@@ -57,23 +68,27 @@ bool TileCache::remove(const TileCoord& coord) {
     return true;
 }
 
-void TileCache::clear() {
+void TileCache::clear()
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_cacheMap.clear();
     m_lruList.clear();
 }
 
-std::size_t TileCache::size() const {
+std::size_t TileCache::size() const
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_cacheMap.size();
 }
 
-std::size_t TileCache::capacity() const {
+std::size_t TileCache::capacity() const
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_capacity;
 }
 
-void TileCache::setCapacity(std::size_t newCapacity) {
+void TileCache::setCapacity(std::size_t newCapacity)
+{
     std::lock_guard<std::mutex> lock(m_mutex);
     m_capacity = (newCapacity > 0) ? newCapacity : 1;
     while (m_lruList.size() > m_capacity) {

@@ -4,7 +4,11 @@
 #include "NmeaTagBlockParser.h"
 #include "NmeaChecksum.h"
 
+#include <cstdint>
+
 #include <charconv>
+#include <string>
+#include <string_view>
 
 namespace Nmea {
 
@@ -16,8 +20,8 @@ bool NmeaTagBlockParser::hasTagBlock(std::string_view raw) noexcept
 bool NmeaTagBlockParser::parse(
     std::string_view raw, NmeaTagBlock& outBlock, std::string_view& outSentenceRemainder) noexcept
 {
-    outBlock = {};
-    outSentenceRemainder = {};
+    outBlock = { };
+    outSentenceRemainder = { };
 
     if (!hasTagBlock(raw)) {
         return false;

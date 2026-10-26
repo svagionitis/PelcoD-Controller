@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 namespace PayloadHal {
 
@@ -110,12 +111,12 @@ std::optional<Klv::GeoPoint3D> GeoreferenceUtils::computeTargetFromGroundInterse
     return Klv::GeoPoint3D { currentTarget->latitudeDeg, currentTarget->longitudeDeg, currentElev };
 }
 
-std::optional<Klv::GeoPoint3D> GeoreferenceUtils::computeTargetFromDem(
-    const IDemProvider& dem, const Klv::GeoPoint3D& platformPos, double platformHeadingDeg,
-    double gimbalPanDeg, double gimbalTiltDeg, const DemRayConfig& config) noexcept
+std::optional<Klv::GeoPoint3D> GeoreferenceUtils::computeTargetFromDem(const IDemProvider& dem,
+    const Klv::GeoPoint3D& platformPos, double platformHeadingDeg, double gimbalPanDeg, double gimbalTiltDeg,
+    const DemRayConfig& config) noexcept
 {
-    const auto result = DemRayCaster::intersect(
-        dem, platformPos, platformHeadingDeg, gimbalPanDeg, gimbalTiltDeg, config);
+    const auto result
+        = DemRayCaster::intersect(dem, platformPos, platformHeadingDeg, gimbalPanDeg, gimbalTiltDeg, config);
     if (!result) {
         return std::nullopt;
     }
@@ -172,9 +173,8 @@ std::optional<Klv::FrustumCorners> GeoreferenceUtils::computeFrustumCorners(cons
     return corners;
 }
 
-std::optional<Klv::FrustumCorners> GeoreferenceUtils::computeFrustumCorners(
-    const IDemProvider& dem, const Klv::GeoPoint3D& platformPos,
-    double platformHeadingDeg, double gimbalPanDeg, double gimbalTiltDeg,
+std::optional<Klv::FrustumCorners> GeoreferenceUtils::computeFrustumCorners(const IDemProvider& dem,
+    const Klv::GeoPoint3D& platformPos, double platformHeadingDeg, double gimbalPanDeg, double gimbalTiltDeg,
     double hfovDeg, double vfovDeg, double gimbalRollDeg, const DemRayConfig& config) noexcept
 {
     if (hfovDeg <= 0.0 || gimbalTiltDeg >= -0.01) {
@@ -218,8 +218,8 @@ std::optional<Klv::FrustumCorners> GeoreferenceUtils::computeFrustumCorners(
     return corners;
 }
 
-double GeoreferenceUtils::computeLevelingRoll(double platformRollDeg, double platformPitchDeg,
-    double gimbalPanDeg, double gimbalTiltDeg) noexcept
+double GeoreferenceUtils::computeLevelingRoll(
+    double platformRollDeg, double platformPitchDeg, double gimbalPanDeg, double gimbalTiltDeg) noexcept
 {
     // Near nadir / zenith (+/-90 deg), optical axis is collinear with gravity vector.
     // Horizon leveling is degenerate when looking straight down or straight up.

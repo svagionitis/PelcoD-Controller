@@ -1,13 +1,16 @@
 /// @file SightlineCompressionBuilder.cpp
 /// @brief Implementation of Sightline compression command serializers.
 
+#include <cstdint>
+
 #include "SightlineCompressionBuilder.h"
+#include <vector>
 
 namespace Sightline {
 
 std::vector<std::uint8_t> SightlineCompressionBuilder::buildSetH264Parameters(const MsgSetH264Parameters& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(13U);
     SightlineFraming::appendU32Le(payload, msg.targetBitrateBps);
     payload.push_back(msg.intraFrameInterval);
@@ -29,7 +32,7 @@ std::vector<std::uint8_t> SightlineCompressionBuilder::buildStreamingControl(con
 
 std::vector<std::uint8_t> SightlineCompressionBuilder::buildGetH264Parameters(std::uint16_t displayId)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(2U);
     SightlineFraming::appendU16Le(payload, displayId);
     return SightlineFraming::buildPacket(MessageId::GetH264Parameters, payload);
@@ -43,7 +46,7 @@ std::vector<std::uint8_t> SightlineCompressionBuilder::buildGetStreamingControl(
 
 std::vector<std::uint8_t> SightlineCompressionBuilder::buildSetDecoderParameters(const MsgDecoderParameters& msg)
 {
-    std::vector<std::uint8_t> payload {};
+    std::vector<std::uint8_t> payload { };
     payload.reserve(11U);
     payload.push_back(msg.decoderIndex);
     payload.push_back(msg.enable);

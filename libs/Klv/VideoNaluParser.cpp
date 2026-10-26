@@ -1,6 +1,9 @@
 #include "VideoNaluParser.h"
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
+#include <optional>
+#include <vector>
 
 namespace Klv {
 

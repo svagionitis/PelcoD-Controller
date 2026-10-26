@@ -1,4 +1,5 @@
 #include "SonyViscaParser.h"
+#include <cstdint>
 
 namespace Visca::Sony {
 
@@ -15,7 +16,7 @@ bool SonyViscaParser::parseBlock00(const ViscaFrame& frame, SonyFCBStatus& statu
 
     status.zoomPosition = ViscaFrame::unpackWordNibbles(frame.data() + 3);
     status.focusPosition = ViscaFrame::unpackWordNibbles(frame.data() + 7);
-    status.focusNearLimit = static_cast<uint16_t>(((frame[11] & 0x0F) << 12) | ((frame[12] & 0x0F) << 8));
+    status.focusNearLimit = static_cast<std::uint16_t>(((frame[11] & 0x0F) << 12) | ((frame[12] & 0x0F) << 8));
 
     status.zoomCommandExecuting = (frame[13] & 0x01) != 0;
     status.focusCommandExecuting = (frame[13] & 0x02) != 0;
@@ -38,16 +39,16 @@ bool SonyViscaParser::parseBlock01(const ViscaFrame& frame, SonyFCBStatus& statu
     status.spotAwbOn = (frame[2] & 0x80) != 0;
 
     status.wbMode = static_cast<SonyWhiteBalanceMode>(frame[3] & 0x0F);
-    status.apertureGain = static_cast<uint8_t>(frame[4] & 0x0F);
+    status.apertureGain = static_cast<std::uint8_t>(frame[4] & 0x0F);
     status.exposureMode = static_cast<SonyExposureMode>(frame[5] & 0x0F);
 
-    status.shutterPosition = static_cast<uint8_t>(frame[6] & 0x3F);
-    status.irisPosition = static_cast<uint8_t>(frame[7] & 0x1F);
-    status.gainPosition = static_cast<uint8_t>(frame[8] & 0x1F);
-    status.exposureCompPosition = static_cast<uint8_t>(frame[9] & 0x0F);
+    status.shutterPosition = static_cast<std::uint8_t>(frame[6] & 0x3F);
+    status.irisPosition = static_cast<std::uint8_t>(frame[7] & 0x1F);
+    status.gainPosition = static_cast<std::uint8_t>(frame[8] & 0x1F);
+    status.exposureCompPosition = static_cast<std::uint8_t>(frame[9] & 0x0F);
 
-    status.rGain = static_cast<uint16_t>(((frame[11] & 0x0F) << 4) | (frame[12] & 0x0F));
-    status.bGain = static_cast<uint16_t>(((frame[13] & 0x0F) << 4) | (frame[14] & 0x0F));
+    status.rGain = static_cast<std::uint16_t>(((frame[11] & 0x0F) << 4) | (frame[12] & 0x0F));
+    status.bGain = static_cast<std::uint16_t>(((frame[13] & 0x0F) << 4) | (frame[14] & 0x0F));
 
     return true;
 }
@@ -62,7 +63,7 @@ bool SonyViscaParser::parseBlock02(const ViscaFrame& frame, SonyFCBStatus& statu
     status.autoIcrOn = (frame[2] & 0x04) != 0;
     status.icrColor = (frame[2] & 0x10) != 0;
 
-    const uint8_t stabLevelNibble = static_cast<uint8_t>(frame[3] & 0x03);
+    const std::uint8_t stabLevelNibble = static_cast<std::uint8_t>(frame[3] & 0x03);
     if (stabLevelNibble == 3) {
         status.stabilizerLevel = SonyStabilizerMode::SuperPlus;
     } else if (stabLevelNibble == 2) {
@@ -87,11 +88,11 @@ bool SonyViscaParser::parseBlock03(const ViscaFrame& frame, SonyFCBStatus& statu
         return false;
     }
 
-    status.digitalZoomPosition = static_cast<uint16_t>(((frame[3] & 0x0F) << 4) | (frame[4] & 0x0F));
-    status.gamma = static_cast<uint8_t>(frame[9] & 0x07);
-    status.nrLevel = static_cast<uint8_t>(frame[10] & 0x07);
-    status.colorGain = static_cast<uint8_t>(frame[11] & 0x0F);
-    status.chromaSuppress = static_cast<uint8_t>(frame[12] & 0x03);
+    status.digitalZoomPosition = static_cast<std::uint16_t>(((frame[3] & 0x0F) << 4) | (frame[4] & 0x0F));
+    status.gamma = static_cast<std::uint8_t>(frame[9] & 0x07);
+    status.nrLevel = static_cast<std::uint8_t>(frame[10] & 0x07);
+    status.colorGain = static_cast<std::uint8_t>(frame[11] & 0x0F);
+    status.chromaSuppress = static_cast<std::uint8_t>(frame[12] & 0x03);
 
     return true;
 }
@@ -105,13 +106,13 @@ bool SonyViscaParser::parseBlock04(const ViscaFrame& frame, SonyFCBStatus& statu
     status.defogOn = (frame[8] & 0x01) != 0;
     status.defogLevel = static_cast<SonyDefogMode>(frame[13] & 0x03);
     status.wideDMode = static_cast<SonyWideDMode>(frame[9] & 0x03);
-    status.veCompensationLevel = static_cast<uint8_t>(frame[11] & 0x03);
-    status.veBrightnessCompensation = static_cast<uint8_t>(frame[5] & 0x03);
+    status.veCompensationLevel = static_cast<std::uint8_t>(frame[11] & 0x03);
+    status.veBrightnessCompensation = static_cast<std::uint8_t>(frame[5] & 0x03);
 
     return true;
 }
 
-bool SonyViscaParser::parseBlock(uint8_t blockIndex, const ViscaFrame& frame, SonyFCBStatus& status) noexcept
+bool SonyViscaParser::parseBlock(std::uint8_t blockIndex, const ViscaFrame& frame, SonyFCBStatus& status) noexcept
 {
     switch (blockIndex) {
     case 0:
@@ -129,16 +130,16 @@ bool SonyViscaParser::parseBlock(uint8_t blockIndex, const ViscaFrame& frame, So
     }
 }
 
-bool SonyViscaParser::parseRegisterInquiry(const ViscaFrame& frame, uint8_t& outValue) noexcept
+bool SonyViscaParser::parseRegisterInquiry(const ViscaFrame& frame, std::uint8_t& outValue) noexcept
 {
     if (frame.size() != 5 || frame[1] != 0x50 || frame[4] != kViscaTerminator) {
         return false;
     }
-    outValue = static_cast<uint8_t>(((frame[2] & 0x0F) << 4) | (frame[3] & 0x0F));
+    outValue = static_cast<std::uint8_t>(((frame[2] & 0x0F) << 4) | (frame[3] & 0x0F));
     return true;
 }
 
-bool SonyViscaParser::parseWordInquiry(const ViscaFrame& frame, uint16_t& outValue) noexcept
+bool SonyViscaParser::parseWordInquiry(const ViscaFrame& frame, std::uint16_t& outValue) noexcept
 {
     if (frame.size() != 7 || frame[1] != 0x50 || frame[6] != kViscaTerminator) {
         return false;
@@ -147,7 +148,7 @@ bool SonyViscaParser::parseWordInquiry(const ViscaFrame& frame, uint16_t& outVal
     return true;
 }
 
-bool SonyViscaParser::parseByteInquiry(const ViscaFrame& frame, uint8_t& outValue) noexcept
+bool SonyViscaParser::parseByteInquiry(const ViscaFrame& frame, std::uint8_t& outValue) noexcept
 {
     if (frame.size() == 7 && frame[1] == 0x50 && frame[6] == kViscaTerminator) {
         outValue = ViscaFrame::unpackByteNibbles(frame.data() + 4);
@@ -176,16 +177,16 @@ bool SonyViscaParser::parseBoolInquiry(const ViscaFrame& frame, bool& outState) 
     return false;
 }
 
-bool SonyViscaParser::parseModeInquiry(const ViscaFrame& frame, uint8_t& outMode) noexcept
+bool SonyViscaParser::parseModeInquiry(const ViscaFrame& frame, std::uint8_t& outMode) noexcept
 {
     if (frame.size() != 4 || frame[1] != 0x50 || frame[3] != kViscaTerminator) {
         return false;
     }
-    outMode = static_cast<uint8_t>(frame[2] & 0x0FU);
+    outMode = static_cast<std::uint8_t>(frame[2] & 0x0FU);
     return true;
 }
 
-bool SonyViscaParser::parseSpotPosition(const ViscaFrame& frame, uint8_t& outX, uint8_t& outY) noexcept
+bool SonyViscaParser::parseSpotPosition(const ViscaFrame& frame, std::uint8_t& outX, std::uint8_t& outY) noexcept
 {
     if (frame.size() != 7 || frame[1] != 0x50 || frame[6] != kViscaTerminator) {
         return false;

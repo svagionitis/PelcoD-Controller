@@ -1,16 +1,20 @@
 /// @file TestMaritimeNetworkCoordinator.cpp
 /// @brief Integration tests for MaritimeNetworkCoordinator, firewall filtering, and telemetry distribution.
 
+#include "TcpTransport.h"
 #include "bam/BridgeAlertManager.h"
 #include "network/Iec61162_460Firewall.h"
 #include "network/MaritimeNetworkCoordinator.h"
 #include "network/NmeaJsonSerializer.h"
-#include "TcpTransport.h"
 
-#include <gtest/gtest.h>
 #include <chrono>
+#include <cstdint>
 #include <future>
+#include <gtest/gtest.h>
+#include <memory>
 #include <string>
+#include <string_view>
+#include <vector>
 
 using namespace Nmea::Network;
 using namespace Nmea::Bam;
@@ -22,7 +26,7 @@ TEST(TestMaritimeNetworkCoordinator, EndToEndOrchestration)
     static constexpr std::uint16_t kWsPort = 8095U;
 
     auto firewall = std::make_shared<Iec61162_460Firewall>();
-    BamConfig cfg {};
+    BamConfig cfg { };
     cfg.talkerId = "GP";
     auto bam = std::make_shared<BridgeAlertManager>(cfg);
 

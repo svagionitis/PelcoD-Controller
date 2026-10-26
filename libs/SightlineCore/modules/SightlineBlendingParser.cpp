@@ -2,6 +2,7 @@
 /// @brief Implementation of Sightline blending frame deserializers.
 
 #include "SightlineBlendingParser.h"
+#include <cstdint>
 
 namespace Sightline {
 

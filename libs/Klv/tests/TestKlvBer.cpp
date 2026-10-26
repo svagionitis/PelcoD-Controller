@@ -1,10 +1,12 @@
 #include "KlvBer.h"
+#include <cstdint>
 #include <gtest/gtest.h>
 #include <vector>
 
 using namespace Klv;
 
-TEST(KlvBerTest, ShortFormLength) {
+TEST(KlvBerTest, ShortFormLength)
+{
     std::vector<std::uint8_t> out;
     KlvBer::encodeLength(72U, out);
     ASSERT_EQ(out.size(), 1U);
@@ -17,7 +19,8 @@ TEST(KlvBerTest, ShortFormLength) {
     EXPECT_EQ(consumed, 1U);
 }
 
-TEST(KlvBerTest, LongFormLength1Byte) {
+TEST(KlvBerTest, LongFormLength1Byte)
+{
     std::vector<std::uint8_t> out;
     KlvBer::encodeLength(200U, out);
     ASSERT_EQ(out.size(), 2U);
@@ -31,7 +34,8 @@ TEST(KlvBerTest, LongFormLength1Byte) {
     EXPECT_EQ(consumed, 2U);
 }
 
-TEST(KlvBerTest, LongFormLength2Bytes) {
+TEST(KlvBerTest, LongFormLength2Bytes)
+{
     std::vector<std::uint8_t> out;
     KlvBer::encodeLength(1000U, out);
     ASSERT_EQ(out.size(), 3U);
@@ -46,7 +50,8 @@ TEST(KlvBerTest, LongFormLength2Bytes) {
     EXPECT_EQ(consumed, 3U);
 }
 
-TEST(KlvBerTest, LongFormLength3Bytes) {
+TEST(KlvBerTest, LongFormLength3Bytes)
+{
     std::vector<std::uint8_t> out;
     KlvBer::encodeLength(70000U, out);
     ASSERT_EQ(out.size(), 4U);
@@ -59,7 +64,8 @@ TEST(KlvBerTest, LongFormLength3Bytes) {
     EXPECT_EQ(consumed, 4U);
 }
 
-TEST(KlvBerTest, DecodeUnderflowProtection) {
+TEST(KlvBerTest, DecodeUnderflowProtection)
+{
     const std::uint8_t truncatedLongForm[] = { 0x82, 0x01 }; // Needs 3 bytes, only 2 provided
     std::size_t decodedLen = 0U;
     std::size_t consumed = 0U;
@@ -68,7 +74,8 @@ TEST(KlvBerTest, DecodeUnderflowProtection) {
     EXPECT_FALSE(KlvBer::decodeLength(truncatedLongForm, 0U, decodedLen, consumed));
 }
 
-TEST(KlvBerTest, TagEncodingAndDecoding) {
+TEST(KlvBerTest, TagEncodingAndDecoding)
+{
     // 1-byte tag (< 128)
     {
         std::vector<std::uint8_t> out;

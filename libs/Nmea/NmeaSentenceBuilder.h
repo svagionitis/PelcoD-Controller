@@ -8,6 +8,7 @@
 #include "PfecTypes.h"
 #include "bam/BridgeAlertTypes.h"
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 

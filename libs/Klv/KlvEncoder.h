@@ -5,12 +5,15 @@
 
 #include "KlvTypes.h"
 #include <cstdint>
+
+#include <string>
 #include <vector>
 
 namespace Klv {
 
 /// @class KlvEncoder
-/// @brief Encodes high-level telemetry and geodetic measurements into standard SMPTE ST 336 / MISB ST 0601 byte packets.
+/// @brief Encodes high-level telemetry and geodetic measurements into standard SMPTE ST 336 / MISB ST 0601 byte
+/// packets.
 class KlvEncoder {
 public:
     /// @brief Encodes a UAS Datalink message into a complete, validated STANAG 4609 / MISB ST 0601 KLV packet.
@@ -31,7 +34,8 @@ private:
     static void appendTagInt32(std::uint32_t tag, std::int32_t value, std::vector<std::uint8_t>& out);
     static void appendTagUint64(std::uint32_t tag, std::uint64_t value, std::vector<std::uint8_t>& out);
     static void appendTagString(std::uint32_t tag, const std::string& value, std::vector<std::uint8_t>& out);
-    static void appendTagBytes(std::uint32_t tag, const std::vector<std::uint8_t>& value, std::vector<std::uint8_t>& out);
+    static void appendTagBytes(
+        std::uint32_t tag, const std::vector<std::uint8_t>& value, std::vector<std::uint8_t>& out);
 };
 
 } // namespace Klv

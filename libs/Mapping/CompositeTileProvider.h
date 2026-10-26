@@ -4,11 +4,15 @@
 /// @brief Multi-tier chained tile provider with memory LRU, offline disk stores, and offline-only enforcement.
 
 #include "DiskTileCache.h"
+
 #include "ITileProvider.h"
 #include "TileCache.h"
+#include <cstddef>
 
 #include <memory>
 #include <mutex>
+#include <optional>
+#include <string>
 #include <vector>
 
 namespace Mapping {
@@ -22,7 +26,7 @@ public:
     /// @param[in] diskCache Optional primary disk storage instance.
     /// @param[in] memoryCacheCapacity Number of tiles to retain in fast memory LRU cache.
     explicit CompositeTileProvider(std::shared_ptr<DiskTileCache> diskCache = nullptr,
-                                   std::size_t memoryCacheCapacity = TileCache::kDefaultCapacity);
+        std::size_t memoryCacheCapacity = TileCache::kDefaultCapacity);
 
     /// @brief Sets the primary disk cache.
     void setDiskCache(std::shared_ptr<DiskTileCache> diskCache);
@@ -52,10 +56,16 @@ public:
     [[nodiscard]] bool hasTile(const TileCoord& coord) const noexcept override;
 
     /// @brief Returns provider identification.
-    [[nodiscard]] std::string providerName() const override { return "CompositeTileProvider"; }
+    [[nodiscard]] std::string providerName() const override
+    {
+        return "CompositeTileProvider";
+    }
 
     /// @brief Direct reference to in-memory tile cache.
-    [[nodiscard]] TileCache& memoryCache() noexcept { return m_memoryCache; }
+    [[nodiscard]] TileCache& memoryCache() noexcept
+    {
+        return m_memoryCache;
+    }
 
 private:
     TileCache m_memoryCache;

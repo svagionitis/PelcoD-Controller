@@ -5,27 +5,29 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <mutex>
 
 namespace PayloadHal {
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
+    constexpr double kPi = 3.14159265358979323846;
 
-double degToRad(double deg)
-{
-    return deg * (kPi / 180.0);
-}
+    double degToRad(double deg)
+    {
+        return deg * (kPi / 180.0);
+    }
 
-double radToDeg(double rad)
-{
-    return rad * (180.0 / kPi);
-}
+    double radToDeg(double rad)
+    {
+        return rad * (180.0 / kPi);
+    }
 
 } // namespace
 
-SensorParallaxCompensator::SensorParallaxCompensator(const SensorOffset3D& baseline,
-                                                     const BoresightCalibration& boresight)
+SensorParallaxCompensator::SensorParallaxCompensator(
+    const SensorOffset3D& baseline, const BoresightCalibration& boresight)
     : m_baseline(baseline)
     , m_boresight(boresight)
 {
@@ -55,12 +57,8 @@ BoresightCalibration SensorParallaxCompensator::boresightCalibration() const noe
     return m_boresight;
 }
 
-ParallaxDisparity SensorParallaxCompensator::computeDisparity(
-    double slantRangeMeters,
-    double primaryHfovDeg,
-    double primaryVfovDeg,
-    std::uint32_t imageWidth,
-    std::uint32_t imageHeight) const
+ParallaxDisparity SensorParallaxCompensator::computeDisparity(double slantRangeMeters, double primaryHfovDeg,
+    double primaryVfovDeg, std::uint32_t imageWidth, std::uint32_t imageHeight) const
 {
     SensorOffset3D baseline;
     BoresightCalibration boresight;
@@ -70,7 +68,7 @@ ParallaxDisparity SensorParallaxCompensator::computeDisparity(
         boresight = m_boresight;
     }
 
-    ParallaxDisparity disparity {};
+    ParallaxDisparity disparity { };
     disparity.rangeMeters = std::max(0.001, slantRangeMeters);
 
     // Range along line-of-sight
@@ -109,21 +107,14 @@ ParallaxDisparity SensorParallaxCompensator::computeDisparity(
 }
 
 std::pair<double, double> SensorParallaxCompensator::computeReticleOffset(
-    double slantRangeMeters,
-    double hfovDeg,
-    double vfovDeg) const
+    double slantRangeMeters, double hfovDeg, double vfovDeg) const
 {
     const auto disp = computeDisparity(slantRangeMeters, hfovDeg, vfovDeg);
     return { disp.normalizedScreenDeltaX, disp.normalizedScreenDeltaY };
 }
 
-ScreenRect2D SensorParallaxCompensator::transformBoundingBox(
-    const ScreenRect2D& primaryBox,
-    double slantRangeMeters,
-    double primaryHfovDeg,
-    double primaryVfovDeg,
-    double secondaryHfovDeg,
-    double secondaryVfovDeg) const
+ScreenRect2D SensorParallaxCompensator::transformBoundingBox(const ScreenRect2D& primaryBox, double slantRangeMeters,
+    double primaryHfovDeg, double primaryVfovDeg, double secondaryHfovDeg, double secondaryVfovDeg) const
 {
     const auto disp = computeDisparity(slantRangeMeters, primaryHfovDeg, primaryVfovDeg);
 
@@ -133,7 +124,7 @@ ScreenRect2D SensorParallaxCompensator::transformBoundingBox(
     const double scaleX = primaryHfovDeg / safeSecHfov;
     const double scaleY = primaryVfovDeg / safeSecVfov;
 
-    ScreenRect2D secBox {};
+    ScreenRect2D secBox { };
     secBox.width = primaryBox.width * scaleX;
     secBox.height = primaryBox.height * scaleY;
 
@@ -144,13 +135,8 @@ ScreenRect2D SensorParallaxCompensator::transformBoundingBox(
     return secBox;
 }
 
-std::pair<double, double> SensorParallaxCompensator::mapPointPrimaryToSecondary(
-    double xNorm,
-    double yNorm,
-    double slantRangeMeters,
-    double primaryHfovDeg,
-    double primaryVfovDeg,
-    double secondaryHfovDeg,
+std::pair<double, double> SensorParallaxCompensator::mapPointPrimaryToSecondary(double xNorm, double yNorm,
+    double slantRangeMeters, double primaryHfovDeg, double primaryVfovDeg, double secondaryHfovDeg,
     double secondaryVfovDeg) const
 {
     const auto disp = computeDisparity(slantRangeMeters, primaryHfovDeg, primaryVfovDeg);
@@ -187,8 +173,7 @@ std::pair<double, double> SensorParallaxCompensator::mapPointPrimaryToSecondary(
 }
 
 std::pair<double, double> SensorParallaxCompensator::computeLrfConvergenceAngles(
-    double slantRangeMeters,
-    const SensorOffset3D& lrfOffset) const
+    double slantRangeMeters, const SensorOffset3D& lrfOffset) const
 {
     SensorOffset3D offset = lrfOffset;
     if (std::abs(offset.lateralOffsetM) < 1e-6 && std::abs(offset.verticalOffsetM) < 1e-6

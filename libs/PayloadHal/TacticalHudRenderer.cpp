@@ -14,8 +14,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <mutex>
+#include <string>
 
 namespace PayloadHal {
 
@@ -344,7 +347,7 @@ HudTelemetrySnapshot TacticalHudRenderer::telemetry() const noexcept
 
 void TacticalHudRenderer::updateFromPayload(const IPayload& payload)
 {
-    HudTelemetrySnapshot snap {};
+    HudTelemetrySnapshot snap { };
 
     if (auto ptu = payload.panTilt()) {
         const auto telem = ptu->currentTelemetry();
@@ -434,7 +437,7 @@ void TacticalHudRenderer::updateFromPayload(const IPayload& payload)
 HudDrawList TacticalHudRenderer::generateDrawList() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    HudDrawList dl {};
+    HudDrawList dl { };
 
     if (m_config.reticle != ReticleType::None) {
         buildReticle(dl);
@@ -540,7 +543,7 @@ void TacticalHudRenderer::buildReticle(HudDrawList& drawList) const
     case ReticleType::BoxReticle: {
         const float halfBox = 0.035f * scale;
         drawList.rectangles.push_back(
-            { { cx - halfBox, cy - halfBox }, halfBox * 2.0f, halfBox * 2.0f, m_currentColor, sw, false, {} });
+            { { cx - halfBox, cy - halfBox }, halfBox * 2.0f, halfBox * 2.0f, m_currentColor, sw, false, { } });
         drawList.lines.push_back({ { cx - 0.01f * scale, cy }, { cx + 0.01f * scale, cy }, m_currentColor, sw });
         drawList.lines.push_back({ { cx, cy - 0.01f * scale }, { cx, cy + 0.01f * scale }, m_currentColor, sw });
         break;

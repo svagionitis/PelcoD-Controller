@@ -2,6 +2,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace PayloadHal {
 
@@ -201,14 +206,14 @@ SectorEvaluationResult GimbalSectorBlanking::evaluate(double azDeg, double elDeg
 {
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    SectorEvaluationResult result {};
+    SectorEvaluationResult result { };
     result.mechanicalAllowed = true;
     result.laserAllowed = true;
     result.videoBlanked = false;
     result.inWarningMargin = false;
     result.distanceToNearestZoneDeg = 999.0;
 
-    std::string firstInhibitZoneId {};
+    std::string firstInhibitZoneId { };
 
     for (const auto& z : m_zones) {
         if (!z.enabled || z.frame != frame) {
@@ -273,7 +278,7 @@ PathValidationResult GimbalSectorBlanking::validatePath(double fromAzDeg, double
 {
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    PathValidationResult result {};
+    PathValidationResult result { };
     result.pathClear = true;
     result.clamped = false;
     result.safeTargetAzDeg = toAzDeg;

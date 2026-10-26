@@ -1,13 +1,15 @@
 /// @file SightlineTelemetryParser.cpp
 /// @brief Implementation of Sightline SLA platform telemetry and KLV metadata deserializers.
 
-#include "SightlineTelemetryParser.h"
+#include <cstdint>
+
 #include "SightlineKlvParser.h"
+#include "SightlineTelemetryParser.h"
+#include <vector>
 
 namespace Sightline {
 
-bool SightlineTelemetryParser::parseMetadataValues(
-    const std::vector<std::uint8_t>& packet, MsgSetMetadataValues& out)
+bool SightlineTelemetryParser::parseMetadataValues(const std::vector<std::uint8_t>& packet, MsgSetMetadataValues& out)
 {
     return SightlineKlvParser::parseMetadataValues(packet, out);
 }

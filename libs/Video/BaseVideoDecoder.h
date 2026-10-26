@@ -9,6 +9,8 @@
 
 #include <cstddef>
 #include <cstdint>
+
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -200,11 +202,11 @@ protected:
     bool m_isInitialized { false }; ///< True if the decoder is open and ready.
     bool m_autoReconnect { true }; ///< Automatically reconnect on live stream drops.
     int m_reconnectIntervalMs { 1500 }; ///< Milliseconds between reconnection retries.
-    std::chrono::steady_clock::time_point m_lastReconnectAttempt {}; ///< Timestamp of last reconnect attempt.
+    std::chrono::steady_clock::time_point m_lastReconnectAttempt { }; ///< Timestamp of last reconnect attempt.
     bool m_isLiveStream { false }; ///< Flag indicating live stream (RTSP/device) vs finite file.
     RtspTransportMode m_rtspTransport { RtspTransportMode::Auto }; ///< Configured RTSP transport mode.
-    std::string m_rtspUsername {}; ///< Configured RTSP username.
-    std::string m_rtspPassword {}; ///< Configured RTSP password.
+    std::string m_rtspUsername { }; ///< Configured RTSP username.
+    std::string m_rtspPassword { }; ///< Configured RTSP password.
 
     /// @brief Redacts password from URI for safe logging.
     /// @param[in] uri Input URI.
@@ -222,8 +224,8 @@ protected:
 private:
     mutable std::mutex m_processorMutex;
     std::vector<std::shared_ptr<IFrameProcessor>> m_processors;
-    mutable std::mutex m_metadataMutex {};
-    MetadataCallback m_metadataCallback {};
+    mutable std::mutex m_metadataMutex { };
+    MetadataCallback m_metadataCallback { };
 };
 
 } // namespace Video

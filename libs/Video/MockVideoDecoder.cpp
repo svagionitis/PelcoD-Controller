@@ -3,7 +3,10 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <cstring>
+#include <string>
+#include <string_view>
 
 namespace Video {
 

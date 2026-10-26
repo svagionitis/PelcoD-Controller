@@ -5,7 +5,10 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <gtest/gtest.h>
+#include <memory>
+#include <string>
 #include <thread>
 #include <vector>
 

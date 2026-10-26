@@ -1,12 +1,13 @@
 /// @file TestPayloadKlvGenerator.cpp
 /// @brief Unit tests for PayloadKlvGenerator STANAG 4609 / MISB ST 0601 telemetry generation.
 
-#include "PayloadKlvGenerator.h"
 #include "Klv/KlvParser.h"
+#include "PayloadKlvGenerator.h"
 #include "sim/SimulatedPayload.h"
 
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <gtest/gtest.h>
 #include <memory>
 
@@ -33,7 +34,7 @@ namespace {
         nav.pitchDeg = 3.5;
         nav.rollDeg = -2.0;
 
-        const uint64_t customTimeUs = 1680000000123456ULL;
+        const std::uint64_t customTimeUs = 1680000000123456ULL;
         auto msg = generator.buildMessage(nav, customTimeUs);
 
         ASSERT_TRUE(msg.precisionTimeStampUs.has_value());

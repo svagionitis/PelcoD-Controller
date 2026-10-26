@@ -10,6 +10,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
@@ -24,55 +25,55 @@ namespace PayloadHal {
 /// @struct TourWaypoint
 /// @brief Single stop within an automated cyclical patrol route.
 struct TourWaypoint {
-    std::uint32_t presetId { 0U };                ///< Target preset to slew to
+    std::uint32_t presetId { 0U }; ///< Target preset to slew to
     std::chrono::milliseconds dwellTime { 5000 }; ///< Observation hold duration once arrived
-    float slewSpeedRatio { 1.0f };                ///< Slew velocity ratio (0.1 to 1.0)
+    float slewSpeedRatio { 1.0f }; ///< Slew velocity ratio (0.1 to 1.0)
 };
 
 /// @struct TourDefinition
 /// @brief Multi-waypoint patrol mission profile.
 struct TourDefinition {
-    std::string tourId {};                         ///< Unique identifier (e.g. "patrol_perimeter_night")
-    std::string name {};                           ///< User-facing label (e.g. "Perimeter Guard Night")
-    std::vector<TourWaypoint> waypoints {};        ///< Ordered sequence of preset stops
-    bool loop { true };                            ///< True if patrol repeats indefinitely
-    std::uint32_t maxLoops { 0U };                 ///< Max repeat cycles (0 = infinite)
-    std::optional<std::uint32_t> homePresetId {};  ///< Home preset to return to on stop/timeout
+    std::string tourId { }; ///< Unique identifier (e.g. "patrol_perimeter_night")
+    std::string name { }; ///< User-facing label (e.g. "Perimeter Guard Night")
+    std::vector<TourWaypoint> waypoints { }; ///< Ordered sequence of preset stops
+    bool loop { true }; ///< True if patrol repeats indefinitely
+    std::uint32_t maxLoops { 0U }; ///< Max repeat cycles (0 = infinite)
+    std::optional<std::uint32_t> homePresetId { }; ///< Home preset to return to on stop/timeout
     std::chrono::seconds inactivityHomeTimeout { 60 }; ///< Seconds of manual idle before returning Home
 };
 
 /// @enum TourState
 /// @brief Operational state of the automated tour execution engine.
 enum class TourState : std::uint8_t {
-    Idle,               ///< No active tour running
-    SlewingToWaypoint,  ///< Gimbal actively moving towards target preset
+    Idle, ///< No active tour running
+    SlewingToWaypoint, ///< Gimbal actively moving towards target preset
     DwellingAtWaypoint, ///< Stationary hold at waypoint during observation window
-    Paused,             ///< Tour temporarily halted due to operator or auto-tracker intervention
-    Completed,          ///< Finite tour reached maxLoops
-    Fault               ///< Hardware or communication fault occurred
+    Paused, ///< Tour temporarily halted due to operator or auto-tracker intervention
+    Completed, ///< Finite tour reached maxLoops
+    Fault ///< Hardware or communication fault occurred
 };
 
 /// @struct TourStatus
 /// @brief Real-time telemetry reporting tour progression.
 struct TourStatus {
     TourState state { TourState::Idle };
-    std::string activeTourId {};
+    std::string activeTourId { };
     std::size_t currentWaypointIndex { 0U };
     std::uint32_t currentPresetId { 0U };
     std::chrono::milliseconds remainingDwell { 0 };
     std::uint32_t completedLoops { 0U };
-    std::string statusMessage {};
+    std::string statusMessage { };
 };
 
 /// @class TourEngine
-/// @brief Background execution engine coordinating sequential preset patrols with dwell timers and manual override interlocks.
+/// @brief Background execution engine coordinating sequential preset patrols with dwell timers and manual override
+/// interlocks.
 class TourEngine {
 public:
     using StatusCallback = std::function<void(const TourStatus& status)>;
 
-    TourEngine(std::shared_ptr<IPanTiltUnit> ptu,
-               std::shared_ptr<ICameraPayload> camera,
-               std::shared_ptr<IPtzPresetManager> presetMgr);
+    TourEngine(std::shared_ptr<IPanTiltUnit> ptu, std::shared_ptr<ICameraPayload> camera,
+        std::shared_ptr<IPtzPresetManager> presetMgr);
     ~TourEngine();
 
     /// @brief Registers a patrol tour profile into the engine.
@@ -125,11 +126,11 @@ private:
     mutable std::mutex m_mutex;
     std::condition_variable m_cv;
     std::map<std::string, TourDefinition> m_tours;
-    TourStatus m_status {};
-    StatusCallback m_callback {};
+    TourStatus m_status { };
+    StatusCallback m_callback { };
 
     double m_arrivalThresholdDeg { 0.5 };
-    std::chrono::steady_clock::time_point m_dwellStartTime {};
+    std::chrono::steady_clock::time_point m_dwellStartTime { };
 
     std::atomic<bool> m_running { false };
     std::thread m_workerThread;

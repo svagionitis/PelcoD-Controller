@@ -1,6 +1,7 @@
 #include "NmeaChecksum.h"
 #include "arbiter/NmeaSensorArbiter.h"
 
+#include <chrono>
 #include <gtest/gtest.h>
 #include <string>
 #include <thread>
@@ -10,7 +11,7 @@ namespace Nmea::Arbiter {
 
 TEST(TestNmeaSensorArbiter, PrimaryHealthySelection)
 {
-    ArbiterConfig cfg {};
+    ArbiterConfig cfg { };
     cfg.policy = FailoverPolicy::PrimarySecondaryAutoRevert;
     cfg.minimumHealthyScore = 50.0;
 
@@ -33,7 +34,7 @@ TEST(TestNmeaSensorArbiter, PrimaryHealthySelection)
 
 TEST(TestNmeaSensorArbiter, FailoverOnTimeoutAndAutoRevert)
 {
-    ArbiterConfig cfg {};
+    ArbiterConfig cfg { };
     cfg.policy = FailoverPolicy::PrimarySecondaryAutoRevert;
     cfg.gpsTimeout = std::chrono::milliseconds(50); // fast timeout for test
 
@@ -44,7 +45,7 @@ TEST(TestNmeaSensorArbiter, FailoverOnTimeoutAndAutoRevert)
         GpsSourceId newSrc;
         std::string reason;
     };
-    std::vector<FailoverEvent> events {};
+    std::vector<FailoverEvent> events { };
     arbiter.setGpsFailoverCallback([&](GpsSourceId oldSrc, GpsSourceId newSrc, const std::string& reason) {
         events.push_back({ oldSrc, newSrc, reason });
     });
@@ -80,7 +81,7 @@ TEST(TestNmeaSensorArbiter, FailoverOnTimeoutAndAutoRevert)
 
 TEST(TestNmeaSensorArbiter, KinematicJumpAntiSpoofing)
 {
-    ArbiterConfig cfg {};
+    ArbiterConfig cfg { };
     cfg.maxSanitySpeedMps = 40.0; // ~77 knots
 
     NmeaSensorArbiter arbiter(cfg);
@@ -101,7 +102,7 @@ TEST(TestNmeaSensorArbiter, KinematicJumpAntiSpoofing)
 
 TEST(TestNmeaSensorArbiter, CrossSensorDivergenceMonitoring)
 {
-    ArbiterConfig cfg {};
+    ArbiterConfig cfg { };
     cfg.maxPositionDivergenceMeters = 25.0;
     cfg.maxHeadingDivergenceDeg = 4.0;
 
@@ -136,7 +137,7 @@ TEST(TestNmeaSensorArbiter, CrossSensorDivergenceMonitoring)
 
 TEST(TestNmeaSensorArbiter, SeamlessNavSnapshot)
 {
-    NmeaSensorArbiter arbiter {};
+    NmeaSensorArbiter arbiter { };
 
     arbiter.updateGpsCoordinates(
         GpsSourceId::Primary, 54.1234, 12.5678, 22.5, NmeaFixQuality::RtkFixed, 14U, 0.9, 15.4, 270.0);

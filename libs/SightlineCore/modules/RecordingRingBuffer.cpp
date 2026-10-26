@@ -3,6 +3,10 @@
 
 #include "RecordingRingBuffer.h"
 
+#include <cstdint>
+
+#include <mutex>
+#include <optional>
 #include <utility>
 
 namespace Sightline {

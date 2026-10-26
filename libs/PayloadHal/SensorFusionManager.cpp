@@ -5,6 +5,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
+#include <mutex>
+#include <string>
 
 namespace PayloadHal {
 
@@ -149,7 +152,7 @@ MatchZoomResult SensorFusionManager::computeMatchZoom(OpticalChannel sourceChann
 MatchZoomResult SensorFusionManager::computeMatchZoomInternal(
     const std::shared_ptr<ICameraPayload>& srcCam, const std::shared_ptr<ICameraPayload>& tgtCam)
 {
-    MatchZoomResult result {};
+    MatchZoomResult result { };
     if (!srcCam || !tgtCam) {
         return result;
     }
@@ -368,8 +371,8 @@ void SensorFusionManager::update(double dtSeconds)
 {
     std::shared_ptr<ICameraPayload> srcCam;
     std::shared_ptr<ICameraPayload> tgtCam;
-    OpticalChannel prevChannel {};
-    OpticalChannel newChannel {};
+    OpticalChannel prevChannel { };
+    OpticalChannel newChannel { };
     std::string switchReason;
     ChannelSwitchCallback callback;
     bool triggered = false;
