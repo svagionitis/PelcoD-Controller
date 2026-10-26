@@ -3,6 +3,16 @@
 
 #include "SightlineUdpTransport.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+
+#include <mutex>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
+
 #include <glog/logging.h>
 
 #ifndef _WIN32
@@ -106,6 +116,14 @@ bool SightlineUdpTransport::open()
         const std::string err = "Failed to resolve host " + m_host + ": " + gai_strerror(gaiErr);
         LOG(ERROR) << "SightlineUdpTransport: " << err;
         notifyState(TransportState::Error, err);
+        return false;
+    }
+
+    if (result->ai_addrlen > sizeof(m_destAddr)) {
+        const std::string err = "Resolved address length exceeds storage size for " + m_host;
+        LOG(ERROR) << "SightlineUdpTransport: " << err;
+        notifyState(TransportState::Error, err);
+        ::freeaddrinfo(result);
         return false;
     }
 
@@ -236,7 +254,7 @@ void SightlineUdpTransport::readWorker()
             break;
         }
 
-        Net::PollFd pfd {};
+        Net::PollFd pfd { };
         pfd.fd = static_cast<decltype(pfd.fd)>(sock);
         pfd.events = POLLIN;
 
@@ -290,7 +308,7 @@ TransportStatsSnapshot SightlineUdpTransport::getStats() const
 
 UdpKernelStats SightlineUdpTransport::queryKernelStats() const noexcept
 {
-    UdpKernelStats stats {};
+    UdpKernelStats stats { };
     const auto sock = m_rxSock.load();
     if (sock == InvalidSocket) {
         return stats;

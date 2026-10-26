@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include <chrono>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -18,8 +19,7 @@
 
 namespace PayloadHal {
 
-Stanag4586Bridge::Stanag4586Bridge(std::shared_ptr<IPayload> payload,
-                                   StanagBridgeConfig config) noexcept
+Stanag4586Bridge::Stanag4586Bridge(std::shared_ptr<IPayload> payload, StanagBridgeConfig config) noexcept
     : m_payload(std::move(payload))
     , m_config(std::move(config))
     , m_navData(m_config.defaultNavData)
@@ -211,8 +211,8 @@ bool Stanag4586Bridge::dispatchMessage2001(const Stanag4586Message2001& req)
 {
     bool autoReply = false;
     std::uint8_t myStation = 0U;
-    PacketTxCallback packetCb {};
-    Message2000Callback msgCb {};
+    PacketTxCallback packetCb { };
+    Message2000Callback msgCb { };
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -241,7 +241,7 @@ bool Stanag4586Bridge::dispatchMessage2001(const Stanag4586Message2001& req)
 
 bool Stanag4586Bridge::dispatchMessage2003(const Stanag4586Message2003& cmd)
 {
-    Message2003Callback cb {};
+    Message2003Callback cb { };
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         cb = m_msg2003Callback;
@@ -417,7 +417,7 @@ bool Stanag4586Bridge::dispatchMessage2003(const Stanag4586Message2003& cmd)
 
 bool Stanag4586Bridge::dispatchMessage2004(const Stanag4586Message2004& cmd)
 {
-    Message2004Callback cb {};
+    Message2004Callback cb { };
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         cb = m_msg2004Callback;
@@ -454,8 +454,7 @@ bool Stanag4586Bridge::dispatchMessage2004(const Stanag4586Message2004& cmd)
         if (m_payload->isGeoLocked()) {
             m_payload->disengageGeoLock();
         }
-        return ptu->setRate(
-            static_cast<double>(cmd.commandedAzimuthRateDegPerSec),
+        return ptu->setRate(static_cast<double>(cmd.commandedAzimuthRateDegPerSec),
             static_cast<double>(cmd.commandedElevationRateDegPerSec));
     }
     case StanagSteeringMode::GeoPointing: {
@@ -464,11 +463,8 @@ bool Stanag4586Bridge::dispatchMessage2004(const Stanag4586Message2004& cmd)
             std::lock_guard<std::mutex> lock(m_mutex);
             nav = m_navData;
         }
-        const Klv::GeoPoint3D targetGeo {
-            cmd.targetLatitudeDeg,
-            cmd.targetLongitudeDeg,
-            static_cast<double>(cmd.targetAltitudeMslMeters)
-        };
+        const Klv::GeoPoint3D targetGeo { cmd.targetLatitudeDeg, cmd.targetLongitudeDeg,
+            static_cast<double>(cmd.targetAltitudeMslMeters) };
         m_payload->engageGeoLock(targetGeo);
         return m_payload->slewToGeoTarget(nav.position, nav.headingDeg, targetGeo);
     }
@@ -543,7 +539,8 @@ Stanag4586Message2000 Stanag4586Bridge::buildMessage2000(std::optional<std::uint
 
         const auto camTelem = primCam->currentTelemetry();
         msg.minHorizontalFovDeg = 2.0f;
-        msg.maxHorizontalFovDeg = static_cast<float>(camTelem.horizontalFovDeg > 0.0 ? camTelem.horizontalFovDeg : 60.0);
+        msg.maxHorizontalFovDeg
+            = static_cast<float>(camTelem.horizontalFovDeg > 0.0 ? camTelem.horizontalFovDeg : 60.0);
     }
 
     if (m_payload->secondaryCamera()) {
@@ -697,8 +694,7 @@ Stanag4586Message2002 Stanag4586Bridge::buildMessage2002(std::optional<PlatformN
 
     // 8. Geodetic Line-of-Sight Ground Intersection
     const Klv::GeoPoint2D platform2D { nav.position.latitudeDeg, nav.position.longitudeDeg };
-    const auto tgtCoord = m_payload->calculateTargetCoordinates(
-        platform2D, nav.headingDeg, nav.position.altitudeM);
+    const auto tgtCoord = m_payload->calculateTargetCoordinates(platform2D, nav.headingDeg, nav.position.altitudeM);
 
     if (tgtCoord.has_value()) {
         msg.targetLocationValid = 1U;
@@ -749,6 +745,10 @@ std::vector<std::uint8_t> Stanag4586Bridge::serializeMessage2002(std::optional<P
 std::vector<std::uint8_t> Stanag4586Bridge::framePayload(
     StanagMessageId msgId, std::uint8_t stationId, const std::uint8_t* payloadData, std::size_t payloadLen) const
 {
+    if (payloadLen > std::numeric_limits<std::uint16_t>::max()) {
+        return { };
+    }
+
     const std::size_t totalPacketSize = STANAG4586_HEADER_SIZE + payloadLen + 2U;
     std::vector<std::uint8_t> packet(totalPacketSize, 0U);
 
@@ -758,8 +758,8 @@ std::vector<std::uint8_t> Stanag4586Bridge::framePayload(
     StanagWire::writeUint16Be(&packet[4], static_cast<std::uint16_t>(payloadLen));
 
     const auto nowUs = static_cast<std::uint64_t>(
-        std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count());
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count());
     StanagWire::writeUint64Be(&packet[6], nowUs);
 
     std::uint32_t srcId = 0U;
@@ -830,8 +830,8 @@ void Stanag4586Bridge::periodicTelemetryLoop()
         }
 
         const auto packet = serializeMessage2002();
-        PacketTxCallback txCb {};
-        Message2002Callback msgCb {};
+        PacketTxCallback txCb { };
+        Message2002Callback msgCb { };
         {
             std::lock_guard<std::mutex> lock(m_mutex);
             txCb = m_packetTxCallback;

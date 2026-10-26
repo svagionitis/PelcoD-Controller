@@ -1,10 +1,17 @@
 #include "SightlineDigestAuth.h"
 
+#include <cstddef>
+#include <cstdint>
+
 #include <algorithm>
 #include <array>
-#include <cstdint>
-#include <cstring>
+#include <limits>
+#include <optional>
 #include <sstream>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 namespace Sightline {
 
@@ -26,6 +33,11 @@ namespace {
               20U, 5U, 9U, 14U, 20U, 5U, 9U, 14U, 20U, 4U, 11U, 16U, 23U, 4U, 11U, 16U, 23U, 4U, 11U, 16U, 23U, 4U, 11U,
               16U, 23U, 6U, 10U, 15U, 21U, 6U, 10U, 15U, 21U, 6U, 10U, 15U, 21U, 6U, 10U, 15U, 21U };
 
+    [[nodiscard]] constexpr char toLowerAscii(char ch) noexcept
+    {
+        return (ch >= 'A' && ch <= 'Z') ? static_cast<char>(ch + ('a' - 'A')) : ch;
+    }
+
     [[nodiscard]] constexpr std::uint32_t leftRotate(std::uint32_t value, std::uint32_t count) noexcept
     {
         return (value << count) | (value >> (32U - count));
@@ -33,7 +45,7 @@ namespace {
 
     void processMd5Block(const std::uint8_t* block, std::array<std::uint32_t, 4>& state) noexcept
     {
-        std::array<std::uint32_t, 16> words {};
+        std::array<std::uint32_t, 16> words { };
         for (std::size_t i { 0U }; i < 16U; ++i) {
             const std::size_t offset { i * 4U };
             words[i] = static_cast<std::uint32_t>(block[offset])
@@ -82,12 +94,12 @@ namespace {
     {
         const std::size_t keyPos { source.find(key) };
         if (keyPos == std::string_view::npos) {
-            return {};
+            return { };
         }
 
         const std::size_t eqPos { source.find('=', keyPos + key.size()) };
         if (eqPos == std::string_view::npos) {
-            return {};
+            return { };
         }
 
         std::size_t valStart { eqPos + 1U };
@@ -96,7 +108,7 @@ namespace {
         }
 
         if (valStart >= source.size()) {
-            return {};
+            return { };
         }
 
         if (source[valStart] == '"') {
@@ -120,7 +132,16 @@ namespace {
 
 std::string SightlineDigestAuth::computeMd5Hex(std::string_view data)
 {
-    std::array<std::uint32_t, 4> state = { 0x67452301U, 0xefcdab89U, 0x98badcfeU, 0x10325476U };
+    // MD5 bit length is encoded as a 64-bit integer (bitLength = data.size() * 8U).
+    // Validate input length to prevent bitLength overflow and size_t buffer calculation wrap-around.
+    static constexpr std::size_t kMaxMd5InputSize { (sizeof(std::size_t) >= sizeof(std::uint64_t))
+            ? static_cast<std::size_t>(std::numeric_limits<std::uint64_t>::max() / 8U)
+            : (std::numeric_limits<std::size_t>::max() - 128U) };
+    if (data.size() > kMaxMd5InputSize) {
+        return { };
+    }
+
+    std::array<std::uint32_t, 4> state { 0x67452301U, 0xefcdab89U, 0x98badcfeU, 0x10325476U };
 
     const std::uint64_t bitLength { static_cast<std::uint64_t>(data.size()) * 8U };
     const std::size_t initialSize { data.size() };
@@ -128,8 +149,8 @@ std::string SightlineDigestAuth::computeMd5Hex(std::string_view data)
                                                                 : (120U - (initialSize % 64U)) };
 
     std::vector<std::uint8_t> buffer(initialSize + paddingLength + 8U, 0U);
-    if (!data.empty()) {
-        std::memcpy(buffer.data(), data.data(), data.size());
+    for (std::size_t i { 0U }; i < initialSize; ++i) {
+        buffer[i] = static_cast<std::uint8_t>(data[i]);
     }
 
     buffer[initialSize] = 0x80U;
@@ -143,7 +164,7 @@ std::string SightlineDigestAuth::computeMd5Hex(std::string_view data)
     }
 
     static constexpr char kHexDigits[] = "0123456789abcdef";
-    std::string hexResult {};
+    std::string hexResult { };
     hexResult.reserve(32U);
 
     for (std::size_t i { 0U }; i < 4U; ++i) {
@@ -159,7 +180,7 @@ std::string SightlineDigestAuth::computeMd5Hex(std::string_view data)
 
 std::string SightlineDigestAuth::computeHa1(std::string_view user, std::string_view realm, std::string_view pass)
 {
-    std::string composite {};
+    std::string composite { };
     composite.reserve(user.size() + realm.size() + pass.size() + 2U);
     composite.append(user);
     composite.push_back(':');
@@ -171,7 +192,7 @@ std::string SightlineDigestAuth::computeHa1(std::string_view user, std::string_v
 
 std::string SightlineDigestAuth::computeHa2(std::string_view method, std::string_view uri)
 {
-    std::string composite {};
+    std::string composite { };
     composite.reserve(method.size() + uri.size() + 1U);
     composite.append(method);
     composite.push_back(':');
@@ -181,7 +202,7 @@ std::string SightlineDigestAuth::computeHa2(std::string_view method, std::string
 
 std::string SightlineDigestAuth::computeResponse(std::string_view ha1, std::string_view nonce, std::string_view ha2)
 {
-    std::string composite {};
+    std::string composite { };
     composite.reserve(ha1.size() + nonce.size() + ha2.size() + 2U);
     composite.append(ha1);
     composite.push_back(':');
@@ -194,7 +215,7 @@ std::string SightlineDigestAuth::computeResponse(std::string_view ha1, std::stri
 std::string SightlineDigestAuth::formatHtpasswdLine(
     std::string_view user, std::string_view realm, std::string_view pass)
 {
-    std::string line {};
+    std::string line { };
     const std::string ha1 { computeHa1(user, realm, pass) };
     line.reserve(user.size() + realm.size() + ha1.size() + 2U);
     line.append(user);
@@ -207,7 +228,7 @@ std::string SightlineDigestAuth::formatHtpasswdLine(
 
 std::vector<HtpasswdEntry> SightlineDigestAuth::parseHtpasswd(std::string_view content)
 {
-    std::vector<HtpasswdEntry> entries {};
+    std::vector<HtpasswdEntry> entries { };
     std::size_t startPos { 0U };
 
     while (startPos < content.size()) {
@@ -227,14 +248,14 @@ std::vector<HtpasswdEntry> SightlineDigestAuth::parseHtpasswd(std::string_view c
             if (firstColon != std::string_view::npos) {
                 const std::size_t secondColon { line.find(':', firstColon + 1U) };
                 if (secondColon != std::string_view::npos) {
-                    HtpasswdEntry entry {};
+                    HtpasswdEntry entry { };
                     entry.username = std::string(line.substr(0U, firstColon));
                     entry.realm = std::string(line.substr(firstColon + 1U, secondColon - (firstColon + 1U)));
                     entry.ha1 = std::string(line.substr(secondColon + 1U));
 
                     // Transform hash to lowercase if needed
                     std::transform(entry.ha1.begin(), entry.ha1.end(), entry.ha1.begin(),
-                        [](char ch) { return static_cast<char>(std::tolower(static_cast<unsigned char>(ch))); });
+                        [](char ch) noexcept { return toLowerAscii(ch); });
 
                     entries.push_back(std::move(entry));
                 }
@@ -260,7 +281,7 @@ std::optional<HtpasswdEntry> SightlineDigestAuth::findHtpasswdUser(
 
 DigestChallenge SightlineDigestAuth::parseDigestChallenge(std::string_view header)
 {
-    DigestChallenge challenge {};
+    DigestChallenge challenge { };
     challenge.realm = extractQuotedValue(header, "realm");
     challenge.nonce = extractQuotedValue(header, "nonce");
     challenge.opaque = extractQuotedValue(header, "opaque");
@@ -275,7 +296,7 @@ DigestChallenge SightlineDigestAuth::parseDigestChallenge(std::string_view heade
 
 std::string SightlineDigestAuth::formatDigestAuthHeader(const DigestResponseParams& params)
 {
-    std::ostringstream ss {};
+    std::ostringstream ss { };
     ss << "Digest username=\"" << params.username << "\", "
        << "realm=\"" << params.realm << "\", "
        << "nonce=\"" << params.nonce << "\", "
@@ -303,7 +324,7 @@ std::string SightlineDigestAuth::sanitizeRtspUri(std::string_view uri)
 
     const std::size_t colonPos { uri.find(':', schemePos + 3U) };
     if (colonPos != std::string_view::npos && colonPos < atPos) {
-        std::string sanitized {};
+        std::string sanitized { };
         sanitized.reserve(uri.size());
         sanitized.append(uri.substr(0U, colonPos + 1U));
         sanitized.append("***");
