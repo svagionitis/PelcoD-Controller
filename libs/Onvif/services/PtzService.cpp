@@ -368,6 +368,19 @@ SoapHandlerResult PtzService::handleRelMove(const SoapContext& ctx)
             spaceUri = ptNode.attribute("space").as_string();
         }
     }
+    const auto zoomNode
+        = ctx.reqNode.select_node(".//*[local-name()='Translation']/*[local-name()='Zoom'] | .//*[local-name()='Zoom']")
+              .node();
+    if (zoomNode) {
+        const auto ax = zoomNode.attribute("x");
+        if (!ax.empty()) {
+            const auto p = Xml::parseOptionalFloat(ax);
+            if (!p.has_value()) {
+                return SoapHandlerResult::fault("ter:InvalidArgVal", "Invalid zoom translation", 400);
+            }
+            zoom = *p;
+        }
+    }
     float speed = 1.0f;
     const auto spNode = ctx.reqNode.select_node(".//*[local-name()='Speed']/*[local-name()='PanTilt']").node();
     if (spNode) {
@@ -417,6 +430,19 @@ SoapHandlerResult PtzService::handleAbsMove(const SoapContext& ctx)
         }
         if (ptNode.attribute("space")) {
             space = ptNode.attribute("space").as_string();
+        }
+    }
+    const auto zoomNode
+        = ctx.reqNode.select_node(".//*[local-name()='Position']/*[local-name()='Zoom'] | .//*[local-name()='Zoom']")
+              .node();
+    if (zoomNode) {
+        const auto ax = zoomNode.attribute("x");
+        if (!ax.empty()) {
+            const auto p = Xml::parseOptionalFloat(ax);
+            if (!p.has_value()) {
+                return SoapHandlerResult::fault("ter:InvalidArgVal", "Invalid zoom coordinate", 400);
+            }
+            zoom = *p;
         }
     }
     const auto ptz = m_ctx.getPtzHandler ? m_ctx.getPtzHandler() : nullptr;

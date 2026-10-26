@@ -192,7 +192,7 @@ void PelcoDPtzAdapter::handleAbsoluteMove(
             deg = std::clamp(*tilt, -90.0f, 90.0f);
         } else {
             const float clampedNorm = std::clamp(*tilt, -1.0f, 1.0f);
-            deg = clampedNorm * 90.0f;
+            deg = (clampedNorm + 1.0f) * 45.0f;
         }
         float posDeg = deg;
         if (posDeg < 0.0f) {
