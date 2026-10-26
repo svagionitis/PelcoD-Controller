@@ -796,7 +796,7 @@ int main(int argc, char* argv[])
 
         std::cout << "--------------------------------------------------------------------------------\n";
         std::cout << "Monitoring completed. Total events received: " << eventCount << "\n";
-        client.unsubscribe(*subUrl);
+        static_cast<void>(client.unsubscribe(*subUrl));
         return 0;
     }
 #endif
