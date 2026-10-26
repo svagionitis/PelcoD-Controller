@@ -37,6 +37,28 @@ namespace {
                                                  "abcdefghijklmnopqrstuvwxyz"
                                                  "0123456789+/" };
 
+    /// @brief Maps a Base64 alphabet character to its 6-bit value.
+    /// @return Value in [0, 63], or -1 if the character is not in the alphabet.
+    [[nodiscard]] constexpr std::int32_t base64Value(char ch) noexcept
+    {
+        if ((ch >= 'A') && (ch <= 'Z')) {
+            return static_cast<std::int32_t>(ch - 'A');
+        }
+        if ((ch >= 'a') && (ch <= 'z')) {
+            return static_cast<std::int32_t>((ch - 'a') + 26);
+        }
+        if ((ch >= '0') && (ch <= '9')) {
+            return static_cast<std::int32_t>((ch - '0') + 52);
+        }
+        if (ch == '+') {
+            return 62;
+        }
+        if (ch == '/') {
+            return 63;
+        }
+        return -1;
+    }
+
     constexpr std::int64_t kMinSafeDays { 1 };
     constexpr std::int64_t kSecondsPerDay { 86400 };
     constexpr std::int64_t kMaxSafeDays { 36500 }; // 100 years max
@@ -232,57 +254,37 @@ std::string OnvifSecurity::buildSoapSecurityHeader(const SecurityCredentials& cr
 std::vector<std::uint8_t> OnvifSecurity::base64Decode(const std::string& base64Text)
 {
     std::vector<std::uint8_t> result;
-    result.reserve((base64Text.size() * 3) / 4);
-    std::vector<int> table(256, -1);
-    for (int i = 0; i < 64; ++i) {
-        table[static_cast<unsigned char>(kBase64Alphabet[static_cast<std::size_t>(i)])] = i;
-    }
-    int val = 0;
-    int valb = -8;
-    for (char ch : base64Text) {
-        const auto c = static_cast<unsigned char>(ch);
-        if (c == '\r' || c == '\n' || c == ' ') {
+    result.reserve((base64Text.size() * 3U) / 4U);
+
+    std::uint32_t buffer { 0U };
+    std::int32_t bits { 0 };
+
+    for (const char ch : base64Text) {
+        if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '\t')) {
             continue;
         }
-        if (c == '=') {
+        if (ch == '=') {
             break;
         }
-        if (table[c] == -1) {
+        const std::int32_t val { base64Value(ch) };
+        if (val == -1) {
             continue;
         }
-        val = (val << 6) + table[c];
-        valb += 6;
-        if (valb >= 0) {
-            result.push_back(static_cast<std::uint8_t>((val >> valb) & 0xFF));
-            valb -= 8;
+
+        buffer = (buffer << 6U) | static_cast<std::uint32_t>(val);
+        bits += 6;
+
+        if (bits >= 8) {
+            bits -= 8;
+            result.push_back(static_cast<std::uint8_t>((buffer >> static_cast<std::uint32_t>(bits)) & 0xFFU));
+            buffer &= (bits > 0) ? ((1U << static_cast<std::uint32_t>(bits)) - 1U) : 0U;
         }
     }
+
     return result;
 }
 
 namespace {
-
-    /// @brief Maps a Base64 alphabet character to its 6-bit value.
-    /// @return Value in [0, 63], or -1 if the character is not in the alphabet.
-    [[nodiscard]] int base64Value(char ch) noexcept
-    {
-        if ((ch >= 'A') && (ch <= 'Z')) {
-            return ch - 'A';
-        }
-        if ((ch >= 'a') && (ch <= 'z')) {
-            return (ch - 'a') + 26;
-        }
-        if ((ch >= '0') && (ch <= '9')) {
-            return (ch - '0') + 52;
-        }
-        if (ch == '+') {
-            return 62;
-        }
-        if (ch == '/') {
-            return 63;
-        }
-        return -1;
-    }
 
     /// @brief Parses a fixed-width run of decimal digits.
     [[nodiscard]] bool parseFixed(std::string_view s, std::size_t pos, std::size_t count, std::int64_t& out) noexcept
