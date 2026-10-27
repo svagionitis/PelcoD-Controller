@@ -1,0 +1,33 @@
+# ==============================================================================
+# PelcoD-Controller Docker Build Context Exclusions
+# ==============================================================================
+.git/
+.github/
+.cache/
+.vs/
+.vscode/
+.idea/
+build/
+build-*/
+build_*/
+cmake-build-*/
+dist/
+out/
+bin/
+vcpkg_installed/
+vcpkg-dependencies/
+_CPack_Packages/
+docs/doxygen/
+docs/html/
+docs/latex/
+*.tar.gz
+*.deb
+*.rpm
+*.zip
+*.o
+*.obj
+*.a
+*.so
+*.dll
+*.exe
+

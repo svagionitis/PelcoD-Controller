@@ -6,6 +6,7 @@ build-*/
 build_*/
 cmake-build-*/
 out/
+dist/
 bin/
 CMakeCache.txt
 CMakeFiles/
