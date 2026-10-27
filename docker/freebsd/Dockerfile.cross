@@ -1,0 +1,93 @@
+# syntax=docker/dockerfile:1
+# ==============================================================================
+# PelcoD-Controller - Linux-Hosted FreeBSD 14.2 amd64 Cross-Compilation Container
+#
+# Compiles 64-bit FreeBSD 14.2 ELF64 (OS/ABI: UNIX - FreeBSD) libraries,
+# Qt 6 GUI/QML apps, TUI apps, and redistributable .tar.gz packages on a
+# standard Linux Docker host with zero VM overhead using:
+#   • clang-18 / clang++-18 + ld.lld-18 (--target=x86_64-unknown-freebsd14.2)
+#   • Official FreeBSD 14.2-RELEASE base.txz + pkg packages (/opt/freebsd-sysroot)
+#   • Linux Host Qt 6 code generators (QT_HOST_PATH=/usr : moc, rcc, uic)
+#   • Pre-cached Live555 (/opt/cache/live555)
+#
+# Build context: docker/
+#   docker build -t pelcod-builder:freebsd-14.2-cross -f docker/freebsd/Dockerfile.cross docker/
+# ==============================================================================
+FROM ubuntu:24.04
+
+LABEL org.opencontainers.image.title="PelcoD-Controller FreeBSD 14.2 Cross-Builder (Linux Host)"
+LABEL org.opencontainers.image.description="Linux-hosted FreeBSD 14.2 amd64 cross-compilation container using Clang 18, LLD 18, and a FreeBSD 14.2 sysroot"
+
+ARG FREEBSD_VERSION=14.2-RELEASE
+ARG FREEBSD_ABI=FreeBSD:14:amd64
+ARG FREEBSD_PKG_BRANCH=quarterly
+ARG INSTALL_GUI_AND_VIDEO_PKGS=ON
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TARGET_OS=freebsd
+ENV CCACHE_DIR=/cache/ccache
+ENV QT_QPA_PLATFORM=offscreen
+
+# 1. Install LLVM/Clang 18, LLD 18, CMake, Ninja, zstd/xz archive tools, and
+#    Linux Host Qt 6 code generators (moc, rcc, uic) for QT_HOST_PATH=/usr
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    clang-18 \
+    lld-18 \
+    llvm-18 \
+    cmake \
+    ninja-build \
+    ccache \
+    pkg-config \
+    git \
+    curl \
+    ca-certificates \
+    tar \
+    xz-utils \
+    zstd \
+    libarchive-tools \
+    python3 \
+    file \
+    binutils \
+    # Linux Host Qt 6 Tools (moc, rcc, uic, qmlcachegen) for cross-compiling Qt 6 targets
+    qt6-base-dev \
+    qt6-base-dev-tools \
+    qt6-declarative-dev \
+    qt6-declarative-dev-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Ensure unversioned clang/lld symlinks exist
+RUN ln -sf /usr/bin/clang-18 /usr/local/bin/clang \
+    && ln -sf /usr/bin/clang++-18 /usr/local/bin/clang++ \
+    && ln -sf /usr/bin/ld.lld-18 /usr/local/bin/ld.lld \
+    && ln -sf /usr/bin/llvm-ar-18 /usr/local/bin/llvm-ar \
+    && ln -sf /usr/bin/llvm-ranlib-18 /usr/local/bin/llvm-ranlib
+
+# 2. Populate /opt/freebsd-sysroot with FreeBSD 14.2 base.txz + official packages
+COPY freebsd/bootstrap-freebsd-sysroot.sh /usr/local/bin/bootstrap-freebsd-sysroot.sh
+RUN chmod +x /usr/local/bin/bootstrap-freebsd-sysroot.sh \
+    && FREEBSD_VERSION="${FREEBSD_VERSION}" \
+       FREEBSD_ABI="${FREEBSD_ABI}" \
+       FREEBSD_PKG_BRANCH="${FREEBSD_PKG_BRANCH}" \
+       INSTALL_GUI_AND_VIDEO_PKGS="${INSTALL_GUI_AND_VIDEO_PKGS}" \
+       /usr/local/bin/bootstrap-freebsd-sysroot.sh
+
+# 3. Install CMake FreeBSD 14.2 Cross-Compilation Toolchain
+COPY freebsd/toolchain-freebsd14.cmake /opt/freebsd-toolchain/toolchain-freebsd14.cmake
+
+# 4. Pre-fetch and extract Live555 into /opt/cache/live555 for 100% offline builds
+COPY common/fetch-live555.sh /usr/local/bin/fetch-live555.sh
+RUN chmod +x /usr/local/bin/fetch-live555.sh && /usr/local/bin/fetch-live555.sh
+
+# 5. Install unified build/test/package entrypoint
+COPY common/entrypoint-build.sh /usr/local/bin/entrypoint-build.sh
+RUN chmod +x /usr/local/bin/entrypoint-build.sh \
+    && mkdir -p /workspace /build /cache/ccache
+
+ENV CMAKE_TOOLCHAIN_FILE=/opt/freebsd-toolchain/toolchain-freebsd14.cmake
+ENV QT_HOST_PATH=/usr
+ENV CPACK_GENERATOR=TGZ
+
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/entrypoint-build.sh"]
+

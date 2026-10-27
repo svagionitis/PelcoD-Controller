@@ -1,0 +1,57 @@
+# syntax=docker/dockerfile:1
+# ==============================================================================
+# PelcoD-Controller - Linux-Hosted QEMU/KVM FreeBSD 14.2 VM Build & Test Container
+#
+# Boots an official FreeBSD 14.2-RELEASE amd64 QCOW2 guest inside Docker
+# (using /dev/kvm hardware virtualization when available, or TCG fallback)
+# to compile all targets and execute the full CTest unit test suite on a
+# genuine FreeBSD 14.2 kernel.
+#
+# Build context: docker/
+#   docker build -t pelcod-builder:freebsd-14.2-vm -f docker/freebsd/Dockerfile.vm docker/
+# ==============================================================================
+FROM ubuntu:24.04
+
+LABEL org.opencontainers.image.title="PelcoD-Controller FreeBSD 14.2 QEMU/KVM Builder & Test Runner"
+LABEL org.opencontainers.image.description="Boots FreeBSD 14.2-RELEASE inside QEMU/KVM to build and run CTest on a genuine FreeBSD kernel"
+
+ARG FREEBSD_VERSION=14.2-RELEASE
+ARG FREEBSD_VM_IMAGE=FreeBSD-14.2-RELEASE-amd64-BASIC-CLOUDINIT.ufs.qcow2.xz
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TARGET_OS=freebsd
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    qemu-system-x86 \
+    qemu-utils \
+    genisoimage \
+    openssh-client \
+    rsync \
+    curl \
+    ca-certificates \
+    xz-utils \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Prepare /opt/freebsd-vm and SSH keypair for non-interactive guest provisioning
+RUN mkdir -p /opt/freebsd-vm \
+    && ssh-keygen -t ed25519 -N "" -f /opt/freebsd-vm/id_ed25519
+
+# Copy shared build entrypoint and Live555 cache script for guest provisioning
+COPY common/fetch-live555.sh /opt/freebsd-vm/fetch-live555.sh
+COPY common/entrypoint-build.sh /opt/freebsd-vm/entrypoint-build.sh
+COPY freebsd/vm-entrypoint.sh /usr/local/bin/vm-entrypoint.sh
+RUN chmod +x /opt/freebsd-vm/fetch-live555.sh \
+             /opt/freebsd-vm/entrypoint-build.sh \
+             /usr/local/bin/vm-entrypoint.sh
+
+# Download official FreeBSD 14.2-RELEASE Cloud-Init QCOW2 image and resize to 24 GB
+RUN curl -fL --retry 3 \
+        "https://download.freebsd.org/releases/VM-IMAGES/${FREEBSD_VERSION}/amd64/Latest/${FREEBSD_VM_IMAGE}" \
+        -o /opt/freebsd-vm/freebsd-14.2-base.qcow2.xz \
+    && xz -d /opt/freebsd-vm/freebsd-14.2-base.qcow2.xz \
+    && qemu-img resize /opt/freebsd-vm/freebsd-14.2-base.qcow2 +20G
+
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/vm-entrypoint.sh"]
+

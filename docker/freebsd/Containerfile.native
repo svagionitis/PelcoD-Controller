@@ -1,0 +1,70 @@
+# ==============================================================================
+# PelcoD-Controller - Native FreeBSD 14.2 OCI Containerfile (Podman / ocijail)
+#
+# Runs natively on a FreeBSD 14.2 amd64 host using FreeBSD Podman + ocijail
+# (or BastilleBSD). Installs native FreeBSD packages via `pkg` and executes
+# the shared `entrypoint-build.sh` build, CTest, and CPack pipeline.
+#
+# Build on a FreeBSD host:
+#   podman build -t pelcod-builder:freebsd-native -f docker/freebsd/Containerfile.native docker/
+# ==============================================================================
+FROM docker.io/dougrabson/freebsd14-minimal:14.2
+
+LABEL org.opencontainers.image.title="PelcoD-Controller Native FreeBSD 14.2 Builder"
+LABEL org.opencontainers.image.description="Native FreeBSD 14.2 OCI container for FreeBSD Podman / ocijail hosts"
+
+ENV ASSUME_ALWAYS_YES=yes
+ENV TARGET_OS=freebsd
+ENV CCACHE_DIR=/cache/ccache
+ENV QT_QPA_PLATFORM=offscreen
+
+# 1. Install FreeBSD compiler toolchain, CMake, Ninja, Qt 6, ONVIF & Video deps
+RUN pkg update -f && pkg install -y \
+    bash \
+    cmake \
+    ninja \
+    ccache \
+    pkgconf \
+    git \
+    curl \
+    ca_root_nss \
+    python3 \
+    llvm18 \
+    xorg-vfbserver \
+    xauth \
+    # Core, Logging & Unit Test Dependencies
+    gflags \
+    glog \
+    googletest \
+    # ONVIF Dependencies
+    pugixml \
+    # Video & Filter Dependencies
+    ffmpeg \
+    gstreamer1 \
+    gstreamer1-plugins-base \
+    gstreamer1-plugins-good \
+    gstreamer1-plugins-bad \
+    gstreamer1-rtsp-server \
+    opencv \
+    openh264 \
+    liveMedia \
+    v4l_compat \
+    # Qt 6 Widgets, Quick, QML & Test Dependencies
+    qt6-base \
+    qt6-declarative \
+    mesa-libs \
+    libxkbcommon \
+    && pkg clean -ay
+
+# 2. Pre-fetch and extract Live555 into /opt/cache/live555 for offline builds
+COPY common/fetch-live555.sh /usr/local/bin/fetch-live555.sh
+RUN chmod +x /usr/local/bin/fetch-live555.sh && /usr/local/bin/fetch-live555.sh
+
+# 3. Install unified build/test/package entrypoint
+COPY common/entrypoint-build.sh /usr/local/bin/entrypoint-build.sh
+RUN chmod +x /usr/local/bin/entrypoint-build.sh \
+    && mkdir -p /workspace /build /cache/ccache
+
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/entrypoint-build.sh"]
+
