@@ -2,13 +2,16 @@
 /// @brief End-to-end tests: synthetic DJI MP4 -> timed ST 0601 messages.
 
 #include "DjiTelemetrySource.h"
-#include "Mp4TestBuilder.h"
+
+#include <cstddef>
+#include <cstdint>
+
+#include <string>
+#include <vector>
 
 #include <gtest/gtest.h>
 
-#include <cstdint>
-#include <string>
-#include <vector>
+#include "Mp4TestBuilder.h"
 
 using Dji::DjiLoadOptions;
 using Dji::isMp4File;

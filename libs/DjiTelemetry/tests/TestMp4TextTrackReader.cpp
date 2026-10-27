@@ -1,14 +1,17 @@
 /// @file TestMp4TextTrackReader.cpp
 /// @brief Unit tests for the ISO-BMFF tx3g text track reader.
 
-#include "Mp4TestBuilder.h"
 #include "Mp4TextTrackReader.h"
+
+#include <cstddef>
+#include <cstdint>
+
+#include <string>
+#include <vector>
 
 #include <gtest/gtest.h>
 
-#include <cstdint>
-#include <string>
-#include <vector>
+#include "Mp4TestBuilder.h"
 
 using Dji::Mp4TextTrackReader;
 using DjiTest::buildMp4;

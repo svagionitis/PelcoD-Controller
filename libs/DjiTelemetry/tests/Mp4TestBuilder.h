@@ -6,12 +6,13 @@
 ///          The produced layout mimics DJI recordings: ftyp, mdat, moov (or moov before mdat),
 ///          one video trak (tkhd dimensions only) and one 'sbtl'/'tx3g' text trak.
 
+#include <cstddef>
 #include <cstdint>
-#include <cstdio>
+
 #include <filesystem>
 #include <fstream>
 #include <string>
-#include <utility>
+#include <system_error>
 #include <vector>
 
 namespace DjiTest {
@@ -33,12 +34,10 @@ inline void putU16(Bytes& b, std::uint16_t v)
 /// @param[in] v Value to append.
 inline void putU32(Bytes& b, std::uint32_t v)
 {
-    for (std::uint32_t shift { 24U };; shift -= 8U) {
-        b.push_back(static_cast<std::uint8_t>((v >> shift) & 0xFFU));
-        if (shift == 0U) {
-            break;
-        }
-    }
+    b.push_back(static_cast<std::uint8_t>((v >> 24U) & 0xFFU));
+    b.push_back(static_cast<std::uint8_t>((v >> 16U) & 0xFFU));
+    b.push_back(static_cast<std::uint8_t>((v >> 8U) & 0xFFU));
+    b.push_back(static_cast<std::uint8_t>(v & 0xFFU));
 }
 
 /// @brief Appends a big-endian 64-bit value.
@@ -55,9 +54,10 @@ inline void putU64(Bytes& b, std::uint64_t v)
 /// @param[in] t Four-character code (only the first 4 bytes are used).
 inline void putType(Bytes& b, const std::string& t)
 {
-    for (std::size_t i { 0U }; i < 4U; ++i) {
-        b.push_back(static_cast<std::uint8_t>(t.at(i)));
-    }
+    b.push_back(static_cast<std::uint8_t>(t.at(0U)));
+    b.push_back(static_cast<std::uint8_t>(t.at(1U)));
+    b.push_back(static_cast<std::uint8_t>(t.at(2U)));
+    b.push_back(static_cast<std::uint8_t>(t.at(3U)));
 }
 
 /// @brief Appends raw bytes.
@@ -65,7 +65,9 @@ inline void putType(Bytes& b, const std::string& t)
 /// @param[in] p Bytes to append.
 inline void putBytes(Bytes& b, const Bytes& p)
 {
-    b.insert(b.end(), p.begin(), p.end());
+    for (const std::uint8_t v : p) {
+        b.push_back(v);
+    }
 }
 
 /// @brief Wraps a payload into a box with a 32-bit size header.
