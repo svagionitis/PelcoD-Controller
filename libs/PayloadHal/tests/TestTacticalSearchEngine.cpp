@@ -1,11 +1,15 @@
-#include "PayloadHal.h"
 #include "TacticalSearchEngine.h"
-#include "sim/SimulatedPayload.h"
+
 #include <chrono>
-#include <gtest/gtest.h>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include <gtest/gtest.h>
+
+#include "PayloadHal.h"
+#include "sim/SimulatedPayload.h"
 
 namespace PayloadHal {
 namespace {
@@ -26,13 +30,13 @@ namespace {
         EXPECT_EQ(engine.status().activePattern, SearchPatternType::None);
 
         // Invalid config rejected
-        SectorScanConfig invalidCfg { };
+        SectorScanConfig invalidCfg {};
         invalidCfg.minAzimuthDeg = 50.0;
         invalidCfg.maxAzimuthDeg = 20.0; // min > max
         EXPECT_FALSE(engine.startSectorScan(invalidCfg));
 
         // Valid Sector Scan
-        SectorScanConfig cfg { };
+        SectorScanConfig cfg {};
         cfg.minAzimuthDeg = -30.0;
         cfg.maxAzimuthDeg = 30.0;
         cfg.minElevationDeg = -10.0;
@@ -65,7 +69,7 @@ namespace {
         TacticalSearchEngine engine(simPayload->panTilt(), simPayload->primaryCamera());
 
         // Expanding Square
-        ExpandingSquareConfig sqCfg { };
+        ExpandingSquareConfig sqCfg {};
         sqCfg.centerAzimuthDeg = 0.0;
         sqCfg.centerElevationDeg = 0.0;
         sqCfg.maxRadiusDeg = 20.0;
@@ -77,7 +81,7 @@ namespace {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         // Switch to Spiral Scan
-        SpiralScanConfig spCfg { };
+        SpiralScanConfig spCfg {};
         spCfg.centerAzimuthDeg = 0.0;
         spCfg.centerElevationDeg = 0.0;
         spCfg.maxRadiusDeg = 15.0;
@@ -89,7 +93,7 @@ namespace {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         // Switch to Creeping Line
-        CreepingLineConfig clCfg { };
+        CreepingLineConfig clCfg {};
         clCfg.baselineHeadingDeg = 0.0;
         clCfg.sweepWidthDeg = 30.0;
         clCfg.scanSpeedDegPerSec = 40.0;
@@ -108,7 +112,7 @@ namespace {
         TacticalSearchEngine engine(simPayload->panTilt(), simPayload->primaryCamera());
 
         // Start background sector scan
-        SectorScanConfig cfg { };
+        SectorScanConfig cfg {};
         cfg.minAzimuthDeg = -40.0;
         cfg.maxAzimuthDeg = 40.0;
         cfg.scanSpeedDegPerSec = 20.0;
@@ -116,7 +120,7 @@ namespace {
         EXPECT_EQ(engine.status().state, TacticalEngineState::ExecutingPattern);
 
         // Enqueue a Routine cue (priority 3)
-        TargetCue routineCue { };
+        TargetCue routineCue {};
         routineCue.cueId = "AIS_VESSEL_101";
         routineCue.source = CueSource::Ais;
         routineCue.priority = CuePriority::Routine;
@@ -127,7 +131,7 @@ namespace {
         EXPECT_TRUE(engine.enqueueCue(routineCue));
 
         // Enqueue a Flash cue (priority 0) - should preempt immediately!
-        TargetCue flashCue { };
+        TargetCue flashCue {};
         flashCue.cueId = "GUNSHOT_ALERT_911";
         flashCue.source = CueSource::Acoustic;
         flashCue.priority = CuePriority::Flash;
@@ -138,9 +142,10 @@ namespace {
 
         EXPECT_TRUE(engine.enqueueCue(flashCue));
 
-        // Status should immediately reflect SlewingToCue on flashCue
+        // Status should immediately reflect SlewingToCue (or DwellingAtCue if worker thread already completed the
+        // simulated slew) on flashCue
         auto st = engine.status();
-        EXPECT_EQ(st.state, TacticalEngineState::SlewingToCue);
+        EXPECT_TRUE(st.state == TacticalEngineState::SlewingToCue || st.state == TacticalEngineState::DwellingAtCue);
         EXPECT_EQ(st.activeCueId, "GUNSHOT_ALERT_911");
 
         engine.clearCues();
@@ -166,14 +171,14 @@ namespace {
         });
 
         // Start background pattern
-        SectorScanConfig cfg { };
+        SectorScanConfig cfg {};
         cfg.minAzimuthDeg = -20.0;
         cfg.maxAzimuthDeg = 20.0;
         cfg.scanSpeedDegPerSec = 30.0;
         ASSERT_TRUE(engine.startSectorScan(cfg));
 
         // Enqueue target cue with short dwell time (100ms)
-        TargetCue cue { };
+        TargetCue cue {};
         cue.cueId = "RADAR_TRACK_42";
         cue.source = CueSource::Radar;
         cue.priority = CuePriority::Immediate;
@@ -206,7 +211,7 @@ namespace {
 
         TacticalSearchEngine engine(simPayload->panTilt(), simPayload->primaryCamera());
 
-        SectorScanConfig cfg { };
+        SectorScanConfig cfg {};
         cfg.minAzimuthDeg = -30.0;
         cfg.maxAzimuthDeg = 30.0;
         ASSERT_TRUE(engine.startSectorScan(cfg));
@@ -237,7 +242,7 @@ namespace {
 
         EXPECT_EQ(tactical->status().state, TacticalEngineState::Idle);
 
-        SectorScanConfig cfg { };
+        SectorScanConfig cfg {};
         cfg.minAzimuthDeg = -15.0;
         cfg.maxAzimuthDeg = 15.0;
         EXPECT_TRUE(tactical->startSectorScan(cfg));

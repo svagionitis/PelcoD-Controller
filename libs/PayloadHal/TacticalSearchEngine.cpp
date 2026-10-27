@@ -604,6 +604,7 @@ void TacticalSearchEngine::engineLoop()
             m_status.currentAzimuthDeg = targetPan;
             m_status.currentElevationDeg = targetTilt;
 
+            const std::string slewingCueId = m_currentCue->cueId;
             auto ptu = m_ptu;
             lock.unlock();
 
@@ -612,6 +613,10 @@ void TacticalSearchEngine::engineLoop()
             }
 
             lock.lock();
+            if (m_status.state != TacticalEngineState::SlewingToCue || !m_currentCue.has_value()
+                || m_currentCue->cueId != slewingCueId) {
+                continue;
+            }
             if (checkArrival(targetPan, targetTilt)) {
                 m_status.state = TacticalEngineState::DwellingAtCue;
                 m_dwellStartTime = std::chrono::steady_clock::now();

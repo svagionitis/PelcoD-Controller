@@ -1,9 +1,21 @@
+#include <cstdint>
+
+#include <atomic>
 #include <chrono>
 #include <memory>
 #include <optional>
 #include <string>
 #include <thread>
 #include <vector>
+
+#if defined(_WIN32)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
 
 #include <gtest/gtest.h>
 
@@ -14,6 +26,52 @@
 
 namespace PayloadHal {
 namespace {
+
+    [[nodiscard]] std::uint16_t allocateEphemeralPort()
+    {
+        static std::atomic<std::uint16_t> s_fallbackPort { 28965U };
+#if defined(_WIN32)
+        WSADATA wsa {};
+        static_cast<void>(WSAStartup(MAKEWORD(2, 2), &wsa));
+        const SOCKET sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (sock == INVALID_SOCKET) {
+            return s_fallbackPort.fetch_add(1U);
+        }
+        sockaddr_in addr {};
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        addr.sin_port = 0U;
+        if (bind(sock, reinterpret_cast<sockaddr*>(&addr), static_cast<int>(sizeof(addr))) != 0) {
+            closesocket(sock);
+            return s_fallbackPort.fetch_add(1U);
+        }
+        int len = static_cast<int>(sizeof(addr));
+        static_cast<void>(getsockname(sock, reinterpret_cast<sockaddr*>(&addr), &len));
+        const auto port = static_cast<std::uint16_t>(ntohs(addr.sin_port));
+        closesocket(sock);
+        return port;
+#else
+        const int sock = socket(AF_INET, SOCK_STREAM, 0);
+        if (sock < 0) {
+            return s_fallbackPort.fetch_add(1U);
+        }
+        const int opt { 1 };
+        static_cast<void>(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)));
+        sockaddr_in addr {};
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        addr.sin_port = 0U;
+        if (bind(sock, reinterpret_cast<sockaddr*>(&addr), static_cast<socklen_t>(sizeof(addr))) != 0) {
+            close(sock);
+            return s_fallbackPort.fetch_add(1U);
+        }
+        socklen_t len = static_cast<socklen_t>(sizeof(addr));
+        static_cast<void>(getsockname(sock, reinterpret_cast<sockaddr*>(&addr), &len));
+        const auto port = static_cast<std::uint16_t>(ntohs(addr.sin_port));
+        close(sock);
+        return port;
+#endif
+    }
 
     class MockPtzHandler : public Onvif::IPtzHandler {
     public:
@@ -137,30 +195,39 @@ namespace {
 
     class OnvifAdapterFixture : public ::testing::Test {
     protected:
-        static constexpr int kTestPort = 18965;
+        int m_port { 0 };
 
         void SetUp() override
         {
-            Onvif::OnvifServerConfig config {};
-            config.bindAddress = "127.0.0.1";
-            config.port = kTestPort;
-            config.deviceName = "HAL Test Camera";
-            config.manufacturer = "PelcoDHAL";
-            config.model = "ONVIF-PTZ-PRO";
-            config.firmwareVersion = "2.4.0";
-            config.serialNumber = "SN-ONVIF-12345";
-            config.rtspStreamUri = "rtsp://127.0.0.1:8554/live.sdp";
-            // The server enforces authentication (C1); seed the account used by the clients below.
-            config.defaultUsers = { { "admin", "secretPass", Onvif::OnvifUserLevel::Administrator } };
-
             m_ptzHandler = std::make_shared<MockPtzHandler>();
             m_imagingHandler = std::make_shared<MockImagingHandler>();
 
-            m_server = std::make_unique<Onvif::OnvifServer>(config, m_ptzHandler, m_imagingHandler);
-            ASSERT_TRUE(m_server->start());
+            bool started { false };
+            for (int attempt = 0; attempt < 5; ++attempt) {
+                m_port = static_cast<int>(allocateEphemeralPort());
+                Onvif::OnvifServerConfig config {};
+                config.bindAddress = "127.0.0.1";
+                config.port = m_port;
+                config.deviceName = "HAL Test Camera";
+                config.manufacturer = "PelcoDHAL";
+                config.model = "ONVIF-PTZ-PRO";
+                config.firmwareVersion = "2.4.0";
+                config.serialNumber = "SN-ONVIF-12345";
+                config.rtspStreamUri = "rtsp://127.0.0.1:8554/live.sdp";
+                // The server enforces authentication (C1); seed the account used by the clients below.
+                config.defaultUsers = { { "admin", "secretPass", Onvif::OnvifUserLevel::Administrator } };
+
+                m_server = std::make_unique<Onvif::OnvifServer>(config, m_ptzHandler, m_imagingHandler);
+                if (m_server->start()) {
+                    started = true;
+                    break;
+                }
+                m_server.reset();
+            }
+            ASSERT_TRUE(started);
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-            const std::string endpoint = "http://127.0.0.1:" + std::to_string(kTestPort) + "/onvif/device_service";
+            const std::string endpoint = "http://127.0.0.1:" + std::to_string(m_port) + "/onvif/device_service";
             Onvif::SecurityCredentials creds {};
             creds.username = "admin";
             creds.password = "secretPass";
@@ -352,7 +419,7 @@ namespace {
     {
         // 1. Factory createFromUri with credentials and port
         const std::string validUri
-            = "onvif://admin:secretPass@127.0.0.1:" + std::to_string(kTestPort) + "/onvif/device_service";
+            = "onvif://admin:secretPass@127.0.0.1:" + std::to_string(m_port) + "/onvif/device_service";
         auto payload = PayloadFactory::createFromUri(validUri);
         ASSERT_NE(payload, nullptr);
 
@@ -363,7 +430,7 @@ namespace {
         payload->disconnect();
 
         // 2. Factory createFromUri with default path
-        const std::string minimalUri = "onvif://127.0.0.1:" + std::to_string(kTestPort);
+        const std::string minimalUri = "onvif://127.0.0.1:" + std::to_string(m_port);
         auto payloadMinimal = PayloadFactory::createFromUri(minimalUri);
         ASSERT_NE(payloadMinimal, nullptr);
 
@@ -374,7 +441,7 @@ namespace {
         // 4. Direct factory overload
         Onvif::SecurityCredentials creds { "admin", "secretPass" };
         auto directPayload = PayloadFactory::createOnvifPayload(
-            "http://127.0.0.1:" + std::to_string(kTestPort) + "/onvif/device_service", creds);
+            "http://127.0.0.1:" + std::to_string(m_port) + "/onvif/device_service", creds);
         ASSERT_NE(directPayload, nullptr);
     }
 

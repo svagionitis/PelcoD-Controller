@@ -17,8 +17,8 @@ std::vector<std::uint8_t> SightlineEnhancementBuilder::buildSetVideoEnhance(cons
 
 std::vector<std::uint8_t> SightlineEnhancementBuilder::buildSetVideoEnhanceFull(const MsgSetVideoEnhancementFull& msg)
 {
-    std::vector<std::uint8_t> payload { };
-    payload.reserve(28U + msg.customKernel.size() + 1U);
+    std::vector<std::uint8_t> payload {};
+    payload.reserve(29U + (msg.customKernel.size() & 0xFFU));
 
     // Byte 0: Bits 0-3 ContrastMode, Bits 4-7 Sharpening (0-15)
     const auto sharpenCapped = static_cast<std::uint8_t>(msg.sharpening & 0x0FU);
@@ -95,7 +95,7 @@ std::vector<std::uint8_t> SightlineEnhancementBuilder::buildSetVideoEnhanceFull(
 std::vector<std::uint8_t> SightlineEnhancementBuilder::buildSetFalseColor(
     std::uint8_t cameraIndex, FalseColorPalette palette)
 {
-    std::vector<std::uint8_t> payload { };
+    std::vector<std::uint8_t> payload {};
     payload.reserve(17U);
     SightlineFraming::appendU16Le(payload, 0U); // rotationDegrees = 0
     SightlineFraming::appendU16Le(payload, 256U); // rotationLimit = 256

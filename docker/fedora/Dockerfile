@@ -32,6 +32,9 @@ RUN dnf install -y --enablerepo=fedora-cisco-openh264 \
     curl \
     ca-certificates \
     python3 \
+    python3-pytest \
+    python3-requests \
+    python3-xmlschema \
     findutils \
     which \
     tar \

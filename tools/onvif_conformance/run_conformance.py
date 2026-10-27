@@ -89,6 +89,16 @@ def main() -> int:
     parser.add_argument("-k", "--keyword", help="Filter pytest test cases by keyword")
     args = parser.parse_args()
 
+    for required_mod in ("pytest", "requests", "xmlschema"):
+        try:
+            __import__(required_mod)
+        except ImportError:
+            print(
+                f"[SKIP] Python module '{required_mod}' is not installed in {sys.executable}; "
+                "skipping ONVIF Python conformance runner."
+            )
+            return 77
+
     port = args.port
     supervisor: Optional[OnvifServerSupervisor] = None
 

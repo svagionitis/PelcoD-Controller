@@ -20,7 +20,7 @@ namespace Sightline {
 
 std::vector<std::uint8_t> IsothermColorLut::toYuvBytes() const
 {
-    std::vector<std::uint8_t> bytes { };
+    std::vector<std::uint8_t> bytes {};
     bytes.reserve(768U);
     for (const auto& entry : yuv) {
         bytes.push_back(entry.y);
@@ -32,7 +32,7 @@ std::vector<std::uint8_t> IsothermColorLut::toYuvBytes() const
 
 std::vector<std::uint8_t> IsothermColorLut::toRgbBytes() const
 {
-    std::vector<std::uint8_t> bytes { };
+    std::vector<std::uint8_t> bytes {};
     bytes.reserve(768U);
     for (const auto& entry : rgb) {
         bytes.push_back(entry.r);
@@ -44,7 +44,7 @@ std::vector<std::uint8_t> IsothermColorLut::toRgbBytes() const
 
 MsgUserPalette IsothermColorLut::toUserPalette(std::uint8_t paletteIndex) const
 {
-    MsgUserPalette msg { };
+    MsgUserPalette msg {};
     msg.paletteIndex = paletteIndex;
     msg.lutData = toYuvBytes();
     return msg;
@@ -125,7 +125,7 @@ SightlineIsothermBuilder& SightlineIsothermBuilder::addBand(const IsothermBand& 
 SightlineIsothermBuilder& SightlineIsothermBuilder::addBandIndex(
     std::uint8_t minIdx, std::uint8_t maxIdx, RgbColor color, IsothermBlendMode mode, float alpha)
 {
-    IsothermBand b { };
+    IsothermBand b {};
     b.minIndex = minIdx;
     b.maxIndex = maxIdx;
     b.startColor = color;
@@ -139,7 +139,7 @@ SightlineIsothermBuilder& SightlineIsothermBuilder::addBandIndex(
 SightlineIsothermBuilder& SightlineIsothermBuilder::addGradientIndex(
     std::uint8_t minIdx, std::uint8_t maxIdx, RgbColor start, RgbColor end, IsothermBlendMode mode, float alpha)
 {
-    IsothermBand b { };
+    IsothermBand b {};
     b.minIndex = minIdx;
     b.maxIndex = maxIdx;
     b.startColor = start;
@@ -222,7 +222,7 @@ IsothermColorLut SightlineIsothermBuilder::buildLut() const
         }
     }
 
-    IsothermColorLut lut { };
+    IsothermColorLut lut {};
     lut.rgb = rgbTable;
     for (std::size_t i = 0U; i < 256U; ++i) {
         lut.yuv[i] = toYuv(lut.rgb[i]);
@@ -233,7 +233,7 @@ IsothermColorLut SightlineIsothermBuilder::buildLut() const
 MsgUserPalette SightlineIsothermBuilder::buildUserPalette(std::uint8_t paletteIdx) const
 {
     const auto lut = buildLut();
-    MsgUserPalette msg { };
+    MsgUserPalette msg {};
     msg.paletteIndex = paletteIdx;
     msg.lutData = lut.toYuvBytes();
     return msg;
@@ -246,9 +246,7 @@ std::vector<std::uint8_t> SightlineIsothermBuilder::buildPacket(std::uint8_t pal
     if (paletteIdx == 0U) {
         return SightlineFraming::buildPacket(MessageId::SetUserPalette, yuvBytes);
     }
-    std::vector<std::uint8_t> payload { };
-    payload.reserve(1U + yuvBytes.size());
-    payload.push_back(paletteIdx);
+    std::vector<std::uint8_t> payload { paletteIdx };
     payload.insert(payload.end(), yuvBytes.begin(), yuvBytes.end());
     return SightlineFraming::buildPacket(MessageId::SetUserPalette, payload);
 }
@@ -256,7 +254,7 @@ std::vector<std::uint8_t> SightlineIsothermBuilder::buildPacket(std::uint8_t pal
 MsgDigitalCameraParameters SightlineIsothermBuilder::buildAgcConfig(
     RadiometricSensor sensor, std::uint8_t cameraIndex, float scaleA, float offsetB) const noexcept
 {
-    MsgDigitalCameraParameters p { };
+    MsgDigitalCameraParameters p {};
     p.cameraIndex = cameraIndex;
     p.mode = AutoGainMode::Manual;
 
@@ -281,7 +279,7 @@ YuvColor SightlineIsothermBuilder::toYuv(RgbColor rgb) noexcept
     const float u { (-0.14713F * r) - (0.28886F * g) + (0.436F * b) + 128.0F };
     const float v { (0.615F * r) - (0.51499F * g) - (0.10001F * b) + 128.0F };
 
-    YuvColor out { };
+    YuvColor out {};
     out.y = static_cast<std::uint8_t>(std::clamp(static_cast<int>(std::round(y)), 0, 255));
     out.u = static_cast<std::uint8_t>(std::clamp(static_cast<int>(std::round(u)), 0, 255));
     out.v = static_cast<std::uint8_t>(std::clamp(static_cast<int>(std::round(v)), 0, 255));
@@ -298,7 +296,7 @@ RgbColor SightlineIsothermBuilder::toRgb(YuvColor yuv) noexcept
     const float g { y - (0.39465F * u) - (0.58060F * v) };
     const float b { y + (2.03211F * u) };
 
-    RgbColor out { };
+    RgbColor out {};
     out.r = static_cast<std::uint8_t>(std::clamp(static_cast<int>(std::round(r)), 0, 255));
     out.g = static_cast<std::uint8_t>(std::clamp(static_cast<int>(std::round(g)), 0, 255));
     out.b = static_cast<std::uint8_t>(std::clamp(static_cast<int>(std::round(b)), 0, 255));
@@ -307,7 +305,7 @@ RgbColor SightlineIsothermBuilder::toRgb(YuvColor yuv) noexcept
 
 std::array<RgbColor, 256U> SightlineIsothermBuilder::makeBasePalette(BasePaletteType type) noexcept
 {
-    std::array<RgbColor, 256U> table { };
+    std::array<RgbColor, 256U> table {};
 
     switch (type) {
     case BasePaletteType::GrayscaleWhiteHot:

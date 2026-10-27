@@ -42,6 +42,6 @@ if(Python3_FOUND)
                     --output-junit ${CMAKE_BINARY_DIR}/conformance_report.xml
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         )
-        set_tests_properties(OnvifConformanceTest PROPERTIES TIMEOUT 180)
+        set_tests_properties(OnvifConformanceTest PROPERTIES TIMEOUT 180 SKIP_RETURN_CODE 77)
     endif()
 endif()

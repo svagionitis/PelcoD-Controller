@@ -46,7 +46,32 @@ if(NOT TARGET gflags)
         target_link_libraries(gflags INTERFACE gflags::gflags_nothreads_static)
     endif()
 endif()
-find_package(glog REQUIRED)
+find_package(glog CONFIG QUIET)
+if(NOT TARGET glog::glog)
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(GLOG_PC QUIET libglog glog)
+    endif()
+    find_path(GLOG_INCLUDE_DIR
+        NAMES glog/logging.h
+        HINTS ${GLOG_PC_INCLUDE_DIRS}
+    )
+    find_library(GLOG_LIBRARY
+        NAMES glog glogd
+        HINTS ${GLOG_PC_LIBRARY_DIRS}
+    )
+    if(GLOG_INCLUDE_DIR AND GLOG_LIBRARY)
+        add_library(glog::glog UNKNOWN IMPORTED)
+        set_target_properties(glog::glog PROPERTIES
+            IMPORTED_LOCATION "${GLOG_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${GLOG_INCLUDE_DIR}"
+        )
+        set(glog_FOUND TRUE)
+        message(STATUS "Found glog: ${GLOG_LIBRARY} (include: ${GLOG_INCLUDE_DIR})")
+    else()
+        find_package(glog REQUIRED)
+    endif()
+endif()
 add_compile_definitions(GLOG_USE_GLOG_EXPORT)
 if(TARGET glog::glog)
     if(TARGET gflags::gflags)
@@ -294,7 +319,7 @@ include(GNUInstallDirs)
 
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR};$ORIGIN/../lib")
+set(CMAKE_INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR};$ORIGIN/../lib")
 
 # ==============================================================================
 # Testing & Code Coverage Configuration

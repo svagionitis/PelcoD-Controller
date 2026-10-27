@@ -1,8 +1,12 @@
 #include "TileCache.h"
+
 #include <cstdint>
-#include <gtest/gtest.h>
+
 #include <thread>
+#include <utility>
 #include <vector>
+
+#include <gtest/gtest.h>
 
 using namespace Mapping;
 
@@ -74,8 +78,8 @@ TEST(TestTileCache, ClearAndRemove)
     const TileCoord c1 { 1, 1, 1 };
     const TileCoord c2 { 2, 2, 2 };
 
-    cache.put(c1, TileData { });
-    cache.put(c2, TileData { });
+    cache.put(c1, TileData {});
+    cache.put(c2, TileData {});
     EXPECT_EQ(cache.size(), 2U);
 
     EXPECT_TRUE(cache.remove(c1));
@@ -99,9 +103,9 @@ TEST(TestTileCache, ThreadSafeConcurrentAccess)
         threads.emplace_back([&cache, t]() {
             for (int i = 0; i < kOpsPerThread; ++i) {
                 const TileCoord coord { (t * 50) + (i % 25), i % 10, 5 };
-                TileData data;
-                data.bytes = { static_cast<std::uint8_t>(i & 0xFF) };
-                cache.put(coord, data);
+                TileData data {};
+                data.bytes.push_back(static_cast<std::uint8_t>(i & 0xFF));
+                cache.put(coord, std::move(data));
                 (void)cache.get(coord);
                 (void)cache.contains(coord);
             }
