@@ -1,0 +1,120 @@
+# ==============================================================================
+# PelcoD-Controller - Multi-OS Container Build Orchestration (Docker Compose)
+#
+# Provides reproducible, hermetic build services for:
+#   • ubuntu     (Ubuntu 24.04 LTS — GCC 13 / Clang 17 + Qt 6.4 + Video/ONVIF)
+#   • fedora     (Fedora 41 — GCC 14 / Clang 19 + Qt 6.7 + Video/ONVIF)
+#   • windows    (Linux-hosted Windows x64 Cross-Builder — clang-cl-18 + xwin / MinGW)
+#   • freebsd    (Linux-hosted FreeBSD 14.2 Cross-Builder — clang-18 + LLD + sysroot)
+#   • freebsd-vm (Linux-hosted QEMU/KVM FreeBSD 14.2 VM — Native build + CTest)
+#
+# Usage examples:
+#   docker compose -f docker/docker-compose.yml run --rm ubuntu
+#   BUILD_MODE=libs docker compose -f docker/docker-compose.yml run --rm fedora
+#   CMAKE_TARGET=PelcoDCore docker compose -f docker/docker-compose.yml run --rm windows
+# ==============================================================================
+
+x-common-env: &common-env
+  BUILD_MODE: ${BUILD_MODE:-apps}
+  BUILD_CONFIG: ${BUILD_CONFIG:-Release}
+  COMPILER_FAMILY: ${COMPILER_FAMILY:-default}
+  CMAKE_TARGET: ${CMAKE_TARGET:-}
+  CTEST_FILTER: ${CTEST_FILTER:-}
+  RUN_PACKAGE: ${RUN_PACKAGE:-true}
+  CLEAN_BUILD: ${CLEAN_BUILD:-false}
+  RECONFIGURE: ${RECONFIGURE:-false}
+  WARNINGS_AS_ERRORS: ${WARNINGS_AS_ERRORS:-ON}
+  ENABLE_HARDENING: ${ENABLE_HARDENING:-ON}
+  ENABLE_ONVIF: ${ENABLE_ONVIF:-ON}
+  ENABLE_VIDEO: ${ENABLE_VIDEO:-ON}
+  ENABLE_DJI: ${ENABLE_DJI:-ON}
+  PARALLEL_JOBS: ${PARALLEL_JOBS:-}
+  HOST_UID: ${HOST_UID:-1000}
+  HOST_GID: ${HOST_GID:-1000}
+
+services:
+  ubuntu:
+    build:
+      context: .
+      dockerfile: ubuntu/Dockerfile
+    image: pelcod-builder:ubuntu-24.04
+    environment:
+      <<: *common-env
+      TARGET_OS: ubuntu
+      RUN_TESTS: ${RUN_TESTS:-false}
+      CPACK_GENERATOR: ${CPACK_GENERATOR:-DEB;TGZ}
+    volumes:
+      - ..:/workspace
+      - pelcod-ccache:/cache/ccache
+      - pelcod-build-ubuntu:/build
+
+  fedora:
+    build:
+      context: .
+      dockerfile: fedora/Dockerfile
+    image: pelcod-builder:fedora-41
+    environment:
+      <<: *common-env
+      TARGET_OS: fedora
+      RUN_TESTS: ${RUN_TESTS:-false}
+      CPACK_GENERATOR: ${CPACK_GENERATOR:-RPM;TGZ}
+    volumes:
+      - ..:/workspace
+      - pelcod-ccache:/cache/ccache
+      - pelcod-build-fedora:/build
+
+  windows:
+    build:
+      context: .
+      dockerfile: windows/Dockerfile.cross
+    image: pelcod-builder:windows-cross
+    environment:
+      <<: *common-env
+      TARGET_OS: windows
+      RUN_TESTS: ${RUN_TESTS:-false}
+      CMAKE_TOOLCHAIN_FILE: ${WINDOWS_TOOLCHAIN_FILE:-/opt/windows-toolchain/toolchain-clang-cl-xwin.cmake}
+      QT_HOST_PATH: /usr
+      CPACK_GENERATOR: ${CPACK_GENERATOR:-ZIP}
+    volumes:
+      - ..:/workspace
+      - pelcod-ccache:/cache/ccache
+      - pelcod-build-windows:/build
+
+  freebsd:
+    build:
+      context: .
+      dockerfile: freebsd/Dockerfile.cross
+    image: pelcod-builder:freebsd-14.2-cross
+    environment:
+      <<: *common-env
+      TARGET_OS: freebsd
+      RUN_TESTS: "false"
+      CMAKE_TOOLCHAIN_FILE: /opt/freebsd-toolchain/toolchain-freebsd14.cmake
+      QT_HOST_PATH: /usr
+      CPACK_GENERATOR: ${CPACK_GENERATOR:-TGZ}
+    volumes:
+      - ..:/workspace
+      - pelcod-ccache:/cache/ccache
+      - pelcod-build-freebsd:/build
+
+  freebsd-vm:
+    build:
+      context: .
+      dockerfile: freebsd/Dockerfile.vm
+    image: pelcod-builder:freebsd-14.2-vm
+    environment:
+      <<: *common-env
+      TARGET_OS: freebsd
+      RUN_TESTS: ${RUN_TESTS:-true}
+      VM_MEMORY_MB: ${VM_MEMORY_MB:-4096}
+      CPACK_GENERATOR: ${CPACK_GENERATOR:-TGZ}
+    volumes:
+      - ..:/workspace
+
+volumes:
+  pelcod-ccache:
+  pelcod-build-ubuntu:
+  pelcod-build-fedora:
+  pelcod-build-windows:
+  pelcod-build-freebsd:
+
