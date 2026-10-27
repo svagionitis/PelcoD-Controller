@@ -614,13 +614,32 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcurl4-openssl-dev \
     libssl-dev \
     libpugixml-dev \
-    # Video & Filter Dependencies (FFmpeg, GStreamer, OpenCV, OpenH264, V4L2)
+    # Video & Filter Dependencies (FFmpeg, GStreamer + all plugins, OpenCV, OpenH264, V4L2)
     libavcodec-dev \
     libavformat-dev \
     libavutil-dev \
     libswscale-dev \
     libgstreamer1.0-dev \
     libgstreamer-plugins-base1.0-dev \
+    libgstreamer-plugins-good1.0-dev \
+    libgstreamer-plugins-bad1.0-dev \
+    libgstrtspserver-1.0-dev \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-base-apps \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-ugly \
+    gstreamer1.0-libav \
+    gstreamer1.0-rtsp \
+    gstreamer1.0-tools \
+    gstreamer1.0-gl \
+    gstreamer1.0-x \
+    gstreamer1.0-alsa \
+    gstreamer1.0-pulseaudio \
+    gstreamer1.0-pipewire \
+    gstreamer1.0-vaapi \
+    gstreamer1.0-opencv \
+    gstreamer1.0-nice \
     libopencv-dev \
     libopenh264-dev \
     libv4l-dev \
@@ -689,8 +708,25 @@ RUN dnf install -y \
     pugixml-devel \
     # Video & Filter Dependencies
     ffmpeg-free-devel \
+    gstreamer1 \
     gstreamer1-devel \
+    gstreamer1-plugins-base \
     gstreamer1-plugins-base-devel \
+    gstreamer1-plugins-base-tools \
+    gstreamer1-plugins-good \
+    gstreamer1-plugins-good-extras \
+    gstreamer1-plugins-good-qt \
+    gstreamer1-plugins-good-qt6 \
+    gstreamer1-plugins-good-gtk \
+    gstreamer1-plugins-bad-free \
+    gstreamer1-plugins-bad-free-devel \
+    gstreamer1-plugins-bad-free-extras \
+    gstreamer1-plugins-ugly-free \
+    gstreamer1-plugin-libav \
+    gstreamer1-plugin-openh264 \
+    gstreamer1-rtsp-server \
+    gstreamer1-rtsp-server-devel \
+    gstreamer1-vaapi \
     opencv-devel \
     openh264-devel \
     libv4l-devel \
