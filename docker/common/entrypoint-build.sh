@@ -236,6 +236,33 @@ if [ "${RUN_PACKAGE}" = "true" ] && [ -z "${CMAKE_TARGET}" ]; then
     mkdir -p "${INSTALL_PREFIX}" "${INSTALL_PREFIX}/packages"
     cmake --install "${BUILD_ROOT}" --config "${BUILD_CONFIG}" --prefix "${INSTALL_PREFIX}"
 
+    # Bundle Windows runtime DLLs (vcpkg & Qt6) when cross-packaging for Windows
+    if [ "${TARGET_OS}" = "windows" ] && [ -d "${INSTALL_PREFIX}/bin" ]; then
+        if ls "${INSTALL_PREFIX}/bin/"*.exe >/dev/null 2>&1; then
+            echo "[5/5] Deploying Windows runtime DLLs into ${INSTALL_PREFIX}/bin ..."
+            if [ -d "/opt/vcpkg/installed/x64-windows/bin" ]; then
+                cp -f /opt/vcpkg/installed/x64-windows/bin/*.dll "${INSTALL_PREFIX}/bin/" 2>/dev/null || true
+            fi
+            if [ "${ENABLE_QT}" = "ON" ]; then
+                for qt_bin_dir in /opt/qt6-win/*/msvc2019_64/bin; do
+                    if [ -d "${qt_bin_dir}" ]; then
+                        for qt_dll in Qt6Core.dll Qt6Gui.dll Qt6Widgets.dll Qt6Network.dll Qt6OpenGL.dll Qt6OpenGLWidgets.dll Qt6Qml.dll Qt6QmlModels.dll Qt6QmlWorkerScript.dll Qt6Quick.dll Qt6QuickControls2.dll Qt6QuickTemplates2.dll Qt6QuickLayouts.dll Qt6Test.dll; do
+                            if [ -f "${qt_bin_dir}/${qt_dll}" ]; then
+                                cp -f "${qt_bin_dir}/${qt_dll}" "${INSTALL_PREFIX}/bin/"
+                            fi
+                        done
+                    fi
+                done
+                for qt_plugins_dir in /opt/qt6-win/*/msvc2019_64/plugins; do
+                    if [ -d "${qt_plugins_dir}/platforms" ]; then
+                        mkdir -p "${INSTALL_PREFIX}/bin/platforms"
+                        cp -f "${qt_plugins_dir}/platforms/"*.dll "${INSTALL_PREFIX}/bin/platforms/" 2>/dev/null || true
+                    fi
+                done
+            fi
+        fi
+    fi
+
     (
         cd "${BUILD_ROOT}"
         cpack -C "${BUILD_CONFIG}" -B "${INSTALL_PREFIX}/packages"

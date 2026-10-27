@@ -184,8 +184,10 @@ if(NOT LIVE555_FOUND)
                 if(ENABLE_HARDENING)
                     target_compile_options(${_target} PRIVATE
                         /guard:cf
-                        /guard:ehcont
                     )
+                    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+                        target_compile_options(${_target} PRIVATE /guard:ehcont)
+                    endif()
                     if(ENABLE_SPECTRE_MITIGATION)
                         target_compile_options(${_target} PRIVATE /Qspectre)
                     endif()

@@ -1,0 +1,157 @@
+# syntax=docker/dockerfile:1
+# ==============================================================================
+# PelcoD-Controller - Linux-Hosted Windows x64 Cross-Compilation Container
+#
+# Compiles 64-bit Windows (.exe, .dll, .lib) libraries, Qt 6 GUI/QML apps,
+# TUI apps, and redistributable .zip packages on a Linux Docker host using:
+#   • clang-cl-18 + lld-link-18 + llvm-rc-18 (MSVC ABI)
+#   • Microsoft Visual C++ CRT & Windows 11 SDK via xwin (/opt/xwin/splat)
+#   • Qt 6.6.1 win64_msvc2019_64 + Linux Host Qt 6 tools (QT_HOST_PATH=/usr)
+#   • vcpkg Windows x64 target libraries + Pre-cached Live555
+#
+# Build context: docker/
+#   docker build -t pelcod-builder:windows-cross -f docker/windows/Dockerfile.cross docker/
+# ==============================================================================
+FROM ubuntu:24.04
+
+LABEL org.opencontainers.image.title="PelcoD-Controller Windows x64 Cross-Builder (Linux Host)"
+LABEL org.opencontainers.image.description="Linux-hosted Windows x64 cross-compilation container using clang-cl-18, lld-link-18, xwin MSVC SDK, vcpkg, and Qt 6"
+
+ARG XWIN_VERSION=0.6.5
+ARG QT_VERSION=6.6.1
+ARG INSTALL_VIDEO_VCPKG=ON
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TARGET_OS=windows
+ENV CCACHE_DIR=/cache/ccache
+ENV QT_QPA_PLATFORM=offscreen
+
+# 1. Install LLVM/Clang 18 (clang-cl, lld-link, llvm-rc, llvm-lib), MinGW-w64,
+#    CMake, Ninja, and Linux Host Qt 6 code generators (moc, rcc, uic)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    clang-18 \
+    lld-18 \
+    llvm-18 \
+    mingw-w64 \
+    wine64 \
+    cmake \
+    ninja-build \
+    ccache \
+    pkg-config \
+    git \
+    curl \
+    wget \
+    ca-certificates \
+    zip \
+    unzip \
+    7zip \
+    tar \
+    xz-utils \
+    bison \
+    flex \
+    gperf \
+    nasm \
+    yasm \
+    python3 \
+    python3-pip \
+    python3-venv \
+    file \
+    # Linux Host Qt 6 Tools (for QT_HOST_PATH=/usr during cross-compilation)
+    qt6-base-dev \
+    qt6-base-dev-tools \
+    qt6-declarative-dev \
+    qt6-declarative-dev-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Ensure unversioned tool aliases exist if needed
+RUN ln -sf /usr/bin/clang-cl-18 /usr/local/bin/clang-cl \
+    && ln -sf /usr/bin/lld-link-18 /usr/local/bin/lld-link \
+    && ln -sf /usr/bin/llvm-lib-18 /usr/local/bin/llvm-lib \
+    && ln -sf /usr/bin/llvm-rc-18 /usr/local/bin/llvm-rc \
+    && ln -sf /usr/bin/llvm-mt-18 /usr/local/bin/llvm-mt
+
+# 2. Install xwin and splat the official Microsoft Visual C++ CRT & Windows SDK
+RUN ARCH="x86_64-unknown-linux-musl" \
+    && curl -fsSL "https://github.com/Jake-Shadle/xwin/releases/download/${XWIN_VERSION}/xwin-${XWIN_VERSION}-${ARCH}.tar.gz" \
+       | tar -xz -C /usr/local/bin --strip-components=1 "xwin-${XWIN_VERSION}-${ARCH}/xwin" \
+    && chmod +x /usr/local/bin/xwin \
+    && xwin --accept-license --cache-dir /tmp/xwin-cache splat \
+       --output /opt/xwin/splat \
+       --include-debug-libs \
+    && rm -rf /tmp/xwin-cache \
+    # Create lowercase header and library symlinks in /opt/xwin/splat for case-sensitive Linux filesystems
+    && find /opt/xwin/splat/sdk/include /opt/xwin/splat/crt/include -type f | while read -r f; do \
+        dir="$(dirname "$f")"; \
+        base="$(basename "$f")"; \
+        lower="$(echo "$base" | tr '[:upper:]' '[:lower:]')"; \
+        if [ "$base" != "$lower" ] && [ ! -e "$dir/$lower" ]; then \
+            ln -s "$base" "$dir/$lower"; \
+        fi; \
+    done \
+    && find /opt/xwin/splat/sdk/lib /opt/xwin/splat/crt/lib -type f | while read -r f; do \
+        dir="$(dirname "$f")"; \
+        base="$(basename "$f")"; \
+        lower="$(echo "$base" | tr '[:upper:]' '[:lower:]')"; \
+        if [ "$base" != "$lower" ] && [ ! -e "$dir/$lower" ]; then \
+            ln -s "$base" "$dir/$lower"; \
+        fi; \
+    done
+
+# 3. Install Windows Target Qt 6 (win64_msvc2019_64) via aqtinstall
+RUN python3 -m venv /opt/aqt-venv \
+    && /opt/aqt-venv/bin/pip install --no-cache-dir aqtinstall \
+    && /opt/aqt-venv/bin/aqt install-qt windows desktop "${QT_VERSION}" win64_msvc2019_64 -O /opt/qt6-win \
+    && rm -rf /opt/aqt-venv /root/.cache
+
+# 4. Install CMake Cross-Compilation Toolchains
+COPY windows/toolchain-clang-cl-xwin.cmake /opt/windows-toolchain/toolchain-clang-cl-xwin.cmake
+COPY windows/toolchain-mingw64.cmake /opt/windows-toolchain/toolchain-mingw64.cmake
+
+# 5. Bootstrap vcpkg and build Windows x64 target dependencies with clang-cl + xwin
+ENV VCPKG_ROOT=/opt/vcpkg
+ENV VCPKG_FORCE_SYSTEM_BINARIES=1
+RUN git clone --depth 1 https://github.com/microsoft/vcpkg.git "${VCPKG_ROOT}" \
+    && "${VCPKG_ROOT}/bootstrap-vcpkg.sh" -disableMetrics \
+    && cat << 'EOF' > "${VCPKG_ROOT}/triplets/x64-windows.cmake"
+set(VCPKG_TARGET_ARCHITECTURE x64)
+set(VCPKG_CRT_LINKAGE dynamic)
+set(VCPKG_LIBRARY_LINKAGE dynamic)
+set(VCPKG_CMAKE_SYSTEM_NAME Windows)
+set(VCPKG_CHAINLOAD_TOOLCHAIN_FILE "/opt/windows-toolchain/toolchain-clang-cl-xwin.cmake")
+EOF
+
+RUN "${VCPKG_ROOT}/vcpkg" install --triplet x64-windows \
+        gflags \
+        glog \
+        gtest \
+        pugixml \
+        cpp-httplib \
+        "curl[winssl]" \
+        openssl \
+        openh264 \
+    && if [ "${INSTALL_VIDEO_VCPKG}" = "ON" ]; then \
+        "${VCPKG_ROOT}/vcpkg" install --triplet x64-windows \
+            "ffmpeg[core,avcodec,avformat,swscale]" \
+            "opencv4[core,calib3d]" \
+        || echo "[WARN] Optional heavy video vcpkg ports skipped; fallback backends remain active"; \
+    fi \
+    && rm -rf "${VCPKG_ROOT}/buildtrees" "${VCPKG_ROOT}/downloads" "${VCPKG_ROOT}/packages"
+
+# 6. Pre-fetch and extract Live555 into /opt/cache/live555 for 100% offline builds
+COPY common/fetch-live555.sh /usr/local/bin/fetch-live555.sh
+RUN chmod +x /usr/local/bin/fetch-live555.sh && /usr/local/bin/fetch-live555.sh
+
+# 7. Install unified build/test/package entrypoint
+COPY common/entrypoint-build.sh /usr/local/bin/entrypoint-build.sh
+RUN chmod +x /usr/local/bin/entrypoint-build.sh \
+    && mkdir -p /workspace /build /cache/ccache
+
+ENV CMAKE_TOOLCHAIN_FILE=/opt/windows-toolchain/toolchain-clang-cl-xwin.cmake
+ENV QT_HOST_PATH=/usr
+ENV CMAKE_PREFIX_PATH="/opt/qt6-win/${QT_VERSION}/msvc2019_64;/opt/vcpkg/installed/x64-windows"
+ENV CPACK_GENERATOR=ZIP
+
+WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/entrypoint-build.sh"]
+

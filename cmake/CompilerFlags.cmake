@@ -30,44 +30,76 @@ function(apply_compiler_flags TARGET_NAME)
     endif()
 
     if(MSVC)
-        target_compile_options(${TARGET_NAME} PRIVATE
-            /W4                     # Baseline high warning level (Level 4)
-            /wd4324                 # Suppress C4324: structure padded due to alignment specifier (alignas/SIMD)
-            /permissive-            # Enforce strict standard C++ conformance (disables Microsoft non-standard extensions)
-            /Zc:__cplusplus         # Correctly report __cplusplus conforming to C++17 (201703L)
-            /Zc:preprocessor        # Enforce standards-conforming ISO C++ preprocessor
-            /utf-8                  # Set both source and execution character sets to UTF-8
-            /MP                     # Multi-processor compilation for MSBuild/Visual Studio
-            /FS                     # Force synchronous PDB access across concurrent compilation jobs
-            /external:anglebrackets # Treat angle-bracket headers (#include <...>) as external library headers
-            /external:W0            # Suppress warnings inside external headers (Qt, STL, external third-party libs)
-            /w14305                 # C4305: truncation from 'double' to 'float' (-Wdouble-promotion)
-            /w14189                 # C4189: local variable is initialized but not referenced (-Wunused-variable)
-            /w14101                 # C4101: unreferenced local variable (-Wunused-variable)
-            /w14505                 # C4505: unreferenced local function has been removed (-Wunused-function)
-            /w14702                 # C4702: unreachable code (-Wunreachable-code)
-            /w14244                 # C4244: conversion from 'type1' to 'type2', possible loss of data (-Wconversion)
-            /w14267                 # C4267: conversion from 'size_t' to smaller integer type, possible loss of data
-            /w14365                 # C4365: signed to unsigned conversion mismatch (-Wsign-conversion)
-            /w14388                 # C4388: signed/unsigned mismatch in relational comparison operations
-            /w14265                 # C4265: class has virtual functions but non-virtual destructor (-Wnon-virtual-dtor)
-            /w14263                 # C4263: member function does not override any base class virtual member (-Woverloaded-virtual)
-            /w14264                 # C4264: no override available for virtual member; base function is hidden
-            /w14456                 # C4456: declaration hides previous local variable (-Wshadow)
-            /w14457                 # C4457: declaration hides function parameter (-Wshadow)
-            /w14458                 # C4458: declaration hides class member (-Wshadow)
-            /w15038                 # C5038: member initialization order mismatch (-Wreorder)
-            /w14010                 # C4010: single-line comment contains line-continuation character (-Wcomment)
-        )
-
-        if(WARNINGS_AS_ERRORS)
+        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            # clang-cl (LLVM MSVC-compatible driver)
             target_compile_options(${TARGET_NAME} PRIVATE
-                /WX                 # Treat all warnings as fatal errors (-Werror)
-                /we4189             # Treat C4189 (unused initialized variable) as fatal error
-                /we4101             # Treat C4101 (unreferenced local variable) as fatal error
-                /we4505             # Treat C4505 (unreferenced local function) as fatal error
-                /we4365             # Treat C4365 (signed to unsigned conversion mismatch) as fatal error
+                /W4
+                /wd4324
+                /permissive-
+                /Zc:__cplusplus
+                /utf-8
+                /EHsc
+                -Wno-unused-command-line-argument
+                /clang:-Wall
+                /clang:-Wextra
+                /clang:-Wpedantic
+                /clang:-Wshadow
+                /clang:-Wnon-virtual-dtor
+                /clang:-Wold-style-cast
+                /clang:-Wcast-align
+                /clang:-Wunused
+                /clang:-Woverloaded-virtual
+                /clang:-Wnull-dereference
+                /clang:-Wdouble-promotion
+                /clang:-Wformat=2
+                /clang:-Wconversion
+                /clang:-Wsign-conversion
             )
+
+            if(WARNINGS_AS_ERRORS)
+                target_compile_options(${TARGET_NAME} PRIVATE /WX)
+            endif()
+        else()
+            # Native Microsoft Visual C++ (cl.exe)
+            target_compile_options(${TARGET_NAME} PRIVATE
+                /W4                     # Baseline high warning level (Level 4)
+                /wd4324                 # Suppress C4324: structure padded due to alignment specifier (alignas/SIMD)
+                /permissive-            # Enforce strict standard C++ conformance (disables Microsoft non-standard extensions)
+                /Zc:__cplusplus         # Correctly report __cplusplus conforming to C++17 (201703L)
+                /Zc:preprocessor        # Enforce standards-conforming ISO C++ preprocessor
+                /utf-8                  # Set both source and execution character sets to UTF-8
+                /MP                     # Multi-processor compilation for MSBuild/Visual Studio
+                /FS                     # Force synchronous PDB access across concurrent compilation jobs
+                /external:anglebrackets # Treat angle-bracket headers (#include <...>) as external library headers
+                /external:W0            # Suppress warnings inside external headers (Qt, STL, external third-party libs)
+                /w14305                 # C4305: truncation from 'double' to 'float' (-Wdouble-promotion)
+                /w14189                 # C4189: local variable is initialized but not referenced (-Wunused-variable)
+                /w14101                 # C4101: unreferenced local variable (-Wunused-variable)
+                /w14505                 # C4505: unreferenced local function has been removed (-Wunused-function)
+                /w14702                 # C4702: unreachable code (-Wunreachable-code)
+                /w14244                 # C4244: conversion from 'type1' to 'type2', possible loss of data (-Wconversion)
+                /w14267                 # C4267: conversion from 'size_t' to smaller integer type, possible loss of data
+                /w14365                 # C4365: signed to unsigned conversion mismatch (-Wsign-conversion)
+                /w14388                 # C4388: signed/unsigned mismatch in relational comparison operations
+                /w14265                 # C4265: class has virtual functions but non-virtual destructor (-Wnon-virtual-dtor)
+                /w14263                 # C4263: member function does not override any base class virtual member (-Woverloaded-virtual)
+                /w14264                 # C4264: no override available for virtual member; base function is hidden
+                /w14456                 # C4456: declaration hides previous local variable (-Wshadow)
+                /w14457                 # C4457: declaration hides function parameter (-Wshadow)
+                /w14458                 # C4458: declaration hides class member (-Wshadow)
+                /w15038                 # C5038: member initialization order mismatch (-Wreorder)
+                /w14010                 # C4010: single-line comment contains line-continuation character (-Wcomment)
+            )
+
+            if(WARNINGS_AS_ERRORS)
+                target_compile_options(${TARGET_NAME} PRIVATE
+                    /WX                 # Treat all warnings as fatal errors (-Werror)
+                    /we4189             # Treat C4189 (unused initialized variable) as fatal error
+                    /we4101             # Treat C4101 (unreferenced local variable) as fatal error
+                    /we4505             # Treat C4505 (unreferenced local function) as fatal error
+                    /we4365             # Treat C4365 (signed to unsigned conversion mismatch) as fatal error
+                )
+            endif()
         endif()
 
         if(ENABLE_SYSTEM_HEADERS_AUDIT AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -87,9 +119,13 @@ function(apply_compiler_flags TARGET_NAME)
             target_compile_options(${TARGET_NAME} PRIVATE
                 /GS                 # Buffer security check (stack canary protection against buffer overflows)
                 /guard:cf           # Control Flow Guard (compiler-level indirect call target validation)
-                /guard:ehcont       # Exception handling continuation guard (ROP protection)
-                /sdl                # Microsoft Security Development Lifecycle checks (strict security checks)
             )
+            if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+                target_compile_options(${TARGET_NAME} PRIVATE
+                    /guard:ehcont   # Exception handling continuation guard (ROP protection)
+                    /sdl            # Microsoft Security Development Lifecycle checks (strict security checks)
+                )
+            endif()
             if(ENABLE_SPECTRE_MITIGATION)
                 target_compile_options(${TARGET_NAME} PRIVATE
                     /Qspectre       # Speculative execution side-channel mitigation (requires VS Spectre-mitigated libs)
@@ -103,11 +139,15 @@ function(apply_compiler_flags TARGET_NAME)
                 /DYNAMICBASE        # Address Space Layout Randomization (ASLR, equivalent to -pie)
                 /HIGHENTROPYVA      # 64-bit ASLR with 64-bit high entropy address space
                 /guard:cf           # Linker Control Flow Guard (emits valid address table for indirect calls)
-                /guard:ehcont       # Linker EH Continuation table
-                /force:guardehcont  # Allow linking with external static libraries not compiled with /guard:ehcont
                 /CETCOMPAT          # Hardware Control-flow Enforcement Technology (Hardware Shadow Stack on x64)
-                /DEPENDENTLOADFLAG:0xA00 # Restrict DLL loading to %SystemRoot%\System32 and application directory (LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_APPLICATION_DIR)
             )
+            if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+                target_link_options(${TARGET_NAME} PRIVATE
+                    /guard:ehcont       # Linker EH Continuation table
+                    /force:guardehcont  # Allow linking with external static libraries not compiled with /guard:ehcont
+                    /DEPENDENTLOADFLAG:0xA00 # Restrict DLL loading to %SystemRoot%\System32 and application directory (LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_APPLICATION_DIR)
+                )
+            endif()
         endif()
     else()
         target_compile_options(${TARGET_NAME} PRIVATE
