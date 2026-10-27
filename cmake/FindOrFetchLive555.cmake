@@ -44,6 +44,8 @@ if(NOT LIVE555_FOUND)
         "${CMAKE_SOURCE_DIR}/.cache/live555/src/live"
         "${CMAKE_SOURCE_DIR}/.cache/live555/src"
         "${CMAKE_SOURCE_DIR}/.cache/live555/live"
+        "/opt/cache/live555/src/live"
+        "/opt/cache/live555/src"
         "${CMAKE_SOURCE_DIR}/build/_deps/live555/src/live"
         "${CMAKE_SOURCE_DIR}/build/_deps/live555/src"
         "${CMAKE_SOURCE_DIR}/build_clang/_deps/live555/src/live"
@@ -60,6 +62,7 @@ if(NOT LIVE555_FOUND)
     if(NOT LIVE555_ROOT_DIR)
         set(LIVE555_CANDIDATE_TARBALLS
             "${CMAKE_SOURCE_DIR}/.cache/live555/live555-latest.tar.gz"
+            "/opt/cache/live555/live555-latest.tar.gz"
             "${CMAKE_SOURCE_DIR}/build_clang/_deps/live555/live555-latest.tar.gz"
             "${CMAKE_SOURCE_DIR}/build/_deps/live555/live555-latest.tar.gz"
             "${LIVE555_ARCHIVE_FILE}"
@@ -161,6 +164,9 @@ if(NOT LIVE555_FOUND)
             target_compile_definitions(${_target} PUBLIC NO_OPENSSL=1 NO_STD_LIB=1 NO_SSTREAM=1 SOCKLEN_T=socklen_t)
             if(NOT WIN32)
                 target_compile_definitions(${_target} PUBLIC _FILE_OFFSET_BITS=64 _LARGEFILE_SOURCE)
+            endif()
+            if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+                target_compile_definitions(${_target} PUBLIC BSD=1 NEWLOCALE_NOT_USED=1 HAVE_SOCKADDR_LEN=1)
             endif()
             if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
                 target_compile_options(${_target} PRIVATE -include limits.h)

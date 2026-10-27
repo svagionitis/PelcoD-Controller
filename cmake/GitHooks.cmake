@@ -25,13 +25,20 @@ if(NOT GIT_HOOKS_DIR)
     set(GIT_HOOKS_DIR "${PROJECT_SOURCE_DIR}/.git/hooks")
 endif()
 
+option(PELCOD_INSTALL_GIT_HOOKS "Automatically install git pre-commit hook during CMake configure" ON)
+
 # Automated installation of the pre-commit hook during CMake configuration
-if(EXISTS "${PROJECT_SOURCE_DIR}/.git" AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/pre-commit")
-    file(COPY "${CMAKE_CURRENT_LIST_DIR}/pre-commit"
-        DESTINATION "${GIT_HOOKS_DIR}"
-        FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+if(PELCOD_INSTALL_GIT_HOOKS AND EXISTS "${PROJECT_SOURCE_DIR}/.git" AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/pre-commit")
+    execute_process(
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_LIST_DIR}/pre-commit"
+            "${GIT_HOOKS_DIR}/pre-commit"
+        RESULT_VARIABLE _GIT_HOOK_COPY_RES
+        ERROR_QUIET
     )
-    message(STATUS "Git pre-commit hook installed to ${GIT_HOOKS_DIR}/pre-commit")
+    if(_GIT_HOOK_COPY_RES EQUAL 0)
+        message(STATUS "Git pre-commit hook installed to ${GIT_HOOKS_DIR}/pre-commit")
+    endif()
 endif()
 
 # Target to explicitly install/update git hooks

@@ -16,6 +16,11 @@
 #include <glog/logging.h>
 
 #ifndef _WIN32
+#ifdef __linux__
+#include <linux/sockios.h>
+#elif defined(__FreeBSD__)
+#include <sys/filio.h>
+#endif
 #include <sys/ioctl.h>
 #endif
 
@@ -254,7 +259,7 @@ void SightlineUdpTransport::readWorker()
             break;
         }
 
-        Net::PollFd pfd { };
+        Net::PollFd pfd {};
         pfd.fd = static_cast<decltype(pfd.fd)>(sock);
         pfd.events = POLLIN;
 
@@ -308,7 +313,7 @@ TransportStatsSnapshot SightlineUdpTransport::getStats() const
 
 UdpKernelStats SightlineUdpTransport::queryKernelStats() const noexcept
 {
-    UdpKernelStats stats { };
+    UdpKernelStats stats {};
     const auto sock = m_rxSock.load();
     if (sock == InvalidSocket) {
         return stats;
@@ -335,9 +340,14 @@ UdpKernelStats SightlineUdpTransport::queryKernelStats() const noexcept
         stats.supported = true;
     }
 #else
-#ifdef SIOCINQ
     int pending = 0;
+#if defined(SIOCINQ)
     if (::ioctl(sock, SIOCINQ, &pending) == 0 && pending >= 0) {
+        stats.queuedRxBytes = static_cast<std::uint32_t>(pending);
+        stats.supported = true;
+    }
+#elif defined(FIONREAD)
+    if (::ioctl(sock, FIONREAD, &pending) == 0 && pending >= 0) {
         stats.queuedRxBytes = static_cast<std::uint32_t>(pending);
         stats.supported = true;
     }

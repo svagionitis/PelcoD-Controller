@@ -113,6 +113,9 @@ function(pelcod_register_gtest target_name)
     apply_compiler_flags(${target_name})
 
     # Isolate test binary directory to eliminate parallel MSBuild DLL copy collisions (ERROR_SHARING_VIOLATION / exit code 32)
+    if(EXISTS "${CMAKE_CURRENT_BINARY_DIR}/${target_name}" AND NOT IS_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${target_name}")
+        file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/${target_name}")
+    endif()
     set_target_properties(${target_name} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${target_name}"
     )

@@ -2,18 +2,29 @@
 /// @brief Implementation of cross-platform UDP socket transport.
 
 #include "UdpTransport.h"
-#include "SocketUtils.h"
+
+#include <cstddef>
+#include <cstdint>
 
 #include <chrono>
-#include <cstdint>
-#include <glog/logging.h>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
 
 #ifndef _WIN32
+#ifdef __linux__
 #include <linux/sockios.h>
-#include <string>
-#include <sys/ioctl.h>
-#include <vector>
+#elif defined(__FreeBSD__)
+#include <sys/filio.h>
 #endif
+#include <sys/ioctl.h>
+#endif
+
+#include <glog/logging.h>
+
+#include "SocketUtils.h"
 
 namespace Transport {
 
@@ -237,7 +248,7 @@ void UdpTransport::readWorker()
             break;
         }
 
-        Net::PollFd pfd { };
+        Net::PollFd pfd {};
         pfd.fd = static_cast<decltype(pfd.fd)>(sock);
         pfd.events = POLLIN;
 
@@ -282,7 +293,7 @@ void UdpTransport::readWorker()
 
 TransportStatsSnapshot UdpTransport::getStats() const
 {
-    TransportStatsSnapshot snapshot { };
+    TransportStatsSnapshot snapshot {};
     populateGenericStats(snapshot);
     snapshot.udp = queryKernelStats();
     return snapshot;
@@ -290,7 +301,7 @@ TransportStatsSnapshot UdpTransport::getStats() const
 
 UdpKernelStats UdpTransport::queryKernelStats() const noexcept
 {
-    UdpKernelStats stats { };
+    UdpKernelStats stats {};
     const auto sock = m_sockfd.load();
     if (sock == InvalidSocket) {
         return stats;
@@ -318,8 +329,13 @@ UdpKernelStats UdpTransport::queryKernelStats() const noexcept
     }
 #else
     int pending = 0;
-#ifdef SIOCINQ
+#if defined(SIOCINQ)
     if (::ioctl(sock, SIOCINQ, &pending) == 0 && pending >= 0) {
+        stats.queuedRxBytes = static_cast<std::uint32_t>(pending);
+        stats.supported = true;
+    }
+#elif defined(FIONREAD)
+    if (::ioctl(sock, FIONREAD, &pending) == 0 && pending >= 0) {
         stats.queuedRxBytes = static_cast<std::uint32_t>(pending);
         stats.supported = true;
     }

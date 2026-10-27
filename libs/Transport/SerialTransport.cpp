@@ -3,12 +3,28 @@
 
 #include "SerialTransport.h"
 
-#ifndef _WIN32
+#include <cctype>
 #include <cerrno>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
+
+#include <algorithm>
+#include <chrono>
+#include <filesystem>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
+
+#ifndef _WIN32
 #include <fcntl.h>
+#ifdef __linux__
 #include <linux/serial.h>
+#elif defined(__FreeBSD__)
+#include <sys/filio.h>
+#endif
 #include <poll.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
@@ -17,13 +33,7 @@
 #include <unistd.h>
 #endif
 
-#include <algorithm>
-#include <cctype>
-#include <chrono>
-#include <filesystem>
 #include <glog/logging.h>
-#include <string>
-#include <vector>
 
 namespace Transport {
 
@@ -198,7 +208,7 @@ bool SerialTransport::configurePort()
     }
 
 #ifdef _WIN32
-    DCB dcbSerialParams { };
+    DCB dcbSerialParams {};
     dcbSerialParams.DCBlength = sizeof(dcbSerialParams);
 
     if (!::GetCommState(handle, &dcbSerialParams)) {
@@ -223,7 +233,7 @@ bool SerialTransport::configurePort()
         return false;
     }
 
-    COMMTIMEOUTS timeouts { };
+    COMMTIMEOUTS timeouts {};
     timeouts.ReadIntervalTimeout = 50;
     timeouts.ReadTotalTimeoutConstant = 100;
     timeouts.ReadTotalTimeoutMultiplier = 10;
@@ -577,6 +587,31 @@ std::vector<std::string> SerialTransport::enumeratePorts()
     } catch (...) {
         LOG(WARNING) << "SerialTransport: unknown exception during /dev scan";
     }
+
+#elif defined(__FreeBSD__)
+    // Scan /dev for standard FreeBSD USB and UART serial device nodes
+    try {
+        if (std::filesystem::exists("/dev")) {
+            for (const auto& entry : std::filesystem::directory_iterator("/dev")) {
+                const std::string filename = entry.path().filename().string();
+                if (filename.rfind("cuaU", 0) == 0 || filename.rfind("cuau", 0) == 0 || filename.rfind("ttyU", 0) == 0
+                    || filename.rfind("ttyu", 0) == 0) {
+                    if (filename.find(".init") == std::string::npos && filename.find(".lock") == std::string::npos) {
+                        const std::string fullPath = entry.path().string();
+                        if (std::find(ports.begin(), ports.end(), fullPath) == ports.end()) {
+                            ports.push_back(fullPath);
+                        }
+                    }
+                }
+            }
+        }
+    } catch (const std::filesystem::filesystem_error& ex) {
+        LOG(WARNING) << "SerialTransport: failed to iterate /dev: " << ex.what();
+    } catch (const std::exception& ex) {
+        LOG(WARNING) << "SerialTransport: unexpected error during /dev scan: " << ex.what();
+    } catch (...) {
+        LOG(WARNING) << "SerialTransport: unknown exception during /dev scan";
+    }
 #endif
 
     std::sort(ports.begin(), ports.end(), naturalLess);
@@ -585,7 +620,7 @@ std::vector<std::string> SerialTransport::enumeratePorts()
 
 TransportStatsSnapshot SerialTransport::getStats() const
 {
-    TransportStatsSnapshot snapshot { };
+    TransportStatsSnapshot snapshot {};
     populateGenericStats(snapshot);
     snapshot.serial = queryKernelStats();
     return snapshot;
@@ -604,14 +639,14 @@ void SerialTransport::resetStats() noexcept
 
 SerialKernelStats SerialTransport::queryKernelStats() const noexcept
 {
-    SerialKernelStats stats { };
+    SerialKernelStats stats {};
     const SerialHandle handle = m_handle.load();
     if (handle == INVALID_SERIAL_HANDLE) {
         return stats;
     }
 
 #ifdef _WIN32
-    COMSTAT comStat { };
+    COMSTAT comStat {};
     DWORD errors = 0;
     if (::ClearCommError(handle, &errors, &comStat)) {
         stats.supported = true;
@@ -637,6 +672,7 @@ SerialKernelStats SerialTransport::queryKernelStats() const noexcept
         stats.breakCount = m_winBreakErrors.load();
     }
 #else
+#ifdef __linux__
     struct serial_icounter_struct icount { };
     if (::ioctl(handle, TIOCGICOUNT, &icount) == 0) {
         stats.supported = true;
@@ -647,6 +683,7 @@ SerialKernelStats SerialTransport::queryKernelStats() const noexcept
         stats.parityErrors = static_cast<std::uint64_t>(std::max(0, icount.parity));
         stats.breakCount = static_cast<std::uint64_t>(std::max(0, icount.brk));
     }
+#endif
 
     int inQueue = 0;
     if (::ioctl(handle, FIONREAD, &inQueue) == 0 && inQueue >= 0) {

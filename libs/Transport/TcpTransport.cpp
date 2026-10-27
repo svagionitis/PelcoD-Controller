@@ -2,20 +2,31 @@
 /// @brief Implementation of cross-platform TCP socket transport.
 
 #include "TcpTransport.h"
-#include "SocketUtils.h"
+
+#include <cstddef>
+#include <cstdint>
 
 #include <chrono>
-#include <cstdint>
-#include <glog/logging.h>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
 
 #ifdef _WIN32
 #include <mstcpip.h>
 #else
+#ifdef __linux__
 #include <linux/sockios.h>
-#include <string>
-#include <sys/ioctl.h>
-#include <vector>
+#elif defined(__FreeBSD__)
+#include <sys/filio.h>
 #endif
+#include <sys/ioctl.h>
+#endif
+
+#include <glog/logging.h>
+
+#include "SocketUtils.h"
 
 namespace Transport {
 
@@ -126,7 +137,7 @@ bool TcpTransport::open()
         } else if (connRet < 0) {
             if (Net::isConnectInProgress()) {
                 // Await writability within the configured timeout.
-                Net::PollFd pfd { };
+                Net::PollFd pfd {};
                 pfd.fd = sock;
                 pfd.events = POLLOUT;
                 const int pollRet = Net::pollSockets(&pfd, 1, timeoutMs);
@@ -224,7 +235,7 @@ bool TcpTransport::sendData(const std::vector<std::uint8_t>& data)
             totalSent += static_cast<std::size_t>(sent);
         } else if (sent < 0) {
             if (Net::isWouldBlock()) {
-                Net::PollFd pfd { };
+                Net::PollFd pfd {};
                 pfd.fd = sock;
                 pfd.events = POLLOUT;
                 Net::pollSockets(&pfd, 1, 50);
@@ -248,7 +259,7 @@ void TcpTransport::readWorker()
     bool unrecoverableError { false };
 
     while (m_running.load()) {
-        Net::PollFd pfd { };
+        Net::PollFd pfd {};
         pfd.fd = m_sockfd.load();
         pfd.events = POLLIN;
         const int ret = Net::pollSockets(&pfd, 1, 50);
@@ -287,7 +298,7 @@ void TcpTransport::readWorker()
 
 TransportStatsSnapshot TcpTransport::getStats() const
 {
-    TransportStatsSnapshot snapshot { };
+    TransportStatsSnapshot snapshot {};
     populateGenericStats(snapshot);
     snapshot.tcp = queryKernelStats();
     return snapshot;
@@ -295,7 +306,7 @@ TransportStatsSnapshot TcpTransport::getStats() const
 
 TcpKernelStats TcpTransport::queryKernelStats() const noexcept
 {
-    TcpKernelStats stats { };
+    TcpKernelStats stats {};
     const SocketHandle sock = m_sockfd.load();
     if (sock == InvalidSocket) {
         return stats;
@@ -303,7 +314,7 @@ TcpKernelStats TcpTransport::queryKernelStats() const noexcept
 
 #ifdef _WIN32
 #ifdef SIO_TCP_INFO
-    TCP_INFO_v0 tcpInfo { };
+    TCP_INFO_v0 tcpInfo {};
     DWORD bytesReturned = 0;
     DWORD version = 0;
     const int rc = ::WSAIoctl(
@@ -328,25 +339,43 @@ TcpKernelStats TcpTransport::queryKernelStats() const noexcept
         stats.supported = true;
         stats.rttUs = info.tcpi_rtt;
         stats.rttVarUs = info.tcpi_rttvar;
+        stats.sndCwnd = info.tcpi_snd_cwnd;
+#if defined(__linux__)
         stats.totalRetrans = info.tcpi_total_retrans;
         stats.unackedSegments = info.tcpi_unacked;
         stats.lostSegments = info.tcpi_lost;
-        stats.sndCwnd = info.tcpi_snd_cwnd;
         stats.reorderMetric = info.tcpi_reordering;
         stats.caState = info.tcpi_ca_state;
+#elif defined(__FreeBSD__)
+        stats.totalRetrans = info.tcpi_snd_rexmitpack;
+        stats.unackedSegments = info.__tcpi_unacked;
+        stats.lostSegments = info.__tcpi_lost;
+        stats.reorderMetric = info.__tcpi_reordering;
+        stats.caState = info.__tcpi_ca_state;
+#endif
     }
 
     int unsent = 0;
-#ifdef SIOCOUTQ
+#if defined(SIOCOUTQ)
     if (::ioctl(sock, SIOCOUTQ, &unsent) == 0 && unsent >= 0) {
+        stats.queuedTxBytes = static_cast<std::uint32_t>(unsent);
+        stats.supported = true;
+    }
+#elif defined(TIOCOUTQ)
+    if (::ioctl(sock, TIOCOUTQ, &unsent) == 0 && unsent >= 0) {
         stats.queuedTxBytes = static_cast<std::uint32_t>(unsent);
         stats.supported = true;
     }
 #endif
 
     int unread = 0;
-#ifdef SIOCINQ
+#if defined(SIOCINQ)
     if (::ioctl(sock, SIOCINQ, &unread) == 0 && unread >= 0) {
+        stats.queuedRxBytes = static_cast<std::uint32_t>(unread);
+        stats.supported = true;
+    }
+#elif defined(FIONREAD)
+    if (::ioctl(sock, FIONREAD, &unread) == 0 && unread >= 0) {
         stats.queuedRxBytes = static_cast<std::uint32_t>(unread);
         stats.supported = true;
     }

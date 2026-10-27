@@ -2,6 +2,10 @@
 
 #include <cstddef>
 
+#include <string>
+#include <utility>
+#include <vector>
+
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -9,7 +13,8 @@
 #include <dshow.h>
 #include <objbase.h>
 #include <windows.h>
-#else
+#elif defined(__linux__) || __has_include(<linux/videodev2.h>)
+#define PELCOD_HAS_V4L2 1
 #include <dirent.h>
 #include <fcntl.h>
 #include <linux/videodev2.h>
@@ -18,8 +23,6 @@
 #endif
 
 #include <glog/logging.h>
-#include <string>
-#include <vector>
 
 namespace Video {
 
@@ -72,7 +75,7 @@ std::vector<VideoDeviceInfo> DeviceEnumerator::enumerateDevices()
     if (needCoUninit) {
         CoUninitialize();
     }
-#else
+#elif defined(PELCOD_HAS_V4L2)
     for (int i = 0; i < 64; ++i) {
         const std::string devPath = "/dev/video" + std::to_string(i);
         const int fd = open(devPath.c_str(), O_RDONLY | O_NONBLOCK);
