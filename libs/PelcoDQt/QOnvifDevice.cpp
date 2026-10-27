@@ -1,14 +1,20 @@
+/// @file QOnvifDevice.cpp
+/// @brief Implementation of QOnvifDevice Qt 6 adapter.
+
 #include "QOnvifDevice.h"
 
 #include <cstddef>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include <QMetaObject>
 #include <QThread>
 
 namespace PelcoD::Qt {
@@ -20,6 +26,11 @@ QOnvifDevice::QOnvifDevice(QObject* parent)
 
 QOnvifDevice::~QOnvifDevice()
 {
+    if (m_discoveryThread != nullptr) {
+        m_discoveryThread->wait();
+        delete m_discoveryThread;
+        m_discoveryThread = nullptr;
+    }
     disconnectFromCamera();
 }
 
@@ -31,6 +42,22 @@ bool QOnvifDevice::isConnected() const
 QString QOnvifDevice::activeProfileToken() const
 {
     return m_activeProfileToken;
+}
+
+QString QOnvifDevice::activeVideoSourceToken() const
+{
+    return m_activeVideoSourceToken;
+}
+
+std::string QOnvifDevice::resolveVideoSourceToken(const QString& videoSourceToken) const
+{
+    if (!videoSourceToken.isEmpty()) {
+        return videoSourceToken.toStdString();
+    }
+    if (!m_activeVideoSourceToken.isEmpty()) {
+        return m_activeVideoSourceToken.toStdString();
+    }
+    return "VideoSource_1";
 }
 
 QString QOnvifDevice::rtspStreamUri() const
@@ -72,14 +99,22 @@ QList<Onvif::DiscoveredDevice> QOnvifDevice::discoverCameras(int timeoutMs)
 
 void QOnvifDevice::discoverCamerasAsync(int timeoutMs)
 {
-    QThread* thread = QThread::create([this, timeoutMs]() {
+    if (m_discoveryThread != nullptr) {
+        if (m_discoveryThread->isRunning()) {
+            return;
+        }
+        m_discoveryThread->wait();
+        delete m_discoveryThread;
+        m_discoveryThread = nullptr;
+    }
+
+    m_discoveryThread = QThread::create([this, timeoutMs]() {
         const auto result = discoverCameras(timeoutMs);
         QMetaObject::invokeMethod(
             this, [this, result]() { emit discoveryFinished(result); }, ::Qt::QueuedConnection);
     });
 
-    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
-    thread->start();
+    m_discoveryThread->start();
 }
 
 bool QOnvifDevice::connectToCamera(const QString& endpoint, const QString& username, const QString& password)
@@ -90,7 +125,10 @@ bool QOnvifDevice::connectToCamera(const QString& endpoint, const QString& usern
     creds.username = username.toStdString();
     creds.password = password.toStdString();
 
-    m_client = std::make_unique<Onvif::OnvifClient>(endpoint.toStdString(), creds);
+    {
+        std::scoped_lock lock(m_clientMutex);
+        m_client = std::make_unique<Onvif::OnvifClient>(endpoint.toStdString(), creds);
+    }
 
     // Synchronize camera clock
     static_cast<void>(m_client->synchronizeSystemTime());
@@ -99,6 +137,7 @@ bool QOnvifDevice::connectToCamera(const QString& endpoint, const QString& usern
     const auto caps = m_client->getCapabilities();
     if (!caps) {
         emit errorOccurred(tr("Failed to query ONVIF capabilities from %1").arg(endpoint));
+        std::scoped_lock lock(m_clientMutex);
         m_client.reset();
         return false;
     }
@@ -111,6 +150,7 @@ bool QOnvifDevice::connectToCamera(const QString& endpoint, const QString& usern
     m_profiles = m_client->getProfiles();
     if (m_profiles.empty()) {
         emit errorOccurred(tr("No media profiles found on camera %1").arg(endpoint));
+        std::scoped_lock lock(m_clientMutex);
         m_client.reset();
         return false;
     }
@@ -180,7 +220,10 @@ void QOnvifDevice::disconnectFromCamera()
     m_masks.clear();
     m_maskOptions.reset();
     m_videoSourceModes.clear();
-    m_client.reset();
+    {
+        std::scoped_lock lock(m_clientMutex);
+        m_client.reset();
+    }
 
     emit disconnected();
 }
@@ -212,6 +255,7 @@ bool QOnvifDevice::setActiveProfile(const QString& token)
     }
 
     resolveSnapshotUri();
+    refreshStatus();
     refreshPresets();
     refreshPresetTours();
     refreshImagingSettings();
@@ -624,51 +668,83 @@ bool QOnvifDevice::setCurrentImagingPreset(const QString& presetToken, const QSt
 
 void QOnvifDevice::startEventSubscription(int pollIntervalMs)
 {
-    if (!m_client || m_eventSubActive) {
+    if (m_eventSubActive.load()) {
         return;
     }
 
-    const auto subUrl = m_client->createPullPointSubscription();
+    std::optional<std::string> subUrl {};
+    {
+        std::scoped_lock lock(m_clientMutex);
+        if (!m_client) {
+            return;
+        }
+        subUrl = m_client->createPullPointSubscription();
+    }
     if (!subUrl || subUrl->empty()) {
         emit errorOccurred(tr("Failed to establish ONVIF PullPoint event subscription."));
         return;
     }
 
-    m_eventSubscriptionUrl = QString::fromStdString(*subUrl);
-    m_eventSubActive = true;
+    if (m_eventThread != nullptr) {
+        m_eventThread->wait();
+        delete m_eventThread;
+        m_eventThread = nullptr;
+    }
 
-    // Launch background worker thread for event polling loop
-    QThread* thread = QThread::create([this, pollIntervalMs]() {
-        while (m_eventSubActive && m_client && !m_eventSubscriptionUrl.isEmpty()) {
-            const auto events = m_client->pullMessages(m_eventSubscriptionUrl.toStdString(), 3, 10);
+    const std::string subUrlStr { *subUrl };
+    m_eventSubscriptionUrl = QString::fromStdString(subUrlStr);
+    m_eventSubActive.store(true);
+
+    // Launch managed background worker thread for event polling loop
+    m_eventThread = QThread::create([this, pollIntervalMs, subUrlStr]() {
+        const int targetSleepMs { std::max(50, pollIntervalMs) };
+        while (m_eventSubActive.load()) {
+            std::vector<Onvif::OnvifEvent> events {};
+            {
+                std::scoped_lock lock(m_clientMutex);
+                if (!m_client) {
+                    break;
+                }
+                events = m_client->pullMessages(subUrlStr, 1, 10);
+            }
             for (const auto& ev : events) {
+                if (!m_eventSubActive.load()) {
+                    break;
+                }
                 QMetaObject::invokeMethod(
                     this, [this, ev]() { emit eventReceived(ev); }, ::Qt::QueuedConnection);
             }
-            QThread::msleep(static_cast<unsigned long>(std::max(0, pollIntervalMs)));
+            for (int elapsed = 0; elapsed < targetSleepMs && m_eventSubActive.load(); elapsed += 50) {
+                QThread::msleep(50UL);
+            }
         }
     });
 
-    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
-    thread->start();
+    m_eventThread->start();
 }
 
 void QOnvifDevice::stopEventSubscription()
 {
-    if (!m_eventSubActive) {
-        return;
+    m_eventSubActive.store(false);
+    if (m_eventThread != nullptr) {
+        m_eventThread->wait();
+        delete m_eventThread;
+        m_eventThread = nullptr;
     }
 
-    m_eventSubActive = false;
-    if (m_client && !m_eventSubscriptionUrl.isEmpty()) {
-        static_cast<void>(m_client->unsubscribe(m_eventSubscriptionUrl.toStdString()));
+    if (!m_eventSubscriptionUrl.isEmpty()) {
+        const std::string subUrlStr { m_eventSubscriptionUrl.toStdString() };
+        m_eventSubscriptionUrl.clear();
+        std::scoped_lock lock(m_clientMutex);
+        if (m_client) {
+            static_cast<void>(m_client->unsubscribe(subUrlStr));
+        }
     }
-    m_eventSubscriptionUrl.clear();
 }
 
 bool QOnvifDevice::isEventSubscriptionActive() const
 {
-    return m_eventSubActive;
+    return m_eventSubActive.load();
 }
 
 void QOnvifDevice::refreshOSDs()
@@ -961,34 +1037,61 @@ void QOnvifDevice::pollCurrentMetadata()
 
 void QOnvifDevice::startMetadataStreaming(int intervalMs)
 {
-    if (!m_client || m_metadataStreamingActive) {
+    if (m_metadataStreamingActive.load()) {
         return;
     }
-    m_metadataStreamingActive = true;
+    {
+        std::scoped_lock lock(m_clientMutex);
+        if (!m_client) {
+            return;
+        }
+    }
 
-    QThread* thread = QThread::create([this, intervalMs]() {
-        while (m_metadataStreamingActive && m_client) {
-            const auto payload = m_client->getMetadataStream();
-            if (payload) {
+    if (m_metadataThread != nullptr) {
+        m_metadataThread->wait();
+        delete m_metadataThread;
+        m_metadataThread = nullptr;
+    }
+
+    m_metadataStreamingActive.store(true);
+
+    m_metadataThread = QThread::create([this, intervalMs]() {
+        const int targetSleepMs { std::max(100, intervalMs) };
+        while (m_metadataStreamingActive.load()) {
+            std::optional<Onvif::MetadataStreamPayload> payload {};
+            {
+                std::scoped_lock lock(m_clientMutex);
+                if (!m_client) {
+                    break;
+                }
+                payload = m_client->getMetadataStream();
+            }
+            if (payload && m_metadataStreamingActive.load()) {
                 QMetaObject::invokeMethod(
                     this, [this, payload]() { emit metadataReceived(*payload); }, ::Qt::QueuedConnection);
             }
-            QThread::msleep(static_cast<unsigned long>(std::max(100, intervalMs)));
+            for (int elapsed = 0; elapsed < targetSleepMs && m_metadataStreamingActive.load(); elapsed += 50) {
+                QThread::msleep(50UL);
+            }
         }
     });
 
-    connect(thread, &QThread::finished, thread, &QObject::deleteLater);
-    thread->start();
+    m_metadataThread->start();
 }
 
 void QOnvifDevice::stopMetadataStreaming()
 {
-    m_metadataStreamingActive = false;
+    m_metadataStreamingActive.store(false);
+    if (m_metadataThread != nullptr) {
+        m_metadataThread->wait();
+        delete m_metadataThread;
+        m_metadataThread = nullptr;
+    }
 }
 
 bool QOnvifDevice::isMetadataStreamingActive() const
 {
-    return m_metadataStreamingActive;
+    return m_metadataStreamingActive.load();
 }
 
 void QOnvifDevice::pollMetadata()
@@ -1118,7 +1221,7 @@ bool QOnvifDevice::deleteCertificates(const QStringList& certificateIds)
         return false;
     }
     std::vector<std::string> ids;
-    ids.reserve(static_cast<size_t>(certificateIds.size()));
+    ids.reserve(static_cast<std::size_t>(certificateIds.size()));
     for (const auto& id : certificateIds) {
         ids.push_back(id.toStdString());
     }
@@ -1388,7 +1491,7 @@ void QOnvifDevice::refreshSupportedRules()
     if (!m_client) {
         return;
     }
-    const std::string cfgToken = m_activeProfileToken.toStdString();
+    const std::string cfgToken { m_activeAnalyticsToken.toStdString() };
     m_supportedRules = m_client->getSupportedRules(cfgToken);
     emit supportedRulesUpdated(m_supportedRules);
 }
@@ -1398,7 +1501,7 @@ void QOnvifDevice::refreshRules()
     if (!m_client) {
         return;
     }
-    const std::string cfgToken = m_activeProfileToken.toStdString();
+    const std::string cfgToken { m_activeAnalyticsToken.toStdString() };
     m_rules = m_client->getRules(cfgToken);
     emit rulesUpdated(m_rules);
 }
@@ -1408,8 +1511,8 @@ bool QOnvifDevice::createRules(const std::vector<Onvif::AnalyticsRule>& rules)
     if (!m_client) {
         return false;
     }
-    const std::string cfgToken = m_activeProfileToken.toStdString();
-    const bool ok = m_client->createRules(cfgToken, rules);
+    const std::string cfgToken { m_activeAnalyticsToken.toStdString() };
+    const bool ok { m_client->createRules(cfgToken, rules) };
     if (ok) {
         refreshRules();
     }
@@ -1421,8 +1524,8 @@ bool QOnvifDevice::modifyRules(const std::vector<Onvif::AnalyticsRule>& rules)
     if (!m_client) {
         return false;
     }
-    const std::string cfgToken = m_activeProfileToken.toStdString();
-    const bool ok = m_client->modifyRules(cfgToken, rules);
+    const std::string cfgToken { m_activeAnalyticsToken.toStdString() };
+    const bool ok { m_client->modifyRules(cfgToken, rules) };
     if (ok) {
         refreshRules();
     }
@@ -1434,27 +1537,27 @@ bool QOnvifDevice::deleteRules(const QStringList& ruleNames)
     if (!m_client) {
         return false;
     }
-    std::vector<std::string> names;
-    names.reserve(static_cast<size_t>(ruleNames.size()));
+    std::vector<std::string> names {};
+    names.reserve(static_cast<std::size_t>(ruleNames.size()));
     for (const auto& n : ruleNames) {
         names.push_back(n.toStdString());
     }
-    const std::string cfgToken = m_activeProfileToken.toStdString();
-    const bool ok = m_client->deleteRules(cfgToken, names);
+    const std::string cfgToken { m_activeAnalyticsToken.toStdString() };
+    const bool ok { m_client->deleteRules(cfgToken, names) };
     if (ok) {
         refreshRules();
     }
     return ok;
 }
 
-void QOnvifDevice::refreshSupportedAnalyticsModules()
+void QOnvifDevice::refreshSupportedModules()
 {
     if (!m_client) {
         return;
     }
-    const std::string cfgToken = m_activeProfileToken.toStdString();
+    const std::string cfgToken { m_activeAnalyticsToken.toStdString() };
     m_supportedModules = m_client->getSupportedAnalyticsModules(cfgToken);
-    emit supportedAnalyticsModulesUpdated(m_supportedModules);
+    emit supportedModulesUpdated(m_supportedModules);
 }
 
 void QOnvifDevice::refreshAnalyticsModules()
@@ -1462,7 +1565,7 @@ void QOnvifDevice::refreshAnalyticsModules()
     if (!m_client) {
         return;
     }
-    const std::string cfgToken = m_activeProfileToken.toStdString();
+    const std::string cfgToken { m_activeAnalyticsToken.toStdString() };
     m_analyticsModules = m_client->getAnalyticsModules(cfgToken);
     emit analyticsModulesUpdated(m_analyticsModules);
 }
@@ -1472,8 +1575,8 @@ bool QOnvifDevice::createAnalyticsModules(const std::vector<Onvif::AnalyticsModu
     if (!m_client) {
         return false;
     }
-    const std::string cfgToken = m_activeProfileToken.toStdString();
-    const bool ok = m_client->createAnalyticsModules(cfgToken, modules);
+    const std::string cfgToken { m_activeAnalyticsToken.toStdString() };
+    const bool ok { m_client->createAnalyticsModules(cfgToken, modules) };
     if (ok) {
         refreshAnalyticsModules();
     }
@@ -1485,8 +1588,8 @@ bool QOnvifDevice::modifyAnalyticsModules(const std::vector<Onvif::AnalyticsModu
     if (!m_client) {
         return false;
     }
-    const std::string cfgToken = m_activeProfileToken.toStdString();
-    const bool ok = m_client->modifyAnalyticsModules(cfgToken, modules);
+    const std::string cfgToken { m_activeAnalyticsToken.toStdString() };
+    const bool ok { m_client->modifyAnalyticsModules(cfgToken, modules) };
     if (ok) {
         refreshAnalyticsModules();
     }
@@ -1498,13 +1601,13 @@ bool QOnvifDevice::deleteAnalyticsModules(const QStringList& moduleNames)
     if (!m_client) {
         return false;
     }
-    std::vector<std::string> names;
-    names.reserve(static_cast<size_t>(moduleNames.size()));
+    std::vector<std::string> names {};
+    names.reserve(static_cast<std::size_t>(moduleNames.size()));
     for (const auto& n : moduleNames) {
         names.push_back(n.toStdString());
     }
-    const std::string cfgToken = m_activeProfileToken.toStdString();
-    const bool ok = m_client->deleteAnalyticsModules(cfgToken, names);
+    const std::string cfgToken { m_activeAnalyticsToken.toStdString() };
+    const bool ok { m_client->deleteAnalyticsModules(cfgToken, names) };
     if (ok) {
         refreshAnalyticsModules();
     }
@@ -1520,8 +1623,7 @@ void QOnvifDevice::refreshMasks(const QString& configToken)
     if (!m_client) {
         return;
     }
-    const std::string token
-        = configToken.isEmpty() ? m_activeVideoSourceToken.toStdString() : configToken.toStdString();
+    const std::string token { resolveVideoSourceToken(configToken) };
     m_masks = m_client->getMasks(token);
     emit masksUpdated(m_masks);
 }
@@ -1531,7 +1633,7 @@ void QOnvifDevice::refreshMaskOptions(const QString& configToken)
     if (!m_client) {
         return;
     }
-    const std::string token = configToken.isEmpty() ? "VideoSourceConfig_1" : configToken.toStdString();
+    const std::string token { resolveVideoSourceToken(configToken) };
     m_maskOptions = m_client->getMaskOptions(token);
     if (m_maskOptions.has_value()) {
         emit maskOptionsUpdated(*m_maskOptions);
@@ -1543,9 +1645,13 @@ QString QOnvifDevice::createMask(const Onvif::PrivacyMask& mask)
     if (!m_client) {
         return QString();
     }
-    const std::string token = m_client->createMask(mask);
+    Onvif::PrivacyMask reqMask { mask };
+    if (reqMask.configurationToken.empty()) {
+        reqMask.configurationToken = resolveVideoSourceToken(QString());
+    }
+    const std::string token { m_client->createMask(reqMask) };
     if (!token.empty()) {
-        refreshMasks(QString::fromStdString(mask.configurationToken));
+        refreshMasks(QString::fromStdString(reqMask.configurationToken));
     }
     return QString::fromStdString(token);
 }
@@ -1555,9 +1661,13 @@ bool QOnvifDevice::setMask(const Onvif::PrivacyMask& mask)
     if (!m_client) {
         return false;
     }
-    const bool ok = m_client->setMask(mask);
+    Onvif::PrivacyMask reqMask { mask };
+    if (reqMask.configurationToken.empty()) {
+        reqMask.configurationToken = resolveVideoSourceToken(QString());
+    }
+    const bool ok { m_client->setMask(reqMask) };
     if (ok) {
-        refreshMasks(QString::fromStdString(mask.configurationToken));
+        refreshMasks(QString::fromStdString(reqMask.configurationToken));
     }
     return ok;
 }
@@ -1567,7 +1677,7 @@ bool QOnvifDevice::deleteMask(const QString& maskToken)
     if (!m_client) {
         return false;
     }
-    const bool ok = m_client->deleteMask(maskToken.toStdString());
+    const bool ok { m_client->deleteMask(maskToken.toStdString()) };
     if (ok) {
         refreshMasks();
     }
@@ -1579,7 +1689,7 @@ void QOnvifDevice::refreshVideoSourceModes(const QString& videoSourceToken)
     if (!m_client) {
         return;
     }
-    const std::string token = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
+    const std::string token { resolveVideoSourceToken(videoSourceToken) };
     m_videoSourceModes = m_client->getVideoSourceModes(token);
     emit videoSourceModesUpdated(m_videoSourceModes);
 }
@@ -1589,10 +1699,10 @@ bool QOnvifDevice::setVideoSourceMode(const QString& videoSourceToken, const QSt
     if (!m_client) {
         return false;
     }
-    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
-    const bool ok = m_client->setVideoSourceMode(vs, modeToken.toStdString());
+    const std::string vs { resolveVideoSourceToken(videoSourceToken) };
+    const bool ok { m_client->setVideoSourceMode(vs, modeToken.toStdString()) };
     if (ok) {
-        bool reboot = false;
+        bool reboot { false };
         for (const auto& m : m_videoSourceModes) {
             if (m.token == modeToken.toStdString()) {
                 reboot = m.reboot;
@@ -1600,21 +1710,21 @@ bool QOnvifDevice::setVideoSourceMode(const QString& videoSourceToken, const QSt
             }
         }
         emit videoSourceModeChanged(modeToken, reboot);
-        refreshVideoSourceModes(videoSourceToken);
+        refreshVideoSourceModes(QString::fromStdString(vs));
     }
     return ok;
 }
 
-void QOnvifDevice::refreshRadiometryConfiguration(const QString& videoSourceToken)
+void QOnvifDevice::refreshRadiometryConfig(const QString& videoSourceToken)
 {
     if (!m_client) {
         return;
     }
-    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
-    const auto cfg = m_client->getRadiometryConfiguration(vs);
+    const std::string vs { resolveVideoSourceToken(videoSourceToken) };
+    const auto cfg { m_client->getRadiometryConfiguration(vs) };
     if (cfg) {
         m_radiometryConfig = *cfg;
-        emit radiometryConfigurationUpdated(m_radiometryConfig);
+        emit radiometryConfigUpdated(m_radiometryConfig);
     }
 }
 
@@ -1623,11 +1733,11 @@ bool QOnvifDevice::setRadiometryConfiguration(const QString& videoSourceToken, c
     if (!m_client) {
         return false;
     }
-    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
-    const bool ok = m_client->setRadiometryConfiguration(vs, config);
+    const std::string vs { resolveVideoSourceToken(videoSourceToken) };
+    const bool ok { m_client->setRadiometryConfiguration(vs, config) };
     if (ok) {
         m_radiometryConfig = config;
-        emit radiometryConfigurationUpdated(m_radiometryConfig);
+        emit radiometryConfigUpdated(m_radiometryConfig);
     }
     return ok;
 }
@@ -1637,7 +1747,7 @@ void QOnvifDevice::refreshRadiometryMeasurements(const QString& videoSourceToken
     if (!m_client) {
         return;
     }
-    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
+    const std::string vs { resolveVideoSourceToken(videoSourceToken) };
     m_radiometrySpots = m_client->getRadiometrySpots(vs);
     m_radiometryBoxes = m_client->getRadiometryBoxes(vs);
     emit radiometrySpotsUpdated(m_radiometrySpots);
@@ -1649,8 +1759,8 @@ bool QOnvifDevice::setRadiometrySpots(const QString& videoSourceToken, const std
     if (!m_client) {
         return false;
     }
-    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
-    const bool ok = m_client->setRadiometrySpots(vs, spots);
+    const std::string vs { resolveVideoSourceToken(videoSourceToken) };
+    const bool ok { m_client->setRadiometrySpots(vs, spots) };
     if (ok) {
         m_radiometrySpots = spots;
         emit radiometrySpotsUpdated(m_radiometrySpots);
@@ -1663,8 +1773,8 @@ bool QOnvifDevice::setRadiometryBoxes(const QString& videoSourceToken, const std
     if (!m_client) {
         return false;
     }
-    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
-    const bool ok = m_client->setRadiometryBoxes(vs, boxes);
+    const std::string vs { resolveVideoSourceToken(videoSourceToken) };
+    const bool ok { m_client->setRadiometryBoxes(vs, boxes) };
     if (ok) {
         m_radiometryBoxes = boxes;
         emit radiometryBoxesUpdated(m_radiometryBoxes);
@@ -1677,7 +1787,7 @@ void QOnvifDevice::refreshColorPalettes(const QString& videoSourceToken)
     if (!m_client) {
         return;
     }
-    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
+    const std::string vs { resolveVideoSourceToken(videoSourceToken) };
     m_colorPalettes = m_client->getColorPalettes(vs);
     emit colorPalettesUpdated(m_colorPalettes);
 }
@@ -1687,10 +1797,10 @@ bool QOnvifDevice::setColorPalette(const QString& videoSourceToken, const QStrin
     if (!m_client) {
         return false;
     }
-    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
-    const bool ok = m_client->setColorPalette(vs, paletteToken.toStdString());
+    const std::string vs { resolveVideoSourceToken(videoSourceToken) };
+    const bool ok { m_client->setColorPalette(vs, paletteToken.toStdString()) };
     if (ok) {
-        refreshColorPalettes(videoSourceToken);
+        refreshColorPalettes(QString::fromStdString(vs));
     }
     return ok;
 }
@@ -1700,8 +1810,8 @@ bool QOnvifDevice::triggerNuc(const QString& videoSourceToken)
     if (!m_client) {
         return false;
     }
-    const std::string vs = videoSourceToken.isEmpty() ? "VideoSource_1" : videoSourceToken.toStdString();
-    const bool ok = m_client->triggerNuc(vs);
+    const std::string vs { resolveVideoSourceToken(videoSourceToken) };
+    const bool ok { m_client->triggerNuc(vs) };
     emit nucTriggered(ok);
     return ok;
 }

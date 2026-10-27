@@ -1,11 +1,18 @@
+/// @file OnvifServerTab.cpp
+/// @brief Implementation of ONVIF server configuration and monitoring dashboard tab.
+
 #include "OnvifServerTab.h"
+
+#include <cstdint>
 
 #include <string>
 
+#include <QAbstractItemView>
 #include <QApplication>
 #include <QClipboard>
 #include <QDateTime>
 #include <QFormLayout>
+#include <QFrame>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -13,6 +20,7 @@
 #include <QMessageBox>
 #include <QScrollArea>
 #include <QSplitter>
+#include <QTableWidgetItem>
 #include <QVBoxLayout>
 
 namespace OnvifApp {
@@ -58,6 +66,10 @@ void OnvifServerTab::setupUi()
     m_statusBadge = new QLabel(tr("● STOPPED"), grpControl);
     m_statusBadge->setStyleSheet("color: #F44336; font-weight: bold; font-size: 13px;");
     statusRow->addWidget(m_statusBadge);
+    statusRow->addSpacing(12);
+    m_provBadge = new QLabel(tr("[UNPROVISIONED]"), grpControl);
+    m_provBadge->setStyleSheet("color: #FFA726; font-weight: bold; font-size: 12px;");
+    statusRow->addWidget(m_provBadge);
     statusRow->addStretch();
     ctrlLayout->addLayout(statusRow);
 
@@ -237,6 +249,7 @@ void OnvifServerTab::syncUiFromConfig()
     const auto cfg = m_server->config();
     m_spinPort->setValue(cfg.port);
     m_editBindAddress->setText(QString::fromStdString(cfg.bindAddress));
+    m_chkDiscovery->setChecked(cfg.discoveryMode == Onvif::DiscoveryMode::Discoverable);
     m_editDeviceName->setText(QString::fromStdString(cfg.deviceName));
     m_editManufacturer->setText(QString::fromStdString(cfg.manufacturer));
     m_editModel->setText(QString::fromStdString(cfg.model));
@@ -249,8 +262,12 @@ void OnvifServerTab::syncUiFromConfig()
             break;
         }
     }
+    if (m_device != nullptr && m_device->coreDevice() != nullptr) {
+        m_spinPelcoDAddress->setValue(static_cast<int>(m_device->coreDevice()->getAddress()));
+    }
     m_editAdminPass->clear();
     m_endpointEdit->setText(m_server->endpointUrl());
+    updateProvisioningBadge();
 }
 
 void OnvifServerTab::applyUiToConfig()
@@ -261,6 +278,8 @@ void OnvifServerTab::applyUiToConfig()
     auto cfg = m_server->config();
     cfg.port = m_spinPort->value();
     cfg.bindAddress = m_editBindAddress->text().trimmed().toStdString();
+    cfg.discoveryMode
+        = m_chkDiscovery->isChecked() ? Onvif::DiscoveryMode::Discoverable : Onvif::DiscoveryMode::NonDiscoverable;
     cfg.deviceName = m_editDeviceName->text().trimmed().toStdString();
     cfg.manufacturer = m_editManufacturer->text().trimmed().toStdString();
     cfg.model = m_editModel->text().trimmed().toStdString();
@@ -279,6 +298,10 @@ void OnvifServerTab::applyUiToConfig()
 
     m_server->setConfig(cfg);
 
+    if (m_device != nullptr && m_device->coreDevice() != nullptr) {
+        m_device->coreDevice()->setAddress(static_cast<std::uint8_t>(m_spinPelcoDAddress->value()));
+    }
+
     if (m_chkBridgePtz->isChecked() && m_device != nullptr) {
         m_server->bindDevice(m_device);
     } else {
@@ -286,6 +309,29 @@ void OnvifServerTab::applyUiToConfig()
     }
 
     m_endpointEdit->setText(m_server->endpointUrl());
+    updateProvisioningBadge();
+}
+
+void OnvifServerTab::updateProvisioningBadge()
+{
+    if (m_server == nullptr || m_provBadge == nullptr) {
+        return;
+    }
+    const auto cfg = m_server->config();
+    bool hasAdmin { false };
+    for (const auto& user : cfg.defaultUsers) {
+        if (user.level == Onvif::OnvifUserLevel::Administrator && !user.username.empty() && !user.password.empty()) {
+            hasAdmin = true;
+            break;
+        }
+    }
+    if (hasAdmin) {
+        m_provBadge->setText(tr("[PROVISIONED]"));
+        m_provBadge->setStyleSheet("color: #4CAF50; font-weight: bold; font-size: 12px;");
+    } else {
+        m_provBadge->setText(tr("[UNPROVISIONED - Set Admin Credentials]"));
+        m_provBadge->setStyleSheet("color: #FFA726; font-weight: bold; font-size: 12px;");
+    }
 }
 
 void OnvifServerTab::onStartClicked()

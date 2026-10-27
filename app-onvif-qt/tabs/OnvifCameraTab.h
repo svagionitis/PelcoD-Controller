@@ -33,10 +33,15 @@ class OnvifCameraTab : public QWidget {
     Q_OBJECT
 
 public:
+    /// @brief Constructs OnvifCameraTab bound to a QOnvifDevice client adapter.
+    /// @param[in] onvifDevice Pointer to QOnvifDevice instance.
+    /// @param[in] parent Optional parent widget.
     explicit OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, QWidget* parent = nullptr);
     ~OnvifCameraTab() override = default;
 
 signals:
+    /// @brief Emitted when the user requests to open an RTSP stream or replay URI.
+    /// @param[in] rtspUri Selected RTSP stream URI.
     void streamUriSelected(const QString& rtspUri);
 
 private slots:
@@ -80,8 +85,8 @@ private slots:
     void handleRefreshGeoLocation();
     void handleSaveGeoLocation();
     void handleExecuteGeoMove();
-    void handleExecuteAbsoluteSpherical();
-    void handleUpdateLiveGeoTargetReadout();
+    void handleExecAbsSpherical();
+    void handleUpdateGeoReadout();
     void handleGeoLocationUpdated(const Onvif::LocationEntity& location);
     void handleGeoMoveCompleted(bool success);
 
@@ -194,13 +199,13 @@ private slots:
     void handleFetchAccessLog();
     void handleSystemLogReceived(Onvif::SystemLogType logType, const QString& logData);
     void handleFetchSupportInfo();
-    void handleSystemSupportInfoReceived(const Onvif::SystemSupportInfo& info);
+    void handleSupportInfoReceived(const Onvif::SystemSupportInfo& info);
     void handleDownloadBackup();
     void handleSystemBackupReceived(const QString& backupData);
     void handleRestoreBackup();
     void handleSystemRestoreCompleted(bool success);
     void handleFetchEndpointReference();
-    void handleEndpointReferenceReceived(const QString& endpointReference);
+    void handleEndpointRefReceived(const QString& endpointReference);
 
     // Profile G: Recordings & Replay
     void handleRefreshRecordings();
@@ -220,10 +225,8 @@ private slots:
     void handleRecordingsUpdated(const std::vector<Onvif::RecordingConfig>& recordings);
     void handleRecordingJobsUpdated(const std::vector<Onvif::RecordingJob>& jobs);
     void handleRecordingSummaryUpdated(const Onvif::RecordingSummary& summary);
-    void handleRecordingSearchResultsReceived(
-        const QString& searchToken, const std::vector<Onvif::RecordingSearchResult>& results);
-    void handleEventSearchResultsReceived(
-        const QString& searchToken, const std::vector<Onvif::RecordedEventResult>& results);
+    void handleRecSearchReceived(const QString& searchToken, const std::vector<Onvif::RecordingSearchResult>& results);
+    void handleEvtSearchReceived(const QString& searchToken, const std::vector<Onvif::RecordedEventResult>& results);
     void handleReplayUriResolved(const QString& recordingToken, const QString& uri);
 
     // PKI Certificates & HTTPS/TLS Security
@@ -271,9 +274,9 @@ private:
     [[nodiscard]] static Onvif::OsdPositionType osdPositionFromIndex(int index) noexcept;
 
     PelcoD::Qt::QOnvifDevice* m_onvifDevice { nullptr };
-    QList<Onvif::DiscoveredDevice> m_discoveredList { };
+    QList<Onvif::DiscoveredDevice> m_discoveredList {};
 
-    QList<QWidget*> m_connectionWidgets;
+    QList<QWidget*> m_connectionWidgets {};
 
     QTabWidget* m_cameraTabs { nullptr };
 
@@ -308,16 +311,16 @@ private:
     QDoubleSpinBox* spinRelTilt { nullptr };
     QDoubleSpinBox* spinRelZoom { nullptr };
     QPushButton* btnRelMove { nullptr };
-    QPushButton* btnGotoHome = nullptr;
-    QPushButton* btnSetHome = nullptr;
-    QPushButton* btnWiperOn = nullptr;
-    QPushButton* btnWiperOff = nullptr;
-    QPushButton* btnWasher = nullptr;
-    QPushButton* btnIrOn = nullptr;
-    QPushButton* btnIrOff = nullptr;
-    QLineEdit* editCustomAux = nullptr;
-    QPushButton* btnSendAux = nullptr;
-    QLabel* lblTelemetryPanTilt = nullptr;
+    QPushButton* btnGotoHome { nullptr };
+    QPushButton* btnSetHome { nullptr };
+    QPushButton* btnWiperOn { nullptr };
+    QPushButton* btnWiperOff { nullptr };
+    QPushButton* btnWasher { nullptr };
+    QPushButton* btnIrOn { nullptr };
+    QPushButton* btnIrOff { nullptr };
+    QLineEdit* editCustomAux { nullptr };
+    QPushButton* btnSendAux { nullptr };
+    QLabel* lblTelemetryPanTilt { nullptr };
     QLabel* lblTelemetryZoom { nullptr };
     QLabel* lblTelemetryMoving { nullptr };
 

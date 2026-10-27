@@ -76,13 +76,13 @@ OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, QWidget* p
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::systemLogReceived, this,
             &OnvifCameraTab::handleSystemLogReceived);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::systemSupportInfoReceived, this,
-            &OnvifCameraTab::handleSystemSupportInfoReceived);
+            &OnvifCameraTab::handleSupportInfoReceived);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::systemBackupReceived, this,
             &OnvifCameraTab::handleSystemBackupReceived);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::systemRestoreCompleted, this,
             &OnvifCameraTab::handleSystemRestoreCompleted);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::endpointReferenceReceived, this,
-            &OnvifCameraTab::handleEndpointReferenceReceived);
+            &OnvifCameraTab::handleEndpointRefReceived);
 
         // PKI Certificates & TLS Security
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::certificatesUpdated, this,
@@ -102,9 +102,9 @@ OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, QWidget* p
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::recordingSummaryUpdated, this,
             &OnvifCameraTab::handleRecordingSummaryUpdated);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::recordingSearchResultsReceived, this,
-            &OnvifCameraTab::handleRecordingSearchResultsReceived);
+            &OnvifCameraTab::handleRecSearchReceived);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::eventSearchResultsReceived, this,
-            &OnvifCameraTab::handleEventSearchResultsReceived);
+            &OnvifCameraTab::handleEvtSearchReceived);
 
         // Profile M & T Analytics Rules & Modules
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::rulesUpdated, this, &OnvifCameraTab::handleRulesUpdated);
@@ -129,7 +129,7 @@ OnvifCameraTab::OnvifCameraTab(PelcoD::Qt::QOnvifDevice* onvifDevice, QWidget* p
             &OnvifCameraTab::handleVideoSourceModeChanged);
 
         // Thermal & Radiometry Service
-        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::radiometryConfigurationUpdated, this,
+        connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::radiometryConfigUpdated, this,
             &OnvifCameraTab::handleRadiometryConfigUpdated);
         connect(m_onvifDevice, &PelcoD::Qt::QOnvifDevice::radiometrySpotsUpdated, this,
             &OnvifCameraTab::handleRadiometrySpotsUpdated);
@@ -240,6 +240,7 @@ void OnvifCameraTab::setupUi()
         b->setFixedSize(50, 40);
         connect(b, &QPushButton::pressed, this, [this, pan, tilt]() { handleContinuousPanTilt(pan, tilt); });
         connect(b, &QPushButton::released, this, &OnvifCameraTab::handleStopMotion);
+        registerConnectionWidget(b);
         return b;
     };
 
@@ -253,6 +254,7 @@ void OnvifCameraTab::setupUi()
     btnStop->setStyleSheet(
         QStringLiteral("QPushButton { font-weight: bold; background-color: #da3633; color: white; }"));
     connect(btnStop, &QPushButton::clicked, this, &OnvifCameraTab::handleStopMotion);
+    registerConnectionWidget(btnStop);
     jogGrid->addWidget(btnStop, 1, 1);
     jogGrid->addWidget(makeJogBtn(QStringLiteral("▶"), 1.0, 0.0), 1, 2);
 
@@ -267,6 +269,8 @@ void OnvifCameraTab::setupUi()
     connect(btnZoomIn, &QPushButton::released, this, &OnvifCameraTab::handleStopMotion);
     connect(btnZoomOut, &QPushButton::pressed, this, [this]() { handleContinuousZoom(-1); });
     connect(btnZoomOut, &QPushButton::released, this, &OnvifCameraTab::handleStopMotion);
+    registerConnectionWidget(btnZoomIn);
+    registerConnectionWidget(btnZoomOut);
 
     auto* zoomLayout = new QHBoxLayout();
     zoomLayout->addWidget(btnZoomIn);
@@ -1792,6 +1796,11 @@ void OnvifCameraTab::setupUi()
     connect(btnGenerateCsr, &QPushButton::clicked, this, &OnvifCameraTab::handleGenerateCsr);
     connect(btnDeleteCert, &QPushButton::clicked, this, &OnvifCameraTab::handleDeleteCertificate);
     connect(btnApplyClientCertMode, &QPushButton::clicked, this, &OnvifCameraTab::handleApplyClientCertMode);
+    connect(tableCertificates, &QTableWidget::cellDoubleClicked, this, [this](int row, int /*column*/) {
+        if (m_onvifDevice != nullptr && tableCertificates != nullptr && tableCertificates->item(row, 0) != nullptr) {
+            m_onvifDevice->fetchCertificateInformation(tableCertificates->item(row, 0)->text());
+        }
+    });
 
     // Profile G: Recordings & Replay connections
     connect(btnRefreshRecordingSummary, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshRecordingSummary);
@@ -1818,9 +1827,9 @@ void OnvifCameraTab::setupUi()
     connect(btnRefreshGeoLoc, &QPushButton::clicked, this, &OnvifCameraTab::handleRefreshGeoLocation);
     connect(btnSaveGeoLoc, &QPushButton::clicked, this, &OnvifCameraTab::handleSaveGeoLocation);
     connect(btnExecuteGeoMove, &QPushButton::clicked, this, &OnvifCameraTab::handleExecuteGeoMove);
-    connect(btnExecuteSphericalMove, &QPushButton::clicked, this, &OnvifCameraTab::handleExecuteAbsoluteSpherical);
+    connect(btnExecuteSphericalMove, &QPushButton::clicked, this, &OnvifCameraTab::handleExecAbsSpherical);
 
-    auto updateGeoTargetLambda = [this]() { handleUpdateLiveGeoTargetReadout(); };
+    auto updateGeoTargetLambda = [this]() { handleUpdateGeoReadout(); };
     connect(spinTargetLat, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, updateGeoTargetLambda);
     connect(spinTargetLon, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, updateGeoTargetLambda);
     connect(spinTargetElev, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, updateGeoTargetLambda);
@@ -1888,6 +1897,12 @@ void OnvifCameraTab::initConnectionWidgets()
 {
     // PTZ
     registerConnectionWidget(cmbProfiles);
+    registerConnectionWidget(btnCopyRtsp);
+    registerConnectionWidget(btnStreamInVideoTab);
+    registerConnectionWidget(sliderSpeed);
+    registerConnectionWidget(spinRelPan);
+    registerConnectionWidget(spinRelTilt);
+    registerConnectionWidget(spinRelZoom);
     registerConnectionWidget(btnGotoHome);
     registerConnectionWidget(btnSetHome);
     registerConnectionWidget(btnRelMove);
@@ -2190,6 +2205,37 @@ void OnvifCameraTab::updateConnectionUi(bool connected)
         lblNucStatus->setText(tr("NUC: Ready"));
         lblThermalAlarmStatus->setText(tr("Alarm: Normal"));
         lblThermalAlarmStatus->setStyleSheet(QStringLiteral("font-weight: bold; color: #238636; padding: 2px 8px;"));
+
+        if (tableRelays != nullptr) {
+            tableRelays->setRowCount(0);
+        }
+        if (tableDigitalInputs != nullptr) {
+            tableDigitalInputs->setRowCount(0);
+        }
+        if (tableMasks != nullptr) {
+            tableMasks->setRowCount(0);
+        }
+        if (cmbVideoSourceModes != nullptr) {
+            cmbVideoSourceModes->clear();
+        }
+        if (cmbImagingPresets != nullptr) {
+            cmbImagingPresets->clear();
+        }
+        if (cmbMetaConfigs != nullptr) {
+            cmbMetaConfigs->clear();
+        }
+        if (tableMetaObjects != nullptr) {
+            tableMetaObjects->setRowCount(0);
+        }
+        if (tableRules != nullptr) {
+            tableRules->setRowCount(0);
+        }
+        if (txtSystemLogs != nullptr) {
+            txtSystemLogs->clear();
+        }
+        if (lblEndpointRef != nullptr) {
+            lblEndpointRef->setText(tr("UUID: -"));
+        }
     }
 }
 
@@ -2385,6 +2431,7 @@ void OnvifCameraTab::handleStopMotion()
 {
     if (m_onvifDevice != nullptr) {
         m_onvifDevice->stopMotion(true, true);
+        m_onvifDevice->refreshStatus();
     }
 }
 
@@ -2394,12 +2441,14 @@ void OnvifCameraTab::handleRelativeMove()
         return;
     }
     m_onvifDevice->relativeMove(spinRelPan->value(), spinRelTilt->value(), spinRelZoom->value());
+    m_onvifDevice->refreshStatus();
 }
 
 void OnvifCameraTab::handleGotoHome()
 {
     if (m_onvifDevice != nullptr) {
         m_onvifDevice->gotoHomePosition();
+        m_onvifDevice->refreshStatus();
     }
 }
 
@@ -2507,7 +2556,7 @@ void OnvifCameraTab::handleExecuteGeoMove()
     m_onvifDevice->geoMove(lat, lon, elev, 1.0, w, h);
 }
 
-void OnvifCameraTab::handleExecuteAbsoluteSpherical()
+void OnvifCameraTab::handleExecAbsSpherical()
 {
     if (m_onvifDevice == nullptr) {
         return;
@@ -2516,9 +2565,10 @@ void OnvifCameraTab::handleExecuteAbsoluteSpherical()
     const double el = spinSphericalElevation->value();
     const double zoom = spinSphericalZoom->value();
     m_onvifDevice->absoluteMoveSpherical(az, el, zoom);
+    m_onvifDevice->refreshStatus();
 }
 
-void OnvifCameraTab::handleUpdateLiveGeoTargetReadout()
+void OnvifCameraTab::handleUpdateGeoReadout()
 {
     if (!spinCameraLat || !spinTargetLat || !lblComputedGeoBearing) {
         return;
@@ -2552,7 +2602,7 @@ void OnvifCameraTab::handleGeoLocationUpdated(const Onvif::LocationEntity& locat
         spinCameraYaw->setValue(location.orientation.yaw);
         spinCameraPitch->setValue(location.orientation.pitch);
 
-        handleUpdateLiveGeoTargetReadout();
+        handleUpdateGeoReadout();
     }
 }
 
@@ -2572,6 +2622,7 @@ void OnvifCameraTab::handleGotoPreset()
     if (row >= 0) {
         const QString token = tablePresets->item(row, 0)->text();
         m_onvifDevice->gotoPreset(token);
+        m_onvifDevice->refreshStatus();
     }
 }
 
@@ -2604,7 +2655,7 @@ void OnvifCameraTab::handleDeletePreset()
 void OnvifCameraTab::handlePresetsUpdated(const std::vector<Onvif::PtzPreset>& presets)
 {
     tablePresets->setRowCount(static_cast<int>(presets.size()));
-    for (size_t i = 0; i < presets.size(); ++i) {
+    for (std::size_t i = 0; i < presets.size(); ++i) {
         const auto& p = presets[i];
         const int row = static_cast<int>(i);
         tablePresets->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(p.token)));
@@ -2637,7 +2688,8 @@ void OnvifCameraTab::handleTourSelected(int index)
                 const auto& spot = tour.spots[i];
                 const int row = static_cast<int>(i);
                 tableTourSpots->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(spot.presetToken)));
-                tableTourSpots->setItem(row, 1, new QTableWidgetItem(QString::number(static_cast<double>(spot.speed), 'f', 2)));
+                tableTourSpots->setItem(
+                    row, 1, new QTableWidgetItem(QString::number(static_cast<double>(spot.speed), 'f', 2)));
                 tableTourSpots->setItem(row, 2, new QTableWidgetItem(QString::number(spot.stayTimeSeconds)));
             }
 
@@ -3093,7 +3145,7 @@ void OnvifCameraTab::handleAddMask()
     }
     Onvif::PrivacyMask mask;
     mask.token = editMaskToken->text().trimmed().toStdString();
-    mask.configurationToken = "VideoSourceConfig_1";
+    mask.configurationToken = m_onvifDevice->activeVideoSourceToken().toStdString();
 
     const int typeIdx = cmbMaskType->currentIndex();
     if (typeIdx == 1) {
@@ -3128,8 +3180,8 @@ void OnvifCameraTab::handleUpdateMask()
     const QString token = tableMasks->item(row, 0)->text();
     Onvif::PrivacyMask mask;
     mask.token = token.toStdString();
-    mask.configurationToken
-        = tableMasks->item(row, 1) ? tableMasks->item(row, 1)->text().toStdString() : "VideoSourceConfig_1";
+    mask.configurationToken = tableMasks->item(row, 1) ? tableMasks->item(row, 1)->text().toStdString()
+                                                       : m_onvifDevice->activeVideoSourceToken().toStdString();
 
     const int typeIdx = cmbMaskType->currentIndex();
     if (typeIdx == 1) {
@@ -3221,7 +3273,7 @@ void OnvifCameraTab::handleApplyVideoSourceMode()
     if (modeToken.isEmpty()) {
         return;
     }
-    m_onvifDevice->setVideoSourceMode("VideoSource_1", modeToken);
+    m_onvifDevice->setVideoSourceMode(QString(), modeToken);
 }
 
 void OnvifCameraTab::handleVideoSourceModesUpdated(const std::vector<Onvif::VideoSourceMode>& modes)
@@ -3242,6 +3294,13 @@ void OnvifCameraTab::handleVideoSourceModesUpdated(const std::vector<Onvif::Vide
                             .arg(mode.reboot ? tr(", Reboot") : "");
         if (mode.enabled) {
             label += tr(" [ACTIVE]");
+            if (lblVideoSourceModeInfo != nullptr) {
+                lblVideoSourceModeInfo->setText(tr("Active Mode: %1 (%2x%3 @ %4 fps)")
+                                                    .arg(QString::fromStdString(mode.token))
+                                                    .arg(mode.width)
+                                                    .arg(mode.height)
+                                                    .arg(static_cast<double>(mode.maxFramerate), 0, 'f', 0));
+            }
         }
         cmbVideoSourceModes->addItem(label, QString::fromStdString(mode.token));
     }
@@ -3704,7 +3763,8 @@ void OnvifCameraTab::handleDigitalInputsUpdated(const std::vector<Onvif::Digital
         tableDigitalInputs->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(in.token)));
         tableDigitalInputs->setItem(
             row, 1, new QTableWidgetItem(QString::fromStdString(Onvif::relayIdleStateToString(in.idleState))));
-        tableDigitalInputs->setItem(row, 2, new QTableWidgetItem(in.active ? tr("Active") : tr("Inactive")));
+        tableDigitalInputs->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(in.sensorType)));
+        tableDigitalInputs->setItem(row, 3, new QTableWidgetItem(in.active ? tr("Active") : tr("Inactive")));
     }
 }
 
@@ -3877,6 +3937,8 @@ void OnvifCameraTab::handleRefreshRules()
     if (m_onvifDevice != nullptr) {
         m_onvifDevice->refreshRules();
         m_onvifDevice->refreshSupportedRules();
+        m_onvifDevice->refreshAnalyticsModules();
+        m_onvifDevice->refreshSupportedModules();
     }
 }
 
@@ -3960,7 +4022,7 @@ void OnvifCameraTab::handleRulesUpdated(const std::vector<Onvif::AnalyticsRule>&
         tableRules->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(r.type)));
 
         QString classesStr;
-        for (size_t i = 0; i < r.objectClasses.size(); ++i) {
+        for (std::size_t i = 0; i < r.objectClasses.size(); ++i) {
             if (i > 0)
                 classesStr += QStringLiteral(", ");
             classesStr += QString::fromStdString(r.objectClasses[i]);
@@ -3990,20 +4052,30 @@ void OnvifCameraTab::handleRulesUpdated(const std::vector<Onvif::AnalyticsRule>&
     }
 }
 
-void OnvifCameraTab::handleSupportedRulesUpdated(const std::vector<Onvif::AnalyticsRuleDescription>& /*rules*/)
+void OnvifCameraTab::handleSupportedRulesUpdated(const std::vector<Onvif::AnalyticsRuleDescription>& rules)
 {
+    if (cmbRuleType == nullptr || rules.empty()) {
+        return;
+    }
+    for (const auto& desc : rules) {
+        const QString typeStr { QString::fromStdString(desc.ruleType) };
+        if (!typeStr.isEmpty() && cmbRuleType->findData(typeStr) < 0) {
+            cmbRuleType->addItem(typeStr, typeStr);
+        }
+    }
 }
 
 void OnvifCameraTab::handleRefreshAnalyticsModules()
 {
     if (m_onvifDevice != nullptr) {
         m_onvifDevice->refreshAnalyticsModules();
-        m_onvifDevice->refreshSupportedAnalyticsModules();
+        m_onvifDevice->refreshSupportedModules();
     }
 }
 
-void OnvifCameraTab::handleAnalyticsModulesUpdated(const std::vector<Onvif::AnalyticsModule>& /*modules*/)
+void OnvifCameraTab::handleAnalyticsModulesUpdated(const std::vector<Onvif::AnalyticsModule>& modules)
 {
+    Q_UNUSED(modules);
 }
 
 void OnvifCameraTab::handleFetchSystemLog()
@@ -4039,7 +4111,7 @@ void OnvifCameraTab::handleFetchSupportInfo()
     }
 }
 
-void OnvifCameraTab::handleSystemSupportInfoReceived(const Onvif::SystemSupportInfo& info)
+void OnvifCameraTab::handleSupportInfoReceived(const Onvif::SystemSupportInfo& info)
 {
     if (txtSystemLogs == nullptr) {
         return;
@@ -4102,7 +4174,7 @@ void OnvifCameraTab::handleFetchEndpointReference()
     }
 }
 
-void OnvifCameraTab::handleEndpointReferenceReceived(const QString& endpointReference)
+void OnvifCameraTab::handleEndpointRefReceived(const QString& endpointReference)
 {
     if (lblEndpointRef != nullptr) {
         lblEndpointRef->setText(QStringLiteral("UUID: %1").arg(endpointReference));
@@ -4372,7 +4444,7 @@ void OnvifCameraTab::handleRecordingSummaryUpdated(const Onvif::RecordingSummary
                                      .arg(summary.totalStorageBytes / (1024ULL * 1024ULL)));
 }
 
-void OnvifCameraTab::handleRecordingSearchResultsReceived(
+void OnvifCameraTab::handleRecSearchReceived(
     const QString& /*searchToken*/, const std::vector<Onvif::RecordingSearchResult>& results)
 {
     tableSearchResults->setRowCount(0);
@@ -4387,7 +4459,7 @@ void OnvifCameraTab::handleRecordingSearchResultsReceived(
     }
 }
 
-void OnvifCameraTab::handleEventSearchResultsReceived(
+void OnvifCameraTab::handleEvtSearchReceived(
     const QString& /*searchToken*/, const std::vector<Onvif::RecordedEventResult>& results)
 {
     tableEventSearchResults->setRowCount(0);
@@ -4534,7 +4606,7 @@ void OnvifCameraTab::handleClientCertModeUpdated(Onvif::ClientCertificateMode mo
 void OnvifCameraTab::handleRefreshRadiometry()
 {
     if (m_onvifDevice != nullptr) {
-        m_onvifDevice->refreshRadiometryConfiguration();
+        m_onvifDevice->refreshRadiometryConfig();
     }
 }
 
@@ -4562,10 +4634,13 @@ void OnvifCameraTab::handleRefreshPalettes()
 
 void OnvifCameraTab::handleSetPalette()
 {
-    if (m_onvifDevice == nullptr) {
+    if (m_onvifDevice == nullptr || cmbThermalPalettes == nullptr) {
         return;
     }
-    const QString palette = cmbThermalPalettes->currentText().trimmed();
+    QString palette { cmbThermalPalettes->currentData().toString().trimmed() };
+    if (palette.isEmpty()) {
+        palette = cmbThermalPalettes->currentText().trimmed();
+    }
     if (!palette.isEmpty()) {
         m_onvifDevice->setColorPalette(palette);
     }
@@ -4708,8 +4783,7 @@ void OnvifCameraTab::handleRadiometrySpotsUpdated(const std::vector<Onvif::Radio
         tableRadiometry->setItem(
             row, 4, new QTableWidgetItem(QString("%1 °C").arg(static_cast<double>(s.temperature), 0, 'f', 1)));
         tableRadiometry->setItem(row, 5,
-            new QTableWidgetItem(
-                QString("%1 °F").arg(static_cast<double>(s.temperature) * 1.8 + 32.0, 0, 'f', 1)));
+            new QTableWidgetItem(QString("%1 °F").arg(static_cast<double>(s.temperature) * 1.8 + 32.0, 0, 'f', 1)));
         tableRadiometry->setItem(row, 6, new QTableWidgetItem(tr("N/A")));
     }
     if (m_onvifDevice != nullptr) {
@@ -4760,8 +4834,7 @@ void OnvifCameraTab::handleRadiometryBoxesUpdated(const std::vector<Onvif::Radio
             tableRadiometry->setItem(
                 row, 4, new QTableWidgetItem(QString("%1 °C").arg(static_cast<double>(s.temperature), 0, 'f', 1)));
             tableRadiometry->setItem(row, 5,
-                new QTableWidgetItem(
-                    QString("%1 °F").arg(static_cast<double>(s.temperature) * 1.8 + 32.0, 0, 'f', 1)));
+                new QTableWidgetItem(QString("%1 °F").arg(static_cast<double>(s.temperature) * 1.8 + 32.0, 0, 'f', 1)));
             tableRadiometry->setItem(row, 6, new QTableWidgetItem(tr("N/A")));
         }
     }
@@ -4808,8 +4881,16 @@ void OnvifCameraTab::handleRadiometryBoxesUpdated(const std::vector<Onvif::Radio
 void OnvifCameraTab::handleColorPalettesUpdated(const std::vector<Onvif::ColorPalette>& palettes)
 {
     cmbThermalPalettes->clear();
-    for (const auto& p : palettes) {
+    int activeIdx { -1 };
+    for (std::size_t i = 0U; i < palettes.size(); ++i) {
+        const auto& p = palettes[i];
         cmbThermalPalettes->addItem(QString::fromStdString(p.name), QString::fromStdString(p.token));
+        if (p.isDefault) {
+            activeIdx = static_cast<int>(i);
+        }
+    }
+    if (activeIdx >= 0) {
+        cmbThermalPalettes->setCurrentIndex(activeIdx);
     }
 }
 

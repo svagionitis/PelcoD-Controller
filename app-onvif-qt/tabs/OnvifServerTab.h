@@ -3,16 +3,17 @@
 /// @file OnvifServerTab.h
 /// @brief Dashboard tab for configuring and monitoring the embedded ONVIF Profile S/T server.
 
-#include "QOnvifServer.h"
-#include "QPelcoDDevice.h"
-
 #include <QCheckBox>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QString>
 #include <QTableWidget>
 #include <QWidget>
+
+#include "QOnvifServer.h"
+#include "QPelcoDDevice.h"
 
 namespace OnvifApp {
 
@@ -31,28 +32,63 @@ public:
     ~OnvifServerTab() override = default;
 
 private slots:
+    /// @brief Applies UI configuration and starts the ONVIF server.
     void onStartClicked();
+
+    /// @brief Stops the running ONVIF server.
     void onStopClicked();
+
+    /// @brief Applies UI configuration and restarts the ONVIF server.
     void onRestartClicked();
+
+    /// @brief Persists UI fields into the QOnvifServer configuration.
     void onApplyConfigClicked();
+
+    /// @brief Updates status badge and controls when server starts listening.
+    /// @param[in] endpointUrl Active service endpoint URL.
     void onServerStarted(const QString& endpointUrl);
+
+    /// @brief Updates status badge and controls when server stops.
     void onServerStopped();
+
+    /// @brief Displays a warning dialog when a server error occurs.
+    /// @param[in] error Diagnostic error description.
     void onErrorOccurred(const QString& error);
+
+    /// @brief Appends an incoming SOAP transaction entry to the activity table.
+    /// @param[in] service Target ONVIF service name.
+    /// @param[in] action SOAP action/operation name.
+    /// @param[in] clientIp Remote client IP address.
     void onRequestLogged(const QString& service, const QString& action, const QString& clientIp);
+
+    /// @brief Clears the SOAP transaction log table and resets the counter.
     void onClearLogClicked();
+
+    /// @brief Copies the advertised ONVIF endpoint URL to the system clipboard.
     void onCopyEndpointClicked();
 
 private:
+    /// @brief Builds the splitter layout, configuration forms, and log table.
     void setupUi();
+
+    /// @brief Connects UI buttons and QOnvifServer signals.
     void setupConnections();
+
+    /// @brief Populates UI fields from the current QOnvifServer configuration.
     void syncUiFromConfig();
+
+    /// @brief Reads UI fields and updates QOnvifServer and Pelco-D bridge settings.
     void applyUiToConfig();
+
+    /// @brief Updates the provisioning status badge based on configured credentials.
+    void updateProvisioningBadge();
 
     PelcoD::Qt::QOnvifServer* m_server { nullptr };
     PelcoDQt::QPelcoDDevice* m_device { nullptr };
 
     // Service Controls
     QLabel* m_statusBadge { nullptr };
+    QLabel* m_provBadge { nullptr };
     QLineEdit* m_endpointEdit { nullptr };
     QPushButton* m_btnCopyEndpoint { nullptr };
     QPushButton* m_btnStart { nullptr };

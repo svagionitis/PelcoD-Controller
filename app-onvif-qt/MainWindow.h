@@ -3,13 +3,15 @@
 /// @file MainWindow.h
 /// @brief Main application window for ONVIF Profile S/T/G camera and server suite.
 
+#include <QMainWindow>
+#include <QString>
+#include <QTabWidget>
+
 #include "QOnvifDevice.h"
 #include "QOnvifServer.h"
+#include "QPelcoDDevice.h"
 #include "app-onvif-qt/tabs/OnvifCameraTab.h"
 #include "app-onvif-qt/tabs/OnvifServerTab.h"
-
-#include <QMainWindow>
-#include <QTabWidget>
 
 namespace OnvifApp {
 
@@ -25,17 +27,32 @@ public:
     ~MainWindow() override = default;
 
 private slots:
+    /// @brief Handles RTSP stream or replay URI selection from the camera tab.
+    /// @param[in] uri Selected RTSP URI.
     void handleStreamUri(const QString& uri);
+
+    /// @brief Updates status bar when ONVIF camera connects.
+    /// @param[in] endpoint Connected service endpoint URL.
+    /// @param[in] model Camera model string.
     void handleCameraConnected(const QString& endpoint, const QString& model);
+
+    /// @brief Updates status bar when ONVIF camera disconnects.
     void handleCameraDisconnected();
+
+    /// @brief Displays ONVIF client error message in status bar.
+    /// @param[in] error Diagnostic error description.
     void handleCameraError(const QString& error);
 
 private:
+    /// @brief Initializes main window layout and child tabs.
     void setupUi();
+
+    /// @brief Connects child tab and device signals to main window slots.
     void setupConnections();
 
     PelcoD::Qt::QOnvifDevice* m_onvifDevice { nullptr };
     PelcoD::Qt::QOnvifServer* m_onvifServer { nullptr };
+    PelcoDQt::QPelcoDDevice* m_pelcoDevice { nullptr };
 
     QTabWidget* m_tabWidget { nullptr };
     OnvifCameraTab* m_cameraTab { nullptr };

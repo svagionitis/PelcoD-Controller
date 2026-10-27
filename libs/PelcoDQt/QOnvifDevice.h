@@ -3,17 +3,22 @@
 /// @file QOnvifDevice.h
 /// @brief Qt QObject adapter bridging ONVIF Profile S IP camera client.
 
-#include "Onvif/OnvifClient.h"
-#include "Onvif/OnvifDiscovery.h"
-#include "Onvif/OnvifTypes.h"
+#include <atomic>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <vector>
 
 #include <QList>
 #include <QObject>
 #include <QString>
 
-#include <memory>
-#include <optional>
-#include <vector>
+#include "Onvif/OnvifClient.h"
+#include "Onvif/OnvifDiscovery.h"
+#include "Onvif/OnvifTypes.h"
+
+class QThread;
 
 namespace PelcoD::Qt {
 
@@ -39,6 +44,10 @@ public:
     /// @brief Gets active media profile token.
     /// @return Current profile token string.
     [[nodiscard]] QString activeProfileToken() const;
+
+    /// @brief Gets active video source token for the current profile.
+    /// @return Current video source token string.
+    [[nodiscard]] QString activeVideoSourceToken() const;
 
     /// @brief Gets active RTSP stream URI resolved for current profile.
     /// @return RTSP URI.
@@ -765,7 +774,7 @@ public Q_SLOTS:
     bool deleteRules(const QStringList& ruleNames);
 
     /// @brief Queries supported video analytics modules descriptions.
-    void refreshSupportedAnalyticsModules();
+    void refreshSupportedModules();
 
     /// @brief Queries active video analytics modules from camera.
     void refreshAnalyticsModules();
@@ -795,7 +804,7 @@ public Q_SLOTS:
 
     /// @brief Queries privacy mask configuration limits and options.
     /// @param[in] configToken VideoSourceConfiguration token.
-    void refreshMaskOptions(const QString& configToken = "VideoSourceConfig_1");
+    void refreshMaskOptions(const QString& configToken = QString());
 
     /// @brief Creates a new privacy mask on the camera.
     /// @param[in] mask Privacy mask definition.
@@ -814,7 +823,7 @@ public Q_SLOTS:
 
     /// @brief Queries supported video capture modes from camera.
     /// @param[in] videoSourceToken Video source token.
-    void refreshVideoSourceModes(const QString& videoSourceToken = "VideoSource_1");
+    void refreshVideoSourceModes(const QString& videoSourceToken = QString());
 
     /// @brief Switches camera sensor capture mode.
     /// @param[in] videoSourceToken Video source token.
@@ -824,30 +833,38 @@ public Q_SLOTS:
 
     /// @brief Queries radiometric compensation parameters from camera.
     /// @param[in] videoSourceToken Video source token.
-    void refreshRadiometryConfiguration(const QString& videoSourceToken = "VideoSource_1");
+    void refreshRadiometryConfig(const QString& videoSourceToken = QString());
 
     /// @brief Updates radiometric compensation parameters on camera.
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] config Updated configuration.
     /// @return True on success.
     bool setRadiometryConfiguration(const QString& videoSourceToken, const Onvif::RadiometryConfig& config);
+
+    /// @brief Updates radiometric compensation parameters on active video source.
+    /// @param[in] config Updated configuration.
+    /// @return True on success.
     bool setRadiometryConfiguration(const Onvif::RadiometryConfig& config)
     {
-        return setRadiometryConfiguration("VideoSource_1", config);
+        return setRadiometryConfiguration(QString(), config);
     }
 
     /// @brief Queries radiometric spotmeters and measurement boxes.
     /// @param[in] videoSourceToken Video source token.
-    void refreshRadiometryMeasurements(const QString& videoSourceToken = "VideoSource_1");
+    void refreshRadiometryMeasurements(const QString& videoSourceToken = QString());
 
     /// @brief Updates or replaces radiometric spotmeters.
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] spots Vector of spots.
     /// @return True on success.
     bool setRadiometrySpots(const QString& videoSourceToken, const std::vector<Onvif::RadiometrySpot>& spots);
+
+    /// @brief Updates or replaces radiometric spotmeters on active video source.
+    /// @param[in] spots Vector of spots.
+    /// @return True on success.
     bool setRadiometrySpots(const std::vector<Onvif::RadiometrySpot>& spots)
     {
-        return setRadiometrySpots("VideoSource_1", spots);
+        return setRadiometrySpots(QString(), spots);
     }
 
     /// @brief Updates or replaces radiometric measurement boxes.
@@ -855,29 +872,37 @@ public Q_SLOTS:
     /// @param[in] boxes Vector of boxes.
     /// @return True on success.
     bool setRadiometryBoxes(const QString& videoSourceToken, const std::vector<Onvif::RadiometryBox>& boxes);
+
+    /// @brief Updates or replaces radiometric measurement boxes on active video source.
+    /// @param[in] boxes Vector of boxes.
+    /// @return True on success.
     bool setRadiometryBoxes(const std::vector<Onvif::RadiometryBox>& boxes)
     {
-        return setRadiometryBoxes("VideoSource_1", boxes);
+        return setRadiometryBoxes(QString(), boxes);
     }
 
     /// @brief Queries available thermal false-color palettes.
     /// @param[in] videoSourceToken Video source token.
-    void refreshColorPalettes(const QString& videoSourceToken = "VideoSource_1");
+    void refreshColorPalettes(const QString& videoSourceToken = QString());
 
     /// @brief Switches active thermal false-color palette.
     /// @param[in] videoSourceToken Video source token.
     /// @param[in] paletteToken Palette token (e.g. "Ironbow").
     /// @return True on success.
     bool setColorPalette(const QString& videoSourceToken, const QString& paletteToken);
+
+    /// @brief Switches active thermal false-color palette on active video source.
+    /// @param[in] paletteToken Palette token (e.g. "Ironbow").
+    /// @return True on success.
     bool setColorPalette(const QString& paletteToken)
     {
-        return setColorPalette("VideoSource_1", paletteToken);
+        return setColorPalette(QString(), paletteToken);
     }
 
     /// @brief Triggers Non-Uniformity Correction (NUC / shutter calibration).
     /// @param[in] videoSourceToken Video source token.
     /// @return True on success.
-    bool triggerNuc(const QString& videoSourceToken = "VideoSource_1");
+    bool triggerNuc(const QString& videoSourceToken = QString());
 
 Q_SIGNALS:
     /// @brief Emitted when device connection succeeds.
@@ -1068,7 +1093,7 @@ Q_SIGNALS:
 
     /// @brief Emitted when supported video analytics modules are refreshed.
     /// @param[in] modules List of supported module descriptions.
-    void supportedAnalyticsModulesUpdated(const std::vector<Onvif::AnalyticsModuleDescription>& modules);
+    void supportedModulesUpdated(const std::vector<Onvif::AnalyticsModuleDescription>& modules);
 
     /// @brief Emitted when privacy masks list is refreshed.
     /// @param[in] masks List of configured privacy masks.
@@ -1089,7 +1114,7 @@ Q_SIGNALS:
 
     /// @brief Emitted when radiometric configuration is retrieved.
     /// @param[in] config Radiometric compensation configuration.
-    void radiometryConfigurationUpdated(const Onvif::RadiometryConfig& config);
+    void radiometryConfigUpdated(const Onvif::RadiometryConfig& config);
 
     /// @brief Emitted when radiometric spotmeters list is refreshed.
     /// @param[in] spots List of spotmeters.
@@ -1118,53 +1143,59 @@ Q_SIGNALS:
 private:
     void pollEvents();
     void pollMetadata();
+    [[nodiscard]] std::string resolveVideoSourceToken(const QString& videoSourceToken) const;
 
-    std::unique_ptr<Onvif::OnvifClient> m_client { };
+    mutable std::mutex m_clientMutex {};
+    std::unique_ptr<Onvif::OnvifClient> m_client {};
     bool m_connected { false };
-    QString m_endpoint { };
-    QString m_activeProfileToken { };
-    QString m_activeVideoSourceToken { };
-    QString m_rtspStreamUri { };
-    QString m_snapshotUri { };
-    std::vector<Onvif::MediaProfile> m_profiles { };
-    std::vector<Onvif::PtzPreset> m_presets { };
-    std::vector<Onvif::PresetTour> m_presetTours { };
-    std::vector<Onvif::OsdConfig> m_osds { };
-    std::vector<Onvif::OnvifUser> m_users { };
-    std::vector<Onvif::NetworkInterfaceConfig> m_networkInterfaces { };
-    QString m_networkGateway { };
-    Onvif::DnsConfig m_dnsConfig { };
-    Onvif::NtpConfig m_ntpConfig { };
-    Onvif::DeviceInformation m_deviceInfo { };
-    Onvif::ImagingSettings m_imagingSettings { };
-    Onvif::FocusStatus20 m_focusStatus { };
-    std::vector<Onvif::ImagingPreset> m_imagingPresets { };
-    std::vector<Onvif::RelayOutputConfig> m_relayOutputs { };
-    std::vector<Onvif::DigitalInputConfig> m_digitalInputs { };
-    QString m_eventSubscriptionUrl { };
-    bool m_eventSubActive { false };
-    std::vector<Onvif::MetadataConfiguration> m_metadataConfigs { };
-    bool m_metadataStreamingActive { false };
-    std::vector<Onvif::OnvifCertificate> m_certificates { };
+    QString m_endpoint {};
+    QString m_activeProfileToken {};
+    QString m_activeVideoSourceToken {};
+    QString m_activeAnalyticsToken { QStringLiteral("VideoAnalyticsConfig_1") };
+    QString m_rtspStreamUri {};
+    QString m_snapshotUri {};
+    std::vector<Onvif::MediaProfile> m_profiles {};
+    std::vector<Onvif::PtzPreset> m_presets {};
+    std::vector<Onvif::PresetTour> m_presetTours {};
+    std::vector<Onvif::OsdConfig> m_osds {};
+    std::vector<Onvif::OnvifUser> m_users {};
+    std::vector<Onvif::NetworkInterfaceConfig> m_networkInterfaces {};
+    QString m_networkGateway {};
+    Onvif::DnsConfig m_dnsConfig {};
+    Onvif::NtpConfig m_ntpConfig {};
+    Onvif::DeviceInformation m_deviceInfo {};
+    Onvif::ImagingSettings m_imagingSettings {};
+    Onvif::FocusStatus20 m_focusStatus {};
+    std::vector<Onvif::ImagingPreset> m_imagingPresets {};
+    std::vector<Onvif::RelayOutputConfig> m_relayOutputs {};
+    std::vector<Onvif::DigitalInputConfig> m_digitalInputs {};
+    QString m_eventSubscriptionUrl {};
+    std::atomic<bool> m_eventSubActive { false };
+    QThread* m_eventThread { nullptr };
+    std::vector<Onvif::MetadataConfiguration> m_metadataConfigs {};
+    std::atomic<bool> m_metadataStreamingActive { false };
+    QThread* m_metadataThread { nullptr };
+    QThread* m_discoveryThread { nullptr };
+    std::vector<Onvif::OnvifCertificate> m_certificates {};
     Onvif::ClientCertificateMode m_clientCertMode { Onvif::ClientCertificateMode::Off };
-    std::vector<Onvif::RecordingConfig> m_recordings { };
-    std::vector<Onvif::RecordingJob> m_recordingJobs { };
-    std::optional<Onvif::RecordingSummary> m_recordingSummary { };
-    std::optional<Onvif::ReplayConfiguration> m_replayConfig { };
-    std::vector<Onvif::AnalyticsRule> m_rules { };
-    std::vector<Onvif::AnalyticsRuleDescription> m_supportedRules { };
-    std::vector<Onvif::AnalyticsModule> m_analyticsModules { };
-    std::vector<Onvif::AnalyticsModuleDescription> m_supportedModules { };
-    std::optional<Onvif::LocationEntity> m_geoLocation { };
+    std::vector<Onvif::RecordingConfig> m_recordings {};
+    std::vector<Onvif::RecordingJob> m_recordingJobs {};
+    std::optional<Onvif::RecordingSummary> m_recordingSummary {};
+    std::optional<Onvif::ReplayConfiguration> m_replayConfig {};
+    std::vector<Onvif::AnalyticsRule> m_rules {};
+    std::vector<Onvif::AnalyticsRuleDescription> m_supportedRules {};
+    std::vector<Onvif::AnalyticsModule> m_analyticsModules {};
+    std::vector<Onvif::AnalyticsModuleDescription> m_supportedModules {};
+    std::optional<Onvif::LocationEntity> m_geoLocation {};
 
-    std::vector<Onvif::PrivacyMask> m_masks { };
-    std::optional<Onvif::MaskOptions> m_maskOptions { };
-    std::vector<Onvif::VideoSourceMode> m_videoSourceModes { };
+    std::vector<Onvif::PrivacyMask> m_masks {};
+    std::optional<Onvif::MaskOptions> m_maskOptions {};
+    std::vector<Onvif::VideoSourceMode> m_videoSourceModes {};
 
-    Onvif::RadiometryConfig m_radiometryConfig { };
-    std::vector<Onvif::RadiometrySpot> m_radiometrySpots { };
-    std::vector<Onvif::RadiometryBox> m_radiometryBoxes { };
-    std::vector<Onvif::ColorPalette> m_colorPalettes { };
+    Onvif::RadiometryConfig m_radiometryConfig {};
+    std::vector<Onvif::RadiometrySpot> m_radiometrySpots {};
+    std::vector<Onvif::RadiometryBox> m_radiometryBoxes {};
+    std::vector<Onvif::ColorPalette> m_colorPalettes {};
 };
 
 } // namespace PelcoD::Qt

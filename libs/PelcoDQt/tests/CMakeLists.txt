@@ -24,3 +24,10 @@ endfunction()
 
 add_qt_test(TestQPelcoDDevice TestQPelcoDDevice.cpp)
 add_qt_test(TestRetryPolicy   TestRetryPolicy.cpp)
+
+if(PELCOD_ENABLE_ONVIF)
+    add_qt_test(TestQOnvifIntegration TestQOnvifIntegration.cpp)
+    target_include_directories(TestQOnvifIntegration PRIVATE
+        ${CMAKE_SOURCE_DIR}/libs/Onvif
+    )
+endif()

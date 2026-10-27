@@ -1,17 +1,23 @@
 #pragma once
 
 /// @file QOnvifServer.h
-/// @brief Qt 6 QObject adapter wrapping OnvifServer and PelcoDPtzAdapter for GUI/application management.
+/// @brief Qt 6 QObject adapter wrapping OnvifServer and service adapters for GUI/application management.
 
-#include "Onvif/OnvifServer.h"
-#include "Onvif/OnvifServerTypes.h"
-#include "Onvif/adapters/PelcoDPtzAdapter.h"
-#include "QPelcoDDevice.h"
+#include <memory>
+#include <mutex>
 
 #include <QObject>
 #include <QString>
-#include <memory>
-#include <mutex>
+
+#include "Onvif/OnvifServer.h"
+#include "Onvif/OnvifServerTypes.h"
+#include "Onvif/adapters/DeviceSystemAdapter.h"
+#include "Onvif/adapters/PelcoDPtzAdapter.h"
+#include "Onvif/adapters/StubAnalyticsAdapter.h"
+#include "Onvif/adapters/StubMediaExtensionAdapter.h"
+#include "Onvif/adapters/StubRecordingAdapter.h"
+#include "Onvif/adapters/StubThermalAdapter.h"
+#include "QPelcoDDevice.h"
 
 namespace PelcoD {
 class PatrolController;
@@ -20,9 +26,9 @@ class PatrolController;
 namespace PelcoD::Qt {
 
 /// @class QOnvifServer
-/// @brief Manages the embedded ONVIF Profile S/T HTTP and WS-Discovery server within a Qt event loop.
+/// @brief Manages the embedded ONVIF Profile S/T/G/M HTTP and WS-Discovery server within a Qt event loop.
 /// @details Exposes Qt signals/slots for starting, stopping, configuring the server, and routing incoming
-/// PTZ/Imaging commands to a QPelcoDDevice.
+/// PTZ, Imaging, Device Management, Recording, Analytics, Media2, and Thermal commands.
 class QOnvifServer : public QObject {
     Q_OBJECT
 
@@ -98,6 +104,11 @@ signals:
 private:
     Onvif::OnvifServerConfig m_config {};
     std::shared_ptr<Onvif::PelcoDPtzAdapter> m_ptzAdapter { nullptr };
+    std::shared_ptr<Onvif::DeviceSystemAdapter> m_deviceSystemAdapter { nullptr };
+    std::shared_ptr<Onvif::StubRecordingAdapter> m_recordingAdapter { nullptr };
+    std::shared_ptr<Onvif::StubAnalyticsAdapter> m_analyticsAdapter { nullptr };
+    std::shared_ptr<Onvif::StubMediaExtensionAdapter> m_mediaExtAdapter { nullptr };
+    std::shared_ptr<Onvif::StubThermalAdapter> m_thermalAdapter { nullptr };
     PelcoD::PatrolController* m_patrolController { nullptr };
     std::unique_ptr<Onvif::OnvifServer> m_server { nullptr };
     mutable std::mutex m_mutex {};
