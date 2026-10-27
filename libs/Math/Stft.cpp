@@ -3,11 +3,17 @@
 
 #include "Stft.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstddef>
+
+#include <algorithm>
+#include <deque>
+#include <mutex>
 #include <numeric>
+#include <utility>
 #include <vector>
+
+#include "Fft.h"
 
 namespace Math {
 
@@ -39,22 +45,19 @@ void Stft::setConfig(const StftConfig& config)
     }
 
     m_sampleBuffer.clear();
-    m_sampleBuffer.reserve(m_config.windowSize);
     m_samplesSinceLastHop = 0U;
     m_currentTimestamp = 0.0;
     m_history.clear();
 }
 
-StftConfig Stft::getConfig() const noexcept
+StftConfig Stft::getConfig() const
 {
     std::scoped_lock lock(m_mutex);
     return m_config;
 }
 
-void Stft::addSample(double sample, double timestamp)
+void Stft::addSampleUnlocked(double sample, double timestamp)
 {
-    std::scoped_lock lock(m_mutex);
-
     if (timestamp >= 0.0) {
         m_currentTimestamp = timestamp;
     } else {
@@ -63,7 +66,7 @@ void Stft::addSample(double sample, double timestamp)
 
     m_sampleBuffer.push_back(sample);
     if (m_sampleBuffer.size() > m_config.windowSize) {
-        m_sampleBuffer.erase(m_sampleBuffer.begin());
+        m_sampleBuffer.pop_front();
     }
 
     ++m_samplesSinceLastHop;
@@ -74,17 +77,24 @@ void Stft::addSample(double sample, double timestamp)
     }
 }
 
+void Stft::addSample(double sample, double timestamp)
+{
+    std::scoped_lock lock(m_mutex);
+    addSampleUnlocked(sample, timestamp);
+}
+
 void Stft::addSamples(const std::vector<double>& samples, double startTime)
 {
     if (samples.empty()) {
         return;
     }
 
+    std::scoped_lock lock(m_mutex);
     const double dt = 1.0 / m_config.sampleRateHz;
     double t = (startTime >= 0.0) ? startTime : m_currentTimestamp;
 
     for (double s : samples) {
-        addSample(s, t);
+        addSampleUnlocked(s, t);
         t += dt;
     }
 }
@@ -95,7 +105,7 @@ std::vector<SpectrogramFrame> Stft::getHistory() const
     return { m_history.begin(), m_history.end() };
 }
 
-bool Stft::hasFrames() const noexcept
+bool Stft::hasFrames() const
 {
     std::scoped_lock lock(m_mutex);
     return !m_history.empty();
@@ -105,7 +115,7 @@ SpectrogramFrame Stft::getLatestFrame() const
 {
     std::scoped_lock lock(m_mutex);
     if (m_history.empty()) {
-        return SpectrogramFrame { };
+        return SpectrogramFrame {};
     }
     return m_history.back();
 }
@@ -123,7 +133,7 @@ std::vector<double> Stft::getFrequencyBinsHz() const
     return freqs;
 }
 
-void Stft::reset() noexcept
+void Stft::reset()
 {
     std::scoped_lock lock(m_mutex);
     m_sampleBuffer.clear();
@@ -138,7 +148,7 @@ void Stft::processWindow(double windowEndTime)
     const std::size_t numBins = N / 2U + 1U;
     const double binWidthHz = m_config.sampleRateHz / static_cast<double>(N);
 
-    std::vector<double> windowData = m_sampleBuffer;
+    std::vector<double> windowData(m_sampleBuffer.begin(), m_sampleBuffer.end());
 
     // 1. Detrend / mean subtraction to suppress 0 Hz DC spike
     if (m_config.detrend && !windowData.empty()) {
@@ -156,7 +166,7 @@ void Stft::processWindow(double windowEndTime)
     const auto complexSpectrum = rfft(windowData);
 
     // 4. Compute single-sided power spectrum and dB spectrum
-    SpectrogramFrame frame;
+    SpectrogramFrame frame {};
     frame.timestamp = windowEndTime;
     frame.powerSpectrum.resize(numBins, 0.0);
     frame.dbSpectrum.resize(numBins, m_config.minDb);

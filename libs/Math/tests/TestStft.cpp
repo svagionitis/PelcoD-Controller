@@ -1,16 +1,20 @@
 /// @file TestStft.cpp
 /// @brief Comprehensive automated unit test suite for Short-Time Fourier Transform (STFT) and SpectrogramColorMap.
 
-#include "SpectrogramColorMap.h"
 #include "Stft.h"
 
 #include <cmath>
 #include <cstddef>
-#include <gtest/gtest.h>
+
+#include <algorithm>
 #include <iostream>
 #include <random>
 #include <string>
 #include <vector>
+
+#include <gtest/gtest.h>
+
+#include "SpectrogramColorMap.h"
 
 namespace {
 
@@ -31,7 +35,7 @@ TEST(StftTest, SingleStationaryTone)
 {
     std::cout << "[Test] Single stationary tone tracking (5 Hz tone at 50 Hz sample rate)..." << std::endl;
 
-    StftConfig config { };
+    StftConfig config {};
     config.windowSize = 128U;
     config.hopSize = 32U;
     config.sampleRateHz = 50.0;
@@ -72,7 +76,7 @@ TEST(StftTest, LinearFrequencyChirp)
 {
     std::cout << "[Test] Linear frequency chirp sweep (2 Hz to 18 Hz)..." << std::endl;
 
-    StftConfig config { };
+    StftConfig config {};
     config.windowSize = 64U;
     config.hopSize = 16U;
     config.sampleRateHz = 50.0;
@@ -113,7 +117,7 @@ TEST(StftTest, TwoToneResolution)
 {
     std::cout << "[Test] Two-tone simultaneous frequency resolution..." << std::endl;
 
-    StftConfig config { };
+    StftConfig config {};
     config.windowSize = 128U;
     config.hopSize = 64U;
     config.sampleRateHz = 50.0;
@@ -159,7 +163,7 @@ TEST(StftTest, HopSizeAndOverlap)
 {
     std::cout << "[Test] Hop size and overlap frame count verification..." << std::endl;
 
-    StftConfig config { };
+    StftConfig config {};
     config.windowSize = 64U;
     config.hopSize = 32U; // 50% overlap
     config.sampleRateHz = 100.0;
@@ -194,7 +198,7 @@ TEST(StftTest, SpectralFlatness)
 {
     std::cout << "[Test] Spectral flatness (Wiener entropy) discrimination..." << std::endl;
 
-    StftConfig config { };
+    StftConfig config {};
     config.windowSize = 128U;
     config.hopSize = 64U;
     config.sampleRateHz = 100.0;
@@ -262,7 +266,7 @@ TEST(StftTest, HistoryCap)
 {
     std::cout << "[Test] Rolling history capacity cap enforcement..." << std::endl;
 
-    StftConfig config { };
+    StftConfig config {};
     config.windowSize = 32U;
     config.hopSize = 16U;
     config.maxHistoryFrames = 10U;
@@ -281,6 +285,30 @@ TEST(StftTest, HistoryCap)
     EXPECT_TRUE(stft.getHistory().empty());
 
     std::cout << "  -> Passed!" << std::endl;
+}
+
+TEST(StftTest, AddSamplesBatchEquivalence)
+{
+    StftConfig config {};
+    config.windowSize = 64U;
+    config.hopSize = 32U;
+    config.sampleRateHz = 50.0;
+
+    Stft stftStream(config);
+    Stft stftBatch(config);
+
+    std::vector<double> samples(128U, 0.0);
+    for (std::size_t i = 0U; i < samples.size(); ++i) {
+        const double t = static_cast<double>(i) / config.sampleRateHz;
+        samples[i] = std::sin(2.0 * PI * 8.0 * t);
+        stftStream.addSample(samples[i], t);
+    }
+
+    stftBatch.addSamples(samples, 0.0);
+
+    ASSERT_EQ(stftStream.getHistory().size(), stftBatch.getHistory().size());
+    EXPECT_NEAR(stftStream.getLatestFrame().peakFrequencyHz, stftBatch.getLatestFrame().peakFrequencyHz, 1e-9);
+    EXPECT_NEAR(stftStream.getLatestFrame().totalEnergy, stftBatch.getLatestFrame().totalEnergy, 1e-9);
 }
 
 } // namespace

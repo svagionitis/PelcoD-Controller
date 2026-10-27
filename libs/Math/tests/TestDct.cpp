@@ -6,8 +6,10 @@
 
 #include <cmath>
 #include <cstdint>
-#include <gtest/gtest.h>
+
 #include <iostream>
+
+#include <gtest/gtest.h>
 
 using namespace Math;
 
@@ -259,6 +261,20 @@ TEST(DctTest, DctOrthogonality)
     // Round-trip must preserve energy
     EXPECT_TRUE(nearEqual(energyIn, energyRec, energyIn * 1e-5));
     std::cout << "  -> PASSED\n";
+}
+
+TEST(DctTest, NullBlockAndInvalidStrideSafety)
+{
+    DctMatrix8x8 freq {};
+    freq[0][0] = 42.0;
+
+    dct8x8(nullptr, 8, freq);
+    EXPECT_TRUE(nearEqual(freq[0][0], 0.0));
+
+    std::uint8_t pixels[64] {};
+    freq[0][0] = 42.0;
+    dct8x8(pixels, 4, freq); // stride < 8
+    EXPECT_TRUE(nearEqual(freq[0][0], 0.0));
 }
 
 } // namespace

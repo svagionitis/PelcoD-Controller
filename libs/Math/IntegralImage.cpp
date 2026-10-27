@@ -3,16 +3,20 @@
 
 #include "IntegralImage.h"
 
-#include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
+
+#include <algorithm>
+#include <vector>
 
 namespace Math {
 
 void IntegralImage::compute(const std::uint8_t* pixels, int width, int height, int stride, bool computeSquared)
 {
-    if (pixels == nullptr || width <= 0 || height <= 0) {
+    const int effStride = (stride > 0) ? stride : width;
+    if (pixels == nullptr || width <= 0 || height <= 0 || effStride < width) {
         m_width = 0;
         m_height = 0;
         m_hasSquared = false;
@@ -26,9 +30,9 @@ void IntegralImage::compute(const std::uint8_t* pixels, int width, int height, i
     m_height = height;
     m_hasSquared = computeSquared;
 
-    const std::size_t uWidth = static_cast<std::size_t>(width);
-    const std::size_t uHeight = static_cast<std::size_t>(height);
-    const std::size_t actualStride = (stride > 0) ? static_cast<std::size_t>(stride) : uWidth;
+    const auto uWidth = static_cast<std::size_t>(width);
+    const auto uHeight = static_cast<std::size_t>(height);
+    const auto actualStride = static_cast<std::size_t>(effStride);
     const std::size_t tablePitch = uWidth + 1U;
     const std::size_t tableTotal = (uHeight + 1U) * tablePitch;
 
@@ -54,7 +58,7 @@ void IntegralImage::compute(const std::uint8_t* pixels, int width, int height, i
         const std::size_t currTableRowOffset = (y + 1U) * tablePitch;
 
         for (std::size_t x = 0U; x < uWidth; ++x) {
-            const std::uint64_t p = static_cast<std::uint64_t>(rowSrc[x]);
+            const auto p = static_cast<std::uint64_t>(rowSrc[x]);
             rowSum += p;
             m_sumTable[currTableRowOffset + (x + 1U)] = m_sumTable[prevTableRowOffset + (x + 1U)] + rowSum;
 
@@ -96,7 +100,7 @@ std::uint64_t IntegralImage::computeSum(int x, int y, int w, int h) const noexce
         return 0U;
     }
 
-    const std::size_t tablePitch = static_cast<std::size_t>(m_width + 1);
+    const auto tablePitch = static_cast<std::size_t>(m_width) + 1U;
     const auto ux0 = static_cast<std::size_t>(x0);
     const auto uy0 = static_cast<std::size_t>(y0);
     const auto ux1 = static_cast<std::size_t>(x1);
@@ -130,7 +134,7 @@ std::uint64_t IntegralImage::computeSquaredSum(int x, int y, int w, int h) const
         return 0U;
     }
 
-    const std::size_t tablePitch = static_cast<std::size_t>(m_width + 1);
+    const auto tablePitch = static_cast<std::size_t>(m_width) + 1U;
     const auto ux0 = static_cast<std::size_t>(x0);
     const auto uy0 = static_cast<std::size_t>(y0);
     const auto ux1 = static_cast<std::size_t>(x1);
@@ -164,7 +168,7 @@ double IntegralImage::computeMean(int x, int y, int w, int h) const noexcept
         return 0.0;
     }
 
-    const double count = static_cast<double>((x1 - x0) * (y1 - y0));
+    const double count = static_cast<double>(x1 - x0) * static_cast<double>(y1 - y0);
     const double sum = static_cast<double>(computeSum(x, y, w, h));
     return sum / count;
 }
@@ -189,7 +193,7 @@ double IntegralImage::computeVariance(int x, int y, int w, int h) const noexcept
         return 0.0;
     }
 
-    const double count = static_cast<double>((x1 - x0) * (y1 - y0));
+    const double count = static_cast<double>(x1 - x0) * static_cast<double>(y1 - y0);
     if (count <= 1.0) {
         return 0.0;
     }

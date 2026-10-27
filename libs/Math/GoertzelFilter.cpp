@@ -3,9 +3,10 @@
 
 #include "GoertzelFilter.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstddef>
+
+#include <algorithm>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -14,9 +15,9 @@
 namespace Math {
 
 GoertzelFilter::GoertzelFilter(double targetFreqHz, double sampleRateHz, std::size_t blockSize)
-    : m_targetFreqHz(targetFreqHz)
-    , m_sampleRateHz(std::max(1.0, sampleRateHz))
-    , m_blockSize(std::max<std::size_t>(4U, blockSize))
+    : m_targetFreqHz { targetFreqHz }
+    , m_sampleRateHz { std::max(1.0, sampleRateHz) }
+    , m_blockSize { std::max<std::size_t>(4U, blockSize) }
 {
     calculateCoefficients();
 }
@@ -34,7 +35,6 @@ void GoertzelFilter::calculateCoefficients() noexcept
 {
     const double omega = (2.0 * M_PI * m_targetFreqHz) / m_sampleRateHz;
     m_cosOmega = std::cos(omega);
-    m_sinOmega = std::sin(omega);
     m_coeff = 2.0 * m_cosOmega;
 }
 
@@ -80,7 +80,7 @@ bool GoertzelFilter::processSample(double sample) noexcept
 
 double GoertzelFilter::computeMagnitude(const double* data, std::size_t size) const noexcept
 {
-    if (!data || size == 0U) {
+    if (data == nullptr || size == 0U) {
         return 0.0;
     }
 

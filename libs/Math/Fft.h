@@ -3,8 +3,9 @@
 /// @file Fft.h
 /// @brief Header declaring Fast Fourier Transform (FFT), windowing functions, and spectral analysis tools.
 
-#include <complex>
 #include <cstddef>
+
+#include <complex>
 #include <vector>
 
 namespace Math {
@@ -29,9 +30,9 @@ struct SpectralPeak {
 };
 
 /// @brief In-place 1D Radix-2 Cooley-Tukey Fast Fourier Transform.
-/// @details Computes discrete Fourier transform of a complex vector whose length is a power of 2.
+/// @details Computes discrete Fourier transform of a complex vector. Zero-pads to next power of 2 if needed.
 ///          When inverse is true, computes the IFFT normalized by 1/N.
-/// @param[in,out] data In-place vector of complex values to transform. Size must be a power of 2.
+/// @param[in,out] data In-place vector of complex values to transform.
 /// @param[in] inverse Set to true for inverse FFT (IFFT), false for forward FFT.
 /// @note Thread-safe; operates strictly on local argument data.
 void fft(std::vector<Complex>& data, bool inverse = false);
@@ -44,12 +45,14 @@ void fft(std::vector<Complex>& data, bool inverse = false);
 [[nodiscard]] std::vector<Complex> rfft(const std::vector<double>& realSignal);
 
 /// @brief Computes the inverse FFT of a complex spectrum returning the real-valued signal.
-/// @param[in] spectrum Complex spectrum sequence. Size must be a power of 2.
+/// @details Evaluates inverse FFT of spectrum and extracts the real part of each sample.
+/// @param[in] spectrum Complex spectrum sequence.
 /// @return Real components of the inverse transformed sequence.
 /// @note Thread-safe.
 [[nodiscard]] std::vector<double> irfft(const std::vector<Complex>& spectrum);
 
 /// @brief Applies a windowing function to a real-valued signal in-place.
+/// @details Multiplies each sample in signal by the specified symmetric window taper.
 /// @param[in,out] signal Real signal samples to window.
 /// @param[in] window Windowing function type.
 /// @note Thread-safe.
@@ -67,6 +70,7 @@ void applyWindow(std::vector<double>& signal, WindowType window);
     const std::vector<double>& signal, double sampleRateHz, WindowType window = WindowType::Hann);
 
 /// @brief Returns the next power of two greater than or equal to n.
+/// @details Safely clamps to the maximum representable power of two in std::size_t to prevent unsigned wraparound.
 /// @param[in] n Non-negative integer.
 /// @return Next power of two (minimum 1).
 [[nodiscard]] std::size_t nextPowerOfTwo(std::size_t n) noexcept;
@@ -83,6 +87,7 @@ void applyWindow(std::vector<double>& signal, WindowType window);
 void fft2D(std::vector<Complex>& matrix, std::size_t rows, std::size_t cols, bool inverse = false);
 
 /// @brief Applies a separable 2D window function to an M x N real image buffer in-place.
+/// @details Multiplies each entry (r, c) by w_row(r) * w_col(c).
 /// @param[in,out] image Row-major real matrix of size rows * cols.
 /// @param[in] rows Number of rows.
 /// @param[in] cols Number of columns.
@@ -91,6 +96,7 @@ void fft2D(std::vector<Complex>& matrix, std::size_t rows, std::size_t cols, boo
 void applyWindow2D(std::vector<double>& image, std::size_t rows, std::size_t cols, WindowType window);
 
 /// @brief Checks if a given integer is an exact power of two.
+/// @details Uses bit manipulation: (n > 0) && ((n & (n - 1)) == 0).
 /// @param[in] n Integer to check.
 /// @return True if n > 0 and n is a power of 2, false otherwise.
 [[nodiscard]] bool isPowerOfTwo(std::size_t n) noexcept;

@@ -3,9 +3,11 @@
 
 #include "Dwt.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstddef>
+
+#include <algorithm>
+#include <utility>
 #include <vector>
 
 namespace Math {
@@ -14,13 +16,13 @@ namespace {
 
     // Precomputed filter coefficients for Haar and Daubechies-4 wavelets
     struct WaveletFilters {
-        std::vector<double> h; ///< Low-pass decomposition filter
-        std::vector<double> g; ///< High-pass decomposition filter
+        std::vector<double> h {}; ///< Low-pass decomposition filter
+        std::vector<double> g {}; ///< High-pass decomposition filter
     };
 
     WaveletFilters getFilters(WaveletType wavelet)
     {
-        WaveletFilters f { };
+        WaveletFilters f {};
         if (wavelet == WaveletType::Haar) {
             const double invSqrt2 = 1.0 / std::sqrt(2.0);
             f.h = { invSqrt2, invSqrt2 };
@@ -92,7 +94,7 @@ std::vector<double> idwt1D(
     const std::vector<double>& cA, const std::vector<double>& cD, WaveletType wavelet, std::size_t targetLength)
 {
     if (cA.empty() || cD.empty() || cA.size() != cD.size()) {
-        return { };
+        return {};
     }
 
     const std::size_t half = cA.size();
@@ -127,7 +129,7 @@ std::vector<double> idwt1D(
 
 WaveletDecomposition1D wavedec(const std::vector<double>& signal, std::size_t levels, WaveletType wavelet)
 {
-    WaveletDecomposition1D decomp { };
+    WaveletDecomposition1D decomp {};
     decomp.originalLength = signal.size();
     decomp.wavelet = wavelet;
 
@@ -139,8 +141,8 @@ WaveletDecomposition1D wavedec(const std::vector<double>& signal, std::size_t le
     decomp.cD.reserve(levels);
 
     for (std::size_t l = 0U; l < levels; ++l) {
-        std::vector<double> nextA { };
-        std::vector<double> nextD { };
+        std::vector<double> nextA {};
+        std::vector<double> nextD {};
         dwt1D(curApprox, nextA, nextD, wavelet);
 
         decomp.cD.push_back(std::move(nextD));
@@ -161,14 +163,15 @@ std::vector<double> waverec(const WaveletDecomposition1D& decomp)
     }
 
     std::vector<double> curApprox = decomp.cA;
-    const auto numLevels = static_cast<int>(decomp.cD.size());
-
-    for (int l = numLevels - 1; l >= 0; --l) {
-        const auto levelIdx = static_cast<std::size_t>(l);
+    for (std::size_t rev = decomp.cD.size(); rev > 0U; --rev) {
+        const std::size_t levelIdx = rev - 1U;
         const auto& d = decomp.cD[levelIdx];
         const std::size_t targetLen
             = (levelIdx == 0U && decomp.originalLength > 0U) ? decomp.originalLength : (d.size() * 2U);
         curApprox = idwt1D(curApprox, d, decomp.wavelet, targetLen);
+        if (curApprox.empty()) {
+            break;
+        }
     }
     return curApprox;
 }
@@ -219,7 +222,7 @@ std::vector<double> waveletDenoise(const std::vector<double>& signal, std::size_
 
 WaveletCoefficients2D dwt2D(const std::vector<double>& image, std::size_t rows, std::size_t cols, WaveletType wavelet)
 {
-    WaveletCoefficients2D result { };
+    WaveletCoefficients2D result {};
     if (rows == 0U || cols == 0U || (rows % 2U) != 0U || (cols % 2U) != 0U || image.size() != (rows * cols)) {
         return result;
     }
@@ -292,8 +295,10 @@ std::vector<double> idwt2D(const WaveletCoefficients2D& coeffs, WaveletType wave
 {
     const std::size_t halfRows = coeffs.rows;
     const std::size_t halfCols = coeffs.cols;
-    if (halfRows == 0U || halfCols == 0U) {
-        return { };
+    const std::size_t subBandSize = halfRows * halfCols;
+    if (halfRows == 0U || halfCols == 0U || coeffs.LL.size() < subBandSize || coeffs.LH.size() < subBandSize
+        || coeffs.HL.size() < subBandSize || coeffs.HH.size() < subBandSize) {
+        return {};
     }
 
     const std::size_t rows = halfRows * 2U;

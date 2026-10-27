@@ -3,9 +3,10 @@
 /// @file DctSharpnessEvaluator.h
 /// @brief 2D 8x8 DCT-based optical sharpness and focus score evaluator.
 
-#include "Dct.h"
 #include <cstddef>
 #include <cstdint>
+
+#include "Dct.h"
 
 namespace Math {
 
@@ -41,12 +42,17 @@ struct SharpnessResult {
 
 /// @class DctSharpnessEvaluator
 /// @brief Evaluates optical sharpness and focus metrics across video frames using 2D 8x8 DCT.
+/// @details Computes block-based 8x8 DCT coefficients within a configurable region of interest (ROI)
+///          and normalizes high-frequency AC energy by mean DC luminance for illumination invariance.
 class DctSharpnessEvaluator {
 public:
     /// @brief Constructs a DCT sharpness evaluator with given configuration.
+    /// @details Clamps ROI coordinates, frequency thresholds, and block strides to safe ranges.
+    /// @param[in] config Initial sharpness evaluation parameters.
     explicit DctSharpnessEvaluator(DctSharpnessConfig config = {});
 
     /// @brief Evaluates the sharpness score of a grayscale image buffer.
+    /// @details Iterates over 8x8 blocks inside the configured normalized ROI and aggregates AC and DC energy.
     /// @param[in] grayPixels Pointer to contiguous 8-bit grayscale pixel data (Y channel).
     /// @param[in] width Frame width in pixels.
     /// @param[in] height Frame height in pixels.
@@ -56,18 +62,25 @@ public:
         const std::uint8_t* grayPixels, int width, int height, int stride = 0) const noexcept;
 
     /// @brief Evaluates a single isolated 8x8 pixel block.
+    /// @details Computes the 8x8 DCT of the block and accumulates high-frequency AC coefficients.
     /// @param[in] block Pointer to top-left pixel of 8x8 block.
-    /// @param[in] stride Row stride in bytes.
+    /// @param[in] stride Row stride in bytes (must be >= 8).
     /// @return Unnormalized high-frequency AC score for the block.
     [[nodiscard]] double evaluateBlock(const std::uint8_t* block, int stride) const noexcept;
 
     /// @brief Reconfigures the sharpness evaluator.
+    /// @details Validates and clamps all configuration fields to safe operating bounds.
+    /// @param[in] config New configuration settings.
     void setConfig(const DctSharpnessConfig& config) noexcept;
 
     /// @brief Returns the active configuration.
+    /// @details Provides read-only access to the clamped configuration state.
+    /// @return Const reference to active DctSharpnessConfig.
     [[nodiscard]] const DctSharpnessConfig& getConfig() const noexcept;
 
 private:
+    [[nodiscard]] double accumulateBlockAc(const DctMatrix8x8& dct) const noexcept;
+
     DctSharpnessConfig m_config {};
 };
 

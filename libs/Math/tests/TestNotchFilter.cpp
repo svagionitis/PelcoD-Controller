@@ -6,9 +6,11 @@
 
 #include <cmath>
 #include <cstddef>
-#include <gtest/gtest.h>
+
 #include <iostream>
 #include <vector>
+
+#include <gtest/gtest.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846

@@ -1,25 +1,22 @@
 /// @file TestDwt.cpp
-/// @brief Automated unit test suite for Discrete Wavelet Transform (DWT) and Transient Shock Detector in PelcoDCore.
+/// @brief Automated unit test suite for Discrete Wavelet Transform (DWT) and wavelet denoising.
 
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 
-#include <algorithm>
 #include <iostream>
 #include <vector>
 
 #include <gtest/gtest.h>
 
 #include "Dwt.h"
-#include "TransientShockDetector.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
 using namespace Math;
-using namespace Tracking;
 
 namespace {
 
@@ -33,8 +30,8 @@ TEST(DwtTest, Haar1DRoundtripIdentity)
             + 0.5 * std::cos(2.0 * M_PI * static_cast<double>(i) / 3.0);
     }
 
-    std::vector<double> cA;
-    std::vector<double> cD;
+    std::vector<double> cA {};
+    std::vector<double> cD {};
     dwt1D(signal, cA, cD, WaveletType::Haar);
 
     EXPECT_TRUE(cA.size() == n / 2U);
@@ -66,8 +63,8 @@ TEST(DwtTest, Db41DRoundtripIdentity)
             - 1.2 * std::cos(2.0 * M_PI * static_cast<double>(i) / 11.0);
     }
 
-    std::vector<double> cA;
-    std::vector<double> cD;
+    std::vector<double> cA {};
+    std::vector<double> cD {};
     dwt1D(signal, cA, cD, WaveletType::Db4);
 
     EXPECT_TRUE(cA.size() == n / 2U);
@@ -209,59 +206,13 @@ TEST(DwtTest, WaveletDenoiseVisuShrink)
     std::cout << "  -> PASSED\n";
 }
 
-TEST(DwtTest, TransientShockDetector)
-{
-    std::cout << "[Test] testTransientShockDetector...\n";
-    ShockDetectorConfig config {};
-    config.windowSize = 32U;
-    config.decompositionLevels = 2U;
-    config.wavelet = WaveletType::Db4;
-    config.energyThresholdFactor = 3.5;
-    config.minShockEnergy = 2.0;
-
-    TransientShockDetector detector(config);
-
-    // Phase 1: Feed 40 samples of smooth baseline vibration (5 Hz sine wave)
-    bool falseAlarm = false;
-    for (std::size_t i = 0U; i < 40U; ++i) {
-        const double sample = 1.0 * std::sin(2.0 * M_PI * 5.0 * static_cast<double>(i) / 50.0);
-        const auto event = detector.addSample(sample);
-        if (event.isShockDetected) {
-            falseAlarm = true;
-        }
-    }
-    EXPECT_TRUE(!falseAlarm);
-
-    // Phase 2: Inject sudden sharp shock impulse at sample 41
-    const auto shockEvent = detector.addSample(25.0);
-    std::cout << "  -> Shock event triggered: " << shockEvent.isShockDetected
-              << ", magnitude: " << shockEvent.shockMagnitude << ", energyRatio: " << shockEvent.energyRatio << "\n";
-
-    EXPECT_TRUE(shockEvent.isShockDetected);
-    EXPECT_TRUE(shockEvent.shockMagnitude > 5.0);
-    EXPECT_TRUE(shockEvent.energyRatio > config.energyThresholdFactor);
-
-    // Phase 3: Feed smooth baseline again and verify detector recovers
-    bool recovered = false;
-    for (std::size_t i = 0U; i < 40U; ++i) {
-        const double sample = 1.0 * std::sin(2.0 * M_PI * 5.0 * static_cast<double>(i) / 50.0);
-        const auto ev = detector.addSample(sample);
-        if (!ev.isShockDetected) {
-            recovered = true;
-        }
-    }
-    EXPECT_TRUE(recovered);
-
-    std::cout << "  -> PASSED\n";
-}
-
 TEST(DwtTest, EdgeAndOddLengthCases)
 {
     std::cout << "[Test] testEdgeAndOddLengthCases...\n";
     // Odd length signal (e.g. 7 elements)
     std::vector<double> oddSignal { 1.0, 3.0, 5.0, 7.0, 9.0, 11.0, 13.0 };
-    std::vector<double> cA;
-    std::vector<double> cD;
+    std::vector<double> cA {};
+    std::vector<double> cD {};
     dwt1D(oddSignal, cA, cD, WaveletType::Haar);
     EXPECT_TRUE(cA.size() == 4U);
 
@@ -279,6 +230,13 @@ TEST(DwtTest, EdgeAndOddLengthCases)
 
     const auto recEmpty = idwt1D(cA, cD);
     EXPECT_TRUE(recEmpty.empty());
+
+    // Malformed 2D coefficient sub-bands
+    WaveletCoefficients2D badCoeffs {};
+    badCoeffs.rows = 4U;
+    badCoeffs.cols = 4U;
+    badCoeffs.LL.resize(4U, 0.0); // Too small (expects 16)
+    EXPECT_TRUE(idwt2D(badCoeffs).empty());
 
     std::cout << "  -> PASSED\n";
 }

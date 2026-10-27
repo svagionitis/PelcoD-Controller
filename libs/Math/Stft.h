@@ -3,12 +3,13 @@
 /// @file Stft.h
 /// @brief Short-Time Fourier Transform (STFT) and real-time streaming spectrogram engine.
 
-#include "Fft.h"
-
 #include <cstddef>
+
 #include <deque>
 #include <mutex>
 #include <vector>
+
+#include "Fft.h"
 
 namespace Math {
 
@@ -41,7 +42,7 @@ struct SpectrogramFrame {
 
 /// @class Stft
 /// @brief Streaming Short-Time Fourier Transform engine maintaining a rolling 2D time-frequency spectrogram.
-/// @details Ingests incoming continuous signal samples into a circular buffer, evaluates sliding window FFTs
+/// @details Ingests incoming continuous signal samples into a sliding deque buffer, evaluates sliding window FFTs
 ///          at configurable hop intervals, and manages a rolling history buffer for real-time waterfall display.
 ///          Thread-safe for concurrent sample ingestion and GUI/TUI rendering.
 class Stft {
@@ -51,20 +52,24 @@ public:
     explicit Stft(StftConfig config = {});
 
     /// @brief Reconfigures the STFT processor and flushes internal buffers.
+    /// @details Clamps windowSize to a power of two >= 16, clamps hopSize to [1, windowSize], and clears state.
     /// @param[in] config New configuration parameters.
     void setConfig(const StftConfig& config);
 
     /// @brief Retrieves the active configuration.
-    [[nodiscard]] StftConfig getConfig() const noexcept;
+    /// @return Copy of the active StftConfig under lock.
+    [[nodiscard]] StftConfig getConfig() const;
 
-    /// @brief Ingests a single real-valued sample into the streaming circular buffer.
+    /// @brief Ingests a single real-valued sample into the streaming sliding window buffer.
+    /// @details Advances timestamp, appends sample, and triggers window FFT evaluation when hopSize is reached.
     /// @param[in] sample New signal value (e.g. tracking error, motor velocity, or vibration).
     /// @param[in] timestamp Optional timestamp in seconds (-1.0 to auto-increment by 1 / sampleRateHz).
     void addSample(double sample, double timestamp = -1.0);
 
-    /// @brief Ingests a contiguous block of samples.
+    /// @brief Ingests a contiguous block of samples atomically.
+    /// @details Acquires internal lock once and ingests all samples with uniform 1/sampleRateHz time steps.
     /// @param[in] samples Array of time-domain values.
-    /// @param[in] startTime Timestamp of the first sample in seconds.
+    /// @param[in] startTime Timestamp of the first sample in seconds (-1.0 to continue from current timestamp).
     void addSamples(const std::vector<double>& samples, double startTime = 0.0);
 
     /// @brief Retrieves a snapshot of the rolling spectrogram frame history.
@@ -72,10 +77,11 @@ public:
     [[nodiscard]] std::vector<SpectrogramFrame> getHistory() const;
 
     /// @brief Checks if at least one spectrogram frame has been computed.
-    [[nodiscard]] bool hasFrames() const noexcept;
+    /// @return True if history contains one or more frames.
+    [[nodiscard]] bool hasFrames() const;
 
     /// @brief Retrieves the most recently computed spectrogram frame.
-    /// @return Latest SpectrogramFrame.
+    /// @return Latest SpectrogramFrame (or default-initialized frame if history is empty).
     [[nodiscard]] SpectrogramFrame getLatestFrame() const;
 
     /// @brief Generates the physical frequency values (in Hertz) for each bin from 0 Hz to Nyquist.
@@ -83,15 +89,16 @@ public:
     [[nodiscard]] std::vector<double> getFrequencyBinsHz() const;
 
     /// @brief Clears all sample and frame history buffers.
-    void reset() noexcept;
+    void reset();
 
 private:
+    void addSampleUnlocked(double sample, double timestamp);
     void processWindow(double windowEndTime);
 
-    mutable std::mutex m_mutex;
+    mutable std::mutex m_mutex {};
     StftConfig m_config {};
 
-    std::vector<double> m_sampleBuffer {};
+    std::deque<double> m_sampleBuffer {};
     std::size_t m_samplesSinceLastHop { 0U };
     double m_currentTimestamp { 0.0 };
 

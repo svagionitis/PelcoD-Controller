@@ -3,9 +3,11 @@
 
 #include "Fft.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstddef>
+
+#include <algorithm>
+#include <limits>
 #include <vector>
 
 #ifndef M_PI
@@ -26,6 +28,10 @@ std::size_t nextPowerOfTwo(std::size_t n) noexcept
     }
     if (isPowerOfTwo(n)) {
         return n;
+    }
+    constexpr std::size_t kMaxPowerOfTwo = (std::numeric_limits<std::size_t>::max() >> 1U) + 1U;
+    if (n >= kMaxPowerOfTwo) {
+        return kMaxPowerOfTwo;
     }
     std::size_t power = 1U;
     while (power < n) {
@@ -90,7 +96,7 @@ void fft(std::vector<Complex>& data, bool inverse)
 std::vector<Complex> rfft(const std::vector<double>& realSignal)
 {
     if (realSignal.empty()) {
-        return { };
+        return {};
     }
     const std::size_t n = nextPowerOfTwo(realSignal.size());
     std::vector<Complex> data(n, Complex { 0.0, 0.0 });
@@ -104,7 +110,7 @@ std::vector<Complex> rfft(const std::vector<double>& realSignal)
 std::vector<double> irfft(const std::vector<Complex>& spectrum)
 {
     if (spectrum.empty()) {
-        return { };
+        return {};
     }
     std::vector<Complex> buffer = spectrum;
     fft(buffer, true);
@@ -147,7 +153,7 @@ void applyWindow(std::vector<double>& signal, WindowType window)
 std::vector<SpectralPeak> computePsd(const std::vector<double>& signal, double sampleRateHz, WindowType window)
 {
     if (signal.empty() || sampleRateHz <= 0.0) {
-        return { };
+        return {};
     }
 
     std::vector<double> winSig = signal;
@@ -156,11 +162,11 @@ std::vector<SpectralPeak> computePsd(const std::vector<double>& signal, double s
     const std::vector<Complex> spectrum = rfft(winSig);
     const std::size_t n = spectrum.size();
     if (n == 0U) {
-        return { };
+        return {};
     }
 
     const std::size_t halfBins = (n / 2U) + 1U;
-    std::vector<SpectralPeak> peaks { };
+    std::vector<SpectralPeak> peaks {};
     peaks.reserve(halfBins);
 
     double totalPower = 0.0;
@@ -177,7 +183,7 @@ std::vector<SpectralPeak> computePsd(const std::vector<double>& signal, double s
         powerSpectrum[k] = power;
         totalPower += power;
 
-        SpectralPeak peak { };
+        SpectralPeak peak {};
         peak.frequencyHz = (static_cast<double>(k) * sampleRateHz) / static_cast<double>(n);
         peak.magnitude = mag;
         peak.powerRatio = 0.0; // Computed below

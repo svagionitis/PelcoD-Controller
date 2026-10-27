@@ -4,12 +4,9 @@
 /// @brief 1D and 2D Gabor Transform, complex quadrature filter kernels, multi-scale filterbanks,
 ///        directional sharpness evaluation, and texture appearance modeling.
 
-#include <cmath>
-#include <complex>
 #include <cstddef>
 #include <cstdint>
-#include <string>
-#include <utility>
+
 #include <vector>
 
 namespace Math {
@@ -97,35 +94,39 @@ struct GaborFilterBankResult {
 };
 
 /// @brief Generates a 1D analytic complex Gabor wavelet kernel.
+/// @details Computes unit-energy normalized Gaussian-windowed cosine and sine tap arrays.
 /// @param[in] config 1D Gabor configuration parameters.
 /// @return GaborKernel1D containing real (cosine) and imaginary (sine) tap vectors.
 /// @note Thread-safe.
 [[nodiscard]] GaborKernel1D createGaborKernel1D(const Gabor1DConfig& config);
 
 /// @brief Generates a 2D spatial complex Gabor kernel pair (even and odd).
+/// @details Computes oriented elliptical Gaussian envelope modulated by quadrature harmonic carriers.
 /// @param[in] config 2D Gabor configuration parameters.
 /// @return GaborKernel2D containing normalized real and imaginary kernel arrays.
 /// @note Thread-safe.
 [[nodiscard]] GaborKernel2D createGaborKernel2D(const Gabor2DConfig& config);
 
 /// @brief Performs 2D spatial convolution of an 8-bit grayscale image with a 2D kernel.
+/// @details Validates input pointers, dimensions, and kernel array bounds before convolving with clamped edges.
 /// @param[in] pixels Pointer to contiguous 8-bit grayscale pixel data.
 /// @param[in] width Frame width in pixels.
 /// @param[in] height Frame height in pixels.
 /// @param[in] stride Row stride in bytes (if <= 0, assumes stride == width).
 /// @param[in] kernel Row-major kernel array of dimension (kernelSize * kernelSize).
-/// @param[in] kernelSize Square dimension of kernel (must be odd).
+/// @param[in] kernelSize Square dimension of kernel (must be positive and odd).
 /// @return Output floating-point convolution result of size (width * height).
 /// @note Thread-safe; uses clamped boundary replication.
 [[nodiscard]] std::vector<double> convolve2D(
     const std::uint8_t* pixels, int width, int height, int stride, const std::vector<double>& kernel, int kernelSize);
 
 /// @brief Performs 2D spatial convolution of a floating-point image buffer with a 2D kernel.
+/// @details Validates image and kernel buffer sizes before convolving with clamped boundary replication.
 /// @param[in] image Row-major floating-point image of size (width * height).
 /// @param[in] width Frame width in pixels.
 /// @param[in] height Frame height in pixels.
 /// @param[in] kernel Row-major kernel array of dimension (kernelSize * kernelSize).
-/// @param[in] kernelSize Square dimension of kernel (must be odd).
+/// @param[in] kernelSize Square dimension of kernel (must be positive and odd).
 /// @return Output floating-point convolution result of size (width * height).
 /// @note Thread-safe; uses clamped boundary replication.
 [[nodiscard]] std::vector<double> convolve2D(
@@ -140,17 +141,22 @@ struct GaborFilterBankResult {
 class GaborFilterBank {
 public:
     /// @brief Constructs a Gabor filterbank with the specified configuration.
+    /// @details Precomputes all S * O quadrature kernel pairs.
     /// @param[in] config Filterbank scales, orientations, wavelengths, and kernel sizing.
     explicit GaborFilterBank(GaborFilterBankConfig config = {});
 
     /// @brief Reconfigures the filterbank and precomputes all kernel pairs.
+    /// @details Rebuilds internal kernel storage according to the new configuration.
     /// @param[in] config New configuration parameters.
     void setConfig(const GaborFilterBankConfig& config);
 
     /// @brief Retrieves the active configuration.
+    /// @details Returns a copy of the active GaborFilterBankConfig.
+    /// @return Active configuration struct.
     [[nodiscard]] GaborFilterBankConfig getConfig() const noexcept;
 
     /// @brief Evaluates an 8-bit grayscale frame across all filterbank channels.
+    /// @details Convolves the frame with every scale/orientation quadrature pair and aggregates statistics.
     /// @param[in] grayPixels Pointer to 8-bit grayscale pixel buffer.
     /// @param[in] width Frame width in pixels.
     /// @param[in] height Frame height in pixels.
@@ -161,6 +167,7 @@ public:
         const std::uint8_t* grayPixels, int width, int height, int stride = 0, bool computeSpatialEnergy = true) const;
 
     /// @brief Evaluates a floating-point image buffer across all filterbank channels.
+    /// @details Convolves the floating-point image with every scale/orientation quadrature pair.
     /// @param[in] image Row-major floating-point image of size (width * height).
     /// @param[in] width Frame width in pixels.
     /// @param[in] height Frame height in pixels.
@@ -170,6 +177,7 @@ public:
         const std::vector<double>& image, int width, int height, bool computeSpatialEnergy = true) const;
 
     /// @brief Computes directional sharpness scores across orientations for a specific region of interest.
+    /// @details Extracts the clamped ROI sub-image and evaluates orientation energy across all scales.
     /// @param[in] grayPixels Pointer to 8-bit grayscale pixel buffer.
     /// @param[in] width Frame width in pixels.
     /// @param[in] height Frame height in pixels.
@@ -179,13 +187,15 @@ public:
     /// @param[in] roiHeight Height of ROI in pixels.
     /// @param[in] stride Row pitch in bytes.
     /// @return Vector of directional sharpness values corresponding to each filterbank orientation.
-    [[nodiscard]] std::vector<double> evaluateRoiDirectionalSharpness(const std::uint8_t* grayPixels, int width,
-        int height, int roiX, int roiY, int roiWidth, int roiHeight, int stride = 0) const;
+    [[nodiscard]] std::vector<double> evaluateRoiSharpness(const std::uint8_t* grayPixels, int width, int height,
+        int roiX, int roiY, int roiWidth, int roiHeight, int stride = 0) const;
 
     /// @brief Returns the total number of filter channels (numScales * numOrientations).
+    /// @return Total number of precomputed filter channels.
     [[nodiscard]] std::size_t getChannelCount() const noexcept;
 
     /// @brief Accesses the precomputed 2D Gabor kernel for a specific scale and orientation.
+    /// @details Throws std::out_of_range if scaleIndex or orientationIndex is out of bounds.
     /// @param[in] scaleIndex Scale index (0 .. numScales - 1).
     /// @param[in] orientationIndex Orientation index (0 .. numOrientations - 1).
     /// @return Reference to precomputed GaborKernel2D.

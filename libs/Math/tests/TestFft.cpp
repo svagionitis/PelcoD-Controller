@@ -5,9 +5,12 @@
 
 #include <cmath>
 #include <cstddef>
-#include <gtest/gtest.h>
+
 #include <iostream>
+#include <limits>
 #include <vector>
+
+#include <gtest/gtest.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -40,6 +43,9 @@ TEST(FftTest, PowerOfTwoUtilities)
     EXPECT_TRUE(nextPowerOfTwo(50) == 64);
     EXPECT_TRUE(nextPowerOfTwo(64) == 64);
     EXPECT_TRUE(nextPowerOfTwo(65) == 128);
+
+    constexpr std::size_t kMaxPow2 = (std::numeric_limits<std::size_t>::max() >> 1U) + 1U;
+    EXPECT_EQ(nextPowerOfTwo(std::numeric_limits<std::size_t>::max()), kMaxPow2);
     std::cout << "  -> PASSED\n";
 }
 

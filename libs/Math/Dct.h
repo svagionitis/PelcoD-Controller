@@ -3,7 +3,6 @@
 /// @file Dct.h
 /// @brief 2D 8x8 Discrete Cosine Transform (DCT-II) and Inverse DCT routines.
 
-#include <cstddef>
 #include <cstdint>
 
 namespace Math {
@@ -20,13 +19,15 @@ using DctMatrix8x8 = double[8][8];
 void dct8x8(const DctMatrix8x8& input, DctMatrix8x8& output) noexcept;
 
 /// @brief Computes 2D 8x8 DCT-II directly from a raw std::uint8_t image buffer with pitch stride.
+/// @details Safely zeroes output and returns early if block is nullptr or stride < 8.
 /// @param[in] block Pointer to the top-left pixel byte of the 8x8 block.
-/// @param[in] stride Row pitch / stride in bytes of the source image buffer.
+/// @param[in] stride Row pitch / stride in bytes of the source image buffer (must be >= 8).
 /// @param[out] output 8x8 matrix of frequency coefficients.
 /// @note Thread-safe with zero heap allocations.
 void dct8x8(const std::uint8_t* block, int stride, DctMatrix8x8& output) noexcept;
 
 /// @brief Computes the 2D 8x8 Inverse Discrete Cosine Transform (IDCT-II).
+/// @details Reconstructs spatial domain values from 8x8 DCT-II frequency coefficients via C^T * X * C.
 /// @param[in] input 8x8 matrix of frequency coefficients.
 /// @param[out] output 8x8 matrix of reconstructed spatial values.
 /// @note Thread-safe with zero heap allocations.

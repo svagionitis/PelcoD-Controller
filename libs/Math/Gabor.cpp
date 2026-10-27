@@ -3,11 +3,13 @@
 
 #include "Gabor.h"
 
-#include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
-#include <numeric>
+
+#include <algorithm>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 namespace Math {
@@ -32,7 +34,7 @@ namespace {
 
 GaborKernel1D createGaborKernel1D(const Gabor1DConfig& config)
 {
-    GaborKernel1D result { };
+    GaborKernel1D result {};
     result.centerFrequencyHz = config.centerFrequencyHz;
     result.sampleRateHz = config.sampleRateHz;
 
@@ -60,7 +62,7 @@ GaborKernel1D createGaborKernel1D(const Gabor1DConfig& config)
         const double cosVal = std::cos(twoPiF0 * t);
         const double sinVal = std::sin(twoPiF0 * t);
 
-        const std::size_t idx = static_cast<std::size_t>(n + halfTaps);
+        const auto idx = static_cast<std::size_t>(n + halfTaps);
         const double realVal = env * cosVal;
         const double imagVal = env * sinVal;
 
@@ -82,7 +84,7 @@ GaborKernel1D createGaborKernel1D(const Gabor1DConfig& config)
 
 GaborKernel2D createGaborKernel2D(const Gabor2DConfig& config)
 {
-    GaborKernel2D result { };
+    GaborKernel2D result {};
     result.wavelength = config.wavelength;
     result.orientationRad = config.orientationRad;
 
@@ -95,7 +97,8 @@ GaborKernel2D createGaborKernel2D(const Gabor2DConfig& config)
     }
     result.kernelSize = kSize;
 
-    const std::size_t totalPixels = static_cast<std::size_t>(kSize * kSize);
+    const auto uKSize = static_cast<std::size_t>(kSize);
+    const std::size_t totalPixels = uKSize * uKSize;
     result.realPart.resize(totalPixels, 0.0);
     result.imagPart.resize(totalPixels, 0.0);
 
@@ -115,6 +118,7 @@ GaborKernel2D createGaborKernel2D(const Gabor2DConfig& config)
     double realSum = 0.0;
 
     for (int y = -halfSize; y <= halfSize; ++y) {
+        const auto rowIdx = static_cast<std::size_t>(y + halfSize) * uKSize;
         for (int x = -halfSize; x <= halfSize; ++x) {
             const double xPrime = static_cast<double>(x) * cosTheta + static_cast<double>(y) * sinTheta;
             const double yPrime = -static_cast<double>(x) * sinTheta + static_cast<double>(y) * cosTheta;
@@ -125,7 +129,7 @@ GaborKernel2D createGaborKernel2D(const Gabor2DConfig& config)
             const double realVal = env * std::cos(carrierAngle);
             const double imagVal = env * std::sin(carrierAngle);
 
-            const std::size_t idx = static_cast<std::size_t>((y + halfSize) * kSize + (x + halfSize));
+            const std::size_t idx = rowIdx + static_cast<std::size_t>(x + halfSize);
             result.realPart[idx] = realVal;
             result.imagPart[idx] = imagVal;
             realSum += realVal;
@@ -158,33 +162,45 @@ GaborKernel2D createGaborKernel2D(const Gabor2DConfig& config)
 std::vector<double> convolve2D(
     const std::uint8_t* pixels, int width, int height, int stride, const std::vector<double>& kernel, int kernelSize)
 {
-    if (pixels == nullptr || width <= 0 || height <= 0 || kernelSize <= 0) {
-        return { };
+    if (pixels == nullptr || width <= 0 || height <= 0 || kernelSize <= 0 || (kernelSize % 2) == 0) {
+        return {};
+    }
+
+    const auto uKSize = static_cast<std::size_t>(kernelSize);
+    if (kernel.size() < (uKSize * uKSize)) {
+        return {};
     }
 
     const int pitch = (stride > 0) ? stride : width;
+    if (pitch < width) {
+        return {};
+    }
+
     const int halfK = kernelSize / 2;
-    const std::size_t totalPixels = static_cast<std::size_t>(width * height);
+    const auto uWidth = static_cast<std::size_t>(width);
+    const auto uHeight = static_cast<std::size_t>(height);
+    const auto uPitch = static_cast<std::size_t>(pitch);
+    const std::size_t totalPixels = uWidth * uHeight;
     std::vector<double> output(totalPixels, 0.0);
 
     for (int y = 0; y < height; ++y) {
-        const int outRowOffset = y * width;
+        const std::size_t outRowOffset = static_cast<std::size_t>(y) * uWidth;
         for (int x = 0; x < width; ++x) {
             double sum = 0.0;
             std::size_t kIdx = 0U;
 
             for (int ky = -halfK; ky <= halfK; ++ky) {
                 const int py = clampCoord(y + ky, height);
-                const int inRowOffset = py * pitch;
+                const std::size_t inRowOffset = static_cast<std::size_t>(py) * uPitch;
 
                 for (int kx = -halfK; kx <= halfK; ++kx) {
                     const int px = clampCoord(x + kx, width);
-                    const double pixelVal = static_cast<double>(pixels[inRowOffset + px]);
+                    const double pixelVal = static_cast<double>(pixels[inRowOffset + static_cast<std::size_t>(px)]);
                     sum += pixelVal * kernel[kIdx++];
                 }
             }
 
-            output[static_cast<std::size_t>(outRowOffset + x)] = sum;
+            output[outRowOffset + static_cast<std::size_t>(x)] = sum;
         }
     }
 
@@ -194,32 +210,39 @@ std::vector<double> convolve2D(
 std::vector<double> convolve2D(
     const std::vector<double>& image, int width, int height, const std::vector<double>& kernel, int kernelSize)
 {
-    if (image.empty() || width <= 0 || height <= 0 || kernelSize <= 0) {
-        return { };
+    if (image.empty() || width <= 0 || height <= 0 || kernelSize <= 0 || (kernelSize % 2) == 0) {
+        return {};
+    }
+
+    const auto uWidth = static_cast<std::size_t>(width);
+    const auto uHeight = static_cast<std::size_t>(height);
+    const std::size_t totalPixels = uWidth * uHeight;
+    const auto uKSize = static_cast<std::size_t>(kernelSize);
+    if (image.size() < totalPixels || kernel.size() < (uKSize * uKSize)) {
+        return {};
     }
 
     const int halfK = kernelSize / 2;
-    const std::size_t totalPixels = static_cast<std::size_t>(width * height);
     std::vector<double> output(totalPixels, 0.0);
 
     for (int y = 0; y < height; ++y) {
-        const int outRowOffset = y * width;
+        const std::size_t outRowOffset = static_cast<std::size_t>(y) * uWidth;
         for (int x = 0; x < width; ++x) {
             double sum = 0.0;
             std::size_t kIdx = 0U;
 
             for (int ky = -halfK; ky <= halfK; ++ky) {
                 const int py = clampCoord(y + ky, height);
-                const int inRowOffset = py * width;
+                const std::size_t inRowOffset = static_cast<std::size_t>(py) * uWidth;
 
                 for (int kx = -halfK; kx <= halfK; ++kx) {
                     const int px = clampCoord(x + kx, width);
-                    const double pixelVal = image[static_cast<std::size_t>(inRowOffset + px)];
+                    const double pixelVal = image[inRowOffset + static_cast<std::size_t>(px)];
                     sum += pixelVal * kernel[kIdx++];
                 }
             }
 
-            output[static_cast<std::size_t>(outRowOffset + x)] = sum;
+            output[outRowOffset + static_cast<std::size_t>(x)] = sum;
         }
     }
 
@@ -254,9 +277,13 @@ std::size_t GaborFilterBank::getChannelCount() const noexcept
 
 const GaborKernel2D& GaborFilterBank::getKernel(std::size_t scaleIndex, std::size_t orientationIndex) const
 {
-    const std::size_t idx = scaleIndex * m_config.numOrientations + orientationIndex;
+    const std::size_t O = (m_config.numOrientations > 0U) ? m_config.numOrientations : 1U;
+    if (orientationIndex >= O) {
+        throw std::out_of_range("GaborFilterBank::getKernel: orientationIndex out of bounds");
+    }
+    const std::size_t idx = scaleIndex * O + orientationIndex;
     if (idx >= m_kernels.size()) {
-        throw std::out_of_range("GaborFilterBank::getKernel: index out of bounds");
+        throw std::out_of_range("GaborFilterBank::getKernel: scaleIndex out of bounds");
     }
     return m_kernels[idx];
 }
@@ -283,7 +310,7 @@ void GaborFilterBank::buildKernels()
         const double sigma = lambda * m_config.sigmaScaleRatio;
 
         for (std::size_t o = 0U; o < O; ++o) {
-            Gabor2DConfig cfg { };
+            Gabor2DConfig cfg {};
             cfg.wavelength = lambda;
             cfg.orientationRad = m_orientationAnglesRad[o];
             cfg.sigma = sigma;
@@ -300,7 +327,7 @@ void GaborFilterBank::buildKernels()
 GaborFilterBankResult GaborFilterBank::evaluate(
     const std::uint8_t* grayPixels, int width, int height, int stride, bool computeSpatialEnergy) const
 {
-    GaborFilterBankResult result { };
+    GaborFilterBankResult result {};
     result.imageWidth = width;
     result.imageHeight = height;
 
@@ -308,7 +335,12 @@ GaborFilterBankResult GaborFilterBank::evaluate(
         return result;
     }
 
-    const std::size_t totalPixels = static_cast<std::size_t>(width * height);
+    const int effStride = (stride > 0) ? stride : width;
+    if (effStride < width) {
+        return result;
+    }
+
+    const std::size_t totalPixels = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
     const std::size_t S = (m_config.numScales > 0U) ? m_config.numScales : 1U;
     const std::size_t O = (m_config.numOrientations > 0U) ? m_config.numOrientations : 1U;
 
@@ -324,11 +356,11 @@ GaborFilterBankResult GaborFilterBank::evaluate(
             const auto& kernel = m_kernels[chIdx];
 
             const std::vector<double> realResp
-                = convolve2D(grayPixels, width, height, stride, kernel.realPart, kernel.kernelSize);
+                = convolve2D(grayPixels, width, height, effStride, kernel.realPart, kernel.kernelSize);
             const std::vector<double> imagResp
-                = convolve2D(grayPixels, width, height, stride, kernel.imagPart, kernel.kernelSize);
+                = convolve2D(grayPixels, width, height, effStride, kernel.imagPart, kernel.kernelSize);
 
-            GaborChannelResult ch { };
+            GaborChannelResult ch {};
             ch.scaleIndex = s;
             ch.orientationIndex = o;
             ch.orientationRad = m_orientationAnglesRad[o];
@@ -414,7 +446,7 @@ GaborFilterBankResult GaborFilterBank::evaluate(
 GaborFilterBankResult GaborFilterBank::evaluate(
     const std::vector<double>& image, int width, int height, bool computeSpatialEnergy) const
 {
-    GaborFilterBankResult result { };
+    GaborFilterBankResult result {};
     result.imageWidth = width;
     result.imageHeight = height;
 
@@ -422,7 +454,11 @@ GaborFilterBankResult GaborFilterBank::evaluate(
         return result;
     }
 
-    const std::size_t totalPixels = static_cast<std::size_t>(width * height);
+    const std::size_t totalPixels = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+    if (image.size() < totalPixels) {
+        return result;
+    }
+
     const std::size_t S = (m_config.numScales > 0U) ? m_config.numScales : 1U;
     const std::size_t O = (m_config.numOrientations > 0U) ? m_config.numOrientations : 1U;
 
@@ -440,7 +476,7 @@ GaborFilterBankResult GaborFilterBank::evaluate(
             const std::vector<double> realResp = convolve2D(image, width, height, kernel.realPart, kernel.kernelSize);
             const std::vector<double> imagResp = convolve2D(image, width, height, kernel.imagPart, kernel.kernelSize);
 
-            GaborChannelResult ch { };
+            GaborChannelResult ch {};
             ch.scaleIndex = s;
             ch.orientationIndex = o;
             ch.orientationRad = m_orientationAnglesRad[o];
@@ -523,11 +559,16 @@ GaborFilterBankResult GaborFilterBank::evaluate(
     return result;
 }
 
-std::vector<double> GaborFilterBank::evaluateRoiDirectionalSharpness(const std::uint8_t* grayPixels, int width,
-    int height, int roiX, int roiY, int roiWidth, int roiHeight, int stride) const
+std::vector<double> GaborFilterBank::evaluateRoiSharpness(const std::uint8_t* grayPixels, int width, int height,
+    int roiX, int roiY, int roiWidth, int roiHeight, int stride) const
 {
     const std::size_t O = (m_config.numOrientations > 0U) ? m_config.numOrientations : 1U;
     if (grayPixels == nullptr || width <= 0 || height <= 0 || roiWidth <= 0 || roiHeight <= 0) {
+        return std::vector<double>(O, 0.0);
+    }
+
+    const int pitch = (stride > 0) ? stride : width;
+    if (pitch < width) {
         return std::vector<double>(O, 0.0);
     }
 
@@ -542,13 +583,18 @@ std::vector<double> GaborFilterBank::evaluateRoiDirectionalSharpness(const std::
         return std::vector<double>(O, 0.0);
     }
 
-    const int pitch = (stride > 0) ? stride : width;
-    std::vector<std::uint8_t> roiPixels(static_cast<std::size_t>(effW * effH));
+    const auto uEffW = static_cast<std::size_t>(effW);
+    const auto uEffH = static_cast<std::size_t>(effH);
+    const auto uPitch = static_cast<std::size_t>(pitch);
+    const auto uX0 = static_cast<std::size_t>(x0);
+    const auto uY0 = static_cast<std::size_t>(y0);
 
-    for (int y = 0; y < effH; ++y) {
-        const std::uint8_t* srcRow = grayPixels + (y0 + y) * pitch + x0;
-        std::uint8_t* dstRow = roiPixels.data() + y * effW;
-        std::copy_n(srcRow, effW, dstRow);
+    std::vector<std::uint8_t> roiPixels(uEffW * uEffH, 0U);
+
+    for (std::size_t y = 0U; y < uEffH; ++y) {
+        const std::uint8_t* srcRow = grayPixels + ((uY0 + y) * uPitch) + uX0;
+        std::uint8_t* dstRow = roiPixels.data() + (y * uEffW);
+        std::copy_n(srcRow, uEffW, dstRow);
     }
 
     const GaborFilterBankResult res = evaluate(roiPixels.data(), effW, effH, effW, false);

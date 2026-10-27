@@ -3,10 +3,10 @@
 /// @file PhaseCorrelation.h
 /// @brief Header declaring 2D Phase Correlation Global Motion Estimator for camera translation estimation.
 
-#include "Fft.h"
-
 #include <cstddef>
 #include <cstdint>
+
+#include "Fft.h"
 
 namespace Math {
 
@@ -40,6 +40,8 @@ public:
     explicit PhaseCorrelationEstimator(PhaseCorrelationConfig config = {});
 
     /// @brief Estimates global translation from reference frame to current frame.
+    /// @details Resamples both frames onto a power-of-two grid, applies 2D windowing, evaluates the normalized
+    ///          cross-power spectrum via 2D FFT/IFFT, and refines the correlation peak to sub-pixel accuracy.
     /// @param[in] refPixels Grayscale pixel buffer of reference frame.
     /// @param[in] curPixels Grayscale pixel buffer of current frame.
     /// @param[in] width Frame width in pixels.
@@ -58,7 +60,7 @@ public:
     [[nodiscard]] const PhaseCorrelationConfig& getConfig() const noexcept;
 
 private:
-    PhaseCorrelationConfig m_config;
+    PhaseCorrelationConfig m_config {};
 };
 
 } // namespace Math

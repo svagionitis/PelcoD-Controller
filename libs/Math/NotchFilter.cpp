@@ -3,8 +3,9 @@
 
 #include "NotchFilter.h"
 
-#include <algorithm>
 #include <cmath>
+
+#include <algorithm>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -13,11 +14,8 @@
 namespace Math {
 
 NotchFilter::NotchFilter(double centerFreqHz, double sampleRateHz, double qFactor)
-    : m_centerFreqHz(centerFreqHz)
-    , m_sampleRateHz(sampleRateHz)
-    , m_qFactor(std::max(0.1, qFactor))
 {
-    calculateCoefficients();
+    setParameters(centerFreqHz, sampleRateHz, qFactor);
 }
 
 void NotchFilter::setParameters(double centerFreqHz, double sampleRateHz, double qFactor) noexcept

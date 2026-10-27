@@ -5,9 +5,11 @@
 
 #include <cmath>
 #include <cstddef>
-#include <gtest/gtest.h>
+
 #include <iostream>
 #include <vector>
+
+#include <gtest/gtest.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -64,7 +66,7 @@ TEST(GoertzelFilterTest, OffTargetFrequencyRejection)
     for (std::size_t i = 0U; i < n; ++i) {
         const double t = static_cast<double>(i) / fs;
         const double sample = amplitude * std::sin(2.0 * M_PI * fOff * t);
-        filter.processSample(sample);
+        (void)filter.processSample(sample);
     }
 
     const double mag = filter.getMagnitude();
@@ -88,7 +90,7 @@ TEST(GoertzelFilterTest, StreamingVsBatchEquivalence)
     for (std::size_t i = 0U; i < n; ++i) {
         const double t = static_cast<double>(i) / fs;
         samples[i] = 1.75 * std::cos(2.0 * M_PI * f0 * t);
-        filter.processSample(samples[i]);
+        (void)filter.processSample(samples[i]);
     }
 
     const double streamMag = filter.getMagnitude();
@@ -112,7 +114,7 @@ TEST(GoertzelFilterTest, ContinuousNonIntegerFrequency)
 
     for (std::size_t i = 0U; i < n; ++i) {
         const double t = static_cast<double>(i) / fs;
-        filter.processSample(amplitude * std::sin(2.0 * M_PI * f0 * t));
+        (void)filter.processSample(amplitude * std::sin(2.0 * M_PI * f0 * t));
     }
 
     const double mag = filter.getMagnitude();

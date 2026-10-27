@@ -4,8 +4,8 @@
 /// @brief High-contrast spectral colormaps (Inferno, Viridis, Tactical Green, Jet) for GUI and TUI waterfalls.
 
 #include <cstdint>
+
 #include <string>
-#include <tuple>
 
 namespace Math {
 
@@ -16,7 +16,10 @@ struct RgbColor {
     std::uint8_t g { 0U };
     std::uint8_t b { 0U };
 
-    constexpr bool operator==(const RgbColor& o) const noexcept
+    /// @brief Equality comparison operator.
+    /// @param[in] o Other RgbColor to compare.
+    /// @return True if all RGB channels are equal.
+    [[nodiscard]] constexpr bool operator==(const RgbColor& o) const noexcept
     {
         return r == o.r && g == o.g && b == o.b;
     }
@@ -24,6 +27,7 @@ struct RgbColor {
 
 /// @class SpectrogramColorMap
 /// @brief Translates normalized spectral power or dB values to 24-bit RGB or ANSI truecolor terminal escapes.
+/// @details Provides piecewise-linear interpolation across perceptual color stops for real-time spectrograms.
 class SpectrogramColorMap {
 public:
     /// @enum Preset
@@ -37,12 +41,14 @@ public:
     };
 
     /// @brief Maps normalized value [0.0, 1.0] to an RGB color.
+    /// @details Clamps value to [0.0, 1.0] and linearly interpolates between adjacent palette stops.
     /// @param[in] value Normalized intensity [0.0 = minimum, 1.0 = maximum].
     /// @param[in] preset Colormap palette.
     /// @return 24-bit RgbColor triplet.
     [[nodiscard]] static RgbColor mapNormalized(double value, Preset preset = Preset::Inferno) noexcept;
 
     /// @brief Maps decibel power [minDb, maxDb] to an RGB color.
+    /// @details Normalizes db within [minDb, maxDb] and delegates to mapNormalized().
     /// @param[in] db Logarithmic spectral power in decibels.
     /// @param[in] minDb Floor decibel cutoff (mapped to 0.0).
     /// @param[in] maxDb Ceiling decibel cutoff (mapped to 1.0).

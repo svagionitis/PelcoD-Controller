@@ -12,38 +12,45 @@ namespace Math {
 class NotchFilter {
 public:
     /// @brief Constructs a notch filter with specified parameters.
+    /// @details Clamps sampleRateHz and qFactor to safe positive bounds and computes biquad coefficients.
     /// @param[in] centerFreqHz Center notch frequency in Hertz to reject.
     /// @param[in] sampleRateHz Signal sampling rate in Hertz.
     /// @param[in] qFactor Quality factor Q (higher Q produces a narrower notch band).
     explicit NotchFilter(double centerFreqHz = 10.0, double sampleRateHz = 50.0, double qFactor = 5.0);
 
     /// @brief Reconfigures the filter coefficients.
+    /// @details Recomputes biquad coefficients for the new center frequency, sampling rate, and Q factor.
     /// @param[in] centerFreqHz Center notch frequency in Hertz.
     /// @param[in] sampleRateHz Signal sampling rate in Hertz.
     /// @param[in] qFactor Quality factor Q (must be positive).
     void setParameters(double centerFreqHz, double sampleRateHz, double qFactor = 5.0) noexcept;
 
     /// @brief Processes a single input sample through the notch filter.
+    /// @details Evaluates the Direct Form I 2nd-order difference equation and updates internal delay states.
     /// @param[in] sample Raw time-domain input sample.
     /// @return Filtered output sample.
     [[nodiscard]] double process(double sample) noexcept;
 
     /// @brief Resets filter state history (delay line).
+    /// @details Zeroes previous input and output delay states (x1, x2, y1, y2).
     void reset() noexcept;
 
     /// @brief Returns the configured notch center frequency in Hertz.
+    /// @return Center frequency in Hertz.
     [[nodiscard]] double getCenterFrequency() const noexcept
     {
         return m_centerFreqHz;
     }
 
     /// @brief Returns the configured sampling rate in Hertz.
+    /// @return Sampling rate in Hertz.
     [[nodiscard]] double getSampleRate() const noexcept
     {
         return m_sampleRateHz;
     }
 
     /// @brief Returns the configured Q factor.
+    /// @return Quality factor Q.
     [[nodiscard]] double getQFactor() const noexcept
     {
         return m_qFactor;

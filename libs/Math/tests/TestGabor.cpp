@@ -1,15 +1,17 @@
 /// @file TestGabor.cpp
 /// @brief GoogleTest suite verifying 1D and 2D Gabor transforms, kernels, filterbanks, and anisotropy estimation.
 
-#include "Gabor.h"
-
+#include <cmath>
+#include <cstddef>
 #include <cstdint>
-#include <gtest/gtest.h>
 
 #include <algorithm>
-#include <cmath>
 #include <numeric>
 #include <vector>
+
+#include <gtest/gtest.h>
+
+#include "Gabor.h"
 
 namespace {
 
@@ -20,7 +22,7 @@ constexpr double kPi = 3.14159265358979323846;
 std::vector<std::uint8_t> createSyntheticGrating(
     int width, int height, double wavelength, double orientationRad, double phase = 0.0)
 {
-    std::vector<std::uint8_t> img(static_cast<std::size_t>(width * height), 0);
+    std::vector<std::uint8_t> img(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), 0U);
     const double cosTheta = std::cos(orientationRad);
     const double sinTheta = std::sin(orientationRad);
     const double twoPiOverLambda = (2.0 * kPi) / wavelength;
@@ -30,7 +32,8 @@ std::vector<std::uint8_t> createSyntheticGrating(
             const double proj = static_cast<double>(x) * cosTheta + static_cast<double>(y) * sinTheta;
             const double val = 128.0 + 120.0 * std::cos(twoPiOverLambda * proj + phase);
             const int clamped = std::clamp(static_cast<int>(std::round(val)), 0, 255);
-            img[static_cast<std::size_t>(y * width + x)] = static_cast<std::uint8_t>(clamped);
+            img[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)]
+                = static_cast<std::uint8_t>(clamped);
         }
     }
     return img;
@@ -40,7 +43,7 @@ std::vector<std::uint8_t> createSyntheticGrating(
 
 TEST(TestGabor, Kernel1DProperties)
 {
-    Math::Gabor1DConfig cfg { };
+    Math::Gabor1DConfig cfg {};
     cfg.centerFrequencyHz = 20.0;
     cfg.sampleRateHz = 200.0;
     cfg.sigmaSeconds = 0.025;
@@ -74,7 +77,7 @@ TEST(TestGabor, Kernel1DProperties)
 
 TEST(TestGabor, Kernel2DPropertiesAndDcSuppression)
 {
-    Math::Gabor2DConfig cfg { };
+    Math::Gabor2DConfig cfg {};
     cfg.wavelength = 8.0;
     cfg.orientationRad = kPi / 4.0; // 45 deg
     cfg.sigma = 4.0;
@@ -107,7 +110,7 @@ TEST(TestGabor, OrientationSelectivityOnSyntheticGratings)
     const double lambda = 8.0;
 
     // Filterbank with 4 orientations: 0 deg (0), 45 deg (pi/4), 90 deg (pi/2), 135 deg (3*pi/4)
-    Math::GaborFilterBankConfig fbConfig { };
+    Math::GaborFilterBankConfig fbConfig {};
     fbConfig.numScales = 1U;
     fbConfig.numOrientations = 4U;
     fbConfig.baseWavelength = lambda;
@@ -144,7 +147,7 @@ TEST(TestGabor, ScaleSelectivity)
     const int H = 64;
 
     // 2 scales: lambda = 4.0 (fine) and lambda = 16.0 (coarse)
-    Math::GaborFilterBankConfig fbConfig { };
+    Math::GaborFilterBankConfig fbConfig {};
     fbConfig.numScales = 2U;
     fbConfig.numOrientations = 2U;
     fbConfig.baseWavelength = 4.0;
@@ -174,18 +177,18 @@ TEST(TestGabor, DirectionalMotionBlurDetectionAndAnisotropy)
     const int H = 64;
 
     // Create an orthogonal grid with equal horizontal and vertical frequency components
-    std::vector<std::uint8_t> gridImg(static_cast<std::size_t>(W * H), 128);
+    std::vector<std::uint8_t> gridImg(static_cast<std::size_t>(W) * static_cast<std::size_t>(H), 128U);
     const double twoPiOverLambda = (2.0 * kPi) / 8.0;
     for (int y = 0; y < H; ++y) {
         for (int x = 0; x < W; ++x) {
             const double val = 128.0 + 55.0 * std::cos(twoPiOverLambda * static_cast<double>(x))
                 + 55.0 * std::cos(twoPiOverLambda * static_cast<double>(y));
-            gridImg[static_cast<std::size_t>(y * W + x)]
+            gridImg[static_cast<std::size_t>(y) * static_cast<std::size_t>(W) + static_cast<std::size_t>(x)]
                 = static_cast<std::uint8_t>(std::clamp(static_cast<int>(std::round(val)), 0, 255));
         }
     }
 
-    Math::GaborFilterBankConfig fbConfig { };
+    Math::GaborFilterBankConfig fbConfig {};
     fbConfig.numScales = 2U;
     fbConfig.numOrientations = 4U; // 0, 45, 90, 135 deg
     fbConfig.baseWavelength = 4.0;
@@ -199,7 +202,7 @@ TEST(TestGabor, DirectionalMotionBlurDetectionAndAnisotropy)
     EXPECT_NEAR(resBaseline.directionalSharpness[0], resBaseline.directionalSharpness[2], 0.5);
 
     // Simulate severe horizontal pan motion blur (1D horizontal box blur of 9 pixels)
-    std::vector<std::uint8_t> horizBlurred(static_cast<std::size_t>(W * H), 128);
+    std::vector<std::uint8_t> horizBlurred(static_cast<std::size_t>(W) * static_cast<std::size_t>(H), 128U);
     const int blurRadius = 4;
     for (int y = 0; y < H; ++y) {
         for (int x = 0; x < W; ++x) {
@@ -207,10 +210,12 @@ TEST(TestGabor, DirectionalMotionBlurDetectionAndAnisotropy)
             int count = 0;
             for (int dx = -blurRadius; dx <= blurRadius; ++dx) {
                 const int px = std::clamp(x + dx, 0, W - 1);
-                sum += gridImg[static_cast<std::size_t>(y * W + px)];
+                sum += gridImg[static_cast<std::size_t>(y) * static_cast<std::size_t>(W)
+                    + static_cast<std::size_t>(px)];
                 count++;
             }
-            horizBlurred[static_cast<std::size_t>(y * W + x)] = static_cast<std::uint8_t>(sum / count);
+            horizBlurred[static_cast<std::size_t>(y) * static_cast<std::size_t>(W) + static_cast<std::size_t>(x)]
+                = static_cast<std::uint8_t>(sum / count);
         }
     }
 
@@ -228,7 +233,7 @@ TEST(TestGabor, FeatureVectorConsistencyAndRoiEvaluation)
     const int W = 64;
     const int H = 64;
 
-    Math::GaborFilterBankConfig fbConfig { };
+    Math::GaborFilterBankConfig fbConfig {};
     fbConfig.numScales = 3U;
     fbConfig.numOrientations = 4U;
     fbConfig.baseWavelength = 4.0;
@@ -250,11 +255,19 @@ TEST(TestGabor, FeatureVectorConsistencyAndRoiEvaluation)
     }
 
     // ROI sharpness
-    const std::vector<double> roiSharpness = fb.evaluateRoiDirectionalSharpness(img.data(), W, H, 10, 10, 40, 40);
+    const std::vector<double> roiSharpness = fb.evaluateRoiSharpness(img.data(), W, H, 10, 10, 40, 40);
 
     ASSERT_EQ(roiSharpness.size(), 4U);
     for (double s : roiSharpness) {
         EXPECT_FALSE(std::isnan(s));
         EXPECT_GE(s, 0.0);
     }
+
+    // Defensive bounds validation for convolve2D with undersized kernel or image
+    const std::vector<double> smallKernel { 1.0, 2.0 };
+    EXPECT_TRUE(Math::convolve2D(img.data(), W, H, W, smallKernel, 3).empty());
+
+    const std::vector<double> smallImg { 1.0, 2.0 };
+    const std::vector<double> validKernel(9U, 1.0 / 9.0);
+    EXPECT_TRUE(Math::convolve2D(smallImg, 4, 4, validKernel, 3).empty());
 }
