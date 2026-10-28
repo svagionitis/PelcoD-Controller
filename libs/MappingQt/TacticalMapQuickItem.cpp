@@ -21,6 +21,7 @@
 #include <QPen>
 #include <QPointF>
 #include <QPolygonF>
+#include <QQuickItem>
 #include <QRectF>
 #include <QString>
 #include <QWheelEvent>
@@ -41,11 +42,21 @@ namespace {
     constexpr double kCoordEpsilon { 1e-9 };
     constexpr double kClickDeadbandSq { 16.0 }; // 4.0 px Euclidean click-vs-drag radius
 
+    /// @brief Compares two floating-point values for equality within a small epsilon tolerance.
+    /// @details Prevents spurious signal emissions and floating-point equality loops.
+    /// @param[in] a First floating-point operand.
+    /// @param[in] b Second floating-point operand.
+    /// @param[in] eps Maximum absolute difference treated as equal.
+    /// @return `true` if `std::abs(a - b) <= eps`; `false` otherwise.
     [[nodiscard]] bool nearlyEqual(double a, double b, double eps = kCoordEpsilon) noexcept
     {
         return std::abs(a - b) <= eps;
     }
 
+    /// @brief Normalizes an arbitrary heading angle in degrees into the canonical `[0.0, 360.0)` range.
+    /// @details Returns `0.0` if `headingDeg` is non-finite (`NaN` or `Inf`).
+    /// @param[in] headingDeg Input heading angle in degrees.
+    /// @return Normalized heading angle in `[0.0, 360.0)`.
     [[nodiscard]] double normalizeHeading(double headingDeg) noexcept
     {
         if (!std::isfinite(headingDeg)) {
@@ -58,6 +69,10 @@ namespace {
         return norm;
     }
 
+    /// @brief Checks whether all four geographic corners of a sensor footprint frustum are finite.
+    /// @details Guards against `NaN` or `Inf` propagation into Mercator projection formulas.
+    /// @param[in] frustum Candidate 4-corner geographic footprint.
+    /// @return `true` if all eight latitude/longitude components are finite; `false` otherwise.
     [[nodiscard]] bool isValidFrustum(const Klv::FrustumCorners& frustum) noexcept
     {
         return std::isfinite(frustum.topLeft.latitudeDeg) && std::isfinite(frustum.topLeft.longitudeDeg)
@@ -66,17 +81,32 @@ namespace {
             && std::isfinite(frustum.bottomLeft.latitudeDeg) && std::isfinite(frustum.bottomLeft.longitudeDeg);
     }
 
+    /// @brief Clamps latitude and normalizes longitude for a geographic point.
+    /// @details Ensures the point lies within valid Web Mercator projection bounds.
+    /// @param[in] lat Geodetic latitude in degrees.
+    /// @param[in] lon Geodetic longitude in degrees.
+    /// @return Sanitized `Klv::GeoPoint2D` coordinate.
     [[nodiscard]] Klv::GeoPoint2D sanitizePoint(double lat, double lon) noexcept
     {
         return { Mapping::MercatorProjection::clampLatitude(lat),
             Mapping::MercatorProjection::normalizeLongitude(lon) };
     }
 
+    /// @brief Compares two 2D geographic points for equality within `kCoordEpsilon`.
+    /// @details Evaluates both latitude and longitude components using `nearlyEqual()`.
+    /// @param[in] a First geographic point.
+    /// @param[in] b Second geographic point.
+    /// @return `true` if both latitude and longitude match within epsilon.
     [[nodiscard]] bool nearlyEqualPoint(const Klv::GeoPoint2D& a, const Klv::GeoPoint2D& b) noexcept
     {
         return nearlyEqual(a.latitudeDeg, b.latitudeDeg) && nearlyEqual(a.longitudeDeg, b.longitudeDeg);
     }
 
+    /// @brief Compares two `Klv::FrustumCorners` structures for equality within `kCoordEpsilon`.
+    /// @details Used by `setFrustum()` to suppress redundant scene-graph repaints when telemetry is unchanged.
+    /// @param[in] a First frustum corner set.
+    /// @param[in] b Second frustum corner set.
+    /// @return `true` if all four corners match within epsilon.
     [[nodiscard]] bool nearlyEqualFrustum(const Klv::FrustumCorners& a, const Klv::FrustumCorners& b) noexcept
     {
         return nearlyEqualPoint(a.topLeft, b.topLeft) && nearlyEqualPoint(a.topRight, b.topRight)
@@ -97,6 +127,8 @@ TacticalMapQuickItem::TacticalMapQuickItem(QQuickItem* parent)
     setAntialiasing(true);
 }
 
+TacticalMapQuickItem::~TacticalMapQuickItem() = default;
+
 double TacticalMapQuickItem::centerLatitude() const
 {
     QMutexLocker locker(&m_mutex);
@@ -111,7 +143,7 @@ void TacticalMapQuickItem::setCenterLatitude(double lat)
     const double clampedLat { Mapping::MercatorProjection::clampLatitude(lat) };
     {
         QMutexLocker locker(&m_mutex);
-        auto c = m_viewport.center();
+        Klv::GeoPoint2D c { m_viewport.center() };
         if (nearlyEqual(c.latitudeDeg, clampedLat)) {
             return;
         }
@@ -136,7 +168,7 @@ void TacticalMapQuickItem::setCenterLongitude(double lon)
     const double normLon { Mapping::MercatorProjection::normalizeLongitude(lon) };
     {
         QMutexLocker locker(&m_mutex);
-        auto c = m_viewport.center();
+        Klv::GeoPoint2D c { m_viewport.center() };
         if (nearlyEqual(c.longitudeDeg, normLon)) {
             return;
         }
@@ -156,7 +188,7 @@ void TacticalMapQuickItem::setCenter(double lat, double lon)
     const double normLon { Mapping::MercatorProjection::normalizeLongitude(lon) };
     {
         QMutexLocker locker(&m_mutex);
-        const auto cur = m_viewport.center();
+        const Klv::GeoPoint2D cur { m_viewport.center() };
         if (nearlyEqual(cur.latitudeDeg, clampedLat) && nearlyEqual(cur.longitudeDeg, normLon)) {
             return;
         }
@@ -238,7 +270,7 @@ void TacticalMapQuickItem::addOfflineSearchDirectory(const QString& directoryPat
         if (m_diskCache != nullptr) {
             m_diskCache->addSearchDirectory(trimmed.toStdString());
         } else {
-            auto secondaryCache = std::make_shared<Mapping::DiskTileCache>(trimmed.toStdString());
+            const auto secondaryCache { std::make_shared<Mapping::DiskTileCache>(trimmed.toStdString()) };
             m_tileProvider.addOfflineProvider(secondaryCache);
         }
         m_tileProvider.memoryCache().clear();
@@ -539,14 +571,14 @@ QImage TacticalMapQuickItem::findOrDecodeTile(const Mapping::TileCoord& coord)
 {
     {
         QMutexLocker locker(&m_mutex);
-        const auto it = m_decodedTileCache.find(coord);
+        const auto it { m_decodedTileCache.find(coord) };
         if (it != m_decodedTileCache.end()) {
             return it->second;
         }
     }
 
     constexpr auto kMaxIntSize { static_cast<std::size_t>(std::numeric_limits<int>::max()) };
-    const auto tileData = m_tileProvider.getTile(coord);
+    const auto tileData { m_tileProvider.getTile(coord) };
     if (!tileData || tileData->bytes.empty() || tileData->bytes.size() > kMaxIntSize) {
         return QImage { };
     }
@@ -599,7 +631,7 @@ QPointF TacticalMapQuickItem::geoToScreen(double lat, double lon) const
         return QPointF(0.0, 0.0);
     }
     QMutexLocker locker(&m_mutex);
-    const auto sp = m_viewport.geoToScreen({ lat, lon });
+    const Mapping::ScreenPoint sp { m_viewport.geoToScreen({ lat, lon }) };
     return QPointF(sp.x, sp.y);
 }
 
@@ -609,7 +641,7 @@ QPointF TacticalMapQuickItem::screenToGeo(double x, double y) const
         return QPointF(0.0, 0.0);
     }
     QMutexLocker locker(&m_mutex);
-    const auto geo = m_viewport.screenToGeo({ x, y });
+    const Klv::GeoPoint2D geo { m_viewport.screenToGeo({ x, y }) };
     return QPointF(geo.latitudeDeg, geo.longitudeDeg);
 }
 
@@ -758,7 +790,7 @@ void TacticalMapQuickItem::paint(QPainter* painter)
     painter->fillRect(boundingRect(), QColor(14, 18, 24));
 
     // 2. Render visible tiles via bounded decoded QImage cache
-    const auto visibleTiles = snap.viewport.calculateVisibleTiles(1);
+    const auto visibleTiles { snap.viewport.calculateVisibleTiles(1) };
     for (const auto& vt : visibleTiles) {
         const QImage img { findOrDecodeTile(vt.coord) };
         if (!img.isNull()) {
@@ -783,7 +815,7 @@ void TacticalMapQuickItem::paint(QPainter* painter)
 
     // 4. Render culled tactical optical footprint frustum
     if (snap.showFrustum && snap.hasFrustum) {
-        const auto sf = Mapping::TacticalOverlay::projectFrustum(snap.viewport, snap.frustum);
+        const Mapping::ScreenFrustum sf { Mapping::TacticalOverlay::projectFrustum(snap.viewport, snap.frustum) };
         if (sf.valid && Mapping::TacticalOverlay::isFrustumVisible(sf, viewportRect)) {
             QPolygonF poly { };
             for (std::size_t i { 0U }; i < 4U; ++i) {
@@ -811,8 +843,8 @@ void TacticalMapQuickItem::paint(QPainter* painter)
 
     // 5. Render target line-of-sight and target reticle
     if (snap.hasTarget) {
-        const auto los = Mapping::TacticalOverlay::projectLineOfSight(
-            snap.viewport, { snap.platformLat, snap.platformLon }, { snap.targetLat, snap.targetLon });
+        const Mapping::ScreenVector los { Mapping::TacticalOverlay::projectLineOfSight(
+            snap.viewport, { snap.platformLat, snap.platformLon }, { snap.targetLat, snap.targetLon }) };
         if (los.valid) {
             const QPointF losOrigin(los.origin.x, los.origin.y);
             const QPointF losTip(los.tip.x, los.tip.y);
@@ -829,17 +861,18 @@ void TacticalMapQuickItem::paint(QPainter* painter)
 
     // 6. Render MISB ST 0903 VMTI moving targets
     if (snap.hasVmti) {
-        const std::optional<Klv::GeoPoint2D> frameCenter
-            = snap.hasTarget ? std::optional<Klv::GeoPoint2D>({ snap.targetLat, snap.targetLon }) : std::nullopt;
-        const auto projectedTargets
-            = Mapping::VmtiOverlay::projectTargetSeries(snap.viewport, snap.vmtiSet, frameCenter);
+        const std::optional<Klv::GeoPoint2D> frameCenter {
+            snap.hasTarget ? std::optional<Klv::GeoPoint2D>({ snap.targetLat, snap.targetLon }) : std::nullopt
+        };
+        const auto projectedTargets { Mapping::VmtiOverlay::projectTargetSeries(
+            snap.viewport, snap.vmtiSet, frameCenter) };
 
         for (const auto& trk : projectedTargets) {
             if (!Mapping::VmtiOverlay::isTargetVisible(trk, viewportRect)) {
                 continue;
             }
             const QPointF pos(trk.screenPos.x, trk.screenPos.y);
-            const QColor trkColor = trk.isMoving ? QColor(255, 145, 0) : snap.themeColor;
+            const QColor trkColor { trk.isMoving ? QColor(255, 145, 0) : snap.themeColor };
 
             if (trk.ce90Pixels >= 2.0) {
                 QColor ceFill { trkColor };
@@ -861,8 +894,8 @@ void TacticalMapQuickItem::paint(QPainter* painter)
 
     // 7. Render platform marker and heading arrow
     if (snap.showHeading) {
-        const auto sv = Mapping::TacticalOverlay::projectHeadingVector(
-            snap.viewport, { snap.platformLat, snap.platformLon }, snap.platformHeading, 35.0);
+        const Mapping::ScreenVector sv { Mapping::TacticalOverlay::projectHeadingVector(
+            snap.viewport, { snap.platformLat, snap.platformLon }, snap.platformHeading, 35.0) };
 
         const QPointF origin(sv.origin.x, sv.origin.y);
         const QPointF tip(sv.tip.x, sv.tip.y);

@@ -1,5 +1,5 @@
 /// @file TestTacticalMapQuickItem.cpp
-/// @brief Unit tests for MappingQt::TacticalMapQuickItem properties, rendering, concurrency, and P0/P1 requirements.
+/// @brief Unit tests for MappingQt::TacticalMapQuickItem properties, rendering, concurrency, and P0/P1/P2 requirements.
 
 #include "TacticalMapQuickItem.h"
 
@@ -8,29 +8,39 @@
 #include <cstdint>
 
 #include <atomic>
+#include <filesystem>
 #include <limits>
 #include <memory>
+#include <string>
+#include <system_error>
 #include <thread>
 #include <type_traits>
 #include <utility>
 
 #include <QByteArray>
 #include <QColor>
+#include <QEvent>
 #include <QGuiApplication>
 #include <QImage>
 #include <QMouseEvent>
 #include <QObject>
 #include <QPainter>
+#include <QPoint>
 #include <QPointF>
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QRectF>
 #include <QSignalSpy>
+#include <QString>
+#include <QUrl>
 #include <QWheelEvent>
 #include <QtGlobal>
 #include <gtest/gtest.h>
 
+#include "DiskTileCache.h"
+#include "GeoTypes.h"
 #include "KlvTypes.h"
+#include "MapViewport.h"
 #include "VmtiTypes.h"
 
 using namespace MappingQt;
@@ -38,7 +48,9 @@ using namespace MappingQt;
 namespace {
 
 /// @class TestableTacticalMapQuickItem
-/// @brief Exposes protected event handlers of TacticalMapQuickItem for deterministic unit testing.
+/// @brief Exposes protected event and geometry handlers of TacticalMapQuickItem for deterministic unit testing.
+/// @details Promotes `geometryChange`, `mousePressEvent`, `mouseMoveEvent`, `mouseReleaseEvent`, and `wheelEvent`
+///          to `public` visibility so synthetic Qt input events can be dispatched directly in headless tests.
 class TestableTacticalMapQuickItem : public TacticalMapQuickItem {
 public:
     using TacticalMapQuickItem::geometryChange;
@@ -48,6 +60,30 @@ public:
     using TacticalMapQuickItem::TacticalMapQuickItem;
     using TacticalMapQuickItem::wheelEvent;
 };
+
+/// @brief Builds a solid-color 16x16 binary PPM (`P6`) tile payload for disk cache testing.
+/// @details Avoids external file assets while producing a valid raster image decodable by `QImage::loadFromData()`.
+/// @param[in] r Red channel intensity (`[0, 255]`).
+/// @param[in] g Green channel intensity (`[0, 255]`).
+/// @param[in] b Blue channel intensity (`[0, 255]`).
+/// @return Populated `Mapping::TileData` instance.
+[[nodiscard]] Mapping::TileData createSolidPpmTile(std::uint8_t r, std::uint8_t g, std::uint8_t b)
+{
+    Mapping::TileData tile { };
+    const std::string header { "P6\n16 16\n255\n" };
+    tile.bytes.reserve(header.size() + (16U * 16U * 3U));
+    for (const char ch : header) {
+        tile.bytes.push_back(static_cast<std::uint8_t>(ch));
+    }
+    for (std::size_t i { 0U }; i < (16U * 16U); ++i) {
+        tile.bytes.push_back(r);
+        tile.bytes.push_back(g);
+        tile.bytes.push_back(b);
+    }
+    tile.mimeType = "image/png";
+    tile.valid = true;
+    return tile;
+}
 
 } // namespace
 
@@ -462,14 +498,114 @@ TEST(TacticalMapQuickItemTest, StaticAndFreeRegisterQmlTypesLinkAndInstantiateIn
     QQmlEngine engine { };
     QQmlComponent component(&engine);
     component.setData(
-        QByteArrayLiteral("import QtQuick\nimport PelcoD.Mapping 1.0\nTacticalMap { width: 200; height: 150 }\n"),
-        QUrl());
+        QByteArrayLiteral("import PelcoD.Mapping 1.0\nTacticalMap { width: 200; height: 150 }\n"), QUrl());
     std::unique_ptr<QObject> obj { component.create() };
-    ASSERT_NE(obj, nullptr);
-    auto* mapItem = qobject_cast<TacticalMapQuickItem*>(obj.get());
+    ASSERT_NE(obj, nullptr) << component.errorString().toStdString();
+    auto* mapItem { qobject_cast<TacticalMapQuickItem*>(obj.get()) };
     ASSERT_NE(mapItem, nullptr);
     EXPECT_NEAR(mapItem->width(), 200.0, 1e-3);
     EXPECT_NEAR(mapItem->height(), 150.0, 1e-3);
+}
+
+TEST(TacticalMapQuickItemTest, WheelEventZoomsAroundCursorAndHandlesNullEventPointers)
+{
+    TestableTacticalMapQuickItem item { };
+    item.setWidth(400.0);
+    item.setHeight(300.0);
+    item.setCenter(37.9838, 23.7275);
+    item.setZoom(12.0);
+
+    // SEI CERT EXP34-C: Null event pointers must be ignored safely
+    EXPECT_NO_FATAL_FAILURE(item.mousePressEvent(nullptr));
+    EXPECT_NO_FATAL_FAILURE(item.mouseMoveEvent(nullptr));
+    EXPECT_NO_FATAL_FAILURE(item.mouseReleaseEvent(nullptr));
+    EXPECT_NO_FATAL_FAILURE(item.wheelEvent(nullptr));
+
+    QSignalSpy zoomSpy(&item, &TacticalMapQuickItem::zoomChanged);
+    QSignalSpy centerSpy(&item, &TacticalMapQuickItem::centerChanged);
+
+    const QPointF cursorPivot(100.0, 80.0);
+    const QPointF geoBefore { item.screenToGeo(cursorPivot.x(), cursorPivot.y()) };
+
+    // Positive wheel notch (+120 angleDelta.y -> +0.5 zoom step)
+    QWheelEvent wheelIn(
+        cursorPivot, cursorPivot, QPoint(0, 0), QPoint(0, 120), Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+    item.wheelEvent(&wheelIn);
+
+    EXPECT_EQ(zoomSpy.count(), 1);
+    EXPECT_EQ(centerSpy.count(), 1);
+    EXPECT_NEAR(item.zoom(), 12.5, 1e-4);
+
+    // Geographic point under the cursor pivot must remain invariant after zoomBy
+    const QPointF geoAfter { item.screenToGeo(cursorPivot.x(), cursorPivot.y()) };
+    EXPECT_NEAR(geoAfter.x(), geoBefore.x(), 1e-3);
+    EXPECT_NEAR(geoAfter.y(), geoBefore.y(), 1e-3);
+}
+
+TEST(TacticalMapQuickItemTest, GeometryChangeUpdatesViewportDimensions)
+{
+    TestableTacticalMapQuickItem item { };
+    item.setCenter(37.9838, 23.7275);
+    item.setZoom(12.0);
+
+    item.geometryChange(QRectF(0.0, 0.0, 640.0, 480.0), QRectF(0.0, 0.0, 800.0, 600.0));
+
+    // After resizing the viewport to 640x480, the center geographic coordinate projects to (320, 240)
+    const QPointF centerScreen { item.geoToScreen(37.9838, 23.7275) };
+    EXPECT_NEAR(centerScreen.x(), 320.0, 1e-3);
+    EXPECT_NEAR(centerScreen.y(), 240.0, 1e-3);
+}
+
+TEST(TacticalMapQuickItemTest, OfflineDirectoryLoadsDiskCachedTileAndResetsCleanly)
+{
+    std::error_code ec { };
+    const std::filesystem::path tempRoot { std::filesystem::temp_directory_path(ec)
+        / "pelcod_mapping_qt_p2_tile_test" };
+    std::filesystem::remove_all(tempRoot, ec);
+
+    const std::filesystem::path primaryDir { tempRoot / "primary" };
+    const std::filesystem::path secondaryDir { tempRoot / "secondary" };
+
+    // Populate all visible tiles at zoom 12 around (37.9838, 23.7275) with a bright crimson tile (200, 40, 60)
+    Mapping::MapViewport vp({ 37.9838, 23.7275 }, 12.0, 256.0, 256.0);
+    Mapping::DiskTileCache writer(primaryDir);
+    const Mapping::TileData redTile { createSolidPpmTile(200U, 40U, 60U) };
+    for (const auto& vt : vp.calculateVisibleTiles(1)) {
+        EXPECT_TRUE(writer.storeTile(vt.coord, redTile));
+    }
+
+    TestableTacticalMapQuickItem item { };
+    item.setWidth(256.0);
+    item.setHeight(256.0);
+    item.geometryChange(QRectF(0.0, 0.0, 256.0, 256.0), QRectF(0.0, 0.0, 800.0, 600.0));
+    item.setCenter(37.9838, 23.7275);
+    item.setZoom(12.0);
+    item.setShowGrid(false);
+    item.setShowFrustum(false);
+    item.setShowHeading(false);
+
+    item.setOfflineDirectory(QString::fromStdString(primaryDir.string()));
+    item.addOfflineSearchDirectory(QString::fromStdString(secondaryDir.string()));
+
+    QImage canvas(256, 256, QImage::Format_ARGB32);
+    canvas.fill(Qt::black);
+    {
+        QPainter painter(&canvas);
+        item.paint(&painter);
+    }
+
+    // Center pixel must reflect the decoded disk tile color (200, 40, 60) rather than background (14, 18, 24)
+    const QColor centerColor { canvas.pixelColor(128, 128) };
+    EXPECT_EQ(centerColor.red(), 200);
+    EXPECT_EQ(centerColor.green(), 40);
+    EXPECT_EQ(centerColor.blue(), 60);
+    EXPECT_GT(item.decodedTileCacheSize(), 0U);
+
+    // Resetting offline directory to empty detaches DiskTileCache and invalidates decoded tile cache
+    item.setOfflineDirectory(QStringLiteral(""));
+    EXPECT_EQ(item.decodedTileCacheSize(), 0U);
+
+    std::filesystem::remove_all(tempRoot, ec);
 }
 
 int main(int argc, char* argv[])
