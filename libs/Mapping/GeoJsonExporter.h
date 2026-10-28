@@ -13,6 +13,7 @@ namespace Mapping {
 
 /// @class GeoJsonExporter
 /// @brief Serializes recorded flight telemetry and sensor footprints into standard GeoJSON.
+/// @details Conforms to RFC 7946 (WGS-84 CRS84, right-hand rule polygon rings) and RFC 8259 string escaping.
 class GeoJsonExporter {
 public:
     /// @brief Serializes recorded data to formatted GeoJSON string.
@@ -25,6 +26,7 @@ public:
         const SpatialDataRecorder& recorder, const GeoJsonConfig& config = { });
 
     /// @brief Serializes recorded data directly to an output stream.
+    /// @details Writes the complete FeatureCollection JSON document to os and returns os.good().
     /// @param[in] recorder Spatial data provider.
     /// @param[out] os Destination output stream.
     /// @param[in] config GeoJSON configuration.
@@ -33,6 +35,7 @@ public:
         const SpatialDataRecorder& recorder, std::ostream& os, const GeoJsonConfig& config = { });
 
     /// @brief Exports recorded data directly to a `.geojson` file.
+    /// @details Opens filePath for truncated output and delegates serialization to exportToStream.
     /// @param[in] filePath Target destination file path.
     /// @param[in] recorder Spatial data provider.
     /// @param[in] config GeoJSON configuration.

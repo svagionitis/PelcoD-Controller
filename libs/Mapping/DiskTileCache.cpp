@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "GeoTypes.h"
 #include "MercatorProjection.h"
 
 namespace Mapping {

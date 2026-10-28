@@ -12,6 +12,12 @@
 #include <utility>
 #include <vector>
 
+#include "GeoTypes.h"
+#include "KlvTypes.h"
+#include "MapViewport.h"
+#include "MercatorProjection.h"
+#include "VmtiTypes.h"
+
 namespace Mapping {
 
 ScreenVmtiTarget VmtiOverlay::projectTarget(

@@ -9,6 +9,10 @@
 #include <algorithm>
 #include <vector>
 
+#include "GeoTypes.h"
+#include "KlvTypes.h"
+#include "MercatorProjection.h"
+
 namespace Mapping {
 
 MapViewport::MapViewport(const Klv::GeoPoint2D& center, double zoom, double width, double height) noexcept

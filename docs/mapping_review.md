@@ -10,14 +10,14 @@
 
 | Dimension | Verdict | Key Findings |
 | :--- | :--- | :--- |
-| **Layering & Modularity** | 🟢 **Good** | Clean separation between pure C++17 geodesy/tiling/export logic (`libs/Mapping`), Qt Quick UI (`libs/MappingQt`), and OpenCV PIP rasterization (`libs/VideoFilters`). Zero Qt dependencies in `libs/Mapping`. Minor CMake hygiene issues (`..` leaked on `PUBLIC` include path; unused `glog::glog` linked `PUBLIC`). |
+| **Layering & Modularity** | 🟢 **Resolved (P2 Complete)** | Clean separation between pure C++17 geodesy/tiling/export logic (`libs/Mapping`), Qt Quick UI (`libs/MappingQt`), and OpenCV PIP rasterization (`libs/VideoFilters`). Zero Qt dependencies in `libs/Mapping`. Removed unused `glog::glog` and parent `..` include leakage from `libs/Mapping/CMakeLists.txt`. |
 | **`noexcept` Exception Safety (SEI CERT ERR55-CPP)** | 🟢 **Resolved (P0 Complete)** | Removed invalid `noexcept` qualifiers from `VmtiOverlay::projectTarget()`, `ITileProvider::hasTile()`, `DiskTileCache::hasTile()`, `DiskTileCache::findTileFile()`, and `CompositeTileProvider::hasTile()`. Replaced per-call heap `std::vector<std::string>` in `findTileFile()` with `static constexpr std::array<std::string_view, 3>`. |
 | **Thread Safety & Concurrency (SEI CERT CON50-CPP)** | 🟢 **Resolved (P0 Complete)** | Converted `m_offlineOnly` and `m_enableProceduralFallback` in `CompositeTileProvider` to `std::atomic<bool>`, released `m_mutex` after snapshotting provider `std::shared_ptr`s prior to disk/network I/O, and eliminated redundant double `hasTile()` + `getTile()` filesystem lookups. |
 | **Integer & Floating-Point Safety (MISRA 7.0.6, CERT INT30-C, INT34-C, FLP34-C)** | 🟢 **Resolved (P0 Complete)** | Added `MercatorProjection::clampZoom()` (`[0, 22]`) before `1 << zoom` in `slippyToTmsY()`, `tmsToSlippyY()`, `latLonToTile()`, `tileToBoundingBox()`, and `calculateVisibleTiles()`; added `std::isfinite()` guards across `MercatorProjection`, `MapViewport`, `VmtiOverlay`, and `SpatialDataRecorder`; guarded unsigned timestamp subtractions in `SpatialDataRecorder::decimate()` and `GeoJsonExporter::exportToStream()`. |
 | **GIS & Protocol Completeness** | 🟢 **Resolved (P1 Complete)** | Fixed `BoundingBox::intersects()` across the anti-meridian (`west > east`); clamped world-spanning `MapViewport::visibleBoundingBox()` to `[-180, 180]`; added atomic `.tmp` write-rename and outbound 16 MB size cap in `DiskTileCache::storeTile()`; bound `#footprintStyle`, `#frustumStyle`, `#boresightStyle`, and `#vmtiStyle` to distinct `<Placemark>` elements in `KmlExporter` and enabled boresight-only exports; removed the obsolete pre-RFC 7946 `"crs"` object, added full `U+0000`–`U+001F` `\u00XX` escaping, and scanned all tracks for `tailNumber`/`missionId` in `GeoJsonExporter`; integrated MISB ST 0903 VMTI target recording and export across `SpatialDataRecorder`, `GeoJsonExporter`, and `KmlExporter`. |
-| **IWYU & `<cstdint>` Policy** | 🟡 **Partial** | `scripts/verify_iwyu_cstdint.py --strict` passes for `<cstdint>`, but 4 headers contain unused `#include` directives, 9 `.cpp` files rely on transitive includes (`<utility>`, `<cstddef>`, `<cstdint>`, `<cstdio>`, `<system_error>`, `<array>`, `<vector>`, `<string>`), and 25 files deviate from canonical 5-group include ordering. |
-| **Project Verification Checklist** | 🟡 **Partial** | All function identifiers are strictly `< 30` characters (0 violations). However, `TileCache::remove()` and `DiskTileCache::storeTile()` lack `[[nodiscard]]`, 8 `.cpp` files lack `/// @file` banners, Doxygen `@details`/`@param`/`@return` tags are incomplete, and several member/local variables omit `{}` initialization. |
-| **Unit Test Coverage** | 🟡 **Moderate** | 9 test suites (38 `TEST` cases) cover happy paths well, but miss `DecimationMode::HeadingThreshold`, anti-meridian `BoundingBox::intersects()`, `TileCache::setCapacity()` eviction, `CompositeTileProvider` online write-through, file export APIs, XML/JSON escaping, and `NaN`/extreme-zoom boundary conditions. |
+| **IWYU & `<cstdint>` Policy** | 🟢 **Resolved (P2 Complete)** | `scripts/verify_iwyu_cstdint.py libs/Mapping --strict` passes with 0 violations across all 34 files. Pruned all unused headers, added direct symbol includes to all headers, sources, and test files, and organized every file into the canonical 5-group include order. |
+| **Project Verification Checklist** | 🟢 **Resolved (P2 Complete)** | All 18 items of `.agents/rules/verification-checklist.md` pass at 100%: all function identifiers strictly `< 30` chars, `[[nodiscard]]` applied to `TileCache::remove()`, `DiskTileCache::storeTile()`, and `std::hash<Mapping::TileCoord>::operator()`, `/// @file` banners and full `@details`/`@param`/`@return` Doxygen tags on all public APIs, and `{}` initialization throughout. |
+| **Unit Test Coverage** | 🟢 **Resolved (P2 Complete)** | 9 test suites (60 `TEST` cases, 100% passing) cover all happy paths plus P0/P1/P2 edge cases (`DecimationMode::HeadingThreshold` across $359^\circ \leftrightarrow 1^\circ$, anti-meridian `BoundingBox::intersects()`, `TileCache::setCapacity()` eviction, `CompositeTileProvider` online write-through, `exportToFile()`, XML/JSON escaping, and `NaN`/extreme-zoom boundaries). |
 
 ---
 
@@ -154,7 +154,7 @@ flowchart TD
 | **A3** ✅ **Fixed** | **`noexcept` Contract Mismatch on `ITileProvider::hasTile()`** | Removed `noexcept` from `ITileProvider::hasTile()`, `DiskTileCache::hasTile()`, `DiskTileCache::findTileFile()`, and `CompositeTileProvider::hasTile()`, and replaced the heap `std::vector<std::string>` extension list in `findTileFile()` with `static constexpr std::array<std::string_view, 3>`. |
 | **A4** ✅ **Fixed** | **VMTI Target Tracks Disconnected from Spatial Export Pipeline** | Extended `SpatialDataRecorder` (`SpatialVmtiTarget`, `vmtiTargets()`), `GeoJsonExporter` (`VmtiTarget` Point features), and `KmlExporter` (`VMTI Targets` folder with `#vmtiStyle`) to record and serialize MISB ST 0903 target observations. Detailed plan: [`docs/mapping_p1_functional_conformance_plan.md`](mapping_p1_functional_conformance_plan.md). |
 | **A5** ✅ **Fixed** | **Duplicated Time Formatting & Unshared Serialization Helpers** | Centralized thread-safe `formatIsoTime(std::uint64_t)` in `libs/Mapping/SpatialExportTypes.h` and removed duplicated anonymous-namespace copies from `GeoJsonExporter.cpp` and `KmlExporter.cpp`. |
-| **A6** | **CMake Dependency & Include Path Leakage** | `libs/Mapping/CMakeLists.txt` links `glog::glog` as `PUBLIC` even though `libs/Mapping` never uses `glog`, and exposes `${CMAKE_CURRENT_SOURCE_DIR}/..` on its `PUBLIC` include interface. **Recommendation:** Remove `glog::glog` and scope `..` out of `PUBLIC` include directories. |
+| **A6** ✅ **Fixed** | **CMake Dependency & Include Path Leakage** | Removed unused `glog::glog` and parent `$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>` from `PUBLIC` target properties in `libs/Mapping/CMakeLists.txt` and cleaned up `libs/Mapping/tests/CMakeLists.txt`. Detailed plan: [`docs/mapping_p2_hygiene_iwyu_doxygen_plan.md`](mapping_p2_hygiene_iwyu_doxygen_plan.md). |
 
 #### ASCII Diagram: Remediated `CompositeTileProvider` Non-Blocking Lookup Flow
 
@@ -268,14 +268,16 @@ All P1 findings below have been remediated and verified in [`docs/mapping_p1_fun
 
 ### 3.3 Medium-Severity Findings (P2 — IWYU, Doxygen, Checklist & Code Hygiene)
 
-| ID | Rule / Checklist Item | File(s) | Description & Remediation |
-| :--- | :--- | :--- | :--- |
-| **M1** | **IWYU Rule 2.5** (Unused Includes) | `MercatorProjection.h:7`, `MapViewport.h:9`, `TacticalOverlay.h:11-12`, `VmtiOverlay.h:9` | Remove unused `#include <cmath>` from `MercatorProjection.h`, unused `#include <optional>` from `MapViewport.h`, unused `#include <string>` and `#include <utility>` from `TacticalOverlay.h`, and unused `#include "TacticalOverlay.h"` from `VmtiOverlay.h`. |
-| **M2** | **IWYU Rule 2.1 & 2.2** (Direct Symbol Includes) | `TileCache.h`, `TileCache.cpp`, `DiskTileCache.cpp`, `ProceduralGridTileProvider.cpp`, `CompositeTileProvider.cpp`, `TacticalOverlay.cpp`, `VmtiOverlay.cpp`, `SpatialDataRecorder.cpp`, `GeoJsonExporter.cpp`, `KmlExporter.cpp` | Add missing direct headers: `<utility>` (`std::pair`, `std::move`), `<system_error>` (`std::error_code`), `<cstddef>` (`std::size_t`), `<cstdint>` (`std::uint32_t`), `<cstdio>` (`std::snprintf`), `<array>`, `<vector>`, `<string>`, and `<ostream>`. |
-| **M3** | **IWYU Rule 3** (Canonical 5-Group Include Order) | 16 library files + 9 test files in `libs/Mapping/` | Reorder `#include` directives into the canonical 5 alphabetized groups: (1) Associated Header, (2) C Standard Headers, (3) C++ Standard Headers, (4) Third-Party (`<gtest/gtest.h>`), (5) Project Local Headers. |
-| **M4** | **Checklist #7** (`{}` Initialization) | `MapViewport.h`, `TileCache.h`, `DiskTileCache.h`, `CompositeTileProvider.h`, and `.cpp` files | Add `{}` member initializers to `VisibleTile`, `TileCache`, `DiskTileCache`, and `CompositeTileProvider`, and initialize local structs/containers (`TileData tile {};`, `ScreenFrustum sf {};`, etc.) with `{}`. |
-| **M5** | **Checklist #8** (`[[nodiscard]]` Attribute) | `libs/Mapping/TileCache.h:49`, `libs/Mapping/DiskTileCache.h:43`, `libs/Mapping/GeoTypes.h:106` | Add `[[nodiscard]]` to `TileCache::remove()`, `DiskTileCache::storeTile()`, and `std::hash<Mapping::TileCoord>::operator()`. |
-| **M6** | **Checklist #9** (Doxygen Completeness) | All headers and 7 `.cpp` files in `libs/Mapping/` | Add `/// @file` banners to the 7 `.cpp` files missing them (`MercatorProjection.cpp`, `MapViewport.cpp`, `TileCache.cpp`, `DiskTileCache.cpp`, `ProceduralGridTileProvider.cpp`, `CompositeTileProvider.cpp`, `TacticalOverlay.cpp`, `VmtiOverlay.cpp`), and add missing `@details`, `@param`, and `@return` tags across public headers. |
+All P2 findings below have been remediated and verified in [`docs/mapping_p2_hygiene_iwyu_doxygen_plan.md`](mapping_p2_hygiene_iwyu_doxygen_plan.md) (60 / 60 unit tests passing).
+
+| ID | Status | Rule / Checklist Item | File(s) | Description & Resolution |
+| :--- | :--- | :--- | :--- | :--- |
+| **M1** | ✅ **Fixed** | **IWYU Rule 2.5** (Unused Includes) | `MercatorProjection.h`, `MapViewport.h`, `TacticalOverlay.h`, `VmtiOverlay.h`, `SpatialExportTypes.h` | Removed unused `#include <cmath>` from `MercatorProjection.h`, `<optional>` from `MapViewport.h`, `<string>` and `<utility>` from `TacticalOverlay.h`, `"TacticalOverlay.h"` from `VmtiOverlay.h`, and `<vector>`, `"GeoTypes.h"`, and `"KlvTypes.h"` from `SpatialExportTypes.h`. |
+| **M2** | ✅ **Fixed** | **IWYU Rule 2.1 & 2.2** (Direct Symbol Includes) | All headers, `.cpp` files, and test suites in `libs/Mapping/` | Added all missing direct standard library and project headers (`<utility>`, `<list>`, `<unordered_map>`, `<system_error>`, `<cstddef>`, `<cstdint>`, `<cstdio>`, `<array>`, `<vector>`, `<string>`, `<ostream>`, `"GeoTypes.h"`, `"KlvTypes.h"`, `"MercatorProjection.h"`). Verified via `scripts/verify_iwyu_cstdint.py libs/Mapping --strict`. |
+| **M3** | ✅ **Fixed** | **IWYU Rule 3** (Canonical 5-Group Include Order) | All 34 files in `libs/Mapping/` | Reordered `#include` directives into the canonical 5 alphabetized groups across all 13 headers, 10 implementation files, and 9 unit test files. |
+| **M4** | ✅ **Fixed** | **Checklist #7** (`{}` Initialization) | `MapViewport.h`, `TileCache.h`, `DiskTileCache.h`, `CompositeTileProvider.h`, `.cpp` files, and test suites | Added `{}` member initializers to `VisibleTile`, `TileCache`, `DiskTileCache`, and `CompositeTileProvider`, and initialized local variables/structs with `{}` throughout `.cpp` and test files. |
+| **M5** | ✅ **Fixed** | **Checklist #8** (`[[nodiscard]]` Attribute) | `libs/Mapping/TileCache.h`, `libs/Mapping/DiskTileCache.h`, `libs/Mapping/GeoTypes.h` | Added `[[nodiscard]]` to `TileCache::remove()`, `DiskTileCache::storeTile()`, and `std::hash<Mapping::TileCoord>::operator()`. |
+| **M6** | ✅ **Fixed** | **Checklist #9** (Doxygen Completeness) | All headers, `.cpp` files, and test suites in `libs/Mapping/` | Added `/// @file` and `/// @brief` banners to all `.cpp` and test files, and completed `@details`, `@param[in]`, and `@return` Doxygen tags across all 13 public headers. |
 
 ---
 
@@ -289,16 +291,16 @@ All P1 findings below have been remediated and verified in [`docs/mapping_p1_fun
 | 4 | Zero Qt dependencies in Core (`#include <Q...>` banned) | ✅ **Pass** | Zero Qt includes in `libs/Mapping` (Qt bindings live in `libs/MappingQt`). |
 | 5 | All function names strictly `< 30` characters | ✅ **Pass** | `python3 scripts/verify_function_lengths.py libs/Mapping` passes with 0 violations (max length: 27 chars). |
 | 6 | Cross-platform Linux & Windows support | ✅ **Pass** | Uses `<filesystem>` and `#if defined(_WIN32) gmtime_s #else gmtime_r #endif`. |
-| 7 | Explicit `{}` variable initialization | 🟡 **Partial** | Several class members (`VisibleTile`, `TileCache`, `DiskTileCache`, `CompositeTileProvider`) and local structs omit `{}` (Finding **M4**). |
-| 8 | `[[nodiscard]]` on status and safety-critical returns | 🟡 **Partial** | Present on 41 of 43 methods; missing on `TileCache::remove()` and `DiskTileCache::storeTile()` (Finding **M5**). |
-| 9 | Full Doxygen templates (`@brief`, `@details`, `@param`, `@return`) | 🟡 **Partial** | `@brief` present everywhere, but `@details` is missing on most APIs and 8 `.cpp` files lack `/// @file` (Finding **M6**). |
+| 7 | Explicit `{}` variable initialization | ✅ **Pass** | All class members and local variables across `libs/Mapping` and `libs/Mapping/tests` use `{}` initialization (**M4**). |
+| 8 | `[[nodiscard]]` on status and safety-critical returns | ✅ **Pass** | Present on 100% of value/status-returning methods across all 13 headers (**M5**). |
+| 9 | Full Doxygen templates (`@brief`, `@details`, `@param`, `@return`) | ✅ **Pass** | Every header, class, struct, method, and `.cpp` translation unit has complete Doxygen documentation (**M6**). |
 | 10 | MISRA C++:2023 & SEI CERT C++ compliance | ✅ **Pass** | All P0 violations (`ERR55-CPP`, `CON50-CPP`, `INT34-C`, `FLP34-C`, `INT30-C`) resolved and verified (**C1–C6**). |
-| 11 | Failing test written first when fixing bugs (TDD) | ✅ **Pass** | 7 new unit tests written and observed failing prior to applying P0 fixes (45 / 45 tests passing). |
+| 11 | Failing test written first when fixing bugs (TDD) | ✅ **Pass** | 22 new unit tests written across P0/P1/P2 (60 / 60 tests passing). |
 | 12 | Compiles with zero warnings under `-Wall -Wextra -pedantic -Werror` / `/W4` | ✅ **Pass** | `apply_compiler_flags(Mapping)` is enabled in `libs/Mapping/CMakeLists.txt`. |
 | 13 | Relative file paths in documentation | ✅ **Pass** | All paths in this review are repository-relative. |
 | 14 | Both ASCII and Mermaid diagrams included | ✅ **Pass** | Both ASCII and Mermaid diagrams are provided for all architectural views. |
 | 15 | Explicit `#include <cstdint>` and `std::` fixed-width qualification | ✅ **Pass** | `python3 scripts/verify_iwyu_cstdint.py libs/Mapping --strict` passes with 100% compliance across all 34 files. |
-| 16 | Strict IWYU (no transitive reliance, prune unused headers, canonical order) | 🟡 **Partial** | Updated P0 files (`MercatorProjection`, `MapViewport`, `ITileProvider`, `DiskTileCache`, `CompositeTileProvider`, `VmtiOverlay`, `SpatialDataRecorder`, `GeoJsonExporter`) to strict 5-group IWYU; remaining P2 files tracked under **M1–M3**. |
+| 16 | Strict IWYU (no transitive reliance, prune unused headers, canonical order) | ✅ **Pass** | All 34 files in `libs/Mapping` adhere to strict 5-group IWYU with zero unused or transitive includes (**M1–M3**). |
 | 17 | Exact `value_type` in STL algorithms & explicit range casts | ✅ **Pass** | `python3 scripts/verify_type_conversions.py libs/Mapping` passes with 0 violations. |
 | 18 | Zero heap allocations in `noexcept` functions (CERT ERR55-CPP) | ✅ **Pass** | All `noexcept` functions in `libs/Mapping` operate strictly on stack primitives with zero heap allocations or mutex locks (**C1, C2**). |
 
@@ -306,19 +308,19 @@ All P1 findings below have been remediated and verified in [`docs/mapping_p1_fun
 
 ## 5. Unit Test Completeness & Gap Analysis
 
-### 5.1 Current Test Suite Inventory (`libs/Mapping/tests/`)
+### 5.1 Test Suite Inventory (`libs/Mapping/tests/`)
 
-| Test Executable | Source File | Test Cases | Current Coverage Scope |
+| Test Executable | Source File | Test Cases | Coverage Scope |
 | :--- | :--- | :---: | :--- |
-| `TestMercatorProjection` | `libs/Mapping/tests/TestMercatorProjection.cpp` | 7 | Origin pixel, zoom 0 tile, Athens zoom 10 tile & bbox, multi-zoom round-trip, TMS Y-flip, meters/pixel, latitude clamp. |
-| `TestMapViewport` | `libs/Mapping/tests/TestMapViewport.cpp` | 6 | Center alignment, screen-to-geo round-trip, pan delta, zoom around cursor pivot, visible bbox, visible tile grid. |
-| `TestTileCache` | `libs/Mapping/tests/TestTileCache.cpp` | 5 | Put/get hit, miss `nullopt`, LRU eviction order, `remove`/`clear`, 4-thread concurrent stress test. |
-| `TestOfflineTileStore` | `libs/Mapping/tests/TestOfflineTileStore.cpp` | 4 | `DiskTileCache` store/load, secondary USB search directory, `ProceduralGridTileProvider` PPM output, `CompositeTileProvider` offline-only isolation. |
+| `TestMercatorProjection` | `libs/Mapping/tests/TestMercatorProjection.cpp` | 10 | Origin pixel, zoom 0 tile, Athens zoom 10 tile & bbox, multi-zoom round-trip, TMS Y-flip, meters/pixel, latitude clamp, multi-revolution longitude normalization, extreme zoom & `NaN` safety, anti-meridian `BoundingBox::intersects()`. |
+| `TestMapViewport` | `libs/Mapping/tests/TestMapViewport.cpp` | 9 | Center alignment, screen-to-geo round-trip, pan delta, zoom around cursor pivot, visible bbox, visible tile grid, fractional zoom & anti-meridian tile wrapping, constructor out-of-bounds/`NaN` sanitization, world-span visible bbox. |
+| `TestTileCache` | `libs/Mapping/tests/TestTileCache.cpp` | 6 | Put/get hit, miss `nullopt`, LRU eviction order, `remove`/`clear`, `setCapacity()` LRU eviction & zero-capacity clamp, 4-thread concurrent stress test. |
+| `TestOfflineTileStore` | `libs/Mapping/tests/TestOfflineTileStore.cpp` | 8 | `DiskTileCache` store/load, secondary USB search directory, `ProceduralGridTileProvider` PPM output, `CompositeTileProvider` offline-only isolation, invalid coord rejection, concurrent access & online write-through, atomic `.tmp` overwrite & 16 MB size cap, `.jpg` MIME detection & empty file rejection. |
 | `TestTacticalOverlay` | `libs/Mapping/tests/TestTacticalOverlay.cpp` | 5 | Frustum projection via `KlvGeodesy`, 4 cardinal heading vectors, LOS vector, offscreen culling, anti-meridian contiguity. |
-| `TestVmtiOverlay` | `libs/Mapping/tests/TestVmtiOverlay.cpp` | 3 | Absolute target projection + CE90 radius, frame-center offset resolution, target series projection & visibility culling. |
-| `TestSpatialDataRecorder` | `libs/Mapping/tests/TestSpatialDataRecorder.cpp` | 4 | Explicit corner ingest, `KlvGeodesy` frustum fallback, `UniformTime` decimation, `DistanceThreshold` decimation. |
-| `TestGeoJsonExporter` | `libs/Mapping/tests/TestGeoJsonExporter.cpp` | 2 | Full `FeatureCollection` export (track, footprint, 3D frustum, target point) and layer-disable flags. |
-| `TestKmlExporter` | `libs/Mapping/tests/TestKmlExporter.cpp` | 2 | Full KML 2.2 + `gx:Track` export and `ColorRgba` KML/CSS hex formatting. |
+| `TestVmtiOverlay` | `libs/Mapping/tests/TestVmtiOverlay.cpp` | 4 | Absolute target projection + CE90 radius, frame-center offset resolution, target series projection & visibility culling, `NaN` CE90 & `ERR55-CPP` `noexcept` verification. |
+| `TestSpatialDataRecorder` | `libs/Mapping/tests/TestSpatialDataRecorder.cpp` | 7 | Explicit corner ingest, `KlvGeodesy` frustum fallback, `UniformTime` decimation, `DistanceThreshold` decimation, `HeadingThreshold` decimation across $359^\circ \leftrightarrow 1^\circ$ wrap boundary, out-of-order timestamp safety, MISB ST 0903 VMTI target recording. |
+| `TestGeoJsonExporter` | `libs/Mapping/tests/TestGeoJsonExporter.cpp` | 6 | Full `FeatureCollection` export (track, footprint, 3D frustum, target point), layer-disable flags, out-of-order zero duration, RFC 7946 no-`crs` & `\u00XX` control-char escaping, VMTI target layer export, `exportToFile()` & special-char escaping. |
+| `TestKmlExporter` | `libs/Mapping/tests/TestKmlExporter.cpp` | 5 | Full KML 2.2 + `gx:Track` export, `ColorRgba` KML/CSS hex formatting, distinct style bindings & boresight-only export, VMTI target folder export, `exportToFile()` & XML entity escaping. |
 
 ### 5.2 Identified Testing Gaps
 

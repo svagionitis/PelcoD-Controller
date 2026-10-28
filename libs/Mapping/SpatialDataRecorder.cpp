@@ -14,6 +14,9 @@
 #include <vector>
 
 #include "KlvGeodesy.h"
+#include "KlvTypes.h"
+#include "SpatialExportTypes.h"
+#include "VmtiTypes.h"
 
 namespace Mapping {
 

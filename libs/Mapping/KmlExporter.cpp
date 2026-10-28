@@ -13,6 +13,9 @@
 #include <string>
 #include <vector>
 
+#include "SpatialDataRecorder.h"
+#include "SpatialExportTypes.h"
+
 namespace Mapping {
 
 namespace {

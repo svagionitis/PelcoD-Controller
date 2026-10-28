@@ -18,6 +18,8 @@ namespace Mapping {
 
 /// @struct ScreenVmtiTarget
 /// @brief Projected MISB ST 0903 target symbology on the viewport screen.
+/// @details Contains the 2D screen pixel position, CE90 horizontal uncertainty radius in pixels,
+///          formatted callsign label, confidence percentage, and motion state.
 struct ScreenVmtiTarget {
     ScreenPoint screenPos { }; ///< Projected target ground location in pixels
     double ce90Pixels { 0.0 }; ///< CE90 horizontal uncertainty circle radius in pixels
@@ -30,6 +32,7 @@ struct ScreenVmtiTarget {
 
 /// @class VmtiOverlay
 /// @brief Transforms MISB ST 0903 target series into viewport screen coordinates with uncertainty ellipses.
+/// @details Supports both absolute WGS-84 target coordinates (Tag 17) and frame-center relative offsets (Tag 19/20).
 class VmtiOverlay {
 public:
     /// @brief Projects an individual MISB ST 0903 VTargetPack onto viewport screen coordinates.
@@ -43,6 +46,7 @@ public:
         const std::optional<Klv::GeoPoint2D>& frameCenter = std::nullopt);
 
     /// @brief Projects all valid targets in a VMTI Local Set onto viewport screen coordinates.
+    /// @details Iterates through vmti.targets and retains only targets with valid resolved coordinates.
     /// @param[in] viewport Current active map viewport.
     /// @param[in] vmti VmtiLocalSet containing target series.
     /// @param[in] frameCenter Optional frame center for offset resolution.
@@ -51,6 +55,7 @@ public:
         const Klv::VmtiLocalSet& vmti, const std::optional<Klv::GeoPoint2D>& frameCenter = std::nullopt);
 
     /// @brief Tests if a projected target falls inside or intersects the viewport rect.
+    /// @details Expands the target position by max(ce90Pixels, 8.0) before testing rectangle intersection.
     /// @param[in] target Projected ScreenVmtiTarget.
     /// @param[in] viewportRect Viewport pixel boundary.
     /// @return True if visible on screen.

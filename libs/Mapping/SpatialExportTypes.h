@@ -11,15 +11,12 @@
 #include <iomanip>
 #include <sstream>
 #include <string>
-#include <vector>
-
-#include "GeoTypes.h"
-#include "KlvTypes.h"
 
 namespace Mapping {
 
 /// @struct SpatialPoint3D
 /// @brief 3D geodetic point in WGS-84 (latitude, longitude, altitude).
+/// @details Used as the fundamental 3D vertex coordinate across KML and GeoJSON export layers.
 struct SpatialPoint3D {
     double latitudeDeg { 0.0 }; ///< Latitude [-90.0, +90.0] degrees
     double longitudeDeg { 0.0 }; ///< Longitude [-180.0, +180.0] degrees
@@ -28,6 +25,7 @@ struct SpatialPoint3D {
 
 /// @struct SpatialTrackPoint
 /// @brief Time-stamped platform state for flight trajectory export.
+/// @details Captures 3D position, Euler attitude angles, ground speed, and mission identifiers at a specific instant.
 struct SpatialTrackPoint {
     std::uint64_t timestampUs { 0U }; ///< Epoch microseconds (Tag 2)
     SpatialPoint3D position { }; ///< Platform 3D position
@@ -41,6 +39,7 @@ struct SpatialTrackPoint {
 
 /// @struct FrustumMesh3D
 /// @brief 3D sensor frustum geometry including apex, footprint base, and side faces.
+/// @details Represents the volumetric viewing pyramid from the sensor apex to the 4-corner ground footprint.
 struct FrustumMesh3D {
     std::uint64_t timestampUs { 0U }; ///< Epoch microseconds (Tag 2)
     SpatialPoint3D apex { }; ///< Camera / platform 3D position
@@ -55,6 +54,7 @@ struct FrustumMesh3D {
 
 /// @struct SpatialVmtiTarget
 /// @brief Time-stamped 3D geodetic target observation decoded from MISB ST 0903 VMTI.
+/// @details Stores the resolved 3D target location, circular/linear error bounds, confidence, and motion state.
 struct SpatialVmtiTarget {
     std::uint64_t timestampUs { 0U }; ///< Epoch microseconds (Tag 2)
     std::uint32_t targetId { 0U }; ///< VTargetPack unique target identifier
@@ -90,6 +90,7 @@ struct SpatialVmtiTarget {
 
 /// @struct ColorRgba
 /// @brief 32-bit RGBA color representation with KML and CSS converters.
+/// @details Provides conversion helpers for both OGC KML little-endian hex (aabbggrr) and CSS hex (#rrggbb).
 struct ColorRgba {
     std::uint8_t r { 255U }; ///< Red channel [0, 255]
     std::uint8_t g { 255U }; ///< Green channel [0, 255]
@@ -97,6 +98,7 @@ struct ColorRgba {
     std::uint8_t a { 255U }; ///< Alpha channel [0, 255] (255 = fully opaque)
 
     /// @brief Converts RGBA to KML aabbggrr hex string format.
+    /// @details Serializes alpha, blue, green, and red channels in lowercase two-digit hexadecimal order.
     /// @return 8-character hex string (e.g., "ff0000ff" for opaque red).
     [[nodiscard]] std::string toKmlColor() const
     {
@@ -107,6 +109,7 @@ struct ColorRgba {
     }
 
     /// @brief Converts RGBA to CSS hex string format (#rrggbb).
+    /// @details Serializes red, green, and blue channels prefixed with '#'.
     /// @return CSS hex string (e.g. "#ff0000").
     [[nodiscard]] std::string toHexColor() const
     {
@@ -119,6 +122,7 @@ struct ColorRgba {
 
 /// @enum DecimationMode
 /// @brief Sampling strategy for trajectory and frustum time-series filtering.
+/// @details Selects whether telemetry frames are downsampled by time interval, ground distance, or heading change.
 enum class DecimationMode {
     None, ///< Retain every telemetry frame without downsampling
     UniformTime, ///< Retain frames spaced by minimum time interval (seconds)
@@ -128,6 +132,7 @@ enum class DecimationMode {
 
 /// @struct DecimationConfig
 /// @brief Configuration controlling downsampling of dense telemetry streams.
+/// @details Holds threshold parameters for time, distance, and angular decimation policies.
 struct DecimationConfig {
     DecimationMode mode { DecimationMode::UniformTime }; ///< Decimation mode
     double intervalSec { 0.2 }; ///< Used when mode == UniformTime (e.g., 5 Hz)
@@ -137,6 +142,7 @@ struct DecimationConfig {
 
 /// @struct KmlConfig
 /// @brief Configuration options for Google Earth KML 2.2 export.
+/// @details Controls layer visibility, TimeSpan generation, and RGBA styling for KML documents.
 struct KmlConfig {
     std::string documentName { "STANAG 4609 Mission Export" }; ///< Document title
     std::string documentDescription { "Exported telemetry geometry." }; ///< Description
@@ -155,6 +161,7 @@ struct KmlConfig {
 
 /// @struct GeoJsonConfig
 /// @brief Configuration options for RFC 7946 GeoJSON export.
+/// @details Controls feature layer inclusion flags and floating-point coordinate decimal precision.
 struct GeoJsonConfig {
     bool includeFlightTrack { true }; ///< Export flight path LineString
     bool includeFootprints { true }; ///< Export ground footprint Polygons

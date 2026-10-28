@@ -3,15 +3,23 @@
 
 #include "KmlExporter.h"
 
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <string>
 
 #include <gtest/gtest.h>
+
+#include "KlvTypes.h"
+#include "SpatialDataRecorder.h"
+#include "SpatialExportTypes.h"
+#include "VmtiTypes.h"
 
 using namespace Mapping;
 
 TEST(TestKmlExporter, ExportKmlStructureAndGxTrack)
 {
-    SpatialDataRecorder recorder;
+    SpatialDataRecorder recorder { };
 
     Klv::UasDatalinkMessage msg1 { };
     msg1.precisionTimeStampUs = 1728043200000000ULL;
@@ -42,7 +50,7 @@ TEST(TestKmlExporter, ExportKmlStructureAndGxTrack)
     config.enableBoresightRay = true;
     config.enableTimeSpan = true;
 
-    const std::string kml = KmlExporter::exportToString(recorder, config);
+    const std::string kml { KmlExporter::exportToString(recorder, config) };
 
     // Verify XML declaration and KML namespaces
     EXPECT_NE(kml.find("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"), std::string::npos);
@@ -76,19 +84,19 @@ TEST(TestKmlExporter, ExportKmlStructureAndGxTrack)
 
 TEST(TestKmlExporter, ColorRgbaConversion)
 {
-    ColorRgba red { 255U, 0U, 0U, 255U };
+    const ColorRgba red { 255U, 0U, 0U, 255U };
     // KML is aabbggrr: alpha=ff, blue=00, green=00, red=ff
     EXPECT_EQ(red.toKmlColor(), "ff0000ff");
     EXPECT_EQ(red.toHexColor(), "#ff0000");
 
-    ColorRgba semiTransCyan { 0U, 255U, 255U, 128U };
+    const ColorRgba semiTransCyan { 0U, 255U, 255U, 128U };
     // alpha=80, blue=ff, green=ff, red=00
     EXPECT_EQ(semiTransCyan.toKmlColor(), "80ffff00");
 }
 
 TEST(TestKmlExporter, DistinctStyleBindingsAndBoresightOnlyExport)
 {
-    SpatialDataRecorder recorder;
+    SpatialDataRecorder recorder { };
 
     Klv::UasDatalinkMessage msg1 { };
     msg1.precisionTimeStampUs = 0ULL; // Zero timestamp to test <when> conformance
@@ -130,7 +138,7 @@ TEST(TestKmlExporter, DistinctStyleBindingsAndBoresightOnlyExport)
 
 TEST(TestKmlExporter, VmtiTargetFolderExport)
 {
-    SpatialDataRecorder recorder;
+    SpatialDataRecorder recorder { };
     Klv::UasDatalinkMessage msg { };
     msg.precisionTimeStampUs = 1728043200000000ULL;
     msg.sensorLatitudeDeg = 37.9838;
@@ -149,4 +157,38 @@ TEST(TestKmlExporter, VmtiTargetFolderExport)
     EXPECT_NE(kml.find("<name>VMTI Targets</name>"), std::string::npos);
     EXPECT_NE(kml.find("<name>TRK-77</name>"), std::string::npos);
     EXPECT_NE(kml.find("<styleUrl>#vmtiStyle</styleUrl>"), std::string::npos);
+}
+
+TEST(TestKmlExporter, ExportToFileAndXmlEntityEscaping)
+{
+    SpatialDataRecorder recorder { };
+    Klv::UasDatalinkMessage msg { };
+    msg.precisionTimeStampUs = 1728043200000000ULL;
+    msg.sensorLatitudeDeg = 37.9838;
+    msg.sensorLongitudeDeg = 23.7275;
+    recorder.addTelemetryFrame(msg);
+
+    KmlConfig cfg { };
+    cfg.documentName = "Mission <Alpha & Beta>";
+    cfg.documentDescription = "Quote \"Test\" & 'Single'";
+
+    const std::filesystem::path outPath { std::filesystem::temp_directory_path() / "pelcod_test_mission_export.kml" };
+    std::filesystem::remove(outPath);
+
+    EXPECT_TRUE(KmlExporter::exportToFile(outPath.string(), recorder, cfg));
+    ASSERT_TRUE(std::filesystem::exists(outPath));
+
+    std::string content { };
+    {
+        std::ifstream ifs(outPath);
+        std::ostringstream buffer { };
+        buffer << ifs.rdbuf();
+        content = buffer.str();
+    }
+
+    EXPECT_NE(content.find("<name>Mission &lt;Alpha &amp; Beta&gt;</name>"), std::string::npos);
+    EXPECT_NE(
+        content.find("<description>Quote &quot;Test&quot; &amp; &apos;Single&apos;</description>"), std::string::npos);
+
+    std::filesystem::remove(outPath);
 }

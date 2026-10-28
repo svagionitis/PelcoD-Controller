@@ -3,14 +3,23 @@
 
 #include "GeoJsonExporter.h"
 
+#include <fstream>
 #include <gtest/gtest.h>
+#include <sstream>
 #include <string>
+
+#include <gtest/gtest.h>
+
+#include "KlvTypes.h"
+#include "SpatialDataRecorder.h"
+#include "SpatialExportTypes.h"
+#include "VmtiTypes.h"
 
 using namespace Mapping;
 
 TEST(TestGeoJsonExporter, ExportFeatureCollectionStructure)
 {
-    SpatialDataRecorder recorder;
+    SpatialDataRecorder recorder { };
 
     Klv::UasDatalinkMessage msg1 { };
     msg1.precisionTimeStampUs = 1728043200000000ULL;
@@ -35,7 +44,7 @@ TEST(TestGeoJsonExporter, ExportFeatureCollectionStructure)
 
     recorder.addTelemetryFrame(msg1);
 
-    Klv::UasDatalinkMessage msg2 = msg1;
+    Klv::UasDatalinkMessage msg2 { msg1 };
     msg2.precisionTimeStampUs = 1728043201000000ULL;
     msg2.sensorLatitudeDeg = 32.7160;
     msg2.sensorLongitudeDeg = -117.1610;
@@ -43,7 +52,7 @@ TEST(TestGeoJsonExporter, ExportFeatureCollectionStructure)
 
     GeoJsonConfig config { };
     config.coordinatePrecision = 6;
-    const std::string json = GeoJsonExporter::exportToString(recorder, config);
+    const std::string json { GeoJsonExporter::exportToString(recorder, config) };
 
     // Verify root FeatureCollection
     EXPECT_NE(json.find("\"type\": \"FeatureCollection\""), std::string::npos);
@@ -76,7 +85,7 @@ TEST(TestGeoJsonExporter, ExportFeatureCollectionStructure)
 
 TEST(TestGeoJsonExporter, DisableLayers)
 {
-    SpatialDataRecorder recorder;
+    SpatialDataRecorder recorder { };
     Klv::UasDatalinkMessage msg { };
     msg.precisionTimeStampUs = 1728043200000000ULL;
     msg.sensorLatitudeDeg = 10.0;
@@ -90,7 +99,7 @@ TEST(TestGeoJsonExporter, DisableLayers)
     config.includeVolumetricFrustums = false;
     config.includeTargetPoints = false;
 
-    const std::string json = GeoJsonExporter::exportToString(recorder, config);
+    const std::string json { GeoJsonExporter::exportToString(recorder, config) };
     EXPECT_EQ(json.find("\"layer\": \"FlightTrack\""), std::string::npos);
     EXPECT_EQ(json.find("\"layer\": \"SensorFootprint\""), std::string::npos);
     EXPECT_EQ(json.find("\"layer\": \"SensorFrustum3D\""), std::string::npos);
@@ -99,7 +108,7 @@ TEST(TestGeoJsonExporter, DisableLayers)
 
 TEST(TestGeoJsonExporter, OutOfOrderTimestampsZeroDuration)
 {
-    SpatialDataRecorder recorder;
+    SpatialDataRecorder recorder { };
 
     Klv::UasDatalinkMessage msg1 { };
     msg1.precisionTimeStampUs = 5000000ULL;
@@ -119,7 +128,7 @@ TEST(TestGeoJsonExporter, OutOfOrderTimestampsZeroDuration)
 
 TEST(TestGeoJsonExporter, Rfc7946NoCrsControlCharEscapingAndDelayedMetadata)
 {
-    SpatialDataRecorder recorder;
+    SpatialDataRecorder recorder { };
 
     // Frame 0 omits tailNumber and missionId
     Klv::UasDatalinkMessage msg1 { };
@@ -149,7 +158,7 @@ TEST(TestGeoJsonExporter, Rfc7946NoCrsControlCharEscapingAndDelayedMetadata)
 
 TEST(TestGeoJsonExporter, VmtiTargetLayerExport)
 {
-    SpatialDataRecorder recorder;
+    SpatialDataRecorder recorder { };
     Klv::UasDatalinkMessage msg { };
     msg.precisionTimeStampUs = 1728043200000000ULL;
     msg.sensorLatitudeDeg = 37.9838;
@@ -171,4 +180,36 @@ TEST(TestGeoJsonExporter, VmtiTargetLayerExport)
     EXPECT_NE(json.find("\"targetId\": 42"), std::string::npos);
     EXPECT_NE(json.find("\"confidence\": 88"), std::string::npos);
     EXPECT_NE(json.find("\"ce90M\": 4.25"), std::string::npos);
+}
+
+TEST(TestGeoJsonExporter, ExportToFileAndSpecialCharEscaping)
+{
+    SpatialDataRecorder recorder { };
+    Klv::UasDatalinkMessage msg { };
+    msg.precisionTimeStampUs = 1728043200000000ULL;
+    msg.sensorLatitudeDeg = 37.9838;
+    msg.sensorLongitudeDeg = 23.7275;
+    msg.platformTailNumber = "UAV-\"QUOTE\"\\SLASH";
+    msg.missionId = "LINE1\nLINE2\tTAB";
+    recorder.addTelemetryFrame(msg);
+
+    const std::filesystem::path outPath { std::filesystem::temp_directory_path()
+        / "pelcod_test_mission_export.geojson" };
+    std::filesystem::remove(outPath);
+
+    EXPECT_TRUE(GeoJsonExporter::exportToFile(outPath.string(), recorder));
+    ASSERT_TRUE(std::filesystem::exists(outPath));
+
+    std::string content { };
+    {
+        std::ifstream ifs(outPath);
+        std::ostringstream buffer { };
+        buffer << ifs.rdbuf();
+        content = buffer.str();
+    }
+
+    EXPECT_NE(content.find("\"tailNumber\": \"UAV-\\\"QUOTE\\\"\\\\SLASH\""), std::string::npos);
+    EXPECT_NE(content.find("\"missionId\": \"LINE1\\nLINE2\\tTAB\""), std::string::npos);
+
+    std::filesystem::remove(outPath);
 }

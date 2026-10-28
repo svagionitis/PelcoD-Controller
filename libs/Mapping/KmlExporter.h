@@ -13,6 +13,7 @@ namespace Mapping {
 
 /// @class KmlExporter
 /// @brief Serializes recorded flight telemetry and frustum pyramids into standard KML.
+/// @details Conforms to OGC KML 2.2 and Google Earth gx:Track schema with full XML entity escaping.
 class KmlExporter {
 public:
     /// @brief Serializes recorded data to formatted KML string.
@@ -25,6 +26,7 @@ public:
     [[nodiscard]] static std::string exportToString(const SpatialDataRecorder& recorder, const KmlConfig& config = { });
 
     /// @brief Serializes recorded data directly to an output stream.
+    /// @details Writes the complete XML KML document to os and returns os.good().
     /// @param[in] recorder Spatial data provider.
     /// @param[out] os Destination output stream.
     /// @param[in] config KML configuration and styling.
@@ -33,6 +35,7 @@ public:
         const SpatialDataRecorder& recorder, std::ostream& os, const KmlConfig& config = { });
 
     /// @brief Exports recorded data directly to a `.kml` file.
+    /// @details Opens filePath for truncated output and delegates serialization to exportToStream.
     /// @param[in] filePath Target destination file path.
     /// @param[in] recorder Spatial data provider.
     /// @param[in] config KML configuration and styling.

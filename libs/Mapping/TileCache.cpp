@@ -1,21 +1,29 @@
+/// @file TileCache.cpp
+/// @brief Implementation of thread-safe in-memory Least Recently Used (LRU) tile cache.
+
 #include "TileCache.h"
 
 #include <cstddef>
 
+#include <list>
 #include <mutex>
 #include <optional>
+#include <unordered_map>
+#include <utility>
+
+#include "GeoTypes.h"
 
 namespace Mapping {
 
 TileCache::TileCache(std::size_t capacity) noexcept
-    : m_capacity(capacity > 0 ? capacity : kDefaultCapacity)
+    : m_capacity { capacity > 0U ? capacity : kDefaultCapacity }
 {
 }
 
 std::optional<TileData> TileCache::get(const TileCoord& coord)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    auto it = m_cacheMap.find(coord);
+    const auto it { m_cacheMap.find(coord) };
     if (it == m_cacheMap.end()) {
         return std::nullopt;
     }
@@ -29,7 +37,7 @@ void TileCache::put(const TileCoord& coord, TileData data)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    auto it = m_cacheMap.find(coord);
+    const auto it { m_cacheMap.find(coord) };
     if (it != m_cacheMap.end()) {
         // Update existing entry and move to front
         it->second->second = std::move(data);
@@ -39,7 +47,7 @@ void TileCache::put(const TileCoord& coord, TileData data)
 
     // Evict if at capacity
     if (m_lruList.size() >= m_capacity && !m_lruList.empty()) {
-        const TileCoord& oldest = m_lruList.back().first;
+        const TileCoord& oldest { m_lruList.back().first };
         m_cacheMap.erase(oldest);
         m_lruList.pop_back();
     }
@@ -58,7 +66,7 @@ bool TileCache::contains(const TileCoord& coord) const
 bool TileCache::remove(const TileCoord& coord)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    auto it = m_cacheMap.find(coord);
+    const auto it { m_cacheMap.find(coord) };
     if (it == m_cacheMap.end()) {
         return false;
     }
@@ -90,9 +98,9 @@ std::size_t TileCache::capacity() const
 void TileCache::setCapacity(std::size_t newCapacity)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_capacity = (newCapacity > 0) ? newCapacity : 1;
+    m_capacity = (newCapacity > 0U) ? newCapacity : 1U;
     while (m_lruList.size() > m_capacity) {
-        const TileCoord& oldest = m_lruList.back().first;
+        const TileCoord& oldest { m_lruList.back().first };
         m_cacheMap.erase(oldest);
         m_lruList.pop_back();
     }

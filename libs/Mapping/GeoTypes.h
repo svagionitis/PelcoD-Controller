@@ -16,11 +16,13 @@ namespace Mapping {
 
 /// @struct ScreenPoint
 /// @brief 2D coordinate on a display surface / viewport in pixels.
+/// @details Uses a top-left origin where +X points right and +Y points down.
 struct ScreenPoint {
     double x { 0.0 }; ///< Horizontal pixel coordinate from top-left origin
     double y { 0.0 }; ///< Vertical pixel coordinate from top-left origin
 
     /// @brief Equality comparison operator.
+    /// @details Compares horizontal and vertical pixel coordinates for exact equality.
     /// @param[in] other Right-hand ScreenPoint operand.
     /// @return True if both coordinates are equal.
     [[nodiscard]] constexpr bool operator==(const ScreenPoint& other) const noexcept
@@ -29,6 +31,7 @@ struct ScreenPoint {
     }
 
     /// @brief Inequality comparison operator.
+    /// @details Compares horizontal and vertical pixel coordinates for inequality.
     /// @param[in] other Right-hand ScreenPoint operand.
     /// @return True if coordinates differ.
     [[nodiscard]] constexpr bool operator!=(const ScreenPoint& other) const noexcept
@@ -39,6 +42,7 @@ struct ScreenPoint {
 
 /// @struct ScreenRect
 /// @brief 2D rectangle in viewport pixels.
+/// @details Represents an axis-aligned bounding box in screen space defined by its top-left origin and dimensions.
 struct ScreenRect {
     double x { 0.0 }; ///< Top-left X coordinate
     double y { 0.0 }; ///< Top-left Y coordinate
@@ -46,6 +50,7 @@ struct ScreenRect {
     double height { 0.0 }; ///< Rectangle height
 
     /// @brief Returns the left X boundary of the rectangle.
+    /// @details Equivalent to the top-left X coordinate.
     /// @return Left X coordinate in pixels.
     [[nodiscard]] constexpr double left() const noexcept
     {
@@ -53,6 +58,7 @@ struct ScreenRect {
     }
 
     /// @brief Returns the top Y boundary of the rectangle.
+    /// @details Equivalent to the top-left Y coordinate.
     /// @return Top Y coordinate in pixels.
     [[nodiscard]] constexpr double top() const noexcept
     {
@@ -60,6 +66,7 @@ struct ScreenRect {
     }
 
     /// @brief Returns the right X boundary of the rectangle.
+    /// @details Computed as x + width.
     /// @return Right X coordinate in pixels.
     [[nodiscard]] constexpr double right() const noexcept
     {
@@ -67,6 +74,7 @@ struct ScreenRect {
     }
 
     /// @brief Returns the bottom Y boundary of the rectangle.
+    /// @details Computed as y + height.
     /// @return Bottom Y coordinate in pixels.
     [[nodiscard]] constexpr double bottom() const noexcept
     {
@@ -74,6 +82,7 @@ struct ScreenRect {
     }
 
     /// @brief Tests whether a 2D pixel coordinate lies within or on the rectangle bounds.
+    /// @details Evaluates closed interval inclusion along both X and Y axes.
     /// @param[in] p Screen point to test.
     /// @return True if point is inside or on the boundary.
     [[nodiscard]] constexpr bool contains(const ScreenPoint& p) const noexcept
@@ -84,12 +93,14 @@ struct ScreenRect {
 
 /// @struct TileCoord
 /// @brief Discrete Slippy Map / XYZ tile coordinate.
+/// @details Identifies a single raster tile in a Web Mercator pyramid by column (x), row (y), and zoom level.
 struct TileCoord {
     int x { 0 }; ///< Column index [0, 2^zoom - 1]
     int y { 0 }; ///< Row index [0, 2^zoom - 1]
     int zoom { 0 }; ///< Zoom level [0, 22]
 
     /// @brief Equality comparison operator.
+    /// @details Compares x, y, and zoom indices for exact equality.
     /// @param[in] other Right-hand TileCoord operand.
     /// @return True if x, y, and zoom match.
     [[nodiscard]] constexpr bool operator==(const TileCoord& other) const noexcept
@@ -98,6 +109,7 @@ struct TileCoord {
     }
 
     /// @brief Inequality comparison operator.
+    /// @details Compares x, y, and zoom indices for inequality.
     /// @param[in] other Right-hand TileCoord operand.
     /// @return True if any component differs.
     [[nodiscard]] constexpr bool operator!=(const TileCoord& other) const noexcept
@@ -106,6 +118,7 @@ struct TileCoord {
     }
 
     /// @brief Strict weak ordering comparison operator.
+    /// @details Orders lexicographically by zoom level first, then column x, then row y.
     /// @param[in] other Right-hand TileCoord operand.
     /// @return True if this tile coordinate precedes other.
     [[nodiscard]] constexpr bool operator<(const TileCoord& other) const noexcept
@@ -122,6 +135,8 @@ struct TileCoord {
 
 /// @struct BoundingBox
 /// @brief Geographic WGS-84 bounding box defined by cardinal coordinates.
+/// @details Supports standard bounding boxes (west <= east) as well as boxes spanning the +-180 deg anti-meridian (west
+/// > east).
 struct BoundingBox {
     double north { 0.0 }; ///< Northernmost latitude [-90.0, 90.0] degrees
     double south { 0.0 }; ///< Southernmost latitude [-90.0, 90.0] degrees
@@ -129,6 +144,7 @@ struct BoundingBox {
     double west { 0.0 }; ///< Westernmost longitude [-180.0, 180.0] degrees
 
     /// @brief Tests whether a geodetic point lies inside the bounding box, including across the anti-meridian.
+    /// @details When west > east, the box wraps across the +-180 deg International Date Line.
     /// @param[in] pt WGS-84 latitude/longitude point.
     /// @return True if pt lies within the bounding box.
     [[nodiscard]] constexpr bool contains(const Klv::GeoPoint2D& pt) const noexcept
@@ -173,17 +189,25 @@ private:
 
 /// @struct TileData
 /// @brief Raw encoded or decoded binary tile payload with metadata.
+/// @details Encapsulates the raw image bytes (PNG, JPEG, or PPM), MIME type string, and validity status.
 struct TileData {
-    std::vector<std::uint8_t> bytes { };
-    std::string mimeType { "image/png" };
-    bool valid { false };
+    std::vector<std::uint8_t> bytes { }; ///< Raw encoded tile image payload bytes
+    std::string mimeType { "image/png" }; ///< IANA MIME type identifier for the image format
+    bool valid { false }; ///< True if the tile payload was successfully loaded or generated
 };
 
 } // namespace Mapping
 
 // Hash specialization for TileCoord to enable std::unordered_map
 namespace std {
+/// @struct hash<Mapping::TileCoord>
+/// @brief Standard hash specialization for Mapping::TileCoord.
+/// @details Combines x, y, and zoom hashes using a Boost-inspired bit-mixing step for unordered containers.
 template <> struct hash<Mapping::TileCoord> {
+    /// @brief Computes a combined hash code for a TileCoord.
+    /// @details Mixes the integer hashes of x, y, and zoom into a single std::size_t seed.
+    /// @param[in] c Tile coordinate to hash.
+    /// @return Computed hash value.
     [[nodiscard]] std::size_t operator()(const Mapping::TileCoord& c) const noexcept
     {
         // Boost-inspired hash_combine

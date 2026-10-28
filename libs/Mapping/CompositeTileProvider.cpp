@@ -12,7 +12,11 @@
 #include <utility>
 #include <vector>
 
+#include "DiskTileCache.h"
+#include "GeoTypes.h"
+#include "ITileProvider.h"
 #include "ProceduralGridTileProvider.h"
+#include "TileCache.h"
 
 namespace Mapping {
 

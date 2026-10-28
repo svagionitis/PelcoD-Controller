@@ -4,29 +4,34 @@
 #include "MapViewport.h"
 
 #include <cmath>
+
 #include <limits>
 #include <vector>
 
 #include <gtest/gtest.h>
+
+#include "GeoTypes.h"
+#include "KlvTypes.h"
+#include "MercatorProjection.h"
 
 using namespace Mapping;
 
 TEST(TestMapViewport, CenterAlignsWithScreenCenter)
 {
     const Klv::GeoPoint2D athens { 37.9838, 23.7275 };
-    const double width = 800.0;
-    const double height = 600.0;
-    const double zoom = 12.0;
+    const double width { 800.0 };
+    const double height { 600.0 };
+    const double zoom { 12.0 };
 
     MapViewport viewport(athens, zoom, width, height);
 
     // Map center must map to screen center (width/2, height/2)
-    const ScreenPoint screenCenter = viewport.geoToScreen(athens);
+    const ScreenPoint screenCenter { viewport.geoToScreen(athens) };
     EXPECT_NEAR(screenCenter.x, 400.0, 1e-4);
     EXPECT_NEAR(screenCenter.y, 300.0, 1e-4);
 
     // Screen center must inverse-project to map center
-    const Klv::GeoPoint2D recoveredGeo = viewport.screenToGeo(ScreenPoint { 400.0, 300.0 });
+    const Klv::GeoPoint2D recoveredGeo { viewport.screenToGeo(ScreenPoint { 400.0, 300.0 }) };
     EXPECT_NEAR(recoveredGeo.latitudeDeg, athens.latitudeDeg, 1e-5);
     EXPECT_NEAR(recoveredGeo.longitudeDeg, athens.longitudeDeg, 1e-5);
 }
@@ -40,8 +45,8 @@ TEST(TestMapViewport, ScreenToGeoRoundTrip)
         { 890.1, 710.9 } };
 
     for (const auto& sp : testPixels) {
-        const Klv::GeoPoint2D geo = viewport.screenToGeo(sp);
-        const ScreenPoint recoveredSp = viewport.geoToScreen(geo);
+        const Klv::GeoPoint2D geo { viewport.screenToGeo(sp) };
+        const ScreenPoint recoveredSp { viewport.geoToScreen(geo) };
 
         EXPECT_NEAR(recoveredSp.x, sp.x, 1e-3);
         EXPECT_NEAR(recoveredSp.y, sp.y, 1e-3);
@@ -57,7 +62,7 @@ TEST(TestMapViewport, PanOperation)
     viewport.pan(100.0, -50.0);
 
     // The original origin should now be displayed at (400 + 100, 300 - 50)
-    const ScreenPoint shiftedOrigin = viewport.geoToScreen(origin);
+    const ScreenPoint shiftedOrigin { viewport.geoToScreen(origin) };
     EXPECT_NEAR(shiftedOrigin.x, 500.0, 1e-3);
     EXPECT_NEAR(shiftedOrigin.y, 250.0, 1e-3);
 }
@@ -71,13 +76,13 @@ TEST(TestMapViewport, ZoomByAroundPivot)
     const ScreenPoint pivot { 250.0, 180.0 };
 
     // Record the geographic coordinate underneath the cursor before zooming
-    const Klv::GeoPoint2D targetGeo = viewport.screenToGeo(pivot);
+    const Klv::GeoPoint2D targetGeo { viewport.screenToGeo(pivot) };
 
     // Zoom in by 2.5 levels
     viewport.zoomBy(2.5, pivot);
 
     // Target geo should remain pinned precisely underneath the cursor
-    const ScreenPoint afterZoom = viewport.geoToScreen(targetGeo);
+    const ScreenPoint afterZoom { viewport.geoToScreen(targetGeo) };
     EXPECT_NEAR(afterZoom.x, pivot.x, 1e-3);
     EXPECT_NEAR(afterZoom.y, pivot.y, 1e-3);
 }
@@ -87,7 +92,7 @@ TEST(TestMapViewport, VisibleBoundingBox)
     const Klv::GeoPoint2D center { 48.8566, 2.3522 }; // Paris
     MapViewport viewport(center, 10.0, 800.0, 600.0);
 
-    const BoundingBox bbox = viewport.visibleBoundingBox();
+    const BoundingBox bbox { viewport.visibleBoundingBox() };
 
     // Center must be within visible bounding box
     EXPECT_TRUE(bbox.contains(center));
@@ -95,7 +100,7 @@ TEST(TestMapViewport, VisibleBoundingBox)
     EXPECT_GT(bbox.east, bbox.west);
 
     // Top-left screen point should match north-west
-    const Klv::GeoPoint2D tl = viewport.screenToGeo({ 0.0, 0.0 });
+    const Klv::GeoPoint2D tl { viewport.screenToGeo({ 0.0, 0.0 }) };
     EXPECT_NEAR(bbox.north, tl.latitudeDeg, 1e-5);
     EXPECT_NEAR(bbox.west, tl.longitudeDeg, 1e-5);
 }
@@ -105,7 +110,7 @@ TEST(TestMapViewport, VisibleTilesCalculation)
     const Klv::GeoPoint2D center { 37.9838, 23.7275 };
     MapViewport viewport(center, 10.0, 800.0, 600.0);
 
-    const auto visibleTiles = viewport.calculateVisibleTiles(0);
+    const auto visibleTiles { viewport.calculateVisibleTiles(0) };
 
     // For 800x600 at 256px tiles, width covers ceil(800/256)+1 = 4-5 tiles, height covers 3-4 tiles
     EXPECT_GE(visibleTiles.size(), 12U);
@@ -119,6 +124,39 @@ TEST(TestMapViewport, VisibleTilesCalculation)
         EXPECT_EQ(vt.screenRect.width, 256.0);
         EXPECT_EQ(vt.screenRect.height, 256.0);
     }
+}
+
+TEST(TestMapViewport, FractionalZoomAndAntiMeridianVisibleTiles)
+{
+    // Centered at +179.9 deg E (straddling the +-180 deg anti-meridian) at fractional zoom 4.5
+    const Klv::GeoPoint2D dateLineCenter { 0.0, 179.9 };
+    const MapViewport viewport(dateLineCenter, 4.5, 800.0, 600.0);
+
+    const auto tiles { viewport.calculateVisibleTiles(0) };
+    ASSERT_FALSE(tiles.empty());
+
+    const double expectedScale { std::pow(2.0, 0.5) };
+    const double expectedTileSize { 256.0 * expectedScale };
+
+    bool hasEasternHemisphereTile { false }; // x == 15 at baseZoom 4
+    bool hasWesternHemisphereTile { false }; // x == 0 at baseZoom 4
+
+    for (const auto& vt : tiles) {
+        EXPECT_EQ(vt.coord.zoom, 4);
+        EXPECT_GE(vt.coord.x, 0);
+        EXPECT_LT(vt.coord.x, 16);
+        EXPECT_NEAR(vt.screenRect.width, expectedTileSize, 1e-4);
+        EXPECT_NEAR(vt.screenRect.height, expectedTileSize, 1e-4);
+        if (vt.coord.x == 15) {
+            hasEasternHemisphereTile = true;
+        }
+        if (vt.coord.x == 0) {
+            hasWesternHemisphereTile = true;
+        }
+    }
+
+    EXPECT_TRUE(hasEasternHemisphereTile);
+    EXPECT_TRUE(hasWesternHemisphereTile);
 }
 
 TEST(TestMapViewport, ConstructorSanitizesOutOfBoundsAndNaN)

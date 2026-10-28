@@ -4,6 +4,7 @@
 #include "GeoJsonExporter.h"
 
 #include <cstddef>
+#include <cstdint>
 
 #include <array>
 #include <fstream>
@@ -12,6 +13,9 @@
 #include <sstream>
 #include <string>
 #include <vector>
+
+#include "SpatialDataRecorder.h"
+#include "SpatialExportTypes.h"
 
 namespace Mapping {
 

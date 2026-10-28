@@ -7,6 +7,9 @@
 
 #include <algorithm>
 
+#include "GeoTypes.h"
+#include "KlvTypes.h"
+
 namespace Mapping {
 
 namespace {

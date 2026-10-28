@@ -4,13 +4,21 @@
 #include "SpatialDataRecorder.h"
 
 #include <cstddef>
+#include <cstdint>
+
+#include <vector>
+
 #include <gtest/gtest.h>
+
+#include "KlvTypes.h"
+#include "SpatialExportTypes.h"
+#include "VmtiTypes.h"
 
 using namespace Mapping;
 
 TEST(TestSpatialDataRecorder, IngestWithExplicitCorners)
 {
-    SpatialDataRecorder recorder;
+    SpatialDataRecorder recorder { };
     EXPECT_TRUE(recorder.empty());
     EXPECT_EQ(recorder.size(), 0U);
 
@@ -40,7 +48,7 @@ TEST(TestSpatialDataRecorder, IngestWithExplicitCorners)
     EXPECT_FALSE(recorder.empty());
     EXPECT_EQ(recorder.size(), 1U);
 
-    const auto& tracks = recorder.trackPoints();
+    const auto& tracks { recorder.trackPoints() };
     ASSERT_EQ(tracks.size(), 1U);
     EXPECT_EQ(tracks[0].timestampUs, 1728043200000000ULL);
     EXPECT_DOUBLE_EQ(tracks[0].position.latitudeDeg, 32.7157);
@@ -49,7 +57,7 @@ TEST(TestSpatialDataRecorder, IngestWithExplicitCorners)
     EXPECT_EQ(tracks[0].tailNumber, "HAWK-01");
     EXPECT_EQ(tracks[0].missionId, "RECON-1");
 
-    const auto& frustums = recorder.frustums();
+    const auto& frustums { recorder.frustums() };
     ASSERT_EQ(frustums.size(), 1U);
     EXPECT_TRUE(frustums[0].valid);
     EXPECT_TRUE(frustums[0].hasTargetCenter);
@@ -61,7 +69,7 @@ TEST(TestSpatialDataRecorder, IngestWithExplicitCorners)
 
 TEST(TestSpatialDataRecorder, IngestWithGeodesyFrustumFallback)
 {
-    SpatialDataRecorder recorder;
+    SpatialDataRecorder recorder { };
 
     Klv::UasDatalinkMessage msg { };
     msg.precisionTimeStampUs = 1728043200000000ULL;
@@ -78,7 +86,7 @@ TEST(TestSpatialDataRecorder, IngestWithGeodesyFrustumFallback)
     recorder.addTelemetryFrame(msg);
 
     ASSERT_EQ(recorder.size(), 1U);
-    const auto& frustums = recorder.frustums();
+    const auto& frustums { recorder.frustums() };
     ASSERT_EQ(frustums.size(), 1U);
     EXPECT_TRUE(frustums[0].valid);
     // Looking North, top corners should have higher latitude than bottom corners
@@ -89,12 +97,12 @@ TEST(TestSpatialDataRecorder, IngestWithGeodesyFrustumFallback)
 
 TEST(TestSpatialDataRecorder, UniformTimeDecimation)
 {
-    SpatialDataRecorder recorder;
+    SpatialDataRecorder recorder { };
 
     // Push 10 frames at 100ms intervals (10 Hz)
-    for (std::size_t i = 0; i < 10; ++i) {
+    for (std::size_t i { 0U }; i < 10U; ++i) {
         Klv::UasDatalinkMessage msg { };
-        msg.precisionTimeStampUs = 1000000ULL + i * 100000ULL;
+        msg.precisionTimeStampUs = 1000000ULL + (i * 100000ULL);
         msg.sensorLatitudeDeg = 32.7157 + (static_cast<double>(i) * 0.0001);
         msg.sensorLongitudeDeg = -117.1611;
         msg.sensorTrueAltitudeM = 1000.0;
@@ -118,7 +126,7 @@ TEST(TestSpatialDataRecorder, UniformTimeDecimation)
 
 TEST(TestSpatialDataRecorder, DistanceThresholdDecimation)
 {
-    SpatialDataRecorder recorder;
+    SpatialDataRecorder recorder { };
 
     // Frame 0 at origin
     Klv::UasDatalinkMessage msg0 { };
@@ -154,9 +162,58 @@ TEST(TestSpatialDataRecorder, DistanceThresholdDecimation)
     EXPECT_EQ(recorder.size(), 2U);
 }
 
+TEST(TestSpatialDataRecorder, HeadingThresholdDecimationAcrossWrapBoundary)
+{
+    SpatialDataRecorder recorder { };
+
+    // Frame 0: Heading 359.0 deg
+    Klv::UasDatalinkMessage msg0 { };
+    msg0.precisionTimeStampUs = 1000000ULL;
+    msg0.sensorLatitudeDeg = 35.0;
+    msg0.sensorLongitudeDeg = 25.0;
+    msg0.platformHeadingDeg = 359.0;
+    recorder.addTelemetryFrame(msg0);
+
+    // Frame 1: Heading 1.0 deg (only 2.0 deg across North 360/0 wrap boundary -> must be filtered when threshold
+    // is 5.0 deg)
+    Klv::UasDatalinkMessage msg1 { };
+    msg1.precisionTimeStampUs = 1100000ULL;
+    msg1.sensorLatitudeDeg = 35.0001;
+    msg1.sensorLongitudeDeg = 25.0;
+    msg1.platformHeadingDeg = 1.0;
+    recorder.addTelemetryFrame(msg1);
+
+    // Frame 2: Heading 14.0 deg (15.0 deg change from Frame 0's 359.0 deg -> must be retained)
+    Klv::UasDatalinkMessage msg2 { };
+    msg2.precisionTimeStampUs = 1200000ULL;
+    msg2.sensorLatitudeDeg = 35.0002;
+    msg2.sensorLongitudeDeg = 25.0;
+    msg2.platformHeadingDeg = 14.0;
+    recorder.addTelemetryFrame(msg2);
+
+    // Frame 3: Heading 15.0 deg (last point is always retained)
+    Klv::UasDatalinkMessage msg3 { };
+    msg3.precisionTimeStampUs = 1300000ULL;
+    msg3.sensorLatitudeDeg = 35.0003;
+    msg3.sensorLongitudeDeg = 25.0;
+    msg3.platformHeadingDeg = 15.0;
+    recorder.addTelemetryFrame(msg3);
+
+    DecimationConfig cfg { };
+    cfg.mode = DecimationMode::HeadingThreshold;
+    cfg.angleDeltaDeg = 5.0;
+
+    recorder.decimate(cfg);
+
+    ASSERT_EQ(recorder.size(), 3U);
+    EXPECT_DOUBLE_EQ(recorder.trackPoints()[0].headingDeg, 359.0);
+    EXPECT_DOUBLE_EQ(recorder.trackPoints()[1].headingDeg, 14.0);
+    EXPECT_DOUBLE_EQ(recorder.trackPoints()[2].headingDeg, 15.0);
+}
+
 TEST(TestSpatialDataRecorder, OutOfOrderTimestampsAndNegativeIntervalSafety)
 {
-    SpatialDataRecorder recorder;
+    SpatialDataRecorder recorder { };
 
     // Frame 0: t = 2.0s
     Klv::UasDatalinkMessage msg0 { };
@@ -201,7 +258,7 @@ TEST(TestSpatialDataRecorder, OutOfOrderTimestampsAndNegativeIntervalSafety)
 
 TEST(TestSpatialDataRecorder, VmtiTargetRecordingAndOffsetResolution)
 {
-    SpatialDataRecorder recorder;
+    SpatialDataRecorder recorder { };
 
     Klv::UasDatalinkMessage msg { };
     msg.precisionTimeStampUs = 1728043200000000ULL;
