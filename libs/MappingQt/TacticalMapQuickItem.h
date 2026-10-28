@@ -50,62 +50,60 @@ public:
     ~TacticalMapQuickItem() override = default;
 
     // Center coordinates
-    [[nodiscard]] double centerLatitude() const noexcept;
-    void setCenterLatitude(double lat) noexcept;
+    [[nodiscard]] double centerLatitude() const;
+    void setCenterLatitude(double lat);
 
-    [[nodiscard]] double centerLongitude() const noexcept;
-    void setCenterLongitude(double lon) noexcept;
+    [[nodiscard]] double centerLongitude() const;
+    void setCenterLongitude(double lon);
 
-    Q_INVOKABLE void setCenter(double lat, double lon) noexcept;
+    Q_INVOKABLE void setCenter(double lat, double lon);
 
     // Zoom level
-    [[nodiscard]] double zoom() const noexcept;
-    void setZoom(double z) noexcept;
+    [[nodiscard]] double zoom() const;
+    void setZoom(double z);
 
     // Offline configuration
-    [[nodiscard]] bool isOfflineOnly() const noexcept;
-    void setOfflineOnly(bool offline) noexcept;
+    [[nodiscard]] bool isOfflineOnly() const;
+    void setOfflineOnly(bool offline);
 
     Q_INVOKABLE void setOfflineDirectory(const QString& directoryPath);
 
     // Tactical overlay controls
-    [[nodiscard]] bool showFrustum() const noexcept;
-    void setShowFrustum(bool show) noexcept;
+    [[nodiscard]] bool showFrustum() const;
+    void setShowFrustum(bool show);
 
-    [[nodiscard]] bool showHeading() const noexcept;
-    void setShowHeading(bool show) noexcept;
+    [[nodiscard]] bool showHeading() const;
+    void setShowHeading(bool show);
 
-    [[nodiscard]] bool showGrid() const noexcept;
-    void setShowGrid(bool show) noexcept;
+    [[nodiscard]] bool showGrid() const;
+    void setShowGrid(bool show);
 
     // Platform telemetry
-    [[nodiscard]] double platformLatitude() const noexcept;
-    void setPlatformLatitude(double lat) noexcept;
+    [[nodiscard]] double platformLatitude() const;
+    void setPlatformLatitude(double lat);
 
-    [[nodiscard]] double platformLongitude() const noexcept;
-    void setPlatformLongitude(double lon) noexcept;
+    [[nodiscard]] double platformLongitude() const;
+    void setPlatformLongitude(double lon);
 
-    [[nodiscard]] double platformHeading() const noexcept;
-    void setPlatformHeading(double headingDeg) noexcept;
+    [[nodiscard]] double platformHeading() const;
+    void setPlatformHeading(double headingDeg);
 
-    Q_INVOKABLE void setPlatformPosition(double lat, double lon, double headingDeg) noexcept;
+    Q_INVOKABLE void setPlatformPosition(double lat, double lon, double headingDeg);
 
     // Sensor footprint frustum
-    Q_INVOKABLE void setFrustum(double tlLat, double tlLon,
-                                double trLat, double trLon,
-                                double brLat, double brLon,
-                                double blLat, double blLon) noexcept;
+    Q_INVOKABLE void setFrustum(
+        double tlLat, double tlLon, double trLat, double trLon, double brLat, double brLon, double blLat, double blLon);
 
-    void setFrustum(const Klv::FrustumCorners& frustum) noexcept;
-    void clearFrustum() noexcept;
+    void setFrustum(const Klv::FrustumCorners& frustum);
+    void clearFrustum();
 
     // Color theme
-    [[nodiscard]] QColor themeColor() const noexcept;
-    void setThemeColor(const QColor& color) noexcept;
+    [[nodiscard]] QColor themeColor() const;
+    void setThemeColor(const QColor& color);
 
     // Geographic <-> Screen coordinate conversions
-    Q_INVOKABLE QPointF geoToScreen(double lat, double lon) const noexcept;
-    Q_INVOKABLE QPointF screenToGeo(double x, double y) const noexcept;
+    [[nodiscard]] Q_INVOKABLE QPointF geoToScreen(double lat, double lon) const;
+    [[nodiscard]] Q_INVOKABLE QPointF screenToGeo(double x, double y) const;
 
     // QQuickPaintedItem overrides
     void paint(QPainter* painter) override;
@@ -132,9 +130,9 @@ protected:
     void wheelEvent(QWheelEvent* event) override;
 
 private:
-    mutable QMutex m_mutex;
+    mutable QMutex m_mutex { };
     Mapping::MapViewport m_viewport;
-    std::shared_ptr<Mapping::DiskTileCache> m_diskCache;
+    std::shared_ptr<Mapping::DiskTileCache> m_diskCache { nullptr };
     Mapping::CompositeTileProvider m_tileProvider;
 
     bool m_showFrustum { true };
@@ -145,14 +143,14 @@ private:
     double m_platformLon { 0.0 };
     double m_platformHeading { 0.0 };
 
-    Klv::FrustumCorners m_frustum {};
+    Klv::FrustumCorners m_frustum { };
     bool m_hasFrustum { false };
 
     QColor m_themeColor { 0, 229, 255 }; // Electric Cyan default
 
     // Mouse interaction tracking
     bool m_isDragging { false };
-    QPointF m_lastMousePos {};
+    QPointF m_lastMousePos { };
 };
 
 /// @brief Registers all MappingQt QML types with the Qt QML type system.

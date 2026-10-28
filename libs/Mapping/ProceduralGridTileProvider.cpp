@@ -14,6 +14,7 @@
 
 namespace Mapping {
 
+TileData ProceduralGridTileProvider::generateGridTile(const TileCoord& coord)
 {
     (void)coord;
     constexpr int kTileDim { 256 };
