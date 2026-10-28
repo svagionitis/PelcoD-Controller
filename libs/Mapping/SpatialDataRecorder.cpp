@@ -2,13 +2,18 @@
 /// @brief Implementation of spatial telemetry buffering and decimation engine.
 
 #include "SpatialDataRecorder.h"
-#include "KlvGeodesy.h"
 
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 
+#include <array>
 #include <optional>
+#include <string>
+#include <utility>
 #include <vector>
+
+#include "KlvGeodesy.h"
 
 namespace Mapping {
 
@@ -23,7 +28,7 @@ namespace {
 
     [[nodiscard]] double angularDiff(double a, double b) noexcept
     {
-        double diff = std::fmod(std::abs(a - b), 360.0);
+        double diff { std::fmod(std::abs(a - b), 360.0) };
         if (diff > 180.0) {
             diff = 360.0 - diff;
         }
@@ -38,10 +43,10 @@ void SpatialDataRecorder::addTelemetryFrame(const Klv::UasDatalinkMessage& msg)
         return;
     }
 
-    const double platformLat = *msg.sensorLatitudeDeg;
-    const double platformLon = *msg.sensorLongitudeDeg;
-    const double platformAlt = msg.sensorAltitudeHaeM.value_or(msg.sensorTrueAltitudeM.value_or(0.0));
-    const std::uint64_t timestamp = msg.precisionTimeStampUs.value_or(0U);
+    const double platformLat { *msg.sensorLatitudeDeg };
+    const double platformLon { *msg.sensorLongitudeDeg };
+    const double platformAlt { msg.sensorAltitudeHaeM.value_or(msg.sensorTrueAltitudeM.value_or(0.0)) };
+    const std::uint64_t timestamp { msg.precisionTimeStampUs.value_or(0U) };
 
     // Build Track Point
     SpatialTrackPoint tp { };
@@ -55,15 +60,15 @@ void SpatialDataRecorder::addTelemetryFrame(const Klv::UasDatalinkMessage& msg)
 
     // Calculate speed if previous point exists and time elapsed > 0
     if (!m_trackPoints.empty() && timestamp > m_trackPoints.back().timestampUs) {
-        const double dist = computeDistance(m_trackPoints.back().position, tp.position);
-        const double dtSec = static_cast<double>(timestamp - m_trackPoints.back().timestampUs) / 1000000.0;
+        const double dist { computeDistance(m_trackPoints.back().position, tp.position) };
+        const double dtSec { static_cast<double>(timestamp - m_trackPoints.back().timestampUs) / 1000000.0 };
         if (dtSec > 0.001) {
             tp.speedMps = dist / dtSec;
         }
     }
 
     // Ground elevation
-    const double groundElev = msg.frameCenterElevHaeM.value_or(msg.frameCenterElevM.value_or(0.0));
+    const double groundElev { msg.frameCenterElevHaeM.value_or(msg.frameCenterElevM.value_or(0.0)) };
 
     // Build Frustum Mesh
     FrustumMesh3D frustum { };
@@ -78,12 +83,12 @@ void SpatialDataRecorder::addTelemetryFrame(const Klv::UasDatalinkMessage& msg)
         frustum.hasTargetCenter = true;
     }
 
-    std::optional<Klv::FrustumCorners> corners = msg.cornerCoordinates;
+    std::optional<Klv::FrustumCorners> corners { msg.cornerCoordinates };
     if (!corners.has_value() && msg.sensorHfovDeg.has_value() && msg.sensorVfovDeg.has_value()) {
         const Klv::GeoPoint3D platform3D { platformLat, platformLon, platformAlt };
-        const double heading = msg.platformHeadingDeg.value_or(0.0);
-        const double azimuth = msg.sensorRelAzimuthDeg.value_or(0.0);
-        const double elevation = msg.sensorRelElevationDeg.value_or(-45.0);
+        const double heading { msg.platformHeadingDeg.value_or(0.0) };
+        const double azimuth { msg.sensorRelAzimuthDeg.value_or(0.0) };
+        const double elevation { msg.sensorRelElevationDeg.value_or(-45.0) };
 
         corners = Klv::KlvGeodesy::computeFrustum(
             platform3D, heading, azimuth, elevation, *msg.sensorHfovDeg, *msg.sensorVfovDeg, groundElev);
@@ -122,16 +127,19 @@ void SpatialDataRecorder::decimate(const DecimationConfig& config)
     decimatedTracks.push_back(m_trackPoints.front());
     decimatedFrustums.push_back(m_frustums.front());
 
-    const std::uint64_t minIntervalUs = static_cast<std::uint64_t>(config.intervalSec * 1000000.0);
+    const double safeIntervalSec { (std::isfinite(config.intervalSec) && config.intervalSec > 0.0) ? config.intervalSec
+                                                                                                   : 0.0 };
+    const std::uint64_t minIntervalUs { static_cast<std::uint64_t>(safeIntervalSec * 1000000.0) };
 
-    for (std::size_t i = 1U; i + 1U < m_trackPoints.size(); ++i) {
-        bool retain = false;
-        const auto& prevTrack = decimatedTracks.back();
-        const auto& curTrack = m_trackPoints[i];
+    for (std::size_t i { 1U }; i + 1U < m_trackPoints.size(); ++i) {
+        bool retain { false };
+        const auto& prevTrack { decimatedTracks.back() };
+        const auto& curTrack { m_trackPoints[i] };
 
         switch (config.mode) {
         case DecimationMode::UniformTime:
-            if ((curTrack.timestampUs - prevTrack.timestampUs) >= minIntervalUs) {
+            if (curTrack.timestampUs >= prevTrack.timestampUs
+                && (curTrack.timestampUs - prevTrack.timestampUs) >= minIntervalUs) {
                 retain = true;
             }
             break;

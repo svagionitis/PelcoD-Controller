@@ -1,7 +1,13 @@
+/// @file TestMapViewport.cpp
+/// @brief Unit tests for MapViewport coordinate projections, pan/zoom, and visible tile grids.
+
 #include "MapViewport.h"
 
-#include <gtest/gtest.h>
+#include <cmath>
+#include <limits>
 #include <vector>
+
+#include <gtest/gtest.h>
 
 using namespace Mapping;
 
@@ -113,4 +119,30 @@ TEST(TestMapViewport, VisibleTilesCalculation)
         EXPECT_EQ(vt.screenRect.width, 256.0);
         EXPECT_EQ(vt.screenRect.height, 256.0);
     }
+}
+
+TEST(TestMapViewport, ConstructorSanitizesOutOfBoundsAndNaN)
+{
+    const double nanVal { std::numeric_limits<double>::quiet_NaN() };
+
+    // Out-of-bounds latitude (95.0) and unnormalized longitude (540.0 -> 180.0 -> -180.0)
+    MapViewport viewport(Klv::GeoPoint2D { 95.0, 540.0 }, 25.0, -100.0, 0.0);
+    EXPECT_DOUBLE_EQ(viewport.center().latitudeDeg, MercatorProjection::kMaxLatitude);
+    EXPECT_DOUBLE_EQ(viewport.center().longitudeDeg, -180.0);
+    EXPECT_DOUBLE_EQ(viewport.zoom(), 22.0);
+    EXPECT_DOUBLE_EQ(viewport.width(), 1.0);
+    EXPECT_DOUBLE_EQ(viewport.height(), 1.0);
+
+    // Passing NaN to setZoom and setSize must not corrupt valid state
+    viewport.setZoom(10.0);
+    viewport.setSize(800.0, 600.0);
+    viewport.setZoom(nanVal);
+    viewport.setSize(nanVal, nanVal);
+    EXPECT_DOUBLE_EQ(viewport.zoom(), 10.0);
+    EXPECT_DOUBLE_EQ(viewport.width(), 800.0);
+    EXPECT_DOUBLE_EQ(viewport.height(), 600.0);
+
+    // Negative paddingTiles in calculateVisibleTiles must be clamped safely
+    const auto tiles { viewport.calculateVisibleTiles(-100) };
+    EXPECT_FALSE(tiles.empty());
 }

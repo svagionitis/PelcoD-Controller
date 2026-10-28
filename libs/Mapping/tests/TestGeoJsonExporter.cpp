@@ -96,3 +96,23 @@ TEST(TestGeoJsonExporter, DisableLayers)
     EXPECT_EQ(json.find("\"layer\": \"SensorFrustum3D\""), std::string::npos);
     EXPECT_EQ(json.find("\"layer\": \"TargetCenter\""), std::string::npos);
 }
+
+TEST(TestGeoJsonExporter, OutOfOrderTimestampsZeroDuration)
+{
+    SpatialDataRecorder recorder;
+
+    Klv::UasDatalinkMessage msg1 { };
+    msg1.precisionTimeStampUs = 5000000ULL;
+    msg1.sensorLatitudeDeg = 10.0;
+    msg1.sensorLongitudeDeg = 20.0;
+    recorder.addTelemetryFrame(msg1);
+
+    Klv::UasDatalinkMessage msg2 { };
+    msg2.precisionTimeStampUs = 1000000ULL; // Earlier than msg1
+    msg2.sensorLatitudeDeg = 10.01;
+    msg2.sensorLongitudeDeg = 20.01;
+    recorder.addTelemetryFrame(msg2);
+
+    const std::string json { GeoJsonExporter::exportToString(recorder) };
+    EXPECT_NE(json.find("\"durationSec\": 0.00"), std::string::npos);
+}

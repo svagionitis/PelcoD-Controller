@@ -4,7 +4,6 @@
 /// @brief Spherical Web Mercator (EPSG:3857) projection and Slippy Map tiling mathematics.
 
 #include "GeoTypes.h"
-#include <cmath>
 
 namespace Mapping {
 
@@ -19,24 +18,47 @@ public:
     /// @brief Minimum representable latitude in Web Mercator (-85.0511287798 degrees).
     static constexpr double kMinLatitude { -85.05112877980659 };
 
+    /// @brief Minimum supported discrete zoom level.
+    static constexpr int kMinZoom { 0 };
+
+    /// @brief Maximum supported discrete zoom level.
+    static constexpr int kMaxZoom { 22 };
+
     /// @brief Standard raster tile dimension in pixels (256x256).
     static constexpr int kDefaultTileSize { 256 };
 
     /// @brief WGS-84 equatorial circumference in meters (2 * PI * 6,378,137.0 m).
     static constexpr double kEarthCircumferenceMeters { 40075016.68557849 };
 
+    /// @brief Clamps an integer zoom level into the safe [kMinZoom, kMaxZoom] range.
+    /// @param[in] zoom Input discrete zoom level.
+    /// @return Clamped zoom level in [0, 22].
+    [[nodiscard]] static constexpr int clampZoom(int zoom) noexcept
+    {
+        if (zoom < kMinZoom)
+            return kMinZoom;
+        if (zoom > kMaxZoom)
+            return kMaxZoom;
+        return zoom;
+    }
+
     /// @brief Clamps latitude into the valid Web Mercator range [-85.051129, +85.051129].
     /// @param[in] latDeg Input latitude in degrees.
-    /// @return Clamped latitude in degrees.
-    [[nodiscard]] static constexpr double clampLatitude(double latDeg) noexcept {
-        if (latDeg > kMaxLatitude) return kMaxLatitude;
-        if (latDeg < kMinLatitude) return kMinLatitude;
+    /// @return Clamped latitude in degrees (or 0.0 if input is NaN).
+    [[nodiscard]] static constexpr double clampLatitude(double latDeg) noexcept
+    {
+        if (latDeg != latDeg)
+            return 0.0; // NaN guard (SEI CERT FLP34-C)
+        if (latDeg > kMaxLatitude)
+            return kMaxLatitude;
+        if (latDeg < kMinLatitude)
+            return kMinLatitude;
         return latDeg;
     }
 
     /// @brief Normalizes longitude into the [-180.0, +180.0) range.
     /// @param[in] lonDeg Input longitude in degrees.
-    /// @return Normalized longitude in degrees.
+    /// @return Normalized longitude in degrees (or 0.0 if input is non-finite).
     [[nodiscard]] static double normalizeLongitude(double lonDeg) noexcept;
 
     /// @brief Projects geographic coordinates to continuous global pixel coordinates at a given zoom.
@@ -44,18 +66,16 @@ public:
     /// @param[in] zoom Fractional or integer zoom level (typically 0 to 22).
     /// @param[in] tileSize Raster tile size in pixels (default 256).
     /// @return Absolute global pixel coordinates from the world top-left origin (0, 0).
-    [[nodiscard]] static ScreenPoint latLonToGlobalPixel(const Klv::GeoPoint2D& point,
-                                                         double zoom,
-                                                         int tileSize = kDefaultTileSize) noexcept;
+    [[nodiscard]] static ScreenPoint latLonToGlobalPixel(
+        const Klv::GeoPoint2D& point, double zoom, int tileSize = kDefaultTileSize) noexcept;
 
     /// @brief Inverse projects global pixel coordinates back to geographic (lat, lon) coordinates.
     /// @param[in] pixel Global pixel coordinate at the specified zoom level.
     /// @param[in] zoom Zoom level associated with the pixel coordinate.
     /// @param[in] tileSize Raster tile size in pixels (default 256).
     /// @return Geographic coordinate (lat, lon) in degrees.
-    [[nodiscard]] static Klv::GeoPoint2D globalPixelToLatLon(const ScreenPoint& pixel,
-                                                             double zoom,
-                                                             int tileSize = kDefaultTileSize) noexcept;
+    [[nodiscard]] static Klv::GeoPoint2D globalPixelToLatLon(
+        const ScreenPoint& pixel, double zoom, int tileSize = kDefaultTileSize) noexcept;
 
     /// @brief Computes the discrete Slippy Map tile coordinate (X, Y) containing a geographic point.
     /// @param[in] point Geographic position (lat, lon) in degrees.
@@ -70,18 +90,22 @@ public:
 
     /// @brief Converts standard Slippy Map (OSM) Y-coordinate to TMS (MBTiles) Y-coordinate.
     /// @param[in] slippyY Standard Slippy Map row index (0 is top/north).
-    /// @param[in] zoom Zoom level.
+    /// @param[in] zoom Zoom level (clamped to [0, 22]).
     /// @return TMS row index (0 is bottom/south).
-    [[nodiscard]] static constexpr int slippyToTmsY(int slippyY, int zoom) noexcept {
-        return (1 << zoom) - 1 - slippyY;
+    [[nodiscard]] static constexpr int slippyToTmsY(int slippyY, int zoom) noexcept
+    {
+        const int safeZoom { clampZoom(zoom) };
+        return (1 << safeZoom) - 1 - slippyY;
     }
 
     /// @brief Converts TMS (MBTiles) Y-coordinate to standard Slippy Map (OSM) Y-coordinate.
     /// @param[in] tmsY TMS row index (0 is bottom/south).
-    /// @param[in] zoom Zoom level.
+    /// @param[in] zoom Zoom level (clamped to [0, 22]).
     /// @return Slippy Map row index (0 is top/north).
-    [[nodiscard]] static constexpr int tmsToSlippyY(int tmsY, int zoom) noexcept {
-        return (1 << zoom) - 1 - tmsY;
+    [[nodiscard]] static constexpr int tmsToSlippyY(int tmsY, int zoom) noexcept
+    {
+        const int safeZoom { clampZoom(zoom) };
+        return (1 << safeZoom) - 1 - tmsY;
     }
 
     /// @brief Computes the ground resolution in meters per pixel at a specific latitude and zoom.
@@ -89,9 +113,8 @@ public:
     /// @param[in] zoom Zoom level.
     /// @param[in] tileSize Raster tile size in pixels (default 256).
     /// @return Ground resolution in meters / pixel.
-    [[nodiscard]] static double metersPerPixel(double latitudeDeg,
-                                               double zoom,
-                                               int tileSize = kDefaultTileSize) noexcept;
+    [[nodiscard]] static double metersPerPixel(
+        double latitudeDeg, double zoom, int tileSize = kDefaultTileSize) noexcept;
 };
 
 } // namespace Mapping

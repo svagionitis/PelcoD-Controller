@@ -1,14 +1,21 @@
+/// @file TestOfflineTileStore.cpp
+/// @brief Unit tests for DiskTileCache, ProceduralGridTileProvider, and CompositeTileProvider.
+
 #include "CompositeTileProvider.h"
 #include "DiskTileCache.h"
 #include "ProceduralGridTileProvider.h"
+
 #include <cstddef>
 #include <cstdint>
 
+#include <atomic>
 #include <filesystem>
 #include <fstream>
 #include <memory>
 #include <optional>
 #include <string>
+#include <thread>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -17,13 +24,13 @@ using namespace Mapping;
 namespace {
 class MockNetworkTileProvider : public ITileProvider {
 public:
-    int fetchCount { 0 };
+    std::atomic<int> fetchCount { 0 };
 
     std::optional<TileData> getTile(const TileCoord& /*coord*/) override
     {
         ++fetchCount;
-        TileData d;
-        d.bytes = { 0x01, 0x02 };
+        TileData d { };
+        d.bytes = { 0x01U, 0x02U };
         d.valid = true;
         return d;
     }
@@ -138,6 +145,72 @@ TEST(TestOfflineTileStore, CompositeProviderOfflineOnlyEnforcement)
 
     // 3. Tile is now cached in memory
     EXPECT_TRUE(composite.memoryCache().contains(missingCoord));
+
+    std::filesystem::remove_all(tempDir);
+}
+
+TEST(TestOfflineTileStore, DiskTileCacheRejectsInvalidCoords)
+{
+    const std::filesystem::path tempDir { std::filesystem::temp_directory_path() / "pelcod_invalid_coords_cache" };
+    std::filesystem::remove_all(tempDir);
+
+    DiskTileCache diskCache(tempDir);
+    TileData sample { };
+    sample.bytes = { 0x89U, 0x50U };
+    sample.valid = true;
+
+    // Negative zoom or negative x/y or zoom > 22 must be rejected
+    EXPECT_FALSE(diskCache.storeTile(TileCoord { -1, 0, 5 }, sample));
+    EXPECT_FALSE(diskCache.storeTile(TileCoord { 0, -1, 5 }, sample));
+    EXPECT_FALSE(diskCache.storeTile(TileCoord { 0, 0, -1 }, sample));
+    EXPECT_FALSE(diskCache.storeTile(TileCoord { 0, 0, 25 }, sample));
+    EXPECT_FALSE(diskCache.storeTile(TileCoord { 8, 0, 3 }, sample)); // x >= (1 << 3)
+
+    EXPECT_FALSE(diskCache.hasTile(TileCoord { -1, 0, 5 }));
+    EXPECT_FALSE(diskCache.getTile(TileCoord { -1, 0, 5 }).has_value());
+
+    std::filesystem::remove_all(tempDir);
+}
+
+TEST(TestOfflineTileStore, CompositeProviderConcurrentAccessAndOnlineWriteThrough)
+{
+    const std::filesystem::path tempDir { std::filesystem::temp_directory_path() / "pelcod_concurrent_composite" };
+    std::filesystem::remove_all(tempDir);
+
+    auto diskCache { std::make_shared<DiskTileCache>(tempDir) };
+    CompositeTileProvider composite(diskCache);
+    auto mockNet { std::make_shared<MockNetworkTileProvider>() };
+    composite.setNetworkProvider(mockNet);
+
+    // Verify online write-through to disk and memory cache
+    composite.setOfflineOnly(false);
+    composite.setProceduralFallbackEnabled(false);
+    const TileCoord netCoord { 3, 4, 5 };
+    const auto fetched { composite.getTile(netCoord) };
+    ASSERT_TRUE(fetched.has_value());
+    EXPECT_EQ(mockNet->fetchCount.load(), 1);
+    EXPECT_TRUE(diskCache->hasTile(netCoord));
+    EXPECT_TRUE(composite.memoryCache().contains(netCoord));
+
+    // Concurrent stress test toggling offlineOnly and proceduralFallback while querying tiles
+    std::vector<std::thread> threads { };
+    threads.reserve(4U);
+    for (int t { 0 }; t < 4; ++t) {
+        threads.emplace_back([&composite, t]() {
+            for (int i { 0 }; i < 50; ++i) {
+                composite.setOfflineOnly((i % 2) == 0);
+                composite.setProceduralFallbackEnabled((i % 3) != 0);
+                (void)composite.isOfflineOnly();
+                (void)composite.isProceduralFallbackEnabled();
+                const TileCoord c { (t * 4) + (i % 4), i % 4, 4 };
+                (void)composite.hasTile(c);
+                (void)composite.getTile(c);
+            }
+        });
+    }
+    for (auto& th : threads) {
+        th.join();
+    }
 
     std::filesystem::remove_all(tempDir);
 }

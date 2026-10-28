@@ -1,7 +1,13 @@
+/// @file TestMercatorProjection.cpp
+/// @brief Unit tests for MercatorProjection coordinate transformations and tiling bounds.
+
 #include "MercatorProjection.h"
 
-#include <gtest/gtest.h>
+#include <cmath>
+#include <limits>
 #include <vector>
+
+#include <gtest/gtest.h>
 
 using namespace Mapping;
 
@@ -115,4 +121,50 @@ TEST(TestMercatorProjection, LatitudeClamping)
     EXPECT_EQ(MercatorProjection::clampLatitude(95.0), MercatorProjection::kMaxLatitude);
     EXPECT_EQ(MercatorProjection::clampLatitude(-92.0), MercatorProjection::kMinLatitude);
     EXPECT_EQ(MercatorProjection::clampLatitude(45.0), 45.0);
+}
+
+TEST(TestMercatorProjection, ExtremeZoomAndNaNSafety)
+{
+    const double nanVal { std::numeric_limits<double>::quiet_NaN() };
+    const double infVal { std::numeric_limits<double>::infinity() };
+
+    // 1. NaN / Inf latitude and longitude must sanitize to finite values (0.0)
+    EXPECT_DOUBLE_EQ(MercatorProjection::clampLatitude(nanVal), 0.0);
+    EXPECT_DOUBLE_EQ(MercatorProjection::normalizeLongitude(nanVal), 0.0);
+    EXPECT_DOUBLE_EQ(MercatorProjection::normalizeLongitude(infVal), 0.0);
+    EXPECT_DOUBLE_EQ(MercatorProjection::normalizeLongitude(-infVal), 0.0);
+
+    // 2. Negative and extreme zoom levels in slippyToTmsY / tmsToSlippyY must clamp to [0, 22]
+    EXPECT_EQ(MercatorProjection::slippyToTmsY(0, -10), 0);
+    EXPECT_EQ(MercatorProjection::tmsToSlippyY(0, -10), 0);
+
+    constexpr int kMaxZoomTiles { 1 << 22 };
+    EXPECT_EQ(MercatorProjection::slippyToTmsY(0, 35), kMaxZoomTiles - 1);
+    EXPECT_EQ(MercatorProjection::tmsToSlippyY(kMaxZoomTiles - 1, 35), 0);
+
+    // 3. latLonToTile with negative zoom, zoom >= 31, and NaN coordinates
+    const TileCoord negZoomTile { MercatorProjection::latLonToTile({ 37.9838, 23.7275 }, -5) };
+    EXPECT_EQ(negZoomTile.zoom, 0);
+    EXPECT_EQ(negZoomTile.x, 0);
+    EXPECT_EQ(negZoomTile.y, 0);
+
+    const TileCoord hugeZoomTile { MercatorProjection::latLonToTile({ 37.9838, 23.7275 }, 35) };
+    EXPECT_EQ(hugeZoomTile.zoom, 22);
+    EXPECT_GE(hugeZoomTile.x, 0);
+    EXPECT_LT(hugeZoomTile.x, kMaxZoomTiles);
+    EXPECT_GE(hugeZoomTile.y, 0);
+    EXPECT_LT(hugeZoomTile.y, kMaxZoomTiles);
+
+    const TileCoord nanTile { MercatorProjection::latLonToTile({ nanVal, nanVal }, 10) };
+    EXPECT_EQ(nanTile.zoom, 10);
+    EXPECT_EQ(nanTile.x, 512);
+    EXPECT_EQ(nanTile.y, 512);
+
+    // 4. tileToBoundingBox with extreme zoom and INT_MAX coordinates
+    const BoundingBox extremeBox { MercatorProjection::tileToBoundingBox(
+        { std::numeric_limits<int>::max(), std::numeric_limits<int>::max(), 40 }) };
+    EXPECT_TRUE(std::isfinite(extremeBox.north));
+    EXPECT_TRUE(std::isfinite(extremeBox.south));
+    EXPECT_TRUE(std::isfinite(extremeBox.east));
+    EXPECT_TRUE(std::isfinite(extremeBox.west));
 }

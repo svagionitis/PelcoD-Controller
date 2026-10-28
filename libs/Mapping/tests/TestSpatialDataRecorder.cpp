@@ -153,3 +153,48 @@ TEST(TestSpatialDataRecorder, DistanceThresholdDecimation)
     // msg1 should be filtered out, keeping msg0 and msg2 (first and last)
     EXPECT_EQ(recorder.size(), 2U);
 }
+
+TEST(TestSpatialDataRecorder, OutOfOrderTimestampsAndNegativeIntervalSafety)
+{
+    SpatialDataRecorder recorder;
+
+    // Frame 0: t = 2.0s
+    Klv::UasDatalinkMessage msg0 { };
+    msg0.precisionTimeStampUs = 2000000ULL;
+    msg0.sensorLatitudeDeg = 32.0;
+    msg0.sensorLongitudeDeg = -117.0;
+    recorder.addTelemetryFrame(msg0);
+
+    // Frame 1: out-of-order timestamp t = 1.5s (less than Frame 0!)
+    Klv::UasDatalinkMessage msg1 { };
+    msg1.precisionTimeStampUs = 1500000ULL;
+    msg1.sensorLatitudeDeg = 32.0001;
+    msg1.sensorLongitudeDeg = -117.0;
+    recorder.addTelemetryFrame(msg1);
+
+    // Frame 2: t = 2.1s (only 0.1s after Frame 0, which is < 0.5s interval)
+    Klv::UasDatalinkMessage msg2 { };
+    msg2.precisionTimeStampUs = 2100000ULL;
+    msg2.sensorLatitudeDeg = 32.0002;
+    msg2.sensorLongitudeDeg = -117.0;
+    recorder.addTelemetryFrame(msg2);
+
+    // Frame 3: t = 2.6s (0.6s after Frame 0)
+    Klv::UasDatalinkMessage msg3 { };
+    msg3.precisionTimeStampUs = 2600000ULL;
+    msg3.sensorLatitudeDeg = 32.0003;
+    msg3.sensorLongitudeDeg = -117.0;
+    recorder.addTelemetryFrame(msg3);
+
+    DecimationConfig cfg { };
+    cfg.mode = DecimationMode::UniformTime;
+    cfg.intervalSec = 0.5;
+
+    recorder.decimate(cfg);
+
+    // Frame 1 (out-of-order) and Frame 2 (+0.1s) must NOT wrap around uint64_t and be retained!
+    // Only Frame 0 (first) and Frame 3 (last) should remain.
+    EXPECT_EQ(recorder.size(), 2U);
+    EXPECT_EQ(recorder.trackPoints().front().timestampUs, 2000000ULL);
+    EXPECT_EQ(recorder.trackPoints().back().timestampUs, 2600000ULL);
+}

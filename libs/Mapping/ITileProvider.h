@@ -3,9 +3,10 @@
 /// @file ITileProvider.h
 /// @brief Abstract interface for asynchronous or synchronous tile suppliers.
 
-#include "GeoTypes.h"
 #include <optional>
 #include <string>
+
+#include "GeoTypes.h"
 
 namespace Mapping {
 
@@ -23,9 +24,10 @@ public:
     /// @brief Checks if a tile is immediately available without downloading.
     /// @param[in] coord Discrete tile coordinate.
     /// @return True if available locally, false otherwise.
-    [[nodiscard]] virtual bool hasTile(const TileCoord& coord) const noexcept = 0;
+    [[nodiscard]] virtual bool hasTile(const TileCoord& coord) const = 0;
 
     /// @brief Returns the identifier name of the tile provider implementation.
+    /// @return Provider name string.
     [[nodiscard]] virtual std::string providerName() const = 0;
 };
 

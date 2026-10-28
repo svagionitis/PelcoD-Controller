@@ -3,14 +3,18 @@
 
 #include "GeoJsonExporter.h"
 
+#include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <ctime>
 
 #include <array>
 #include <fstream>
 #include <iomanip>
+#include <ostream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 namespace Mapping {
 
@@ -21,8 +25,8 @@ namespace {
         if (timestampUs == 0U) {
             return "";
         }
-        const std::time_t sec = static_cast<std::time_t>(timestampUs / 1000000ULL);
-        const auto ms = static_cast<unsigned int>((timestampUs % 1000000ULL) / 1000ULL);
+        const std::time_t sec { static_cast<std::time_t>(timestampUs / 1000000ULL) };
+        const auto ms { static_cast<unsigned int>((timestampUs % 1000000ULL) / 1000ULL) };
         std::tm tmBuf { };
 #if defined(_WIN32)
         gmtime_s(&tmBuf, &sec);
@@ -37,7 +41,7 @@ namespace {
 
     [[nodiscard]] std::string escapeJson(const std::string& input)
     {
-        std::string out;
+        std::string out { };
         out.reserve(input.size() + 8U);
         for (const char c : input) {
             switch (c) {
@@ -81,8 +85,8 @@ namespace {
 
 std::string GeoJsonExporter::exportToString(const SpatialDataRecorder& recorder, const GeoJsonConfig& config)
 {
-    std::ostringstream oss;
-    const bool success = exportToStream(recorder, oss, config);
+    std::ostringstream oss { };
+    const bool success { exportToStream(recorder, oss, config) };
     if (!success) {
         return "";
     }
@@ -91,8 +95,8 @@ std::string GeoJsonExporter::exportToString(const SpatialDataRecorder& recorder,
 
 bool GeoJsonExporter::exportToStream(const SpatialDataRecorder& recorder, std::ostream& os, const GeoJsonConfig& config)
 {
-    const auto& tracks = recorder.trackPoints();
-    const auto& frustums = recorder.frustums();
+    const auto& tracks { recorder.trackPoints() };
+    const auto& frustums { recorder.frustums() };
 
     os << "{\n";
     os << "  \"type\": \"FeatureCollection\",\n";
@@ -103,14 +107,14 @@ bool GeoJsonExporter::exportToStream(const SpatialDataRecorder& recorder, std::o
     os << "  },\n";
     os << "  \"features\": [\n";
 
-    bool firstFeature = true;
+    bool firstFeature { true };
 
     // 1. Layer: Flight Track (LineString)
     if (config.includeFlightTrack && !tracks.empty()) {
         firstFeature = false;
-        const double durationSec = (tracks.size() > 1U)
-            ? static_cast<double>(tracks.back().timestampUs - tracks.front().timestampUs) / 1000000.0
-            : 0.0;
+        const double durationSec { (tracks.size() > 1U && tracks.back().timestampUs > tracks.front().timestampUs)
+                ? static_cast<double>(tracks.back().timestampUs - tracks.front().timestampUs) / 1000000.0
+                : 0.0 };
 
         os << "    {\n";
         os << "      \"type\": \"Feature\",\n";
@@ -128,7 +132,7 @@ bool GeoJsonExporter::exportToStream(const SpatialDataRecorder& recorder, std::o
         os << "        \"type\": \"LineString\",\n";
         os << "        \"coordinates\": [\n";
 
-        for (std::size_t i = 0U; i < tracks.size(); ++i) {
+        for (std::size_t i { 0U }; i < tracks.size(); ++i) {
             os << "          ";
             writeCoord(os, tracks[i].position, config.coordinatePrecision);
             if (i + 1U < tracks.size()) {
@@ -144,8 +148,8 @@ bool GeoJsonExporter::exportToStream(const SpatialDataRecorder& recorder, std::o
 
     // 2. Layer: Sensor Footprints (2D Ground Polygons)
     if (config.includeFootprints) {
-        for (std::size_t i = 0U; i < frustums.size(); ++i) {
-            const auto& fr = frustums[i];
+        for (std::size_t i { 0U }; i < frustums.size(); ++i) {
+            const auto& fr { frustums[i] };
             if (!fr.valid) {
                 continue;
             }
@@ -172,8 +176,8 @@ bool GeoJsonExporter::exportToStream(const SpatialDataRecorder& recorder, std::o
             os << "        \"coordinates\": [[\n";
 
             // CCW order: C1 (TL) -> C4 (BL) -> C3 (BR) -> C2 (TR) -> C1 (TL)
-            const std::array<std::size_t, 5> ccwIdx = { 0U, 3U, 2U, 1U, 0U };
-            for (std::size_t k = 0U; k < ccwIdx.size(); ++k) {
+            const std::array<std::size_t, 5> ccwIdx { 0U, 3U, 2U, 1U, 0U };
+            for (std::size_t k { 0U }; k < ccwIdx.size(); ++k) {
                 os << "          ";
                 writeCoord(os, fr.base[ccwIdx[k]], config.coordinatePrecision);
                 if (k + 1U < ccwIdx.size()) {
@@ -190,8 +194,8 @@ bool GeoJsonExporter::exportToStream(const SpatialDataRecorder& recorder, std::o
 
     // 3. Layer: Volumetric 3D Frustums (MultiPolygon)
     if (config.includeVolumetricFrustums) {
-        for (std::size_t i = 0U; i < frustums.size(); ++i) {
-            const auto& fr = frustums[i];
+        for (std::size_t i { 0U }; i < frustums.size(); ++i) {
+            const auto& fr { frustums[i] };
             if (!fr.valid) {
                 continue;
             }
@@ -279,8 +283,8 @@ bool GeoJsonExporter::exportToStream(const SpatialDataRecorder& recorder, std::o
 
     // 4. Layer: Target Points (Frame Centers)
     if (config.includeTargetPoints) {
-        for (std::size_t i = 0U; i < frustums.size(); ++i) {
-            const auto& fr = frustums[i];
+        for (std::size_t i { 0U }; i < frustums.size(); ++i) {
+            const auto& fr { frustums[i] };
             if (!fr.hasTargetCenter) {
                 continue;
             }

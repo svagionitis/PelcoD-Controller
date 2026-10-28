@@ -3,10 +3,14 @@
 
 #include "MapViewport.h"
 #include "VmtiOverlay.h"
+
+#include <cmath>
 #include <cstdint>
+#include <limits>
+#include <optional>
+#include <type_traits>
 
 #include <gtest/gtest.h>
-#include <optional>
 
 using namespace Mapping;
 
@@ -88,4 +92,24 @@ TEST(TestVmtiOverlay, ProjectTargetSeriesAndVisibility)
 
     EXPECT_TRUE(VmtiOverlay::isTargetVisible(series[0], viewportRect));
     EXPECT_FALSE(VmtiOverlay::isTargetVisible(series[1], viewportRect));
+}
+
+TEST(TestVmtiOverlay, ProjectTargetNaNCe90Safety)
+{
+    // CERT ERR55-CPP: projectTarget constructs std::string on heap, so it must NOT be declared noexcept
+    EXPECT_FALSE(noexcept(
+        VmtiOverlay::projectTarget(std::declval<const MapViewport&>(), std::declval<const Klv::VTargetPack&>())));
+
+    const Klv::GeoPoint2D center { 37.7749, -122.4194 };
+    MapViewport viewport(center, 15.0, 800.0, 600.0);
+
+    Klv::VTargetPack pack { };
+    pack.targetId = 99U;
+    pack.targetLocation = Klv::GeoPoint3D { center.latitudeDeg, center.longitudeDeg, 10.0 };
+    pack.targetCe90M = std::numeric_limits<double>::quiet_NaN();
+
+    const ScreenVmtiTarget st { VmtiOverlay::projectTarget(viewport, pack) };
+    EXPECT_TRUE(st.valid);
+    EXPECT_TRUE(std::isfinite(st.ce90Pixels));
+    EXPECT_DOUBLE_EQ(st.ce90Pixels, 0.0);
 }

@@ -3,17 +3,16 @@
 /// @file VmtiOverlay.h
 /// @brief Tactical display symbology for MISB ST 0903 Video Moving Target Indicator (VMTI) tracks.
 
-#include "GeoTypes.h"
-#include "KlvTypes.h"
-#include "MapViewport.h"
-#include "TacticalOverlay.h"
-#include "VmtiTypes.h"
-
 #include <cstdint>
 
 #include <optional>
 #include <string>
 #include <vector>
+
+#include "GeoTypes.h"
+#include "KlvTypes.h"
+#include "MapViewport.h"
+#include "VmtiTypes.h"
 
 namespace Mapping {
 
@@ -34,12 +33,14 @@ struct ScreenVmtiTarget {
 class VmtiOverlay {
 public:
     /// @brief Projects an individual MISB ST 0903 VTargetPack onto viewport screen coordinates.
+    /// @details Resolves absolute target coordinates or frame-center relative offsets and computes
+    ///          the horizontal uncertainty radius in pixels.
     /// @param[in] viewport Current active map viewport.
     /// @param[in] pack VTargetPack containing target location or frame center offsets.
     /// @param[in] frameCenter Optional frame center geodetic coordinate if pack uses relative offsets.
     /// @return Projected ScreenVmtiTarget symbology.
     [[nodiscard]] static ScreenVmtiTarget projectTarget(const MapViewport& viewport, const Klv::VTargetPack& pack,
-        const std::optional<Klv::GeoPoint2D>& frameCenter = std::nullopt) noexcept;
+        const std::optional<Klv::GeoPoint2D>& frameCenter = std::nullopt);
 
     /// @brief Projects all valid targets in a VMTI Local Set onto viewport screen coordinates.
     /// @param[in] viewport Current active map viewport.

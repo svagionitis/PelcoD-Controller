@@ -3,19 +3,18 @@
 /// @file MapViewport.h
 /// @brief Dynamic 2D camera viewport state, coordinate transforms, and visible tile calculations.
 
+#include <vector>
+
 #include "GeoTypes.h"
 #include "MercatorProjection.h"
-
-#include <optional>
-#include <vector>
 
 namespace Mapping {
 
 /// @struct VisibleTile
 /// @brief Describes a single tile to render and its destination bounding rectangle on the viewport.
 struct VisibleTile {
-    TileCoord coord;       ///< Discrete tile coordinate (X, Y, integer Zoom)
-    ScreenRect screenRect; ///< Pixel position and scaled dimension on viewport
+    TileCoord coord { }; ///< Discrete tile coordinate (X, Y, integer Zoom)
+    ScreenRect screenRect { }; ///< Pixel position and scaled dimension on viewport
 };
 
 /// @class MapViewport
@@ -33,30 +32,40 @@ public:
     MapViewport(const Klv::GeoPoint2D& center, double zoom, double width, double height) noexcept;
 
     /// @brief Sets the geographic center point of the viewport.
+    /// @param[in] center Geographic location (lat, lon).
     void setCenter(const Klv::GeoPoint2D& center) noexcept;
 
     /// @brief Returns the current geographic center point of the viewport.
+    /// @return Geographic center coordinate.
     [[nodiscard]] Klv::GeoPoint2D center() const noexcept;
 
     /// @brief Sets the fractional zoom level, clamped between 0.0 and 22.0.
+    /// @param[in] zoom Fractional zoom level.
     void setZoom(double zoom) noexcept;
 
     /// @brief Returns the current fractional zoom level.
+    /// @return Fractional zoom level.
     [[nodiscard]] double zoom() const noexcept;
 
     /// @brief Sets the viewport dimensions in pixels.
+    /// @param[in] width Viewport width in pixels.
+    /// @param[in] height Viewport height in pixels.
     void setSize(double width, double height) noexcept;
 
     /// @brief Returns the viewport width in pixels.
+    /// @return Viewport width in pixels.
     [[nodiscard]] double width() const noexcept;
 
     /// @brief Returns the viewport height in pixels.
+    /// @return Viewport height in pixels.
     [[nodiscard]] double height() const noexcept;
 
     /// @brief Sets the base tile dimension (default 256).
+    /// @param[in] tileSize Tile size in pixels (> 0).
     void setTileSize(int tileSize) noexcept;
 
     /// @brief Returns the base tile dimension.
+    /// @return Tile dimension in pixels.
     [[nodiscard]] int tileSize() const noexcept;
 
     /// @brief Pans the viewport by the specified delta in screen pixels.
@@ -80,6 +89,7 @@ public:
     [[nodiscard]] Klv::GeoPoint2D screenToGeo(const ScreenPoint& screen) const noexcept;
 
     /// @brief Computes the visible geographic bounding box currently covered by the viewport.
+    /// @return Geographic BoundingBox of the viewport.
     [[nodiscard]] BoundingBox visibleBoundingBox() const noexcept;
 
     /// @brief Calculates the exact set of visible tiles and their destination screen rects.
