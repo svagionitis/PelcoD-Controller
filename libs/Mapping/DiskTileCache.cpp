@@ -21,6 +21,8 @@
 namespace Mapping {
 
 namespace {
+    inline constexpr std::streamoff kMaxTileFileBytes { 16 * 1024 * 1024 };
+
     [[nodiscard]] constexpr bool isValidTileCoord(const TileCoord& coord) noexcept
     {
         if (coord.zoom < MercatorProjection::kMinZoom || coord.zoom > MercatorProjection::kMaxZoom) {
@@ -113,7 +115,6 @@ std::optional<TileData> DiskTileCache::getTile(const TileCoord& coord)
         return std::nullopt;
     }
 
-    static constexpr std::streamoff kMaxTileFileBytes { 16 * 1024 * 1024 };
     const auto fileSize { file.tellg() };
     if (fileSize <= 0 || fileSize > kMaxTileFileBytes) {
         return std::nullopt;
@@ -140,7 +141,8 @@ std::optional<TileData> DiskTileCache::getTile(const TileCoord& coord)
 
 bool DiskTileCache::storeTile(const TileCoord& coord, const TileData& data)
 {
-    if (!isValidTileCoord(coord) || data.bytes.empty()) {
+    if (!isValidTileCoord(coord) || data.bytes.empty()
+        || data.bytes.size() > static_cast<std::size_t>(kMaxTileFileBytes)) {
         return false;
     }
 
@@ -159,13 +161,31 @@ bool DiskTileCache::storeTile(const TileCoord& coord, const TileData& data)
     }
 
     const std::filesystem::path targetFile { dirPath / (yStr + ext) };
-    std::ofstream file(targetFile, std::ios::binary | std::ios::trunc);
-    if (!file.is_open()) {
+    const std::filesystem::path tempFile { dirPath / (yStr + ext + ".tmp") };
+    {
+        std::ofstream file(tempFile, std::ios::binary | std::ios::trunc);
+        if (!file.is_open()) {
+            return false;
+        }
+
+        file.write(reinterpret_cast<const char*>(data.bytes.data()), static_cast<std::streamsize>(data.bytes.size()));
+        file.flush();
+        if (!file.good()) {
+            file.close();
+            std::error_code rmEc { };
+            std::filesystem::remove(tempFile, rmEc);
+            return false;
+        }
+    }
+
+    std::filesystem::rename(tempFile, targetFile, ec);
+    if (ec) {
+        std::error_code rmEc { };
+        std::filesystem::remove(tempFile, rmEc);
         return false;
     }
 
-    file.write(reinterpret_cast<const char*>(data.bytes.data()), static_cast<std::streamsize>(data.bytes.size()));
-    return file.good();
+    return true;
 }
 
 } // namespace Mapping

@@ -3,8 +3,9 @@
 
 #include "KmlExporter.h"
 
-#include <gtest/gtest.h>
 #include <string>
+
+#include <gtest/gtest.h>
 
 using namespace Mapping;
 
@@ -83,4 +84,69 @@ TEST(TestKmlExporter, ColorRgbaConversion)
     ColorRgba semiTransCyan { 0U, 255U, 255U, 128U };
     // alpha=80, blue=ff, green=ff, red=00
     EXPECT_EQ(semiTransCyan.toKmlColor(), "80ffff00");
+}
+
+TEST(TestKmlExporter, DistinctStyleBindingsAndBoresightOnlyExport)
+{
+    SpatialDataRecorder recorder;
+
+    Klv::UasDatalinkMessage msg1 { };
+    msg1.precisionTimeStampUs = 0ULL; // Zero timestamp to test <when> conformance
+    msg1.sensorLatitudeDeg = 37.9838;
+    msg1.sensorLongitudeDeg = 23.7275;
+    msg1.sensorTrueAltitudeM = 1200.0;
+    msg1.frameCenterLatDeg = 37.9900;
+    msg1.frameCenterLonDeg = 23.7300;
+    msg1.frameCenterElevM = 50.0;
+
+    Klv::FrustumCorners corners { };
+    corners.topLeft = { 37.995, 23.725 };
+    corners.topRight = { 37.995, 23.735 };
+    corners.bottomRight = { 37.985, 23.735 };
+    corners.bottomLeft = { 37.985, 23.725 };
+    msg1.cornerCoordinates = corners;
+    recorder.addTelemetryFrame(msg1);
+
+    // 1. All 3 frustum layers enabled -> must bind #footprintStyle, #frustumStyle, and #boresightStyle
+    KmlConfig allCfg { };
+    const std::string fullKml { KmlExporter::exportToString(recorder, allCfg) };
+    EXPECT_NE(fullKml.find("<styleUrl>#footprintStyle</styleUrl>"), std::string::npos);
+    EXPECT_NE(fullKml.find("<styleUrl>#frustumStyle</styleUrl>"), std::string::npos);
+    EXPECT_NE(fullKml.find("<styleUrl>#boresightStyle</styleUrl>"), std::string::npos);
+    // Zero timestamp must never emit invalid empty <when></when>
+    EXPECT_EQ(fullKml.find("<when></when>"), std::string::npos);
+
+    // 2. Boresight-only export -> must still emit Sensor Frustums folder and #boresightStyle
+    KmlConfig boresightOnlyCfg { };
+    boresightOnlyCfg.enableVolumetricPyramid = false;
+    boresightOnlyCfg.enableGroundFootprint = false;
+    boresightOnlyCfg.enableBoresightRay = true;
+    const std::string boresightKml { KmlExporter::exportToString(recorder, boresightOnlyCfg) };
+    EXPECT_NE(boresightKml.find("<name>Sensor Frustums</name>"), std::string::npos);
+    EXPECT_NE(boresightKml.find("<styleUrl>#boresightStyle</styleUrl>"), std::string::npos);
+    EXPECT_EQ(boresightKml.find("<styleUrl>#footprintStyle</styleUrl>"), std::string::npos);
+    EXPECT_EQ(boresightKml.find("<styleUrl>#frustumStyle</styleUrl>"), std::string::npos);
+}
+
+TEST(TestKmlExporter, VmtiTargetFolderExport)
+{
+    SpatialDataRecorder recorder;
+    Klv::UasDatalinkMessage msg { };
+    msg.precisionTimeStampUs = 1728043200000000ULL;
+    msg.sensorLatitudeDeg = 37.9838;
+    msg.sensorLongitudeDeg = 23.7275;
+
+    Klv::VmtiLocalSet vmti { };
+    Klv::VTargetPack pack { };
+    pack.targetId = 77U;
+    pack.targetLocation = Klv::GeoPoint3D { 37.9910, 23.7310, 20.0 };
+    vmti.targets.push_back(pack);
+    msg.vmti = vmti;
+
+    recorder.addTelemetryFrame(msg);
+
+    const std::string kml { KmlExporter::exportToString(recorder) };
+    EXPECT_NE(kml.find("<name>VMTI Targets</name>"), std::string::npos);
+    EXPECT_NE(kml.find("<name>TRK-77</name>"), std::string::npos);
+    EXPECT_NE(kml.find("<styleUrl>#vmtiStyle</styleUrl>"), std::string::npos);
 }

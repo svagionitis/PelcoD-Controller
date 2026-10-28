@@ -214,3 +214,42 @@ TEST(TestOfflineTileStore, CompositeProviderConcurrentAccessAndOnlineWriteThroug
 
     std::filesystem::remove_all(tempDir);
 }
+
+TEST(TestOfflineTileStore, DiskTileCacheAtomicOverwriteAndSizeCap)
+{
+    const std::filesystem::path tempDir { std::filesystem::temp_directory_path() / "pelcod_atomic_size_cap_cache" };
+    std::filesystem::remove_all(tempDir);
+
+    DiskTileCache diskCache(tempDir);
+    const TileCoord coord { 1, 2, 3 };
+
+    TileData initial { };
+    initial.bytes = { 0x89U, 0x50U, 0x4EU, 0x47U };
+    initial.mimeType = "image/png";
+    initial.valid = true;
+    EXPECT_TRUE(diskCache.storeTile(coord, initial));
+
+    // Overwrite existing tile atomically and verify no leftover .tmp file remains
+    TileData updated { };
+    updated.bytes = { 0x89U, 0x50U, 0x4EU, 0x47U, 0x0DU, 0x0AU };
+    updated.mimeType = "image/png";
+    updated.valid = true;
+    EXPECT_TRUE(diskCache.storeTile(coord, updated));
+
+    const auto loaded { diskCache.getTile(coord) };
+    ASSERT_TRUE(loaded.has_value());
+    EXPECT_EQ(loaded->bytes, updated.bytes);
+
+    const std::filesystem::path tmpFile { tempDir / "3" / "1" / "2.png.tmp" };
+    EXPECT_FALSE(std::filesystem::exists(tmpFile));
+
+    // Outbound storeTile must reject payloads exceeding 16 MB (kMaxTileFileBytes)
+    TileData oversized { };
+    oversized.bytes.resize((16U * 1024U * 1024U) + 1U, 0xAAU);
+    oversized.mimeType = "image/png";
+    oversized.valid = true;
+    EXPECT_FALSE(diskCache.storeTile(TileCoord { 2, 2, 3 }, oversized));
+    EXPECT_FALSE(diskCache.hasTile(TileCoord { 2, 2, 3 }));
+
+    std::filesystem::remove_all(tempDir);
+}

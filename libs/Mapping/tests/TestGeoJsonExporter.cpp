@@ -116,3 +116,59 @@ TEST(TestGeoJsonExporter, OutOfOrderTimestampsZeroDuration)
     const std::string json { GeoJsonExporter::exportToString(recorder) };
     EXPECT_NE(json.find("\"durationSec\": 0.00"), std::string::npos);
 }
+
+TEST(TestGeoJsonExporter, Rfc7946NoCrsControlCharEscapingAndDelayedMetadata)
+{
+    SpatialDataRecorder recorder;
+
+    // Frame 0 omits tailNumber and missionId
+    Klv::UasDatalinkMessage msg1 { };
+    msg1.precisionTimeStampUs = 1728043200000000ULL;
+    msg1.sensorLatitudeDeg = 37.9838;
+    msg1.sensorLongitudeDeg = 23.7275;
+    recorder.addTelemetryFrame(msg1);
+
+    // Frame 1 provides tailNumber and missionId with RFC 8259 control characters (\x01, \x1f)
+    Klv::UasDatalinkMessage msg2 { };
+    msg2.precisionTimeStampUs = 1728043201000000ULL;
+    msg2.sensorLatitudeDeg = 37.9840;
+    msg2.sensorLongitudeDeg = 23.7280;
+    msg2.platformTailNumber = std::string("UAV\x01-99");
+    msg2.missionId = std::string("MSN\x1f-ALPHA");
+    recorder.addTelemetryFrame(msg2);
+
+    const std::string json { GeoJsonExporter::exportToString(recorder) };
+
+    // 1. Pre-RFC 7946 "crs" member must NOT be emitted
+    EXPECT_EQ(json.find("\"crs\""), std::string::npos);
+
+    // 2. Delayed tailNumber and missionId on Frame 1 must be discovered and control-escaped
+    EXPECT_NE(json.find("\"tailNumber\": \"UAV\\u0001-99\""), std::string::npos);
+    EXPECT_NE(json.find("\"missionId\": \"MSN\\u001f-ALPHA\""), std::string::npos);
+}
+
+TEST(TestGeoJsonExporter, VmtiTargetLayerExport)
+{
+    SpatialDataRecorder recorder;
+    Klv::UasDatalinkMessage msg { };
+    msg.precisionTimeStampUs = 1728043200000000ULL;
+    msg.sensorLatitudeDeg = 37.9838;
+    msg.sensorLongitudeDeg = 23.7275;
+
+    Klv::VmtiLocalSet vmti { };
+    Klv::VTargetPack pack { };
+    pack.targetId = 42U;
+    pack.targetLocation = Klv::GeoPoint3D { 37.9900, 23.7300, 15.0 };
+    pack.confidence = 88U;
+    pack.targetCe90M = 4.25;
+    vmti.targets.push_back(pack);
+    msg.vmti = vmti;
+
+    recorder.addTelemetryFrame(msg);
+
+    const std::string json { GeoJsonExporter::exportToString(recorder) };
+    EXPECT_NE(json.find("\"layer\": \"VmtiTarget\""), std::string::npos);
+    EXPECT_NE(json.find("\"targetId\": 42"), std::string::npos);
+    EXPECT_NE(json.find("\"confidence\": 88"), std::string::npos);
+    EXPECT_NE(json.find("\"ce90M\": 4.25"), std::string::npos);
+}

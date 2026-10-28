@@ -4,9 +4,6 @@
 #include "GeoJsonExporter.h"
 
 #include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <ctime>
 
 #include <array>
 #include <fstream>
@@ -20,30 +17,14 @@ namespace Mapping {
 
 namespace {
 
-    [[nodiscard]] std::string formatIsoTime(std::uint64_t timestampUs)
-    {
-        if (timestampUs == 0U) {
-            return "";
-        }
-        const std::time_t sec { static_cast<std::time_t>(timestampUs / 1000000ULL) };
-        const auto ms { static_cast<unsigned int>((timestampUs % 1000000ULL) / 1000ULL) };
-        std::tm tmBuf { };
-#if defined(_WIN32)
-        gmtime_s(&tmBuf, &sec);
-#else
-        gmtime_r(&sec, &tmBuf);
-#endif
-        char buf[64] { };
-        std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ", tmBuf.tm_year + 1900, tmBuf.tm_mon + 1,
-            tmBuf.tm_mday, tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec, ms);
-        return std::string(buf);
-    }
-
     [[nodiscard]] std::string escapeJson(const std::string& input)
     {
+        static constexpr std::array<char, 16> kHex { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c',
+            'd', 'e', 'f' };
         std::string out { };
         out.reserve(input.size() + 8U);
         for (const char c : input) {
+            const auto uc { static_cast<unsigned char>(c) };
             switch (c) {
             case '"':
                 out += "\\\"";
@@ -67,7 +48,13 @@ namespace {
                 out += "\\t";
                 break;
             default:
-                out += c;
+                if (uc < 0x20U) {
+                    out += "\\u00";
+                    out += kHex[static_cast<std::size_t>((uc >> 4U) & 0x0FU)];
+                    out += kHex[static_cast<std::size_t>(uc & 0x0FU)];
+                } else {
+                    out += c;
+                }
                 break;
             }
         }
@@ -79,6 +66,26 @@ namespace {
         os << '[' << std::fixed << std::setprecision(precision) << pt.longitudeDeg << ", " << std::fixed
            << std::setprecision(precision) << pt.latitudeDeg << ", " << std::fixed << std::setprecision(2)
            << pt.altitudeM << ']';
+    }
+
+    [[nodiscard]] std::string findTailNumber(const std::vector<SpatialTrackPoint>& tracks)
+    {
+        for (const auto& tp : tracks) {
+            if (!tp.tailNumber.empty()) {
+                return tp.tailNumber;
+            }
+        }
+        return "";
+    }
+
+    [[nodiscard]] std::string findMissionId(const std::vector<SpatialTrackPoint>& tracks)
+    {
+        for (const auto& tp : tracks) {
+            if (!tp.missionId.empty()) {
+                return tp.missionId;
+            }
+        }
+        return "";
     }
 
 } // namespace
@@ -97,14 +104,11 @@ bool GeoJsonExporter::exportToStream(const SpatialDataRecorder& recorder, std::o
 {
     const auto& tracks { recorder.trackPoints() };
     const auto& frustums { recorder.frustums() };
+    const auto& vmtiTargets { recorder.vmtiTargets() };
 
     os << "{\n";
     os << "  \"type\": \"FeatureCollection\",\n";
     os << "  \"name\": \"STANAG_4609_Mission_Export\",\n";
-    os << "  \"crs\": {\n";
-    os << "    \"type\": \"name\",\n";
-    os << "    \"properties\": { \"name\": \"urn:ogc:def:crs:OGC:1.3:CRS84\" }\n";
-    os << "  },\n";
     os << "  \"features\": [\n";
 
     bool firstFeature { true };
@@ -116,13 +120,16 @@ bool GeoJsonExporter::exportToStream(const SpatialDataRecorder& recorder, std::o
                 ? static_cast<double>(tracks.back().timestampUs - tracks.front().timestampUs) / 1000000.0
                 : 0.0 };
 
+        const std::string tailNumber { findTailNumber(tracks) };
+        const std::string missionId { findMissionId(tracks) };
+
         os << "    {\n";
         os << "      \"type\": \"Feature\",\n";
         os << "      \"id\": \"flight_track\",\n";
         os << "      \"properties\": {\n";
         os << "        \"layer\": \"FlightTrack\",\n";
-        os << "        \"tailNumber\": \"" << escapeJson(tracks.front().tailNumber) << "\",\n";
-        os << "        \"missionId\": \"" << escapeJson(tracks.front().missionId) << "\",\n";
+        os << "        \"tailNumber\": \"" << escapeJson(tailNumber) << "\",\n";
+        os << "        \"missionId\": \"" << escapeJson(missionId) << "\",\n";
         os << "        \"startTimeIso\": \"" << formatIsoTime(tracks.front().timestampUs) << "\",\n";
         os << "        \"endTimeIso\": \"" << formatIsoTime(tracks.back().timestampUs) << "\",\n";
         os << "        \"pointCount\": " << tracks.size() << ",\n";
@@ -307,6 +314,38 @@ bool GeoJsonExporter::exportToStream(const SpatialDataRecorder& recorder, std::o
             os << "        \"type\": \"Point\",\n";
             os << "        \"coordinates\": ";
             writeCoord(os, fr.targetCenter, config.coordinatePrecision);
+            os << "\n";
+            os << "      }\n";
+            os << "    }";
+        }
+    }
+
+    // 5. Layer: VMTI Moving Targets (MISB ST 0903)
+    if (config.includeVmtiTargets) {
+        for (std::size_t i { 0U }; i < vmtiTargets.size(); ++i) {
+            const auto& vt { vmtiTargets[i] };
+
+            if (!firstFeature) {
+                os << ",\n";
+            }
+            firstFeature = false;
+
+            os << "    {\n";
+            os << "      \"type\": \"Feature\",\n";
+            os << "      \"id\": \"vmti_target_" << i << "\",\n";
+            os << "      \"properties\": {\n";
+            os << "        \"layer\": \"VmtiTarget\",\n";
+            os << "        \"targetId\": " << vt.targetId << ",\n";
+            os << "        \"timestampUs\": " << vt.timestampUs << ",\n";
+            os << "        \"timestampIso\": \"" << formatIsoTime(vt.timestampUs) << "\",\n";
+            os << "        \"confidence\": " << static_cast<unsigned int>(vt.confidence) << ",\n";
+            os << "        \"status\": " << static_cast<unsigned int>(vt.status) << ",\n";
+            os << "        \"ce90M\": " << std::fixed << std::setprecision(2) << vt.ce90M << "\n";
+            os << "      },\n";
+            os << "      \"geometry\": {\n";
+            os << "        \"type\": \"Point\",\n";
+            os << "        \"coordinates\": ";
+            writeCoord(os, vt.position, config.coordinatePrecision);
             os << "\n";
             os << "      }\n";
             os << "    }";

@@ -3,40 +3,23 @@
 
 #include "KmlExporter.h"
 
+#include <cstddef>
 #include <cstdint>
-#include <ctime>
 
 #include <fstream>
 #include <iomanip>
+#include <ostream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 namespace Mapping {
 
 namespace {
 
-    [[nodiscard]] std::string formatIsoTime(std::uint64_t timestampUs)
-    {
-        if (timestampUs == 0U) {
-            return "";
-        }
-        const std::time_t sec = static_cast<std::time_t>(timestampUs / 1000000ULL);
-        const auto ms = static_cast<unsigned int>((timestampUs % 1000000ULL) / 1000ULL);
-        std::tm tmBuf { };
-#if defined(_WIN32)
-        gmtime_s(&tmBuf, &sec);
-#else
-        gmtime_r(&sec, &tmBuf);
-#endif
-        char buf[64] { };
-        std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ", tmBuf.tm_year + 1900, tmBuf.tm_mon + 1,
-            tmBuf.tm_mday, tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec, ms);
-        return std::string(buf);
-    }
-
     [[nodiscard]] std::string escapeXml(const std::string& input)
     {
-        std::string out;
+        std::string out { };
         out.reserve(input.size() + 8U);
         for (const char c : input) {
             switch (c) {
@@ -117,12 +100,42 @@ namespace {
         os << "        </Polygon>\n";
     }
 
+    void writeTimeSpan(std::ostream& os, const std::vector<FrustumMesh3D>& frustums, std::size_t idx, bool enabled)
+    {
+        const auto& fr { frustums[idx] };
+        if (!enabled || fr.timestampUs == 0U) {
+            return;
+        }
+        const std::string beginIso { formatIsoTime(fr.timestampUs) };
+        const std::uint64_t endUs {
+            (idx + 1U < frustums.size() && frustums[idx + 1U].timestampUs > fr.timestampUs)
+                ? frustums[idx + 1U].timestampUs
+                : fr.timestampUs + 200000ULL // 200ms default window
+        };
+        const std::string endIso { formatIsoTime(endUs) };
+
+        os << "      <TimeSpan>\n";
+        os << "        <begin>" << beginIso << "</begin>\n";
+        os << "        <end>" << endIso << "</end>\n";
+        os << "      </TimeSpan>\n";
+    }
+
+    [[nodiscard]] bool hasAnyTimestamp(const std::vector<SpatialTrackPoint>& tracks) noexcept
+    {
+        for (const auto& tp : tracks) {
+            if (tp.timestampUs > 0U) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 } // namespace
 
 std::string KmlExporter::exportToString(const SpatialDataRecorder& recorder, const KmlConfig& config)
 {
-    std::ostringstream oss;
-    const bool success = exportToStream(recorder, oss, config);
+    std::ostringstream oss { };
+    const bool success { exportToStream(recorder, oss, config) };
     if (!success) {
         return "";
     }
@@ -131,8 +144,9 @@ std::string KmlExporter::exportToString(const SpatialDataRecorder& recorder, con
 
 bool KmlExporter::exportToStream(const SpatialDataRecorder& recorder, std::ostream& os, const KmlConfig& config)
 {
-    const auto& tracks = recorder.trackPoints();
-    const auto& frustums = recorder.frustums();
+    const auto& tracks { recorder.trackPoints() };
+    const auto& frustums { recorder.frustums() };
+    const auto& vmtiTargets { recorder.vmtiTargets() };
 
     os << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
     os << "<kml xmlns=\"http://www.opengis.net/kml/2.2\" "
@@ -180,6 +194,12 @@ bool KmlExporter::exportToStream(const SpatialDataRecorder& recorder, std::ostre
     os << "    </LineStyle>\n";
     os << "  </Style>\n";
 
+    os << "  <Style id=\"vmtiStyle\">\n";
+    os << "    <IconStyle>\n";
+    os << "      <color>" << config.vmtiColor.toKmlColor() << "</color>\n";
+    os << "    </IconStyle>\n";
+    os << "  </Style>\n";
+
     // 2. Flight Track Folder
     if (!tracks.empty()) {
         os << "  <Folder>\n";
@@ -193,8 +213,12 @@ bool KmlExporter::exportToStream(const SpatialDataRecorder& recorder, std::ostre
             os << "      <gx:Track>\n";
             os << "        <altitudeMode>absolute</altitudeMode>\n";
 
-            for (const auto& tp : tracks) {
-                os << "        <when>" << formatIsoTime(tp.timestampUs) << "</when>\n";
+            if (hasAnyTimestamp(tracks)) {
+                for (const auto& tp : tracks) {
+                    const std::string iso { (tp.timestampUs > 0U) ? formatIsoTime(tp.timestampUs)
+                                                                  : "1970-01-01T00:00:00.000Z" };
+                    os << "        <when>" << iso << "</when>\n";
+                }
             }
             for (const auto& tp : tracks) {
                 os << "        <gx:coord>" << std::fixed << std::setprecision(7) << tp.position.longitudeDeg << " "
@@ -231,42 +255,31 @@ bool KmlExporter::exportToStream(const SpatialDataRecorder& recorder, std::ostre
     }
 
     // 3. Sensor Frustums Folder
-    if (!frustums.empty() && (config.enableVolumetricPyramid || config.enableGroundFootprint)) {
+    if (!frustums.empty()
+        && (config.enableVolumetricPyramid || config.enableGroundFootprint || config.enableBoresightRay)) {
         os << "  <Folder>\n";
         os << "    <name>Sensor Frustums</name>\n";
 
-        for (std::size_t i = 0U; i < frustums.size(); ++i) {
-            const auto& fr = frustums[i];
-            if (!fr.valid) {
-                continue;
-            }
+        for (std::size_t i { 0U }; i < frustums.size(); ++i) {
+            const auto& fr { frustums[i] };
 
-            os << "    <Placemark>\n";
-            os << "      <name>Frustum #" << i << "</name>\n";
-            os << "      <styleUrl>#frustumStyle</styleUrl>\n";
-
-            if (config.enableTimeSpan && fr.timestampUs > 0U) {
-                const std::string beginIso = formatIsoTime(fr.timestampUs);
-                const std::uint64_t endUs = (i + 1U < frustums.size() && frustums[i + 1U].timestampUs > fr.timestampUs)
-                    ? frustums[i + 1U].timestampUs
-                    : fr.timestampUs + 200000ULL; // 200ms default window
-                const std::string endIso = formatIsoTime(endUs);
-
-                os << "      <TimeSpan>\n";
-                os << "        <begin>" << beginIso << "</begin>\n";
-                os << "        <end>" << endIso << "</end>\n";
-                os << "      </TimeSpan>\n";
-            }
-
-            os << "      <MultiGeometry>\n";
-
-            // Ground base footprint
-            if (config.enableGroundFootprint) {
+            // 3A. Ground Base Footprint Placemark (#footprintStyle)
+            if (config.enableGroundFootprint && fr.valid) {
+                os << "    <Placemark>\n";
+                os << "      <name>Footprint #" << i << "</name>\n";
+                os << "      <styleUrl>#footprintStyle</styleUrl>\n";
+                writeTimeSpan(os, frustums, i, config.enableTimeSpan);
                 writeLinearRing(os, fr.base[0], fr.base[1], fr.base[2], fr.base[3]);
+                os << "    </Placemark>\n";
             }
 
-            // Volumetric pyramid side walls
-            if (config.enableVolumetricPyramid) {
+            // 3B. Volumetric Pyramid Side Walls Placemark (#frustumStyle)
+            if (config.enableVolumetricPyramid && fr.valid) {
+                os << "    <Placemark>\n";
+                os << "      <name>Frustum #" << i << "</name>\n";
+                os << "      <styleUrl>#frustumStyle</styleUrl>\n";
+                writeTimeSpan(os, frustums, i, config.enableTimeSpan);
+                os << "      <MultiGeometry>\n";
                 // Wall 1: Apex -> C1 -> C2 -> Apex
                 writeTriangularRing(os, fr.apex, fr.base[0], fr.base[1]);
                 // Wall 2: Apex -> C2 -> C3 -> Apex
@@ -275,23 +288,53 @@ bool KmlExporter::exportToStream(const SpatialDataRecorder& recorder, std::ostre
                 writeTriangularRing(os, fr.apex, fr.base[2], fr.base[3]);
                 // Wall 4: Apex -> C4 -> C1 -> Apex
                 writeTriangularRing(os, fr.apex, fr.base[3], fr.base[0]);
+                os << "      </MultiGeometry>\n";
+                os << "    </Placemark>\n";
             }
 
-            // Boresight Line of Sight Ray
+            // 3C. Boresight Line of Sight Ray Placemark (#boresightStyle)
             if (config.enableBoresightRay && fr.hasTargetCenter) {
-                os << "        <LineString>\n";
-                os << "          <altitudeMode>absolute</altitudeMode>\n";
-                os << "          <coordinates>\n";
-                os << "            ";
+                os << "    <Placemark>\n";
+                os << "      <name>Boresight #" << i << "</name>\n";
+                os << "      <styleUrl>#boresightStyle</styleUrl>\n";
+                writeTimeSpan(os, frustums, i, config.enableTimeSpan);
+                os << "      <LineString>\n";
+                os << "        <altitudeMode>absolute</altitudeMode>\n";
+                os << "        <coordinates>\n";
+                os << "          ";
                 writeKmlCoord(os, fr.apex);
                 os << " ";
                 writeKmlCoord(os, fr.targetCenter);
                 os << "\n";
-                os << "          </coordinates>\n";
-                os << "        </LineString>\n";
+                os << "        </coordinates>\n";
+                os << "      </LineString>\n";
+                os << "    </Placemark>\n";
             }
+        }
 
-            os << "      </MultiGeometry>\n";
+        os << "  </Folder>\n";
+    }
+
+    // 4. VMTI Moving Targets Folder (MISB ST 0903)
+    if (config.enableVmtiTargets && !vmtiTargets.empty()) {
+        os << "  <Folder>\n";
+        os << "    <name>VMTI Targets</name>\n";
+
+        for (const auto& vt : vmtiTargets) {
+            os << "    <Placemark>\n";
+            os << "      <name>TRK-" << vt.targetId << "</name>\n";
+            os << "      <styleUrl>#vmtiStyle</styleUrl>\n";
+            if (vt.timestampUs > 0U) {
+                os << "      <TimeStamp>\n";
+                os << "        <when>" << formatIsoTime(vt.timestampUs) << "</when>\n";
+                os << "      </TimeStamp>\n";
+            }
+            os << "      <Point>\n";
+            os << "        <altitudeMode>absolute</altitudeMode>\n";
+            os << "        <coordinates>";
+            writeKmlCoord(os, vt.position);
+            os << "</coordinates>\n";
+            os << "      </Point>\n";
             os << "    </Placemark>\n";
         }
 

@@ -141,11 +141,14 @@ BoundingBox MapViewport::visibleBoundingBox() const noexcept
     const Klv::GeoPoint2D topLeft { screenToGeo(ScreenPoint { 0.0, 0.0 }) };
     const Klv::GeoPoint2D bottomRight { screenToGeo(ScreenPoint { m_width, m_height }) };
 
+    const double mapDimension { static_cast<double>(m_tileSize) * std::pow(2.0, m_zoom) };
+    const bool spansFullWorld { mapDimension > 0.0 && m_width >= mapDimension };
+
     return BoundingBox {
         topLeft.latitudeDeg, // North
         bottomRight.latitudeDeg, // South
-        bottomRight.longitudeDeg, // East
-        topLeft.longitudeDeg // West
+        spansFullWorld ? 180.0 : bottomRight.longitudeDeg, // East
+        spansFullWorld ? -180.0 : topLeft.longitudeDeg // West
     };
 }
 

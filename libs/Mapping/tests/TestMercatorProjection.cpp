@@ -168,3 +168,33 @@ TEST(TestMercatorProjection, ExtremeZoomAndNaNSafety)
     EXPECT_TRUE(std::isfinite(extremeBox.east));
     EXPECT_TRUE(std::isfinite(extremeBox.west));
 }
+
+TEST(TestMercatorProjection, BoundingBoxIntersectsAntiMeridian)
+{
+    // Box A crosses the +-180 deg International Date Line: [170E, -170W]
+    const BoundingBox dateLineBox { 20.0, -20.0, -170.0, 170.0 };
+
+    // Box B is entirely in the Eastern hemisphere near 175E: [172E, 178E]
+    const BoundingBox eastPacBox { 10.0, -10.0, 178.0, 172.0 };
+
+    // Box C is entirely in the Western hemisphere near -175W: [-178W, -172W]
+    const BoundingBox westPacBox { 10.0, -10.0, -172.0, -178.0 };
+
+    // Box D is in Europe: [0E, 20E] (does not intersect dateLineBox)
+    const BoundingBox europeBox { 15.0, -15.0, 20.0, 0.0 };
+
+    // Box E also crosses the date line: [175E, -175W]
+    const BoundingBox secondDateLineBox { 5.0, -5.0, -175.0, 175.0 };
+
+    // Box F crosses the date line in longitude, but does not overlap in latitude
+    const BoundingBox polarDateLineBox { 80.0, 60.0, -170.0, 170.0 };
+
+    EXPECT_TRUE(dateLineBox.intersects(eastPacBox));
+    EXPECT_TRUE(eastPacBox.intersects(dateLineBox));
+    EXPECT_TRUE(dateLineBox.intersects(westPacBox));
+    EXPECT_TRUE(westPacBox.intersects(dateLineBox));
+    EXPECT_FALSE(dateLineBox.intersects(europeBox));
+    EXPECT_FALSE(europeBox.intersects(dateLineBox));
+    EXPECT_TRUE(dateLineBox.intersects(secondDateLineBox));
+    EXPECT_FALSE(dateLineBox.intersects(polarDateLineBox));
+}

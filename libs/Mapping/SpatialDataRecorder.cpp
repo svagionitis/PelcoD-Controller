@@ -104,12 +104,52 @@ void SpatialDataRecorder::addTelemetryFrame(const Klv::UasDatalinkMessage& msg)
 
     m_trackPoints.push_back(tp);
     m_frustums.push_back(frustum);
+
+    // Extract MISB ST 0903 VMTI Target Packs if present
+    if (msg.vmti.has_value()) {
+        const std::uint64_t vmtiTs { msg.vmti->precisionTimeStampUs.value_or(timestamp) };
+        for (const auto& pack : msg.vmti->targets) {
+            bool hasLocation { false };
+            SpatialPoint3D targetPos { };
+
+            if (pack.targetLocation.has_value()) {
+                targetPos.latitudeDeg = pack.targetLocation->latitudeDeg;
+                targetPos.longitudeDeg = pack.targetLocation->longitudeDeg;
+                targetPos.altitudeM = pack.targetLocation->altitudeM;
+                hasLocation = true;
+            } else if (pack.locationOffsetDeg.has_value() && msg.frameCenterLatDeg.has_value()
+                && msg.frameCenterLonDeg.has_value()) {
+                targetPos.latitudeDeg = *msg.frameCenterLatDeg + pack.locationOffsetDeg->latitudeDeg;
+                targetPos.longitudeDeg = *msg.frameCenterLonDeg + pack.locationOffsetDeg->longitudeDeg;
+                targetPos.altitudeM = pack.heightAboveEllipsoidM.value_or(groundElev);
+                hasLocation = true;
+            }
+
+            if (hasLocation && std::isfinite(targetPos.latitudeDeg) && std::isfinite(targetPos.longitudeDeg)
+                && std::isfinite(targetPos.altitudeM)) {
+                SpatialVmtiTarget vt { };
+                vt.timestampUs = vmtiTs;
+                vt.targetId = pack.targetId;
+                vt.position = targetPos;
+                if (pack.targetCe90M.has_value() && std::isfinite(*pack.targetCe90M) && *pack.targetCe90M >= 0.0) {
+                    vt.ce90M = *pack.targetCe90M;
+                }
+                if (pack.targetLe90M.has_value() && std::isfinite(*pack.targetLe90M) && *pack.targetLe90M >= 0.0) {
+                    vt.le90M = *pack.targetLe90M;
+                }
+                vt.confidence = pack.confidence.value_or(0U);
+                vt.status = pack.detectionStatus.value_or(0U);
+                m_vmtiTargets.push_back(vt);
+            }
+        }
+    }
 }
 
 void SpatialDataRecorder::clear() noexcept
 {
     m_trackPoints.clear();
     m_frustums.clear();
+    m_vmtiTargets.clear();
 }
 
 void SpatialDataRecorder::decimate(const DecimationConfig& config)
@@ -182,6 +222,11 @@ const std::vector<SpatialTrackPoint>& SpatialDataRecorder::trackPoints() const n
 const std::vector<FrustumMesh3D>& SpatialDataRecorder::frustums() const noexcept
 {
     return m_frustums;
+}
+
+const std::vector<SpatialVmtiTarget>& SpatialDataRecorder::vmtiTargets() const noexcept
+{
+    return m_vmtiTargets;
 }
 
 std::size_t SpatialDataRecorder::size() const noexcept

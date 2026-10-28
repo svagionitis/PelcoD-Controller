@@ -146,3 +146,15 @@ TEST(TestMapViewport, ConstructorSanitizesOutOfBoundsAndNaN)
     const auto tiles { viewport.calculateVisibleTiles(-100) };
     EXPECT_FALSE(tiles.empty());
 }
+
+TEST(TestMapViewport, WorldSpanVisibleBoundingBox)
+{
+    // At zoom 0 (256x256 world), a 1024x512 viewport covers 4x the world width
+    const MapViewport worldView(Klv::GeoPoint2D { 0.0, 0.0 }, 0.0, 1024.0, 512.0);
+    const BoundingBox bbox { worldView.visibleBoundingBox() };
+
+    EXPECT_DOUBLE_EQ(bbox.west, -180.0);
+    EXPECT_DOUBLE_EQ(bbox.east, 180.0);
+    EXPECT_TRUE(bbox.contains(Klv::GeoPoint2D { 0.0, 175.0 }));
+    EXPECT_TRUE(bbox.contains(Klv::GeoPoint2D { 0.0, -175.0 }));
+}

@@ -3,11 +3,12 @@
 /// @file SpatialDataRecorder.h
 /// @brief Time-series accumulator and decimation filter for KLV spatial data.
 
-#include "SpatialExportTypes.h"
-#include "KlvTypes.h"
-
 #include <cstddef>
+
 #include <vector>
+
+#include "KlvTypes.h"
+#include "SpatialExportTypes.h"
 
 namespace Mapping {
 
@@ -20,6 +21,8 @@ public:
     ~SpatialDataRecorder() = default;
 
     /// @brief Appends a telemetry message to the recorder.
+    /// @details Extracts platform 3D trajectory, sensor footprint frustums (with KlvGeodesy fallback),
+    ///          and MISB ST 0903 VMTI moving target observations.
     /// @param[in] msg Decoded ST 0601 local set message.
     void addTelemetryFrame(const Klv::UasDatalinkMessage& msg);
 
@@ -38,6 +41,10 @@ public:
     /// @return Const reference to frustum mesh vector.
     [[nodiscard]] const std::vector<FrustumMesh3D>& frustums() const noexcept;
 
+    /// @brief Returns recorded MISB ST 0903 VMTI target observations.
+    /// @return Const reference to VMTI target vector.
+    [[nodiscard]] const std::vector<SpatialVmtiTarget>& vmtiTargets() const noexcept;
+
     /// @brief Returns total number of recorded telemetry frames.
     /// @return Frame count.
     [[nodiscard]] std::size_t size() const noexcept;
@@ -47,8 +54,9 @@ public:
     [[nodiscard]] bool empty() const noexcept;
 
 private:
-    std::vector<SpatialTrackPoint> m_trackPoints {};
-    std::vector<FrustumMesh3D> m_frustums {};
+    std::vector<SpatialTrackPoint> m_trackPoints { };
+    std::vector<FrustumMesh3D> m_frustums { };
+    std::vector<SpatialVmtiTarget> m_vmtiTargets { };
 };
 
 } // namespace Mapping

@@ -198,3 +198,51 @@ TEST(TestSpatialDataRecorder, OutOfOrderTimestampsAndNegativeIntervalSafety)
     EXPECT_EQ(recorder.trackPoints().front().timestampUs, 2000000ULL);
     EXPECT_EQ(recorder.trackPoints().back().timestampUs, 2600000ULL);
 }
+
+TEST(TestSpatialDataRecorder, VmtiTargetRecordingAndOffsetResolution)
+{
+    SpatialDataRecorder recorder;
+
+    Klv::UasDatalinkMessage msg { };
+    msg.precisionTimeStampUs = 1728043200000000ULL;
+    msg.sensorLatitudeDeg = 37.9838;
+    msg.sensorLongitudeDeg = 23.7275;
+    msg.sensorTrueAltitudeM = 1200.0;
+    msg.frameCenterLatDeg = 38.0000;
+    msg.frameCenterLonDeg = 23.7500;
+    msg.frameCenterElevM = 40.0;
+
+    Klv::VmtiLocalSet vmti { };
+    Klv::VTargetPack packAbs { };
+    packAbs.targetId = 10U;
+    packAbs.targetLocation = Klv::GeoPoint3D { 38.0050, 23.7550, 45.0 };
+    packAbs.targetCe90M = 3.5;
+    packAbs.confidence = 92U;
+    packAbs.detectionStatus = 1U;
+    vmti.targets.push_back(packAbs);
+
+    Klv::VTargetPack packRel { };
+    packRel.targetId = 20U;
+    packRel.locationOffsetDeg = Klv::GeoPoint2D { -0.0020, 0.0030 };
+    packRel.heightAboveEllipsoidM = 42.0;
+    vmti.targets.push_back(packRel);
+
+    msg.vmti = vmti;
+    recorder.addTelemetryFrame(msg);
+
+    const auto& targets { recorder.vmtiTargets() };
+    ASSERT_EQ(targets.size(), 2U);
+
+    EXPECT_EQ(targets[0].targetId, 10U);
+    EXPECT_DOUBLE_EQ(targets[0].position.latitudeDeg, 38.0050);
+    EXPECT_DOUBLE_EQ(targets[0].position.longitudeDeg, 23.7550);
+    EXPECT_DOUBLE_EQ(targets[0].position.altitudeM, 45.0);
+    EXPECT_DOUBLE_EQ(targets[0].ce90M, 3.5);
+    EXPECT_EQ(targets[0].confidence, 92U);
+    EXPECT_EQ(targets[0].status, 1U);
+
+    EXPECT_EQ(targets[1].targetId, 20U);
+    EXPECT_NEAR(targets[1].position.latitudeDeg, 37.9980, 1e-6);
+    EXPECT_NEAR(targets[1].position.longitudeDeg, 23.7530, 1e-6);
+    EXPECT_DOUBLE_EQ(targets[1].position.altitudeM, 42.0);
+}
