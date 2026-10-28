@@ -3,31 +3,39 @@
 /// @file TacticalMapQuickItem.h
 /// @brief Custom QQuickPaintedItem providing interactive tactical 2D map display in QML.
 
+#include <cstddef>
+
+#include <deque>
+#include <memory>
+#include <unordered_map>
+
+#include <QColor>
+#include <QImage>
+#include <QMutex>
+#include <QPointF>
+#include <QQuickItem>
+#include <QQuickPaintedItem>
+#include <QRectF>
+#include <QString>
+
 #include "CompositeTileProvider.h"
 #include "DiskTileCache.h"
 #include "GeoTypes.h"
 #include "KlvTypes.h"
 #include "MapViewport.h"
-#include "TacticalOverlay.h"
+#include "VmtiTypes.h"
 
-#include <QColor>
-#include <QImage>
-#include <QMouseEvent>
-#include <QMutex>
-#include <QPainter>
-#include <QQuickPaintedItem>
-#include <QWheelEvent>
-
-#include <memory>
-#include <optional>
-#include <string>
+class QMouseEvent;
+class QPainter;
+class QWheelEvent;
 
 namespace MappingQt {
 
 /// @class TacticalMapQuickItem
 /// @brief High-performance Qt Quick map item for tactical situational awareness,
 ///        supporting interactive pan/zoom, offline tile stores, camera optical footprint frustums,
-///        platform heading pointers, and click-to-PTZ coordinate reporting.
+///        platform heading pointers, target line-of-sight, MISB ST 0903 VMTI tracks,
+///        and click-to-PTZ coordinate reporting.
 class TacticalMapQuickItem : public QQuickPaintedItem {
     Q_OBJECT
 
@@ -42,6 +50,10 @@ class TacticalMapQuickItem : public QQuickPaintedItem {
     Q_PROPERTY(double platformLatitude READ platformLatitude WRITE setPlatformLatitude NOTIFY platformChanged)
     Q_PROPERTY(double platformLongitude READ platformLongitude WRITE setPlatformLongitude NOTIFY platformChanged)
     Q_PROPERTY(double platformHeading READ platformHeading WRITE setPlatformHeading NOTIFY platformChanged)
+
+    Q_PROPERTY(bool hasTarget READ hasTarget NOTIFY targetChanged)
+    Q_PROPERTY(double targetLatitude READ targetLatitude NOTIFY targetChanged)
+    Q_PROPERTY(double targetLongitude READ targetLongitude NOTIFY targetChanged)
 
     Q_PROPERTY(QColor themeColor READ themeColor WRITE setThemeColor NOTIFY themeColorChanged)
 
@@ -67,6 +79,7 @@ public:
     void setOfflineOnly(bool offline);
 
     Q_INVOKABLE void setOfflineDirectory(const QString& directoryPath);
+    Q_INVOKABLE void addOfflineSearchDirectory(const QString& directoryPath);
 
     // Tactical overlay controls
     [[nodiscard]] bool showFrustum() const;
@@ -90,12 +103,27 @@ public:
 
     Q_INVOKABLE void setPlatformPosition(double lat, double lon, double headingDeg);
 
+    // Target line-of-sight telemetry
+    [[nodiscard]] bool hasTarget() const;
+    [[nodiscard]] double targetLatitude() const;
+    [[nodiscard]] double targetLongitude() const;
+    Q_INVOKABLE void setTargetPosition(double lat, double lon);
+    Q_INVOKABLE void clearTarget();
+
     // Sensor footprint frustum
     Q_INVOKABLE void setFrustum(
         double tlLat, double tlLon, double trLat, double trLon, double brLat, double brLon, double blLat, double blLon);
 
     void setFrustum(const Klv::FrustumCorners& frustum);
     void clearFrustum();
+
+    // MISB ST 0903 VMTI moving target overlays
+    void setVmtiTargets(const Klv::VmtiLocalSet& vmti);
+    Q_INVOKABLE void clearVmtiTargets();
+    [[nodiscard]] std::size_t vmtiTargetCount() const;
+
+    // Decoded tile cache inspection
+    [[nodiscard]] std::size_t decodedTileCacheSize() const;
 
     // Color theme
     [[nodiscard]] QColor themeColor() const;
@@ -108,7 +136,7 @@ public:
     // QQuickPaintedItem overrides
     void paint(QPainter* painter) override;
 
-    /// @brief Registers this item type into QML under uri "MappingQt 1.0".
+    /// @brief Registers this item type into QML under URIs "PelcoD.Mapping 1.0" and "MappingQt 1.0".
     static void registerQmlTypes();
 
 signals:
@@ -119,6 +147,7 @@ signals:
     void showHeadingChanged();
     void showGridChanged();
     void platformChanged();
+    void targetChanged();
     void themeColorChanged();
     void coordinateClicked(double latitude, double longitude);
 
@@ -130,10 +159,18 @@ protected:
     void wheelEvent(QWheelEvent* event) override;
 
 private:
+    static constexpr std::size_t kMaxDecodedTiles { 128U };
+
+    void clearDecodedTileCacheLocked();
+    [[nodiscard]] QImage findOrDecodeTile(const Mapping::TileCoord& coord);
+
     mutable QMutex m_mutex { };
     Mapping::MapViewport m_viewport;
     std::shared_ptr<Mapping::DiskTileCache> m_diskCache { nullptr };
     Mapping::CompositeTileProvider m_tileProvider;
+
+    std::unordered_map<Mapping::TileCoord, QImage> m_decodedTileCache { };
+    std::deque<Mapping::TileCoord> m_decodedTileOrder { };
 
     bool m_showFrustum { true };
     bool m_showHeading { true };
@@ -143,13 +180,22 @@ private:
     double m_platformLon { 0.0 };
     double m_platformHeading { 0.0 };
 
+    double m_targetLat { 0.0 };
+    double m_targetLon { 0.0 };
+    bool m_hasTarget { false };
+
     Klv::FrustumCorners m_frustum { };
     bool m_hasFrustum { false };
+
+    Klv::VmtiLocalSet m_vmtiSet { };
+    bool m_hasVmti { false };
 
     QColor m_themeColor { 0, 229, 255 }; // Electric Cyan default
 
     // Mouse interaction tracking
     bool m_isDragging { false };
+    bool m_dragExceededThreshold { false };
+    QPointF m_pressMousePos { };
     QPointF m_lastMousePos { };
 };
 

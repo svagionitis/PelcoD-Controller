@@ -9,17 +9,37 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
+#include <optional>
+#include <string>
 
-#include <QPainterPath>
-#include <QtQml>
+#include <QBrush>
+#include <QColor>
+#include <QImage>
+#include <QMouseEvent>
+#include <QMutexLocker>
+#include <QPainter>
+#include <QPen>
+#include <QPointF>
+#include <QPolygonF>
+#include <QRectF>
+#include <QString>
+#include <QWheelEvent>
+#include <qqml.h>
 
+#include "DiskTileCache.h"
+#include "GeoTypes.h"
+#include "KlvTypes.h"
 #include "MercatorProjection.h"
+#include "TacticalOverlay.h"
+#include "VmtiOverlay.h"
+#include "VmtiTypes.h"
 
 namespace MappingQt {
 
 namespace {
 
     constexpr double kCoordEpsilon { 1e-9 };
+    constexpr double kClickDeadbandSq { 16.0 }; // 4.0 px Euclidean click-vs-drag radius
 
     [[nodiscard]] bool nearlyEqual(double a, double b, double eps = kCoordEpsilon) noexcept
     {
@@ -52,6 +72,17 @@ namespace {
             Mapping::MercatorProjection::normalizeLongitude(lon) };
     }
 
+    [[nodiscard]] bool nearlyEqualPoint(const Klv::GeoPoint2D& a, const Klv::GeoPoint2D& b) noexcept
+    {
+        return nearlyEqual(a.latitudeDeg, b.latitudeDeg) && nearlyEqual(a.longitudeDeg, b.longitudeDeg);
+    }
+
+    [[nodiscard]] bool nearlyEqualFrustum(const Klv::FrustumCorners& a, const Klv::FrustumCorners& b) noexcept
+    {
+        return nearlyEqualPoint(a.topLeft, b.topLeft) && nearlyEqualPoint(a.topRight, b.topRight)
+            && nearlyEqualPoint(a.bottomRight, b.bottomRight) && nearlyEqualPoint(a.bottomLeft, b.bottomLeft);
+    }
+
 } // namespace
 
 TacticalMapQuickItem::TacticalMapQuickItem(QQuickItem* parent)
@@ -60,6 +91,7 @@ TacticalMapQuickItem::TacticalMapQuickItem(QQuickItem* parent)
     , m_diskCache { nullptr }
     , m_tileProvider { m_diskCache }
 {
+    m_tileProvider.setProceduralFallbackEnabled(m_showGrid);
     setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);
     setAcceptHoverEvents(true);
     setAntialiasing(true);
@@ -171,6 +203,7 @@ void TacticalMapQuickItem::setOfflineOnly(bool offline)
             return;
         }
         m_tileProvider.setOfflineOnly(offline);
+        clearDecodedTileCacheLocked();
     }
     emit offlineOnlyChanged();
     update();
@@ -178,10 +211,38 @@ void TacticalMapQuickItem::setOfflineOnly(bool offline)
 
 void TacticalMapQuickItem::setOfflineDirectory(const QString& directoryPath)
 {
+    const QString trimmed { directoryPath.trimmed() };
     {
         QMutexLocker locker(&m_mutex);
-        m_diskCache = std::make_shared<Mapping::DiskTileCache>(directoryPath.toStdString());
-        m_tileProvider.setDiskCache(m_diskCache);
+        if (trimmed.isEmpty()) {
+            m_diskCache.reset();
+            m_tileProvider.setDiskCache(nullptr);
+        } else {
+            m_diskCache = std::make_shared<Mapping::DiskTileCache>(trimmed.toStdString());
+            m_tileProvider.setDiskCache(m_diskCache);
+        }
+        m_tileProvider.memoryCache().clear();
+        clearDecodedTileCacheLocked();
+    }
+    update();
+}
+
+void TacticalMapQuickItem::addOfflineSearchDirectory(const QString& directoryPath)
+{
+    const QString trimmed { directoryPath.trimmed() };
+    if (trimmed.isEmpty()) {
+        return;
+    }
+    {
+        QMutexLocker locker(&m_mutex);
+        if (m_diskCache != nullptr) {
+            m_diskCache->addSearchDirectory(trimmed.toStdString());
+        } else {
+            auto secondaryCache = std::make_shared<Mapping::DiskTileCache>(trimmed.toStdString());
+            m_tileProvider.addOfflineProvider(secondaryCache);
+        }
+        m_tileProvider.memoryCache().clear();
+        clearDecodedTileCacheLocked();
     }
     update();
 }
@@ -238,6 +299,9 @@ void TacticalMapQuickItem::setShowGrid(bool show)
             return;
         }
         m_showGrid = show;
+        m_tileProvider.setProceduralFallbackEnabled(show);
+        m_tileProvider.memoryCache().clear();
+        clearDecodedTileCacheLocked();
     }
     emit showGridChanged();
     update();
@@ -334,6 +398,57 @@ void TacticalMapQuickItem::setPlatformPosition(double lat, double lon, double he
     update();
 }
 
+bool TacticalMapQuickItem::hasTarget() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_hasTarget;
+}
+
+double TacticalMapQuickItem::targetLatitude() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_targetLat;
+}
+
+double TacticalMapQuickItem::targetLongitude() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_targetLon;
+}
+
+void TacticalMapQuickItem::setTargetPosition(double lat, double lon)
+{
+    if (!std::isfinite(lat) || !std::isfinite(lon)) {
+        return;
+    }
+    const double clampedLat { Mapping::MercatorProjection::clampLatitude(lat) };
+    const double normLon { Mapping::MercatorProjection::normalizeLongitude(lon) };
+    {
+        QMutexLocker locker(&m_mutex);
+        if (m_hasTarget && nearlyEqual(m_targetLat, clampedLat) && nearlyEqual(m_targetLon, normLon)) {
+            return;
+        }
+        m_targetLat = clampedLat;
+        m_targetLon = normLon;
+        m_hasTarget = true;
+    }
+    emit targetChanged();
+    update();
+}
+
+void TacticalMapQuickItem::clearTarget()
+{
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_hasTarget) {
+            return;
+        }
+        m_hasTarget = false;
+    }
+    emit targetChanged();
+    update();
+}
+
 void TacticalMapQuickItem::setFrustum(
     double tlLat, double tlLon, double trLat, double trLon, double brLat, double brLon, double blLat, double blLon)
 {
@@ -358,6 +473,9 @@ void TacticalMapQuickItem::setFrustum(const Klv::FrustumCorners& frustum)
 
     {
         QMutexLocker locker(&m_mutex);
+        if (m_hasFrustum && nearlyEqualFrustum(m_frustum, sanitized)) {
+            return;
+        }
         m_frustum = sanitized;
         m_hasFrustum = true;
     }
@@ -374,6 +492,83 @@ void TacticalMapQuickItem::clearFrustum()
         m_hasFrustum = false;
     }
     update();
+}
+
+void TacticalMapQuickItem::setVmtiTargets(const Klv::VmtiLocalSet& vmti)
+{
+    {
+        QMutexLocker locker(&m_mutex);
+        m_vmtiSet = vmti;
+        m_hasVmti = !vmti.targets.empty();
+    }
+    update();
+}
+
+void TacticalMapQuickItem::clearVmtiTargets()
+{
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_hasVmti && m_vmtiSet.targets.empty()) {
+            return;
+        }
+        m_vmtiSet.targets.clear();
+        m_hasVmti = false;
+    }
+    update();
+}
+
+std::size_t TacticalMapQuickItem::vmtiTargetCount() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_vmtiSet.targets.size();
+}
+
+std::size_t TacticalMapQuickItem::decodedTileCacheSize() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_decodedTileCache.size();
+}
+
+void TacticalMapQuickItem::clearDecodedTileCacheLocked()
+{
+    m_decodedTileCache.clear();
+    m_decodedTileOrder.clear();
+}
+
+QImage TacticalMapQuickItem::findOrDecodeTile(const Mapping::TileCoord& coord)
+{
+    {
+        QMutexLocker locker(&m_mutex);
+        const auto it = m_decodedTileCache.find(coord);
+        if (it != m_decodedTileCache.end()) {
+            return it->second;
+        }
+    }
+
+    constexpr auto kMaxIntSize { static_cast<std::size_t>(std::numeric_limits<int>::max()) };
+    const auto tileData = m_tileProvider.getTile(coord);
+    if (!tileData || tileData->bytes.empty() || tileData->bytes.size() > kMaxIntSize) {
+        return QImage { };
+    }
+
+    QImage decoded { };
+    if (!decoded.loadFromData(tileData->bytes.data(), static_cast<int>(tileData->bytes.size()))) {
+        return QImage { };
+    }
+
+    {
+        QMutexLocker locker(&m_mutex);
+        if (m_decodedTileCache.find(coord) == m_decodedTileCache.end()) {
+            if (m_decodedTileOrder.size() >= kMaxDecodedTiles) {
+                const Mapping::TileCoord oldest { m_decodedTileOrder.front() };
+                m_decodedTileOrder.pop_front();
+                m_decodedTileCache.erase(oldest);
+            }
+            m_decodedTileOrder.push_back(coord);
+            m_decodedTileCache.emplace(coord, decoded);
+        }
+    }
+    return decoded;
 }
 
 QColor TacticalMapQuickItem::themeColor() const
@@ -435,10 +630,9 @@ void TacticalMapQuickItem::mousePressEvent(QMouseEvent* event)
     }
     if (event->button() == Qt::LeftButton) {
         m_isDragging = true;
+        m_dragExceededThreshold = false;
+        m_pressMousePos = event->position();
         m_lastMousePos = event->position();
-
-        const auto geo = screenToGeo(event->position().x(), event->position().y());
-        emit coordinateClicked(geo.x(), geo.y());
         event->accept();
     } else {
         QQuickPaintedItem::mousePressEvent(event);
@@ -451,15 +645,22 @@ void TacticalMapQuickItem::mouseMoveEvent(QMouseEvent* event)
         return;
     }
     if (m_isDragging && (event->buttons() & Qt::LeftButton)) {
-        const QPointF delta = event->position() - m_lastMousePos;
+        const QPointF totalDelta { event->position() - m_pressMousePos };
+        if ((totalDelta.x() * totalDelta.x() + totalDelta.y() * totalDelta.y()) > kClickDeadbandSq) {
+            m_dragExceededThreshold = true;
+        }
+
+        const QPointF stepDelta { event->position() - m_lastMousePos };
         m_lastMousePos = event->position();
 
-        {
-            QMutexLocker locker(&m_mutex);
-            m_viewport.pan(delta.x(), delta.y());
+        if (!nearlyEqual(stepDelta.x(), 0.0) || !nearlyEqual(stepDelta.y(), 0.0)) {
+            {
+                QMutexLocker locker(&m_mutex);
+                m_viewport.pan(stepDelta.x(), stepDelta.y());
+            }
+            emit centerChanged();
+            update();
         }
-        emit centerChanged();
-        update();
         event->accept();
     } else {
         QQuickPaintedItem::mouseMoveEvent(event);
@@ -472,7 +673,18 @@ void TacticalMapQuickItem::mouseReleaseEvent(QMouseEvent* event)
         return;
     }
     if (event->button() == Qt::LeftButton) {
+        const bool wasDragging { m_isDragging };
+        const QPointF totalDelta { event->position() - m_pressMousePos };
+        const bool withinClickDeadband { !m_dragExceededThreshold
+            && ((totalDelta.x() * totalDelta.x() + totalDelta.y() * totalDelta.y()) <= kClickDeadbandSq) };
+
         m_isDragging = false;
+        m_dragExceededThreshold = false;
+
+        if (wasDragging && withinClickDeadband) {
+            const QPointF geo { screenToGeo(event->position().x(), event->position().y()) };
+            emit coordinateClicked(geo.x(), geo.y());
+        }
         event->accept();
     } else {
         QQuickPaintedItem::mouseReleaseEvent(event);
@@ -503,6 +715,7 @@ void TacticalMapQuickItem::paint(QPainter* painter)
 
     struct RenderSnapshot {
         Mapping::MapViewport viewport;
+        bool showGrid { true };
         bool showFrustum { true };
         bool hasFrustum { false };
         Klv::FrustumCorners frustum { };
@@ -510,6 +723,11 @@ void TacticalMapQuickItem::paint(QPainter* painter)
         double platformLat { 0.0 };
         double platformLon { 0.0 };
         double platformHeading { 0.0 };
+        bool hasTarget { false };
+        double targetLat { 0.0 };
+        double targetLon { 0.0 };
+        bool hasVmti { false };
+        Klv::VmtiLocalSet vmtiSet { };
         QColor themeColor { };
     };
 
@@ -517,6 +735,7 @@ void TacticalMapQuickItem::paint(QPainter* painter)
     {
         QMutexLocker locker(&m_mutex);
         snap.viewport = m_viewport;
+        snap.showGrid = m_showGrid;
         snap.showFrustum = m_showFrustum;
         snap.hasFrustum = m_hasFrustum;
         snap.frustum = m_frustum;
@@ -524,6 +743,11 @@ void TacticalMapQuickItem::paint(QPainter* painter)
         snap.platformLat = m_platformLat;
         snap.platformLon = m_platformLon;
         snap.platformHeading = m_platformHeading;
+        snap.hasTarget = m_hasTarget;
+        snap.targetLat = m_targetLat;
+        snap.targetLon = m_targetLon;
+        snap.hasVmti = m_hasVmti;
+        snap.vmtiSet = m_vmtiSet;
         snap.themeColor = m_themeColor;
     }
 
@@ -533,48 +757,109 @@ void TacticalMapQuickItem::paint(QPainter* painter)
     // 1. Draw base tactical background
     painter->fillRect(boundingRect(), QColor(14, 18, 24));
 
-    // 2. Render visible tiles (m_tileProvider is internally thread-safe)
+    // 2. Render visible tiles via bounded decoded QImage cache
     const auto visibleTiles = snap.viewport.calculateVisibleTiles(1);
-    constexpr auto kMaxIntSize { static_cast<std::size_t>(std::numeric_limits<int>::max()) };
-
     for (const auto& vt : visibleTiles) {
-        const auto tileData = m_tileProvider.getTile(vt.coord);
-        if (tileData && !tileData->bytes.empty() && tileData->bytes.size() <= kMaxIntSize) {
-            QImage img { };
-            if (img.loadFromData(tileData->bytes.data(), static_cast<int>(tileData->bytes.size()))) {
-                const QRectF destRect(vt.screenRect.x, vt.screenRect.y, vt.screenRect.width, vt.screenRect.height);
-                painter->drawImage(destRect, img);
+        const QImage img { findOrDecodeTile(vt.coord) };
+        if (!img.isNull()) {
+            const QRectF destRect(vt.screenRect.x, vt.screenRect.y, vt.screenRect.width, vt.screenRect.height);
+            painter->drawImage(destRect, img);
+        }
+    }
+
+    const Mapping::ScreenRect viewportRect { 0.0, 0.0, snap.viewport.width(), snap.viewport.height() };
+
+    // 3. Render subtle tactical coordinate grid lines when showGrid is enabled
+    if (snap.showGrid) {
+        painter->setPen(QPen(QColor(30, 42, 56, 120), 1.0));
+        constexpr double kGridStepPx { 64.0 };
+        for (double gx { kGridStepPx }; gx < snap.viewport.width(); gx += kGridStepPx) {
+            painter->drawLine(QPointF(gx, 0.0), QPointF(gx, snap.viewport.height()));
+        }
+        for (double gy { kGridStepPx }; gy < snap.viewport.height(); gy += kGridStepPx) {
+            painter->drawLine(QPointF(0.0, gy), QPointF(snap.viewport.width(), gy));
+        }
+    }
+
+    // 4. Render culled tactical optical footprint frustum
+    if (snap.showFrustum && snap.hasFrustum) {
+        const auto sf = Mapping::TacticalOverlay::projectFrustum(snap.viewport, snap.frustum);
+        if (sf.valid && Mapping::TacticalOverlay::isFrustumVisible(sf, viewportRect)) {
+            QPolygonF poly { };
+            for (std::size_t i { 0U }; i < 4U; ++i) {
+                poly << QPointF(sf.corners[i].x, sf.corners[i].y);
+            }
+
+            // Semi-transparent glowing tactical polygon
+            QColor fillColor { snap.themeColor };
+            fillColor.setAlpha(45);
+            painter->setBrush(QBrush(fillColor));
+
+            const QPen borderPen(snap.themeColor, 2.0);
+            painter->setPen(borderPen);
+            painter->drawPolygon(poly);
+
+            // Corner reticles
+            painter->setPen(QPen(Qt::white, 1.5));
+            for (std::size_t i { 0U }; i < 4U; ++i) {
+                const QPointF pt(sf.corners[i].x, sf.corners[i].y);
+                painter->drawLine(QPointF(pt.x() - 4.0, pt.y()), QPointF(pt.x() + 4.0, pt.y()));
+                painter->drawLine(QPointF(pt.x(), pt.y() - 4.0), QPointF(pt.x(), pt.y() + 4.0));
             }
         }
     }
 
-    // 3. Render tactical optical footprint frustum
-    if (snap.showFrustum && snap.hasFrustum) {
-        const auto sf = Mapping::TacticalOverlay::projectFrustum(snap.viewport, snap.frustum);
-        QPolygonF poly { };
-        for (std::size_t i { 0U }; i < 4U; ++i) {
-            poly << QPointF(sf.corners[i].x, sf.corners[i].y);
-        }
+    // 5. Render target line-of-sight and target reticle
+    if (snap.hasTarget) {
+        const auto los = Mapping::TacticalOverlay::projectLineOfSight(
+            snap.viewport, { snap.platformLat, snap.platformLon }, { snap.targetLat, snap.targetLon });
+        if (los.valid) {
+            const QPointF losOrigin(los.origin.x, los.origin.y);
+            const QPointF losTip(los.tip.x, los.tip.y);
 
-        // Semi-transparent glowing tactical polygon
-        QColor fillColor { snap.themeColor };
-        fillColor.setAlpha(45);
-        painter->setBrush(QBrush(fillColor));
+            painter->setBrush(Qt::NoBrush);
+            painter->setPen(QPen(snap.themeColor, 1.5, Qt::DashLine));
+            painter->drawLine(losOrigin, losTip);
 
-        const QPen borderPen(snap.themeColor, 2.0);
-        painter->setPen(borderPen);
-        painter->drawPolygon(poly);
-
-        // Corner reticles
-        painter->setPen(QPen(Qt::white, 1.5));
-        for (std::size_t i { 0U }; i < 4U; ++i) {
-            const QPointF pt(sf.corners[i].x, sf.corners[i].y);
-            painter->drawLine(QPointF(pt.x() - 4.0, pt.y()), QPointF(pt.x() + 4.0, pt.y()));
-            painter->drawLine(QPointF(pt.x(), pt.y() - 4.0), QPointF(pt.x(), pt.y() + 4.0));
+            painter->setPen(QPen(Qt::white, 1.5, Qt::SolidLine));
+            painter->drawLine(QPointF(losTip.x() - 6.0, losTip.y()), QPointF(losTip.x() + 6.0, losTip.y()));
+            painter->drawLine(QPointF(losTip.x(), losTip.y() - 6.0), QPointF(losTip.x(), losTip.y() + 6.0));
         }
     }
 
-    // 4. Render platform marker and heading arrow
+    // 6. Render MISB ST 0903 VMTI moving targets
+    if (snap.hasVmti) {
+        const std::optional<Klv::GeoPoint2D> frameCenter
+            = snap.hasTarget ? std::optional<Klv::GeoPoint2D>({ snap.targetLat, snap.targetLon }) : std::nullopt;
+        const auto projectedTargets
+            = Mapping::VmtiOverlay::projectTargetSeries(snap.viewport, snap.vmtiSet, frameCenter);
+
+        for (const auto& trk : projectedTargets) {
+            if (!Mapping::VmtiOverlay::isTargetVisible(trk, viewportRect)) {
+                continue;
+            }
+            const QPointF pos(trk.screenPos.x, trk.screenPos.y);
+            const QColor trkColor = trk.isMoving ? QColor(255, 145, 0) : snap.themeColor;
+
+            if (trk.ce90Pixels >= 2.0) {
+                QColor ceFill { trkColor };
+                ceFill.setAlpha(35);
+                painter->setBrush(QBrush(ceFill));
+                painter->setPen(QPen(trkColor, 1.0, Qt::DotLine));
+                painter->drawEllipse(pos, trk.ce90Pixels, trk.ce90Pixels);
+            }
+
+            painter->setBrush(Qt::NoBrush);
+            painter->setPen(QPen(trkColor, 1.5, Qt::SolidLine));
+            painter->drawRect(QRectF(pos.x() - 5.0, pos.y() - 5.0, 10.0, 10.0));
+
+            if (!trk.callsign.empty()) {
+                painter->drawText(QPointF(pos.x() + 8.0, pos.y() - 4.0), QString::fromStdString(trk.callsign));
+            }
+        }
+    }
+
+    // 7. Render platform marker and heading arrow
     if (snap.showHeading) {
         const auto sv = Mapping::TacticalOverlay::projectHeadingVector(
             snap.viewport, { snap.platformLat, snap.platformLon }, snap.platformHeading, 35.0);
@@ -609,6 +894,11 @@ void TacticalMapQuickItem::paint(QPainter* painter)
             painter->drawPolygon(arrowHead);
         }
     }
+}
+
+void TacticalMapQuickItem::registerQmlTypes()
+{
+    MappingQt::registerQmlTypes();
 }
 
 void registerQmlTypes()

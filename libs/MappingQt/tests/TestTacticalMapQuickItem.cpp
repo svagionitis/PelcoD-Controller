@@ -1,27 +1,55 @@
 /// @file TestTacticalMapQuickItem.cpp
-/// @brief Unit tests for MappingQt::TacticalMapQuickItem properties, rendering, concurrency, and P0 safety guards.
+/// @brief Unit tests for MappingQt::TacticalMapQuickItem properties, rendering, concurrency, and P0/P1 requirements.
 
 #include "TacticalMapQuickItem.h"
 
-#include <atomic>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
+
+#include <atomic>
 #include <limits>
+#include <memory>
 #include <thread>
 #include <type_traits>
 #include <utility>
 
+#include <QByteArray>
 #include <QColor>
 #include <QGuiApplication>
 #include <QImage>
+#include <QMouseEvent>
+#include <QObject>
 #include <QPainter>
 #include <QPointF>
+#include <QQmlComponent>
+#include <QQmlEngine>
+#include <QRectF>
 #include <QSignalSpy>
+#include <QWheelEvent>
 #include <QtGlobal>
 #include <gtest/gtest.h>
 
 #include "KlvTypes.h"
+#include "VmtiTypes.h"
 
 using namespace MappingQt;
+
+namespace {
+
+/// @class TestableTacticalMapQuickItem
+/// @brief Exposes protected event handlers of TacticalMapQuickItem for deterministic unit testing.
+class TestableTacticalMapQuickItem : public TacticalMapQuickItem {
+public:
+    using TacticalMapQuickItem::geometryChange;
+    using TacticalMapQuickItem::mouseMoveEvent;
+    using TacticalMapQuickItem::mousePressEvent;
+    using TacticalMapQuickItem::mouseReleaseEvent;
+    using TacticalMapQuickItem::TacticalMapQuickItem;
+    using TacticalMapQuickItem::wheelEvent;
+};
+
+} // namespace
 
 TEST(TacticalMapQuickItemTest, PropertyDefaultsAndSetters)
 {
@@ -213,6 +241,235 @@ TEST(TacticalMapQuickItemTest, ConcurrentGuiMutationAndRenderThreadPaint)
 
     mutator.join();
     EXPECT_TRUE(std::isfinite(item.platformLatitude()));
+}
+
+TEST(TacticalMapQuickItemTest, ShowGridControlsProceduralFallbackAndOverlay)
+{
+    TacticalMapQuickItem item { };
+    item.setWidth(256.0);
+    item.setHeight(256.0);
+    item.setShowFrustum(false);
+    item.setShowHeading(false);
+
+    QSignalSpy gridSpy(&item, &TacticalMapQuickItem::showGridChanged);
+
+    QImage withGrid(256, 256, QImage::Format_ARGB32);
+    withGrid.fill(Qt::black);
+    {
+        QPainter painter(&withGrid);
+        item.paint(&painter);
+    }
+
+    item.setShowGrid(false);
+    EXPECT_EQ(gridSpy.count(), 1);
+    EXPECT_FALSE(item.showGrid());
+
+    QImage withoutGrid(256, 256, QImage::Format_ARGB32);
+    withoutGrid.fill(Qt::black);
+    {
+        QPainter painter(&withoutGrid);
+        item.paint(&painter);
+    }
+
+    // Disabling showGrid disables procedural fallback tiles and tactical grid lines,
+    // leaving only the solid base background QColor(14, 18, 24).
+    EXPECT_NE(withGrid, withoutGrid);
+    EXPECT_EQ(withoutGrid.pixelColor(64, 64), QColor(14, 18, 24));
+}
+
+TEST(TacticalMapQuickItemTest, MouseClickEmitsCoordinateClickedWhilePanDragDoesNot)
+{
+    TestableTacticalMapQuickItem item { };
+    item.setWidth(400.0);
+    item.setHeight(300.0);
+    item.setCenter(37.9838, 23.7275);
+    item.setZoom(12.0);
+
+    QSignalSpy clickSpy(&item, &TacticalMapQuickItem::coordinateClicked);
+    QSignalSpy centerSpy(&item, &TacticalMapQuickItem::centerChanged);
+
+    // 1. Stationary left click (displacement = 0 px <= 4.0 px deadband)
+    {
+        const QPointF clickPos(200.0, 150.0);
+        QMouseEvent pressEv(
+            QEvent::MouseButtonPress, clickPos, clickPos, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        item.mousePressEvent(&pressEv);
+        // Must NOT emit on press before knowing if it's a drag
+        EXPECT_EQ(clickSpy.count(), 0);
+
+        QMouseEvent releaseEv(
+            QEvent::MouseButtonRelease, clickPos, clickPos, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        item.mouseReleaseEvent(&releaseEv);
+        EXPECT_EQ(clickSpy.count(), 1);
+    }
+
+    clickSpy.clear();
+    centerSpy.clear();
+
+    // 2. Pan drag gesture (displacement = 60 px > 4.0 px deadband)
+    {
+        const QPointF startPos(100.0, 100.0);
+        const QPointF movePos(160.0, 140.0);
+
+        QMouseEvent pressEv(
+            QEvent::MouseButtonPress, startPos, startPos, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        item.mousePressEvent(&pressEv);
+
+        QMouseEvent moveEv(QEvent::MouseMove, movePos, movePos, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+        item.mouseMoveEvent(&moveEv);
+
+        QMouseEvent releaseEv(
+            QEvent::MouseButtonRelease, movePos, movePos, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        item.mouseReleaseEvent(&releaseEv);
+
+        // Dragging must pan the map (emitting centerChanged) and suppress coordinateClicked!
+        EXPECT_GE(centerSpy.count(), 1);
+        EXPECT_EQ(clickSpy.count(), 0);
+    }
+}
+
+TEST(TacticalMapQuickItemTest, DecodedTileCacheAvoidsRedundantDecompressionAndInvalidates)
+{
+    TacticalMapQuickItem item { };
+    item.setWidth(256.0);
+    item.setHeight(256.0);
+    EXPECT_EQ(item.decodedTileCacheSize(), 0U);
+
+    QImage canvas(256, 256, QImage::Format_ARGB32);
+    {
+        QPainter painter(&canvas);
+        item.paint(&painter);
+    }
+    const std::size_t cachedAfterFirstPaint { item.decodedTileCacheSize() };
+    EXPECT_GT(cachedAfterFirstPaint, 0U);
+
+    // Second paint at identical viewport hits the decoded QImage cache without growing
+    {
+        QPainter painter(&canvas);
+        item.paint(&painter);
+    }
+    EXPECT_EQ(item.decodedTileCacheSize(), cachedAfterFirstPaint);
+
+    // Changing showGrid or offline directory invalidates the decoded QImage cache
+    item.setShowGrid(false);
+    EXPECT_EQ(item.decodedTileCacheSize(), 0U);
+}
+
+TEST(TacticalMapQuickItemTest, TargetLineOfSightAndVmtiOverlaysRenderAndCullOffscreen)
+{
+    TacticalMapQuickItem item { };
+    item.setWidth(320.0);
+    item.setHeight(240.0);
+    item.setCenter(37.9838, 23.7275);
+    item.setZoom(13.0);
+    item.setPlatformPosition(37.9838, 23.7275, 45.0);
+
+    QSignalSpy targetSpy(&item, &TacticalMapQuickItem::targetChanged);
+    EXPECT_FALSE(item.hasTarget());
+
+    item.setTargetPosition(37.9860, 23.7310);
+    EXPECT_TRUE(item.hasTarget());
+    EXPECT_NEAR(item.targetLatitude(), 37.9860, 1e-4);
+    EXPECT_NEAR(item.targetLongitude(), 23.7310, 1e-4);
+    EXPECT_EQ(targetSpy.count(), 1);
+
+    // Add MISB ST 0903 VMTI target pack
+    Klv::VmtiLocalSet vmti { };
+    Klv::VTargetPack trk1 { };
+    trk1.targetId = 1U;
+    trk1.targetLocation = Klv::GeoPoint3D { 37.9850, 23.7290, 50.0 };
+    trk1.targetCe90M = 15.0;
+    trk1.confidence = 92U;
+    trk1.detectionStatus = 1U; // Moving
+    vmti.targets.push_back(trk1);
+
+    item.setVmtiTargets(vmti);
+    EXPECT_EQ(item.vmtiTargetCount(), 1U);
+
+    QImage canvas(320, 240, QImage::Format_ARGB32);
+    canvas.fill(Qt::black);
+    {
+        QPainter painter(&canvas);
+        item.paint(&painter);
+    }
+
+    item.clearTarget();
+    EXPECT_FALSE(item.hasTarget());
+    EXPECT_EQ(targetSpy.count(), 2);
+
+    item.clearVmtiTargets();
+    EXPECT_EQ(item.vmtiTargetCount(), 0U);
+
+    // Offline directory reset with empty string & secondary search directory
+    item.setOfflineDirectory(QStringLiteral(""));
+    item.addOfflineSearchDirectory(QStringLiteral(""));
+}
+
+TEST(TacticalMapQuickItemTest, IdempotentSettersDoNotEmitDuplicateSignals)
+{
+    TacticalMapQuickItem item { };
+    item.setCenter(37.9838, 23.7275);
+    item.setZoom(12.0);
+    item.setOfflineOnly(true);
+    item.setShowFrustum(true);
+    item.setShowHeading(true);
+    item.setShowGrid(true);
+    item.setPlatformPosition(37.9838, 23.7275, 90.0);
+    item.setTargetPosition(37.9900, 23.7300);
+    item.setThemeColor(QColor(0, 229, 255));
+
+    QSignalSpy centerSpy(&item, &TacticalMapQuickItem::centerChanged);
+    QSignalSpy zoomSpy(&item, &TacticalMapQuickItem::zoomChanged);
+    QSignalSpy offlineSpy(&item, &TacticalMapQuickItem::offlineOnlyChanged);
+    QSignalSpy frustumSpy(&item, &TacticalMapQuickItem::showFrustumChanged);
+    QSignalSpy headingSpy(&item, &TacticalMapQuickItem::showHeadingChanged);
+    QSignalSpy gridSpy(&item, &TacticalMapQuickItem::showGridChanged);
+    QSignalSpy platformSpy(&item, &TacticalMapQuickItem::platformChanged);
+    QSignalSpy targetSpy(&item, &TacticalMapQuickItem::targetChanged);
+    QSignalSpy themeSpy(&item, &TacticalMapQuickItem::themeColorChanged);
+
+    // Re-applying identical values must emit zero signals
+    item.setCenter(37.9838, 23.7275);
+    item.setCenterLatitude(37.9838);
+    item.setCenterLongitude(23.7275);
+    item.setZoom(12.0);
+    item.setOfflineOnly(true);
+    item.setShowFrustum(true);
+    item.setShowHeading(true);
+    item.setShowGrid(true);
+    item.setPlatformPosition(37.9838, 23.7275, 90.0);
+    item.setPlatformLatitude(37.9838);
+    item.setPlatformLongitude(23.7275);
+    item.setPlatformHeading(90.0);
+    item.setTargetPosition(37.9900, 23.7300);
+    item.setThemeColor(QColor(0, 229, 255));
+
+    EXPECT_EQ(centerSpy.count(), 0);
+    EXPECT_EQ(zoomSpy.count(), 0);
+    EXPECT_EQ(offlineSpy.count(), 0);
+    EXPECT_EQ(frustumSpy.count(), 0);
+    EXPECT_EQ(headingSpy.count(), 0);
+    EXPECT_EQ(gridSpy.count(), 0);
+    EXPECT_EQ(platformSpy.count(), 0);
+    EXPECT_EQ(targetSpy.count(), 0);
+    EXPECT_EQ(themeSpy.count(), 0);
+}
+
+TEST(TacticalMapQuickItemTest, StaticAndFreeRegisterQmlTypesLinkAndInstantiateInQml)
+{
+    TacticalMapQuickItem::registerQmlTypes();
+
+    QQmlEngine engine { };
+    QQmlComponent component(&engine);
+    component.setData(
+        QByteArrayLiteral("import QtQuick\nimport PelcoD.Mapping 1.0\nTacticalMap { width: 200; height: 150 }\n"),
+        QUrl());
+    std::unique_ptr<QObject> obj { component.create() };
+    ASSERT_NE(obj, nullptr);
+    auto* mapItem = qobject_cast<TacticalMapQuickItem*>(obj.get());
+    ASSERT_NE(mapItem, nullptr);
+    EXPECT_NEAR(mapItem->width(), 200.0, 1e-3);
+    EXPECT_NEAR(mapItem->height(), 150.0, 1e-3);
 }
 
 int main(int argc, char* argv[])
