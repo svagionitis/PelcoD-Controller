@@ -169,11 +169,11 @@ graph LR
 
 ## 5. Verification Commands & Tooling
 
-The repository provides an automated scanner in `scripts/verify_iwyu_cstdint.py`:
+The repository provides an automated scanner in `scripts/verify_iwyu_cstdint.py` that can audit any library across the workspace:
 
 ### Verification on Modified / Staged Files:
 ```bash
-python3 scripts/verify_iwyu_cstdint.py --files libs/PelcoDCore/PelcoDFrame.h libs/PelcoDCore/PelcoDFrame.cpp --strict
+python3 scripts/verify_iwyu_cstdint.py --files libs/Tracking/TrackingEngine.h libs/Tracking/TrackingEngine.cpp --strict
 ```
 
 ### Automated Insertion of Missing `<cstdint>`:
@@ -181,14 +181,17 @@ python3 scripts/verify_iwyu_cstdint.py --files libs/PelcoDCore/PelcoDFrame.h lib
 python3 scripts/verify_iwyu_cstdint.py --files <path/to/file.cpp> --fix-cstdint
 ```
 
-### Full Subsystem Audit:
+### Full Subsystem Audit (Any Library):
 ```bash
+# Audit specific subsystems
+python3 scripts/verify_iwyu_cstdint.py libs/Tracking
+python3 scripts/verify_iwyu_cstdint.py libs/Onvif
 python3 scripts/verify_iwyu_cstdint.py libs/PelcoDCore
 ```
 
 ### Running Native IWYU Binary:
 ```bash
-python3 scripts/verify_iwyu_cstdint.py --files libs/PelcoDCore/PelcoDFrame.cpp --tool
+python3 scripts/verify_iwyu_cstdint.py --files libs/ViscaCore/ViscaPacket.cpp --tool
 ```
 
 ---
