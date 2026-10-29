@@ -54,6 +54,19 @@ target_link_libraries(TestMpegTsH264Demuxer PRIVATE
 )
 pelcod_register_gtest(TestMpegTsH264Demuxer)
 
+add_executable(TestRtspPassthroughBridge TestRtspPassthroughBridge.cpp)
+target_include_directories(TestRtspPassthroughBridge PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_SOURCE_DIR}/libs/Klv
+    ${CMAKE_SOURCE_DIR}/libs/Transport
+)
+target_link_libraries(TestRtspPassthroughBridge PRIVATE
+    Video
+    Klv
+    Transport
+)
+pelcod_register_gtest(TestRtspPassthroughBridge)
+
 add_executable(TestLive555FrameQueue TestLive555FrameQueue.cpp)
 target_include_directories(TestLive555FrameQueue PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..

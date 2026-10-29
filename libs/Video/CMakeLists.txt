@@ -22,6 +22,11 @@ set(PELCOD_VIDEO_SOURCES
     MpegTsH264Demuxer.cpp
     RtspServerConfig.h
     RtspServerConfig.cpp
+    RtspPassthroughTypes.h
+    RtpDepacketizer.h
+    RtpDepacketizer.cpp
+    RtspPassthroughBridge.h
+    RtspPassthroughBridge.cpp
     Live555FrameTypes.h
     Live555FrameQueue.h
     Live555FrameQueue.cpp
@@ -71,6 +76,8 @@ target_include_directories(Video PUBLIC
 )
 
 target_link_libraries(Video PUBLIC
+    Transport
+    Klv
     glog::glog
 )
 
