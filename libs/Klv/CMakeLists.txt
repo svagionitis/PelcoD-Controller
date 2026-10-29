@@ -67,6 +67,8 @@ add_library(Klv STATIC
     StanagStreamIndexer.cpp
     StanagScrubController.h
     StanagScrubController.cpp
+    StanagBroadcastEngine.h
+    StanagBroadcastEngine.cpp
 )
 
 target_include_directories(Klv PUBLIC
@@ -76,6 +78,7 @@ target_include_directories(Klv PUBLIC
 
 target_link_libraries(Klv PUBLIC
     Threads::Threads
+    Transport
 )
 
 apply_compiler_flags(Klv)

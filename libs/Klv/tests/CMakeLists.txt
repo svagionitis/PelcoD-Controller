@@ -37,4 +37,5 @@ add_klv_test(TestTelemetryTimeIndex   TestTelemetryTimeIndex.cpp)
 add_klv_test(TestTelemetryInterpolator TestTelemetryInterpolator.cpp)
 add_klv_test(TestStanagStreamIndexer  TestStanagStreamIndexer.cpp)
 add_klv_test(TestStanagScrubController TestStanagScrubController.cpp)
+add_klv_test(TestStanagBroadcastEngine TestStanagBroadcastEngine.cpp)
 
