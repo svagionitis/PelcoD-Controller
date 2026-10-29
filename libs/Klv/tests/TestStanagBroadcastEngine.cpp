@@ -1,5 +1,6 @@
 #include "StanagBroadcastEngine.h"
 
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -236,4 +237,41 @@ TEST(TestStanagBroadcastEngine, NetworkPublisherLoopback)
 
     engine.stop();
     EXPECT_FALSE(engine.stats().isNetworkOpen);
+}
+
+TEST(TestStanagBroadcastEngine, CbrPacingIntegration)
+{
+    StanagBroadcastConfig config { };
+    config.enableNetworkPublishing = false;
+    config.enableCbrPacing = true;
+    config.cbrConfig.targetBitrateBps = 2000000U; // 2.0 Mbps
+    config.cbrConfig.autoStartWorker = true;
+
+    StanagBroadcastEngine engine(config);
+
+    std::atomic<std::size_t> packetCount { 0U };
+    engine.setPacketCallback(
+        [&packetCount](const std::uint8_t*, std::size_t) { packetCount.fetch_add(1U, std::memory_order_relaxed); });
+
+    EXPECT_TRUE(engine.start());
+    EXPECT_TRUE(engine.isRunning());
+
+    // Push 1 video frame
+    VideoAccessUnit au { };
+    au.codec = VideoCodec::H264;
+    au.ptsUs = 1000000ULL;
+    au.data = { 0x00U, 0x00U, 0x00U, 0x01U, 0x65U, 0x01U, 0x02U };
+    EXPECT_TRUE(engine.pushVideoAccessUnit(std::move(au)));
+
+    // Let CBR pacer run for 50 ms
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    const auto stats = engine.stats();
+    EXPECT_TRUE(stats.isCbrActive);
+    EXPECT_GT(stats.tsPacketsEmitted, 0U);
+    EXPECT_GT(stats.nullPacketsInjected, 0U);
+    EXPECT_GT(packetCount.load(std::memory_order_relaxed), 0U);
+
+    engine.stop();
+    EXPECT_FALSE(engine.isRunning());
 }

@@ -2,6 +2,7 @@
 /// @brief Master orchestrator coordinating live video, KLV telemetry, and MPEG-TS broadcasting.
 
 #include "StanagBroadcastEngine.h"
+#include "CbrRatePacer.h"
 
 #include <atomic>
 #include <chrono>
@@ -80,6 +81,13 @@ public:
             }
         }
 
+        if (m_config.enableCbrPacing) {
+            Transport::CbrPacerConfig pacerCfg = m_config.cbrConfig;
+            pacerCfg.autoStartWorker = true;
+            m_pacer = std::make_unique<Transport::CbrRatePacer>(
+                pacerCfg, [this](const std::uint8_t* pkt, std::size_t sz) { dispatchPacedPacket(pkt, sz); });
+        }
+
         m_running.store(true);
         m_lastBitrateCalcTime = std::chrono::steady_clock::now();
         m_bytesSinceLastCalc = 0U;
@@ -98,6 +106,11 @@ public:
 
         if (m_workerThread.joinable()) {
             m_workerThread.join();
+        }
+
+        if (m_pacer) {
+            m_pacer->stopWorker();
+            m_pacer.reset();
         }
 
         if (m_publisher) {
@@ -200,6 +213,10 @@ public:
         std::lock_guard<std::mutex> procLock(m_processMutex);
         processQueues();
         static_cast<void>(m_syncManager.flush());
+
+        if (m_pacer) {
+            m_pacer->flush();
+        }
     }
 
     [[nodiscard]] StanagBroadcastStats stats() const
@@ -210,6 +227,11 @@ public:
 
         const auto syncStats = m_syncManager.stats();
         currentStats.averagePtsSkewMs = syncStats.averageSkewMs;
+
+        if (m_config.enableCbrPacing && m_pacer) {
+            currentStats.nullPacketsInjected = m_pacer->nullPacketsInjected();
+            currentStats.isCbrActive = true;
+        }
 
         return currentStats;
     }
@@ -243,6 +265,7 @@ private:
     PtsSyncManager m_syncManager;
     VideoNaluParser m_naluParser;
     std::unique_ptr<Transport::MpegTsNetworkPublisher> m_publisher { };
+    std::unique_ptr<Transport::CbrRatePacer> m_pacer { };
 
     bool enqueueVideoUnit(VideoAccessUnit au)
     {
@@ -335,10 +358,29 @@ private:
             return;
         }
 
+        if (m_config.enableCbrPacing && m_pacer) {
+            static_cast<void>(m_pacer->submitTsPackets(packet, 1U));
+            return;
+        }
+
+        dispatchPacedPacket(packet, size);
+    }
+
+    void dispatchPacedPacket(const std::uint8_t* packet, std::size_t size)
+    {
+        if (packet == nullptr || size != MpegTsKlvMuxer::kTsPacketSize) {
+            return;
+        }
+
         {
             std::lock_guard<std::mutex> statsLock(m_statsMutex);
             m_stats.tsPacketsEmitted++;
             m_bytesSinceLastCalc += size;
+
+            if (m_config.enableCbrPacing && m_pacer) {
+                m_stats.nullPacketsInjected = m_pacer->nullPacketsInjected();
+                m_stats.isCbrActive = true;
+            }
 
             const auto now = std::chrono::steady_clock::now();
             const auto elapsedMs

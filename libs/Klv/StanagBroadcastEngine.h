@@ -11,6 +11,7 @@
 #include <optional>
 #include <string>
 
+#include "CbrRatePacer.h"
 #include "KlvTypes.h"
 #include "MpegTsMuxerTypes.h"
 #include "TsNetworkTypes.h"
@@ -35,6 +36,12 @@ struct StanagBroadcastConfig {
 
     /// @brief Maximum capacity for bounded telemetry message queue.
     std::size_t maxTelemetryQueueSize { 256U };
+
+    /// @brief Whether to enable Constant Bitrate (CBR) rate pacing with null TS packet injection.
+    bool enableCbrPacing { false };
+
+    /// @brief Configuration for CBR rate pacing when enabled.
+    Transport::CbrPacerConfig cbrConfig { };
 };
 
 /// @struct StanagBroadcastStats
@@ -69,6 +76,12 @@ struct StanagBroadcastStats {
 
     /// @brief True if network socket publisher is actively connected/open.
     bool isNetworkOpen { false };
+
+    /// @brief Total ISO/IEC 13818-1 Null TS packets injected by the CBR pacer.
+    std::size_t nullPacketsInjected { 0U };
+
+    /// @brief Whether CBR rate pacing is currently active.
+    bool isCbrActive { false };
 };
 
 /// @class StanagBroadcastEngine

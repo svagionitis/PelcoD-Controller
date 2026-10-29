@@ -19,6 +19,8 @@ add_library(Transport STATIC
     MpegTsNetworkPublisher.cpp
     SdpGenerator.h
     SdpGenerator.cpp
+    CbrRatePacer.h
+    CbrRatePacer.cpp
     TransportMultiplexer.h
     TransportMultiplexer.cpp
 )
