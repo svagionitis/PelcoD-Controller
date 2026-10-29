@@ -32,6 +32,9 @@ public:
     N2kFastPacketAssembler(N2kFastPacketAssembler&&) = delete;
     N2kFastPacketAssembler& operator=(N2kFastPacketAssembler&&) = delete;
 
+    /// @brief Maximum concurrent reassembly sessions to prevent memory exhaustion (SEI CERT MEM07-C).
+    static constexpr std::size_t kMaxConcurrentSessions { 64U };
+
     /// @brief Checks if a PGN is registered as a Fast Packet multi-frame PGN.
     /// @param[in] pgn Parameter Group Number to query.
     /// @return True if registered as Fast Packet, false otherwise.
@@ -40,6 +43,9 @@ public:
     /// @brief Registers a PGN to be handled by the Fast Packet multi-frame state machine.
     /// @param[in] pgn Parameter Group Number to register.
     void registerFastPacketPgn(std::uint32_t pgn);
+
+    /// @brief Retrieves the number of currently active reassembly sessions.
+    [[nodiscard]] std::size_t activeSessionCount() const;
 
     /// @brief Processes an incoming 29-bit CAN frame.
     /// @details For single-frame PGNs, immediately returns the completed N2kMessage.

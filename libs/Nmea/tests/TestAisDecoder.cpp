@@ -10,10 +10,10 @@ namespace {
 
     TEST(TestAisDecoder, SinglePartClassAPositionReport)
     {
-        AisDecoder decoder { };
+        AisDecoder decoder {};
         const std::string sentence = "!AIVDM,1,1,,B,177KQJ001p5nk70GwLF85jww0+RA,0*67\r\n";
 
-        AisVesselTarget target { };
+        AisVesselTarget target {};
         ASSERT_TRUE(decoder.decodeSentence(sentence, target, true));
 
         EXPECT_EQ(target.messageType, AisMessageType::ClassAPosition1);
@@ -29,14 +29,14 @@ namespace {
 
     TEST(TestAisDecoder, MultiPartClassAStaticVoyageData)
     {
-        AisDecoder decoder { };
+        AisDecoder decoder {};
 
         // 2-part message for Type 5
         const std::string part1
             = "!AIVDM,2,1,3,A,539Lg1h2;=`048?7;?@t<D4r0EQ0hu8E80000016BhN<=7<jNEDSm51DQ0C@,0*19\r\n";
         const std::string part2 = "!AIVDM,2,2,3,A,00000000000,2*27\r\n";
 
-        AisVesselTarget target { };
+        AisVesselTarget target {};
 
         // Part 1 should buffer and return false
         EXPECT_FALSE(decoder.decodeSentence(part1, target, true));
@@ -66,10 +66,10 @@ namespace {
 
     TEST(TestAisDecoder, SinglePartClassBPositionReport)
     {
-        AisDecoder decoder { };
+        AisDecoder decoder {};
         const std::string sentence = "!AIVDM,1,1,,B,B39i700000?4;7Wd:d403w<00000,0*25\r\n";
 
-        AisVesselTarget target { };
+        AisVesselTarget target {};
         ASSERT_TRUE(decoder.decodeSentence(sentence, target, true));
 
         EXPECT_EQ(target.messageType, AisMessageType::ClassBPosition18);
@@ -83,22 +83,22 @@ namespace {
 
     TEST(TestAisDecoder, RejectInvalidChecksum)
     {
-        AisDecoder decoder { };
+        AisDecoder decoder {};
         // Corrupt checksum from *67 to *99
         const std::string badSentence = "!AIVDM,1,1,,B,177KQJ001p5nk70GwLF85jww0+RA,0*99\r\n";
 
-        AisVesselTarget target { };
+        AisVesselTarget target {};
         EXPECT_FALSE(decoder.decodeSentence(badSentence, target, true));
     }
 
     TEST(TestAisDecoder, MultiPartFragmentTimeoutAndReset)
     {
-        AisDecoder decoder { };
+        AisDecoder decoder {};
         decoder.setFragmentTtl(std::chrono::milliseconds(50));
 
         const std::string part1
             = "!AIVDM,2,1,3,A,539Lg1h2;=`048?7;?@t<D4r0EQ0hu8E80000016BhN<=7<jNEDSm51DQ0C@,0*19\r\n";
-        AisVesselTarget target { };
+        AisVesselTarget target {};
         EXPECT_FALSE(decoder.decodeSentence(part1, target, true));
 
         // Reset should clear cache
@@ -107,6 +107,45 @@ namespace {
         // Trying to send part 2 directly should fail since part 1 was cleared
         const std::string part2 = "!AIVDM,2,2,3,A,00000000000,2*27\r\n";
         EXPECT_FALSE(decoder.decodeSentence(part2, target, true));
+    }
+
+    TEST(TestAisDecoder, MultiTalkerInterleavedReassembly)
+    {
+        AisDecoder decoder {};
+
+        // Two multi-part Type 5 messages from different talkers using identical sequence counter '1'
+        // Talker 1: !AIVDM (External AIS target)
+        const std::string vdmPart1
+            = "!AIVDM,2,1,1,A,539Lg1h2;=`048?7;?@t<D4r0EQ0hu8E80000016BhN<=7<jNEDSm51DQ0C@,0*1B\r\n";
+        const std::string vdmPart2 = "!AIVDM,2,2,1,A,00000000000,2*25\r\n";
+
+        // Talker 2: !AIVDO (Own-ship AIS transponder)
+        const std::string vdoPart1
+            = "!AIVDO,2,1,1,A,539Lg1h2;=`048?7;?@t<D4r0EQ0hu8E80000016BhN<=7<jNEDSm51DQ0C@,0*19\r\n";
+        const std::string vdoPart2 = "!AIVDO,2,2,1,A,00000000000,2*27\r\n";
+
+        AisVesselTarget targetVdm {};
+        AisVesselTarget targetVdo {};
+
+        // Interleave Part 1 from both talkers
+        EXPECT_FALSE(decoder.decodeSentence(vdmPart1, targetVdm, true));
+        EXPECT_FALSE(decoder.decodeSentence(vdoPart1, targetVdo, true));
+
+        // Part 2 of VDM should complete VDM cleanly without VDO collision
+        ASSERT_TRUE(decoder.decodeSentence(vdmPart2, targetVdm, true));
+        EXPECT_EQ(targetVdm.mmsi, 211234567U);
+        EXPECT_EQ(targetVdm.vesselName, "OCEAN EXPLORER");
+
+        // Part 2 of VDO should complete VDO cleanly
+        ASSERT_TRUE(decoder.decodeSentence(vdoPart2, targetVdo, true));
+        EXPECT_EQ(targetVdo.mmsi, 211234567U);
+        EXPECT_TRUE(targetVdo.staticDataValid);
+
+        // Verify non-AI talkers such as !RAVDM (Radar AIS Overlay)
+        const std::string raVdm = "!RAVDM,1,1,,B,177KQJ001p5nk70GwLF85jww0+RA,0*7C\r\n";
+        AisVesselTarget raTarget {};
+        EXPECT_TRUE(decoder.decodeSentence(raVdm, raTarget, true));
+        EXPECT_EQ(raTarget.mmsi, 477553000U);
     }
 
 } // namespace

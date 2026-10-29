@@ -96,6 +96,12 @@ stateDiagram-v2
   * **$xxVBW**: Dual ground and water speed tracking (fore/aft longitudinal and port/starboard transverse speeds). Integrated with [NmeaSensorArbiter](../libs/Nmea/arbiter/NmeaSensorArbiter.h).
   * **$xxVHW**: Water speed (knots and km/h) and heading true/magnetic.
   * **$xxDPT / $xxDBT**: Water depth and transducer keel/waterline offset telemetry.
+* **IEC 61162-1 / NMEA 0183 v4.00+ Tag Blocks**:
+  * Implemented in [NmeaTagBlockParser](../libs/Nmea/NmeaTagBlockParser.h) and [NmeaTagBlockBuilder](../libs/Nmea/NmeaTagBlockBuilder.h).
+  * Encapsulates transport and network metadata prior to the sentence delimiter: `\s:source*d:dest*c:time*n:line*g:group*q:quality\sentence*HH`.
+  * Provides zero-allocation validation, tag extraction (`sourceTalker`, `destinationTalker`, `timestampUnix`, `lineCount`, `groupIndex`), and 8-bit XOR checksum verification.
+  * Integrated transparently into [NmeaSentenceParser](../libs/Nmea/NmeaSentenceParser.h) to strip leading tag blocks during sentence tokenization.
+
 * **Extended FLIR PFEC Commands**:
   * Digital zoom magnification: `setDigitalZoom` (`1x`, `2x`, `4x`, `8x`).
   * Gyro stabilization toggle: `setStabilization` (`on` / `off`).
@@ -104,6 +110,7 @@ stateDiagram-v2
 
 * **Unit Tests & Verification**:
   * [TestBridgeAlertManager.cpp](../libs/Nmea/tests/TestBridgeAlertManager.cpp): Complete BAM alert lifecycle, timeouts, escalations, ARC commands, and cyclic broadcasts.
+  * [TestNmeaTagBlock.cpp](../libs/Nmea/tests/TestNmeaTagBlock.cpp): IEC 61162-1 Tag Block parsing, encapsulation, and metadata roundtrip serialization.
   * [TestNmeaSentenceParser.cpp](../libs/Nmea/tests/TestNmeaSentenceParser.cpp): Parsing of GSA, GSV, ZDA, VBW, VHW, DPT, DBT, ALF, ALC, ARC, HBT, ALR, ACK.
   * [TestNmeaSentenceBuilder.cpp](../libs/Nmea/tests/TestNmeaSentenceBuilder.cpp): Roundtrip sentence framing and extended PFEC commands.
   * [TestNmeaDevice.cpp](../libs/Nmea/tests/TestNmeaDevice.cpp): Thread-safe callback dispatch and telemetry caching.
@@ -368,6 +375,375 @@ flowchart TD
 
 ---
 
+### 5. Route Management & Search & Rescue (SAR) Engine
+*Implemented in [NmeaRouteManager.h](../libs/Nmea/route/NmeaRouteManager.h) and [NmeaRouteManager.cpp](../libs/Nmea/route/NmeaRouteManager.cpp)*
+
+The Route Management subsystem provides ECDIS-compliant maritime route ingestion, global waypoint dictionary resolution, cross-track error monitoring, and autonomous Search & Rescue (SAR) gimbal sweeping pattern generation.
+
+#### Architecture & Dataflow
+
+##### ASCII Architecture Diagram
+
+```
++---------------------------------------------------------------------------------------------------------+
+|                                    NmeaRouteManager (SAR & Navigation)                                  |
++---------------------------------------------------------------------------------------------------------+
+|                                                                                                         |
+|   +-----------------------+     +-----------------------+     +-------------------------------------+   |
+|   | Waypoint Location     |     | Route Part Sentences  |     | Minimum Navigation Information      |   |
+|   | $xxWPL (Lat, Lon, ID) |     | $xxRTE (c/w, slices)  |     | $xxRMB (XTE, Origin, Dest, Arrival) |   |
+|   +-----------+-----------+     +-----------+-----------+     +------------------+------------------+   |
+|               |                             |                                    |                      |
+|               v                             v                                    v                      |
+|   +-----------------------+     +-----------------------+     +-------------------------------------+   |
+|   | Waypoint Dictionary   |     | Multi-Sentence Router |     | Active Navigation Leg & Cross-Track |   |
+|   | (Coordinates by ID)   |<----+ - Slice Aggregator    |     | - Active Waypoint Pair Tracking     |   |
+|   +-----------------------+     | - Complete Route Cache|     | - Steering Cross-Track Error (XTE)  |   |
+|                                 +-----------+-----------+     +------------------+------------------+   |
+|                                             |                                    |                      |
+|                                             v                                    v                      |
+|   +-------------------------------------------------------------------------------------------------+   |
+|   |                              Gimbal Autonomy Projections & Cueing                               |   |
+|   |  - computeLookAhead(lookAheadMeters): Forward line-of-sight geodetic projection along leg       |   |
+|   |  - computeSarSweepPoint(ownShip, crossTrackMeters, fwdMeters): Oscillating SAR sweep targets    |   |
+|   |  - nextTurnWaypoint(): Anticipatory camera pre-cueing on course change waypoints                |   |
+|   +-------------------------------------------------------------------------------------------------+   |
++---------------------------------------------------------------------------------------------------------+
+```
+
+##### Mermaid Route & SAR Flow Diagram
+
+```mermaid
+flowchart TD
+    subgraph Sentences ["Inbound NMEA 0183 Sentences"]
+        WPL["$xxWPL\n(Waypoint Location)"]
+        RTE["$xxRTE\n(Route Slices: c/w)"]
+        RMB["$xxRMB\n(Active Leg & XTE)"]
+    end
+
+    subgraph RouteCore ["NmeaRouteManager Core Engine"]
+        Dict["Waypoint Dictionary\n(ID -> NmeaCoordinates)"]
+        Reassembly["Route Reassembler\n(Aggregates Slices & Resolves Waypoints)"]
+        ActiveLeg["Active Leg Tracker\n(Destination & XTE Deviation)"]
+    end
+
+    subgraph SARAutonomy ["Camera Automation & Projection"]
+        LookAhead["Forward Look-Ahead\n(computeLookAhead)"]
+        SARSweep["SAR Oscillating Sweep\n(computeSarSweepPoint)"]
+        PreTurn["Pre-Turn Anticipation\n(nextTurnWaypoint)"]
+    end
+
+    WPL --> Dict
+    RTE --> Reassembly
+    Dict -. Resolve Coordinates .-> Reassembly
+    RMB --> ActiveLeg
+
+    ActiveLeg --> LookAhead
+    ActiveLeg --> SARSweep
+    Reassembly --> PreTurn
+```
+
+* **Core Route Capabilities**:
+  * **$xxRTE Multi-Sentence Reassembly**: Assembles routes split across multiple sentences (`w` working route vs `c` complete route). Slices are indexed and validated; upon arrival of the final slice, waypoints are linked sequentially.
+  * **$xxWPL Waypoint Dictionary**: Populates global geodetic coordinates for named waypoints, allowing route sentences carrying only IDs to resolve full coordinates.
+  * **$xxRMB Cross-Track Steering**: Tracks active cross-track error (XTE), range/bearing to destination waypoint, and arrival alarm flags.
+  * **Forward Look-Ahead Projection**: Calculates target coordinates along the active leg vector at a specified forward distance for anticipatory camera positioning.
+  * **Oscillating SAR Sweeping Pattern**: `computeSarSweepPoint` computes oscillating target coordinates perpendicular to the vessel's track (+: Starboard, -: Port) combined with forward lead, enabling electro-optical sensors to scan expanding square or creeping line search patterns.
+  * **Pre-Turn Waypoint Cueing**: `nextTurnWaypoint` identifies the waypoint immediately following the active leg destination, enabling gimbals to orient toward upcoming turn vectors before own-ship initiates the helm turn.
+
+* **Unit Tests & Verification**:
+  * [TestNmeaRouteAndSar.cpp](../libs/Nmea/tests/TestNmeaRouteAndSar.cpp): Route slice reassembly, out-of-order slice handling, waypoint resolution, cross-track error monitoring, SAR sweep projection, and turn cueing.
+
+---
+
+### 6. Environmental Atmospheric Physics & Thermal Camera Tuning Advisor
+*Implemented in [ThermalTuningAdvisor.h](../libs/Nmea/environment/ThermalTuningAdvisor.h) and [ThermalTuningAdvisor.cpp](../libs/Nmea/environment/ThermalTuningAdvisor.cpp)*
+
+Thermal camera image clarity degrades substantially in maritime environments due to two primary physical phenomena: **thermal crossover** (equalization of target and sea surface water temperatures) and **marine atmospheric fog/humidity** (attenuation of LWIR and MWIR radiation). The `ThermalTuningAdvisor` ingests meteorological sensor telemetry and applies mathematical models to dynamically tune downstream camera cores.
+
+#### Architecture & Physics Model
+
+##### ASCII Architecture Diagram
+
+```
++---------------------------------------------------------------------------------------------------------+
+|                                    ThermalTuningAdvisor Sensor Ingestion                                |
++---------------------------------------------------------------------------------------------------------+
+|                                                                                                         |
+|   +-----------------------+     +-----------------------+     +-------------------------------------+   |
+|   | Water Temperature     |     | Meteorological Compos.|     | Barometric Pressure                 |   |
+|   | $xxMTW (Sea Temp °C)  |     | $xxMDA (Air, Hum, Dew)|     | $xxMMB (Atmospheric Pressure)       |   |
+|   +-----------+-----------+     +-----------+-----------+     +------------------+------------------+   |
+|               |                             |                                    |                      |
+|               +-----------------------------+------------------------------------+                      |
+|                                             |                                                           |
+|                                             v                                                           |
+|   +-------------------------------------------------------------------------------------------------+   |
+|   |                             Atmospheric Physics & Tuning Engine                                 |   |
+|   |                                                                                                 |   |
+|   |  1. Thermal Crossover Score: WashoutRisk = 1.0 - clamp(|T_water - T_air| / 4.0, 0, 1)           |   |
+|   |     -> If WashoutRisk >= 0.75: ThermalAgcPreset::CrossoverEnhanced, DDE boost to 65%            |   |
+|   |                                                                                                 |   |
+|   |  2. Marine Fog Penetration Score: Evaluated via Dewpoint Spread (T_air - T_dew) & Relative Hum. |   |
+|   |     -> If Spread <= 1.5°C and RH >= 90%: ThermalAgcPreset::MarineFogPenetration, DDE 75%        |   |
+|   |                                                                                                 |   |
+|   |  3. Background Polarity Advice: WhiteHot vs. BlackHot selected from ambient sea background       |   |
+|   +-------------------------------------------------+-----------------------------------------------+   |
+|                                                     |                                                   |
+|                                                     v                                                   |
+|   +-------------------------------------------------------------------------------------------------+   |
+|   |                                 ThermalTuningAdvice Output Snapshot                             |   |
+|   |  - agcPreset: DefaultNormal / CrossoverEnhanced / MarineFogPenetration / SeaClutterSuppression  |   |
+|   |  - ddeStrengthPercent: Dynamic Digital Detail Enhancement [0.0 .. 100.0]                        |   |
+|   |  - polarity: WhiteHot / BlackHot display polarity recommendation                                |   |
+|   |  - washoutRiskScore & fogRiskScore: Normalized physical risk indices [0.0 .. 1.0]               |   |
+|   |  - rationale: Diagnostic explanation of active environmental recommendation                     |   |
+|   +-------------------------------------------------------------------------------------------------+   |
++---------------------------------------------------------------------------------------------------------+
+```
+
+##### Mermaid Tuning Decision Flowchart
+
+```mermaid
+flowchart TD
+    subgraph Sensors ["Meteorological Sensor Inputs"]
+        MTW["$xxMTW\n(Water Temp °C)"]
+        MDA["$xxMDA\n(Air Temp, Dew Point, Relative Humidity)"]
+        MMB["$xxMMB\n(Barometric Pressure)"]
+    end
+
+    subgraph PhysicsModels ["Physical Evaluation Engines"]
+        DeltaT["Thermal Delta Evaluation\n|T_water - T_air|"]
+        DewSpread["Fog Condensation Analysis\n(T_air - T_dew) & RH%"]
+    end
+
+    subgraph Presets ["Automated AGC & DDE Tuning Output"]
+        Normal["Preset: DefaultNormal\n(DDE: 30%)"]
+        Crossover["Preset: CrossoverEnhanced\n(DDE: 65%, High Plateau Equalization)"]
+        Fog["Preset: MarineFogPenetration\n(DDE: 75%, Spatial High-Pass Filter)"]
+    end
+
+    MTW --> DeltaT
+    MDA --> DeltaT
+    MDA --> DewSpread
+    MMB --> DewSpread
+
+    DeltaT -->|DeltaT < 1.0°C (High Washout Risk)| Crossover
+    DewSpread -->|Spread <= 1.5°C & RH >= 90% (Dense Fog)| Fog
+    DeltaT & DewSpread -->|Standard Conditions| Normal
+```
+
+* **Physical Formulation & Algorithms**:
+  * **Thermal Crossover Washout Risk**: When surface water temperature and ambient air temperature converge, thermal target contrast drops sharply. The advisor evaluates:
+    $$\Delta T = |T_{\text{water}} - T_{\text{air}}|$$
+    $$\text{WashoutRisk} = 1.0 - \text{clamp}\left(\frac{\Delta T}{4.0}, 0.0, 1.0\right)$$
+    When $\Delta T \le 1.0^\circ\text{C}$, targets blend into sea clutter; the advisor switches AGC to `ThermalAgcPreset::CrossoverEnhanced` and boosts Digital Detail Enhancement (DDE) to $65\%$.
+  * **Marine Fog Penetration Scoring**: Evaluates proximity to 100% relative humidity using ambient air temperature and dew point spread:
+    $$\Delta T_{\text{dew}} = T_{\text{air}} - T_{\text{dew}}$$
+    When $\Delta T_{\text{dew}} \le 1.5^\circ\text{C}$ and $\text{RH} \ge 90\%$, dense marine fog or sea smoke condensation is confirmed. The advisor selects `ThermalAgcPreset::MarineFogPenetration` and maximizes DDE to $75\%$.
+  * **Sea Clutter Suppression**: When sustained surface wind exceeds 20 knots ($4\,\text{m/s}$ wave height whitecaps), elevated temporal filtering is recommended to reject wave reflection flashes.
+
+* **Unit Tests & Verification**:
+  * [TestNmeaEnvironmentalTuning.cpp](../libs/Nmea/tests/TestNmeaEnvironmentalTuning.cpp): Thermal crossover washout risk, marine fog penetration scoring, sea clutter suppression, sensor snapshot caching, and callback notifications.
+
+---
+
+### 7. FLIR Nexus / M-Series Marine Camera Control Protocol ($PFEC)
+*Implemented in [FlirPfecDevice.h](../libs/Nmea/FlirPfecDevice.h), [FlirPfecDevice.cpp](../libs/Nmea/FlirPfecDevice.cpp), and [PfecTypes.h](../libs/Nmea/PfecTypes.h)*
+
+`FlirPfecDevice` is an asynchronous, thread-safe hardware driver for FLIR M-Series and Nexus marine multi-sensor pan/tilt/zoom thermal and daylight camera turrets communicating over NMEA 0183 (`$PFEC` sentences).
+
+#### Architecture & Command Pipeline
+
+##### ASCII Architecture Diagram
+
+```
++---------------------------------------------------------------------------------------------------------+
+|                                         FlirPfecDevice Hardware Driver                                  |
++---------------------------------------------------------------------------------------------------------+
+|                                                                                                         |
+|   +-------------------------------------------------------------------------------------------------+   |
+|   |                                     Public Control Interface                                    |   |
+|   |  - setVelocity(panVel, tiltVel)           - setAbsoluteAngles(panDeg, tiltDeg)                  |   |
+|   |  - setDigitalZoom(level)                  - setZoomRate(zoomVel)                                |   |
+|   |  - selectSensor(Daylight / Thermal)       - setColorPalette(WhiteHot / BlackHot / Ironbow ...)  |   |
+|   |  - setStabilization(on / off)             - triggerNuc()                                        |   |
+|   |  - savePreset(id) / recallPreset(id)      - stopMotion()                                        |   |
+|   +-------------------------------------------------+-----------------------------------------------+   |
+|                                                     |                                                   |
+|                                                     v                                                   |
+|   +-------------------------------------------------------------------------------------------------+   |
+|   |                              NmeaSentenceBuilder ($PFEC Formatter)                              |   |
+|   |  $PFEC,GPcmd,SPEED,<pan>,<tilt>*HH        $PFEC,GPcmd,GOTO,<pan>,<tilt>*HH                      |   |
+|   |  $PFEC,GPcmd,ZOOM,<rate>*HH               $PFEC,GPcmd,CAM,<sensor>*HH                           |   |
+|   |  $PFEC,GPcmd,PALETTE,<id>*HH              $PFEC,GPcmd,STAB,<state>*HH                           |   |
+|   |  $PFEC,GPcmd,NUC*HH                       $PFEC,GPcmd,PRESET,<op>,<id>*HH                       |   |
+|   +-------------------------------------------------+-----------------------------------------------+   |
+|                                                     |                                                   |
+|                                                     v                                                   |
+|   +-------------------------------------------------------------------------------------------------+   |
+|   |                        Underlying Transport Channel (ITransport)                                |   |
+|   |   RS-422 / RS-232 Serial (4800 / 38400 baud) or UDP / TCP Sockets                               |   |
+|   +-------------------------------------------------+-----------------------------------------------+   |
+|                                                     | Inbound Telemetry Stream                          |
+|                                                     v                                                   |
+|   +-------------------------------------------------------------------------------------------------+   |
+|   |                     Background Ingestion & Telemetry Polling Thread                             |   |
+|   |  - Queries $PFEC,GPpos at periodic intervals (default 50 ms)                                    |   |
+|   |  - Ingests $PFEC,GPatt, $PFEC,GPpos, and $PFEC,GPcmd acknowledgments                            |   |
+|   |  - Dispatches PositionCallback with instantaneous pan, tilt, zoom, and sensor states            |   |
+|   +-------------------------------------------------------------------------------------------------+   |
++---------------------------------------------------------------------------------------------------------+
+```
+
+##### Mermaid Command & Feedback Flow
+
+```mermaid
+flowchart TD
+    subgraph Client ["Client Autonomy (PayloadHal / SlewToCueDirector)"]
+        CmdVel["setVelocity(panVel, tiltVel)"]
+        CmdAngle["setAbsoluteAngles(panDeg, tiltDeg)"]
+        CmdSensor["selectSensor(Thermal / Daylight)"]
+        CmdPalette["setColorPalette(Ironbow)"]
+    end
+
+    subgraph Driver ["FlirPfecDevice Driver"]
+        Builder["NmeaSentenceBuilder\n($PFEC Sentence Framing & Checksum)"]
+        Transport["Transport Layer\n(RS-422 Serial / Ethernet)"]
+        Poller["Background Poller Thread\n($PFEC,GPpos at 20 Hz)"]
+        Parser["NmeaSentenceParser\n($PFEC Telemetry Decapsulation)"]
+    end
+
+    subgraph Hardware ["FLIR M-Series Maritime Turret"]
+        Gimbal["Pan / Tilt Gimbal Motors"]
+        Sensors["Daylight CCD & Thermal LWIR Core"]
+    end
+
+    CmdVel --> Builder
+    CmdAngle --> Builder
+    CmdSensor --> Builder
+    CmdPalette --> Builder
+
+    Builder --> Transport --> Gimbal & Sensors
+    Poller --> Transport
+    Gimbal & Sensors -. Status Telemetry .-> Transport --> Parser --> Poller
+```
+
+* **Command Capabilities**:
+  * **Gimbal Motion**: Proportional velocity drive (`setVelocity` using normalized $[-1.0 .. +1.0]$ inputs) and absolute target slew (`setAbsoluteAngles` in degrees).
+  * **Optics & Zoom**: Optical and digital zoom magnification rates (`setZoomRate`, `setDigitalZoom`).
+  * **Multi-Sensor Switching**: Seamlessly toggles between Color Daylight CCD and Infrared Thermal sensors (`selectSensor`).
+  * **Thermal Palettes**: Selects color look-up tables (`WhiteHot`, `BlackHot`, `Ironbow`, `Rainbow`, `Sepia`).
+  * **Marine Stabilization & NUC**: Controls internal gyro stabilization and commands Non-Uniformity Correction (NUC) shutter calibration.
+  * **Telemetry Polling**: Background worker thread polls `$PFEC,GPpos` at configurable intervals (default $50\,\text{ms}$) and dispatches position telemetry callbacks.
+
+* **Unit Tests & Verification**:
+  * [TestFlirPfecDevice.cpp](../libs/Nmea/tests/TestFlirPfecDevice.cpp): Motion commands, zoom rates, sensor toggles, palette switches, gyro stabilization, preset recalls, and position feedback parsing.
+
+---
+
+### 8. Architectural Layering & System Decoupling Model
+*Standard Conformance: ISO/IEC/IEEE 42010 Architecture Description*
+
+To preserve modular isolation, prevent circular dependencies, and eliminate Qt contamination from core communication libraries, the maritime navigation subsystem maintains a **strict physical and architectural decoupling** between protocol decoding and camera actuation:
+
+#### Layering Matrix
+
+| Layer | Library Directory | Dependencies Allowed | Excluded Dependencies | Core Responsibility |
+| :--- | :--- | :--- | :--- | :--- |
+| **Protocol Core** | `libs/Nmea` | `libs/Transport`, `<cstdint>`, `<string>`, `<vector>`, `<mutex>` | `libs/PayloadHal`, `libs/Tracking`, `Qt` (`<Q...>`) | Parsing, framing, validation, BAM state machines, N2K CAN decoding, IEC 61162-450/460 security, route reassembly, environmental analysis. |
+| **Downstream Autonomy** | `libs/PayloadHal` | `libs/Nmea`, `libs/Tracking`, `libs/PayloadCore` | Direct hardware serial ports in math units, `Qt` | CPA/TCPA threat evaluation, range-adaptive optical zoom HFOV curves, Direction Cosine Matrix attitude counter-roll, video tracker handover. |
+| **Presentation / HMI** | `libs/MappingQt` / Tactical GUI | `libs/PayloadHal`, `libs/Nmea`, `Qt6::Core`, `Qt6::Quick` | Hardware drivers | QML nautical chart rendering, camera control widgets, HUD overlays. |
+
+#### Architectural Decoupling Diagram
+
+##### ASCII Boundary Diagram
+
+```
++---------------------------------------------------------------------------------------------------------+
+|                              AUTONOMOUS PTZ & TRACKING LAYER (libs/PayloadHal)                          |
+|                                                                                                         |
+|   +-----------------------------------+    +----------------------------------+                         |
+|   |       SlewToCueDirector           |    |     TargetThreatEvaluator        |                         |
+|   |  - Autonomous Workflow Coordinator|◄---|  - 2D/3D CPA & TCPA Threat Matrix|                         |
+|   |  - Tour Preemption & Handover     |    |  - AIS/Radar Target Correlation  |                         |
+|   |  - Video Tracker Centroid Lock    |    |  - Dark Vessel Heuristics        |                         |
+|   +-----------------+-----------------+    +----------------------------------+                         |
+|                     |                                                                                   |
+|         +-----------+-----------+-----------------------+                                               |
+|         v                       v                       v                                               |
+|   +-------------------+   +--------------------+  +-------------------------+                           |
+|   |AutoFramingControl.|   |VesselAttitudeCompen|  | NmeaSlavingBridge       |                           |
+|   | - Adaptive HFOV   |   | - Dynamic DCM      |  | - Line-of-Sight Az/El   |                           |
+|   | - Zoom Profiler   |   | - Horizon Leveling |  | - Predictive Coasting   |                           |
+|   +-------------------+   +--------------------+  +-------------------------+                           |
++---------------------------------------------------------------------------------------------------------+
+                                                  ▲
+                                                  | Value Objects & Telemetry Structs
+  ================================================|======================================================
+  STRICT ARCHITECTURAL BOUNDARY: Pure Protocol Core Below | Downstream Kinematics & HAL Above
+  ================================================|======================================================
+                                                  |
++---------------------------------------------------------------------------------------------------------+
+|                                    PROTOCOL CORE (libs/Nmea)                                            |
+|                                                                                                         |
+|   +-----------------------+    +-------------------------------+    +-------------------------------+   |
+|   |     N2kDevice         |    |         NmeaDevice            |    |       FlirPfecDevice          |   |
+|   | - Fast Packet Assembl.|    | - NMEA 0183 & Tag Blocks      |    | - FLIR M-Series PTZ Driver    |   |
+|   | - Address Claimer     |    | - Stream Hunting Accumulator  |    | - Thermal IR / Daylight Switch|   |
+|   | - PGN 126xxx - 130xxx |    | - Telemetry Caching & Dispatch|    | - Absolute & Velocity Slew    |   |
+|   +-----------------------+    +-------------------------------+    +-------------------------------+   |
+|                                                ▲                                                        |
+|                                                |                                                        |
+|   +--------------------------------------------+----------------------------------------------------+   |
+|   |                                 Core Analysis & Parsing Engines                                 |   |
+|   |  +--------------------+  +--------------------+  +--------------------+  +--------------------+ |   |
+|   |  | AisDecoder         |  | NmeaSensorArbiter  |  | NmeaRouteManager   |  | ThermalTuningAdv.  | |   |
+|   |  | - M.1371 Types 1-24|  | - Dual GNSS/Gyro   |  | - Route Reassembly |  | - Fog Penetration  | |   |
+|   |  | - SART/MOB Beacons |  | - Anti-Spoofing    |  | - SAR Sweeps & RMB |  | - Crossover Advice | |   |
+|   |  +--------------------+  +--------------------+  +--------------------+  +--------------------+ |   |
+|   +-------------------------------------------------------------------------------------------------+   |
++---------------------------------------------------------------------------------------------------------+
+```
+
+##### Mermaid Layering Decoupling
+
+```mermaid
+flowchart TD
+    subgraph Presentation ["Presentation & UI Layer"]
+        QML["Tactical Marine GUI / Web Dashboards\n(Qt6 Quick / WebSocket)"]
+    end
+
+    subgraph PayloadHal ["Autonomous PTZ & Kinematics Layer (libs/PayloadHal)"]
+        Director["SlewToCueDirector\n(Autonomous State Machine)"]
+        Threat["TargetThreatEvaluator\n(CPA / TCPA Matrix)"]
+        Framing["AutoFramingController\n(Range -> Optical Zoom)"]
+        Attitude["VesselAttitudeCompensator\n(DCM Attitude Stabilization)"]
+        Slaving["NmeaSlavingBridge\n(Platform-Relative Slew)"]
+    end
+
+    subgraph Boundary ["Strict Modular Boundary (Value Structs & Event Callbacks)"]
+        EventStream["One-Way Telemetry Flow\n(GGA, RMC, HDT, TTM, AIS, PGN 127257, Route, Advice)"]
+    end
+
+    subgraph NmeaCore ["Pure Protocol Core (libs/Nmea) - Zero Qt / Zero HAL"]
+        Device["NmeaDevice & N2kDevice"]
+        Parsers["SentenceParser & AisDecoder & N2kDecoder"]
+        RouteMgr["NmeaRouteManager"]
+        ThermalAdv["ThermalTuningAdvisor"]
+        FlirDev["FlirPfecDevice"]
+    end
+
+    Presentation --> Director
+    NmeaCore --> EventStream --> PayloadHal
+    Director --> Framing
+    Director --> Slaving
+    Threat --> Director
+    Attitude --> Slaving
+```
+
+---
+
 # Implementation Plan: PTZ Slew-to-Cue & Tracking Automation
 
 This plan outlines the architecture, mathematical models, state machines, and implementation phases to turn the existing navigation slaving components ([NmeaDevice](../libs/Nmea/NmeaDevice.h), [NmeaSlavingBridge](../libs/PayloadHal/NmeaSlavingBridge.h), [GeoLockController](../libs/PayloadHal/GeoLockController.h), and [PayloadAutoTrackerBridge](../libs/PayloadHal/PayloadAutoTrackerBridge.h)) into a fully autonomous **Slew-to-Cue, Threat Assessment, and Optical Tracking System**.
@@ -547,14 +923,14 @@ stateDiagram-v2
 
 ## 3. Step-by-Step Implementation Phases
 
-### Phase 1: Threat Assessment & Prioritization
+### Phase 1: Threat Assessment & Prioritization (Completed)
 * **Files**:
-  * New: [TargetThreatEvaluator.h](../libs/PayloadHal/TargetThreatEvaluator.h) & [TargetThreatEvaluator.cpp](../libs/PayloadHal/TargetThreatEvaluator.cpp)
-  * New: [TestTargetThreatEvaluator.cpp](../libs/PayloadHal/tests/TestTargetThreatEvaluator.cpp)
-* **Tasks**:
-  1. Implement CPA & TCPA 2D/3D vector calculations with unit tests.
-  2. Implement radar-to-AIS target correlation (associating TTM track numbers with AIS MMSIs based on spatial proximity $\le 150\,\text{m}$ and velocity difference $\le 2\,\text{knots}$).
-  3. Implement configurable threat scoring matrix and priority queue.
+  * [TargetThreatEvaluator.h](../libs/PayloadHal/TargetThreatEvaluator.h) & [TargetThreatEvaluator.cpp](../libs/PayloadHal/TargetThreatEvaluator.cpp)
+  * [TestTargetThreatEvaluator.cpp](../libs/PayloadHal/tests/TestTargetThreatEvaluator.cpp)
+* **Tasks Completed**:
+  1. Implemented CPA & TCPA 2D/3D vector calculations with unit tests.
+  2. Implemented radar-to-AIS target correlation (associating TTM track numbers with AIS MMSIs based on spatial proximity $\le 150\,\text{m}$ and velocity difference $\le 2\,\text{knots}$).
+  3. Implemented configurable threat scoring matrix and priority queue.
 
 ### Phase 2: Range-Adaptive Framing & Zoom Scheduling (Completed)
 * **Files**:

@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 namespace Nmea {
@@ -72,7 +73,11 @@ bool AisDecoder::decodeSentence(std::string_view sentence, AisVesselTarget& outT
     }
 
     const auto header = tokens[0];
-    if (header != "AIVDM" && header != "AIVDO") {
+    if (header.size() != 5U) {
+        return false;
+    }
+    const std::string_view formatter = header.substr(2U);
+    if (formatter != "VDM" && formatter != "VDO") {
         return false;
     }
 
@@ -111,7 +116,7 @@ bool AisDecoder::decodeSentence(std::string_view sentence, AisVesselTarget& outT
         const auto now = std::chrono::steady_clock::now();
         pruneStaleFragmentsLocked(now);
 
-        const auto key = std::make_pair(channel, static_cast<std::uint8_t>(seqId));
+        const FragmentKey key { std::string(header), channel, static_cast<std::uint8_t>(seqId) };
         auto it = m_fragments.find(key);
 
         if (sentenceNum == 1U) {

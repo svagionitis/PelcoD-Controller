@@ -757,18 +757,18 @@ libs/PayloadHal/tests/ (5 Suites, 40 Test Cases):
 
 ### Phase 2: P1 Functional Completeness & Documentation Synchronization
 
-- [ ] **Task 2.1: Update `docs/NMEA_Features.md`:**
+- [x] **Task 2.1: Update `docs/NMEA_Features.md`:**
   Incorporate comprehensive architectural descriptions, API summaries, and diagrams for:
   - `NmeaRouteManager` (Route assembly, waypoints, cross-track RMB, look-ahead, and SAR sweeps)
   - `ThermalTuningAdvisor` (Meteorological physics, thermal crossover, and fog penetration advice)
   - `FlirPfecDevice` (FLIR M-Series NMEA 0183 driver and controls)
   - Tag Block protocol (`NmeaTagBlockParser` / `Builder`)
   - Web streaming & JSON serialization (`NmeaJsonSerializer` / `NmeaWebSocketServer`)
-- [ ] **Task 2.2: Document Decoupled Layering Boundaries:**
+- [x] **Task 2.2: Document Decoupled Layering Boundaries:**
   Clarify in `docs/NMEA_Features.md` the explicit architectural boundary separating `libs/Nmea` (pure protocol) from `libs/PayloadHal` (autonomous camera kinematics and tracking).
-- [ ] **Task 2.3: AIS Multi-Talker Sequence Isolation:**
+- [x] **Task 2.3: AIS Multi-Talker Sequence Isolation:**
   Expand the fragment reassembly key in `AisDecoder` to include talker ID and sentence formatter prefix.
-- [ ] **Task 2.4: N2K Fast Packet Session Bounding:**
+- [x] **Task 2.4: N2K Fast Packet Session Bounding:**
   Implement a capacity limit (`kMaxConcurrentSessions = 64U`) in `N2kFastPacketAssembler` with LRU eviction.
 
 ### Phase 3: P2 Build Hygiene, Domain Value Objects & Checklist Polish

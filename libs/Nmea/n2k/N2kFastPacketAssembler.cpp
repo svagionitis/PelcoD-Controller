@@ -1,5 +1,6 @@
 #include "N2kFastPacketAssembler.h"
 
+#include <cstddef>
 #include <cstdint>
 
 #include <algorithm>
@@ -38,6 +39,12 @@ void N2kFastPacketAssembler::registerFastPacketPgn(std::uint32_t pgn)
     m_fastPacketPgns.insert(pgn);
 }
 
+std::size_t N2kFastPacketAssembler::activeSessionCount() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_sessions.size();
+}
+
 std::optional<N2kMessage> N2kFastPacketAssembler::processCanFrame(const CanFrame& frame)
 {
     const N2kHeader header = N2kHeader::fromCanId(frame.id);
@@ -65,6 +72,19 @@ std::optional<N2kMessage> N2kFastPacketAssembler::processCanFrame(const CanFrame
     const std::uint64_t sessionKey = makeSessionKey(header.sourceAddress, header.pgn);
 
     if (frameCounter == 0U) {
+        // Enforce maximum concurrent session limit to prevent unbounded memory growth (SEI CERT MEM07-C)
+        if (m_sessions.size() >= kMaxConcurrentSessions && m_sessions.find(sessionKey) == m_sessions.end()) {
+            auto oldestIt = m_sessions.begin();
+            for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+                if (it->second.startTime < oldestIt->second.startTime) {
+                    oldestIt = it;
+                }
+            }
+            if (oldestIt != m_sessions.end()) {
+                m_sessions.erase(oldestIt);
+            }
+        }
+
         // First frame of Fast Packet sequence
         const std::size_t totalBytes = frame.data[1];
         if (totalBytes == 0U || totalBytes > 250U) {

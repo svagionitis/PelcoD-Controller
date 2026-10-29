@@ -14,6 +14,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 
 namespace Nmea {
 
@@ -81,10 +82,12 @@ private:
         std::chrono::steady_clock::time_point lastSeen { std::chrono::steady_clock::now() };
     };
 
+    using FragmentKey = std::tuple<std::string, char, std::uint8_t>;
+
     void pruneStaleFragmentsLocked(std::chrono::steady_clock::time_point now);
 
     mutable std::mutex m_mutex {};
-    std::map<std::pair<char, std::uint8_t>, MultiPartFragment> m_fragments {};
+    std::map<FragmentKey, MultiPartFragment> m_fragments {};
     std::chrono::milliseconds m_fragmentTtl { 5000 };
 };
 
