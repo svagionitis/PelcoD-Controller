@@ -66,9 +66,9 @@ namespace {
         EXPECT_EQ(gga.utcTime.millisecond, 0U);
 
         // 53 + 21.6802/60 = 53.361336
-        EXPECT_NEAR(gga.coordinates.latitudeDeg, 53.361336, 1e-4);
+        EXPECT_NEAR(gga.coordinates.latitudeDeg(), 53.361336, 1e-4);
         // -(6 + 30.3372/60) = -6.50562
-        EXPECT_NEAR(gga.coordinates.longitudeDeg, -6.50562, 1e-4);
+        EXPECT_NEAR(gga.coordinates.longitudeDeg(), -6.50562, 1e-4);
 
         EXPECT_EQ(gga.fixQuality, NmeaFixQuality::GpsFix);
         EXPECT_EQ(gga.numSatellites, 8U);
@@ -92,8 +92,8 @@ namespace {
         EXPECT_EQ(rmc.utcTime.minute, 35U);
         EXPECT_EQ(rmc.utcTime.second, 59U);
 
-        EXPECT_NEAR(rmc.coordinates.latitudeDeg, 47.0 + 17.11437 / 60.0, 1e-4);
-        EXPECT_NEAR(rmc.coordinates.longitudeDeg, 8.0 + 33.91522 / 60.0, 1e-4);
+        EXPECT_NEAR(rmc.coordinates.latitudeDeg(), 47.0 + 17.11437 / 60.0, 1e-4);
+        EXPECT_NEAR(rmc.coordinates.longitudeDeg(), 8.0 + 33.91522 / 60.0, 1e-4);
 
         EXPECT_NEAR(rmc.speedOverGroundKnots, 12.5, 1e-2);
         EXPECT_NEAR(rmc.courseOverGroundDegrees, 77.5, 1e-2);
@@ -166,8 +166,8 @@ namespace {
 
         EXPECT_TRUE(tll.valid);
         EXPECT_EQ(tll.targetNumber, 3U);
-        EXPECT_NEAR(tll.coordinates.latitudeDeg, 36.0 + 12.34 / 60.0, 1e-4);
-        EXPECT_NEAR(tll.coordinates.longitudeDeg, 14.0 + 25.67 / 60.0, 1e-4);
+        EXPECT_NEAR(tll.coordinates.latitudeDeg(), 36.0 + 12.34 / 60.0, 1e-4);
+        EXPECT_NEAR(tll.coordinates.longitudeDeg(), 14.0 + 25.67 / 60.0, 1e-4);
         EXPECT_EQ(tll.targetName, "FERRY_1");
         EXPECT_EQ(tll.utcTimeTag.hour, 12U);
         EXPECT_EQ(tll.utcTimeTag.minute, 30U);

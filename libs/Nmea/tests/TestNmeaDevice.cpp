@@ -49,7 +49,7 @@ namespace {
 
         void injectString(std::string_view text)
         {
-            std::vector<std::uint8_t> data { };
+            std::vector<std::uint8_t> data {};
             data.reserve(text.size());
             for (const char ch : text) {
                 data.push_back(static_cast<std::uint8_t>(ch));
@@ -71,8 +71,8 @@ namespace {
 
     private:
         std::atomic<bool> m_isOpen { false };
-        mutable std::mutex m_txMutex { };
-        std::vector<std::string> m_sentPackets { };
+        mutable std::mutex m_txMutex {};
+        std::vector<std::string> m_sentPackets {};
     };
 
     TEST(TestNmeaDevice, LifecycleStartStop)
@@ -103,7 +103,7 @@ namespace {
         ASSERT_TRUE(device.start());
 
         std::atomic<std::size_t> navUpdateCount { 0U };
-        NmeaNavSnapshot lastNav { };
+        NmeaNavSnapshot lastNav {};
         const auto subId = device.addNavCallback([&](const NmeaNavSnapshot& snap) {
             navUpdateCount++;
             lastNav = snap;
@@ -115,8 +115,8 @@ namespace {
 
         EXPECT_EQ(navUpdateCount.load(), 1U);
         EXPECT_TRUE(lastNav.hasPosition);
-        EXPECT_NEAR(lastNav.position.latitudeDeg, 48.1173, 1e-4);
-        EXPECT_NEAR(lastNav.position.longitudeDeg, 11.5166, 1e-4);
+        EXPECT_NEAR(lastNav.position.latitudeDeg(), 48.1173, 1e-4);
+        EXPECT_NEAR(lastNav.position.longitudeDeg(), 11.5166, 1e-4);
         EXPECT_NEAR(lastNav.altitudeMeters, 545.4, 1e-1);
         EXPECT_EQ(lastNav.fixQuality, NmeaFixQuality::GpsFix);
 
@@ -165,7 +165,7 @@ namespace {
         ASSERT_TRUE(device.start());
 
         std::atomic<std::size_t> attCount { 0U };
-        AttitudeData lastAtt { };
+        AttitudeData lastAtt {};
         const auto subId = device.addAttitudeCallback([&](const AttitudeData& att) {
             lastAtt = att;
             attCount++;
@@ -330,8 +330,8 @@ namespace {
         // Thread 2: Continuously adds and removes subscribers
         std::thread subscriber([&]() {
             for (int i = 0; i < 50; ++i) {
-                const auto id1 = device.addNavCallback([](const NmeaNavSnapshot&) { });
-                const auto id2 = device.addRadarCallback([](const TtmData&) { });
+                const auto id1 = device.addNavCallback([](const NmeaNavSnapshot&) {});
+                const auto id2 = device.addRadarCallback([](const TtmData&) {});
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 device.removeNavCallback(id1);
                 device.removeRadarCallback(id2);

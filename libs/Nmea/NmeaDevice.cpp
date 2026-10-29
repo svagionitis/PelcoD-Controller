@@ -907,9 +907,9 @@ void NmeaDevice::processSentence(std::string_view sentence)
 
             {
                 std::lock_guard<std::mutex> lock(m_targetMutex);
-                m_aisTargets[aisTarget.mmsi] = { aisTarget, now };
+                m_aisTargets[aisTarget.mmsi.value()] = { aisTarget, now };
                 if (alertOpt) {
-                    m_emergencyBeacons[alertOpt->mmsi] = *alertOpt;
+                    m_emergencyBeacons[alertOpt->mmsi.value()] = *alertOpt;
                 }
             }
             std::shared_ptr<const std::vector<std::pair<std::size_t, AisCallback>>> aisCbs;

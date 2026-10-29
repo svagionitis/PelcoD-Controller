@@ -21,8 +21,8 @@ namespace {
         EXPECT_EQ(target.navStatus, AisNavStatus::UnderWayUsingEngine);
         EXPECT_NEAR(target.speedOverGroundKnots, 12.0, 1e-1);
         EXPECT_TRUE(target.positionValid);
-        EXPECT_NEAR(target.coordinates.longitudeDeg, 81.876, 1e-4);
-        EXPECT_NEAR(target.coordinates.latitudeDeg, 41.9278, 1e-4);
+        EXPECT_NEAR(target.coordinates.longitudeDeg(), 81.876, 1e-4);
+        EXPECT_NEAR(target.coordinates.latitudeDeg(), 41.9278, 1e-4);
         EXPECT_NEAR(target.courseOverGroundDegrees, 207.1, 1e-1);
         EXPECT_NEAR(target.trueHeadingDegrees, 95.0, 1e-1);
     }
@@ -75,8 +75,8 @@ namespace {
         EXPECT_EQ(target.messageType, AisMessageType::ClassBPosition18);
         EXPECT_EQ(target.mmsi, 211568384U);
         EXPECT_TRUE(target.positionValid);
-        EXPECT_NEAR(target.coordinates.longitudeDeg, 13.164185, 1e-4);
-        EXPECT_NEAR(target.coordinates.latitudeDeg, 53.757762, 1e-4);
+        EXPECT_NEAR(target.coordinates.longitudeDeg(), 13.164185, 1e-4);
+        EXPECT_NEAR(target.coordinates.latitudeDeg(), 53.757762, 1e-4);
         EXPECT_NEAR(target.speedOverGroundKnots, 0.0, 1e-1);
         EXPECT_NEAR(target.trueHeadingDegrees, 510.0, 1e-1);
     }

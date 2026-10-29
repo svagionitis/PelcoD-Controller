@@ -193,12 +193,11 @@ namespace {
 
     TEST(TestMultiTargetFusionRanking, RadarToAisFusionCorrelation)
     {
-        TargetThreatEvaluator evaluator { };
+        TargetThreatEvaluator evaluator {};
 
-        Nmea::NmeaNavSnapshot ownNav { };
+        Nmea::NmeaNavSnapshot ownNav {};
         ownNav.hasPosition = true;
-        ownNav.position.latitudeDeg = 37.0;
-        ownNav.position.longitudeDeg = -122.0;
+        ownNav.position = Nmea::NmeaCoordinates(37.0, -122.0);
         ownNav.hasHeading = true;
         ownNav.trueHeadingDegrees = 0.0;
         ownNav.sogKnots = 10.0;
@@ -206,10 +205,10 @@ namespace {
 
         // Target at 1.0 NM (1852m) bearing 045 deg
         const Klv::GeoPoint2D tgtPt = Klv::KlvGeodesy::directGeodetic(
-            { ownNav.position.latitudeDeg, ownNav.position.longitudeDeg }, 45.0, 1852.0);
+            { ownNav.position.latitudeDeg(), ownNav.position.longitudeDeg() }, 45.0, 1852.0);
 
         // 1. Radar ARPA target track 10
-        Nmea::TtmData radarTgt { };
+        Nmea::TtmData radarTgt {};
         radarTgt.targetNumber = 10U;
         radarTgt.targetDistanceNmi = 1.0;
         radarTgt.bearingDegrees = 45.0;
@@ -221,11 +220,10 @@ namespace {
         radarTgt.targetName = "RADAR_CONTACT";
 
         // 2. Matching AIS vessel within 50m and 0.5 kts
-        Nmea::AisVesselTarget aisTgt { };
-        aisTgt.mmsi = 239999999U;
+        Nmea::AisVesselTarget aisTgt {};
+        aisTgt.mmsi = Nmea::Mmsi(239999999U);
         aisTgt.vesselName = "MERCHANT_VESSEL";
-        aisTgt.coordinates.latitudeDeg = tgtPt.latitudeDeg;
-        aisTgt.coordinates.longitudeDeg = tgtPt.longitudeDeg;
+        aisTgt.coordinates = Nmea::NmeaCoordinates(tgtPt.latitudeDeg, tgtPt.longitudeDeg);
         aisTgt.positionValid = true;
         aisTgt.speedOverGroundKnots = 14.2;
         aisTgt.courseOverGroundDegrees = 224.5;
@@ -245,19 +243,18 @@ namespace {
 
     TEST(TestMultiTargetFusionRanking, DarkVesselDetectionHeuristic)
     {
-        TargetThreatEvaluator evaluator { };
+        TargetThreatEvaluator evaluator {};
 
-        Nmea::NmeaNavSnapshot ownNav { };
+        Nmea::NmeaNavSnapshot ownNav {};
         ownNav.hasPosition = true;
-        ownNav.position.latitudeDeg = 37.0;
-        ownNav.position.longitudeDeg = -122.0;
+        ownNav.position = Nmea::NmeaCoordinates(37.0, -122.0);
         ownNav.hasHeading = true;
         ownNav.trueHeadingDegrees = 0.0;
         ownNav.sogKnots = 10.0;
         ownNav.cogDegrees = 0.0;
 
         // Radar target with NO matching AIS in vicinity
-        Nmea::TtmData radarTgt { };
+        Nmea::TtmData radarTgt {};
         radarTgt.targetNumber = 77U;
         radarTgt.targetDistanceNmi = 1.2;
         radarTgt.bearingDegrees = 300.0;
@@ -269,11 +266,10 @@ namespace {
 
         // AIS target far away (5 NM away)
         const Klv::GeoPoint2D farPt = Klv::KlvGeodesy::directGeodetic(
-            { ownNav.position.latitudeDeg, ownNav.position.longitudeDeg }, 090.0, 9260.0);
-        Nmea::AisVesselTarget distantAis { };
-        distantAis.mmsi = 311000111U;
-        distantAis.coordinates.latitudeDeg = farPt.latitudeDeg;
-        distantAis.coordinates.longitudeDeg = farPt.longitudeDeg;
+            { ownNav.position.latitudeDeg(), ownNav.position.longitudeDeg() }, 090.0, 9260.0);
+        Nmea::AisVesselTarget distantAis {};
+        distantAis.mmsi = Nmea::Mmsi(311000111U);
+        distantAis.coordinates = Nmea::NmeaCoordinates(farPt.latitudeDeg, farPt.longitudeDeg);
         distantAis.positionValid = true;
         distantAis.speedOverGroundKnots = 8.0;
 
@@ -290,17 +286,16 @@ namespace {
 
     TEST(TestMultiTargetFusionRanking, MultiTargetQueueAndCooldown)
     {
-        TargetThreatEvaluator evaluator { };
+        TargetThreatEvaluator evaluator {};
 
-        Nmea::NmeaNavSnapshot ownNav { };
+        Nmea::NmeaNavSnapshot ownNav {};
         ownNav.hasPosition = true;
-        ownNav.position.latitudeDeg = 37.0;
-        ownNav.position.longitudeDeg = -122.0;
+        ownNav.position = Nmea::NmeaCoordinates(37.0, -122.0);
         ownNav.hasHeading = true;
         ownNav.trueHeadingDegrees = 0.0;
 
         // Target A: Low threat distant cargo
-        Nmea::TtmData tgtA { };
+        Nmea::TtmData tgtA {};
         tgtA.targetNumber = 1U;
         tgtA.targetDistanceNmi = 4.0;
         tgtA.bearingDegrees = 090.0;
@@ -311,7 +306,7 @@ namespace {
         tgtA.status = Nmea::TtmTargetStatus::Tracking;
 
         // Target B: Moderate threat crossing ferry
-        Nmea::TtmData tgtB { };
+        Nmea::TtmData tgtB {};
         tgtB.targetNumber = 2U;
         tgtB.targetDistanceNmi = 2.0;
         tgtB.bearingDegrees = 045.0;
@@ -322,7 +317,7 @@ namespace {
         tgtB.status = Nmea::TtmTargetStatus::Tracking;
 
         // Target C: Critical threat fast closing dark craft
-        Nmea::TtmData tgtC { };
+        Nmea::TtmData tgtC {};
         tgtC.targetNumber = 3U;
         tgtC.targetDistanceNmi = 0.8;
         tgtC.bearingDegrees = 000.0;
@@ -332,7 +327,7 @@ namespace {
         tgtC.courseReference = Nmea::TtmReference::True;
         tgtC.status = Nmea::TtmTargetStatus::Tracking;
 
-        evaluator.evaluate(ownNav, { tgtA, tgtB, tgtC }, { });
+        evaluator.evaluate(ownNav, { tgtA, tgtB, tgtC }, {});
 
         const auto ranked = evaluator.getPrioritizedTargets();
         ASSERT_EQ(ranked.size(), 3U);
@@ -364,20 +359,20 @@ namespace {
 
         // 2. Preset Manager & Tour Engine (Cyclical Patrol)
         auto presetMgr = std::make_shared<LocalPresetManager>(ptu, camera);
-        PtzPreset p1 { };
+        PtzPreset p1 {};
         p1.id = 1;
         p1.panAngleDeg = 10.0;
         p1.tiltAngleDeg = -5.0;
         presetMgr->savePreset(p1);
 
-        PtzPreset p2 { };
+        PtzPreset p2 {};
         p2.id = 2;
         p2.panAngleDeg = 20.0;
         p2.tiltAngleDeg = -5.0;
         presetMgr->savePreset(p2);
 
         auto tourEngine = std::make_shared<TourEngine>(ptu, camera, presetMgr);
-        TourDefinition tourDef { };
+        TourDefinition tourDef {};
         tourDef.tourId = "horizon_patrol";
         tourDef.name = "Horizon Guard Patrol";
         tourDef.loop = true;
@@ -401,13 +396,13 @@ namespace {
         slavingBridge->setLockToleranceDeg(1.0);
 
         auto threatEvaluator = std::make_shared<TargetThreatEvaluator>();
-        AutoFramingConfig frameCfg { };
+        AutoFramingConfig frameCfg {};
         frameCfg.maxZoomVelocityPerSec = 0.5;
         auto framing = std::make_shared<AutoFramingController>(frameCfg);
 
         auto autoTracker = std::make_shared<PayloadAutoTrackerBridge>(payload);
 
-        SlewToCueConfig cueCfg { };
+        SlewToCueConfig cueCfg {};
         cueCfg.autonomousEngagement = true;
         cueCfg.minThreatScoreToCue = 30.0;
         cueCfg.opticalAcquisitionTimeout = std::chrono::milliseconds(50);
@@ -420,7 +415,7 @@ namespace {
         // 4. Construct Synthetic Voyage Log
         // - Own ship at (37.0, -122.0), heading 090, speed 12 knots, rolling/pitching in swell
         // - Fast unidentified radar contact at 1.0 NM closing at 35 knots
-        std::string voyageLog { };
+        std::string voyageLog {};
         voyageLog
             += Nmea::NmeaChecksum::frameSentence("GPGGA,120000.00,3700.000,N,12200.000,W,1,08,0.9,10.0,M,0.0,M,,");
         voyageLog += Nmea::NmeaChecksum::frameSentence("HEHDT,090.0,T");
@@ -558,7 +553,7 @@ namespace {
         EXPECT_FALSE(attitudeComp->hasValidAttitude());
 
         // Calling compensateLookAngles falls back safely to 2D deck model
-        PlatformLeverArmConfig armCfg { };
+        PlatformLeverArmConfig armCfg {};
         const Klv::GeoPoint3D platformPos { 37.0, -122.0, 0.0 };
         const Klv::GeoPoint3D targetPos { 37.01, -122.0, 0.0 };
         const auto look = attitudeComp->compensateLookAngles(platformPos, targetPos, armCfg);
@@ -580,15 +575,14 @@ namespace {
         auto threatEvaluator = std::make_shared<TargetThreatEvaluator>();
 
         // Own ship
-        Nmea::NmeaNavSnapshot ownNav { };
+        Nmea::NmeaNavSnapshot ownNav {};
         ownNav.hasPosition = true;
-        ownNav.position.latitudeDeg = 37.0;
-        ownNav.position.longitudeDeg = -122.0;
+        ownNav.position = Nmea::NmeaCoordinates(37.0, -122.0);
         ownNav.hasHeading = true;
         ownNav.trueHeadingDegrees = 0.0;
 
         // 1. Initial moderate threat (Radar target 5)
-        Nmea::TtmData radarTgt { };
+        Nmea::TtmData radarTgt {};
         radarTgt.targetNumber = 5U;
         radarTgt.targetDistanceNmi = 1.0;
         radarTgt.bearingDegrees = 45.0;
@@ -598,15 +592,14 @@ namespace {
         radarTgt.courseReference = Nmea::TtmReference::True;
         radarTgt.status = Nmea::TtmTargetStatus::Tracking;
 
-        threatEvaluator->evaluate(ownNav, { radarTgt }, { });
+        threatEvaluator->evaluate(ownNav, { radarTgt }, {});
         EXPECT_EQ(threatEvaluator->getHighestThreatTarget()->targetId, 5U);
 
         // 2. Emergency Distress Beacon arrives (AIS-SART MMSI 970123456)
-        Nmea::AisVesselTarget sartBeacon { };
-        sartBeacon.mmsi = 970123456U;
+        Nmea::AisVesselTarget sartBeacon {};
+        sartBeacon.mmsi = Nmea::Mmsi(970123456U);
         sartBeacon.vesselName = "AIS-SART ACTIVE";
-        sartBeacon.coordinates.latitudeDeg = 37.01;
-        sartBeacon.coordinates.longitudeDeg = -122.01;
+        sartBeacon.coordinates = Nmea::NmeaCoordinates(37.01, -122.01);
         sartBeacon.positionValid = true;
         sartBeacon.isEmergencyBeacon = true;
         sartBeacon.beaconType = Nmea::AisBeaconType::AisSart;
@@ -641,7 +634,7 @@ namespace {
         auto framing = std::make_shared<AutoFramingController>();
         auto autoTracker = std::make_shared<PayloadAutoTrackerBridge>(payload);
 
-        SlewToCueConfig cfg { };
+        SlewToCueConfig cfg {};
         cfg.autonomousEngagement = false;
         cfg.autoOpticalHandover = true;
         cfg.opticalAcquisitionTimeout = std::chrono::milliseconds(20);
@@ -651,7 +644,7 @@ namespace {
             threatEvaluator, slavingBridge, framing, autoTracker, payload->primaryCamera(), geoLock, cfg);
 
         // Inject own ship and target
-        std::string log { };
+        std::string log {};
         log += Nmea::NmeaChecksum::frameSentence("GPGGA,120000,3700.000,N,12200.000,W,1,08,1.0,0.0,M,0.0,M,,");
         log += Nmea::NmeaChecksum::frameSentence("HEHDT,000.0,T");
         log += Nmea::NmeaChecksum::frameSentence("RATTM,42,1.0,000.0,T,20.0,180.0,T,0.0,3.0,K,FAST_TARGET,T,,120000,A");
@@ -661,7 +654,7 @@ namespace {
             transport->stepForward();
         }
 
-        threatEvaluator->evaluate(nmeaDevice->navSnapshot(), nmeaDevice->activeRadarTargets(), { });
+        threatEvaluator->evaluate(nmeaDevice->navSnapshot(), nmeaDevice->activeRadarTargets(), {});
 
         // Manually cue radar target 42
         ASSERT_TRUE(director->cueRadarTarget(42U));

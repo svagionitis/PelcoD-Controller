@@ -408,10 +408,12 @@ bool NmeaSentenceParser::parseGga(std::string_view sentence, GgaData& outData, b
 
     static_cast<void>(parseUtcTime(tokens[1], outData.utcTime));
 
-    if (!parseCoordinate(tokens[2], tokens[3], outData.coordinates.latitudeDeg)
-        || !parseCoordinate(tokens[4], tokens[5], outData.coordinates.longitudeDeg)) {
+    double latDeg { 0.0 };
+    double lonDeg { 0.0 };
+    if (!parseCoordinate(tokens[2], tokens[3], latDeg) || !parseCoordinate(tokens[4], tokens[5], lonDeg)) {
         return false;
     }
+    outData.coordinates = NmeaCoordinates(latDeg, lonDeg);
 
     unsigned int fixQ { 0U };
     if (parseUInt(tokens[6], fixQ)) {
@@ -456,10 +458,12 @@ bool NmeaSentenceParser::parseRmc(std::string_view sentence, RmcData& outData, b
 
     outData.statusActive = (!tokens[2].empty() && tokens[2].front() == 'A');
 
-    if (!parseCoordinate(tokens[3], tokens[4], outData.coordinates.latitudeDeg)
-        || !parseCoordinate(tokens[5], tokens[6], outData.coordinates.longitudeDeg)) {
+    double latDeg { 0.0 };
+    double lonDeg { 0.0 };
+    if (!parseCoordinate(tokens[3], tokens[4], latDeg) || !parseCoordinate(tokens[5], tokens[6], lonDeg)) {
         return false;
     }
+    outData.coordinates = NmeaCoordinates(latDeg, lonDeg);
 
     parseDouble(tokens[7], outData.speedOverGroundKnots);
     parseDouble(tokens[8], outData.courseOverGroundDegrees);
@@ -608,10 +612,12 @@ bool NmeaSentenceParser::parseTll(std::string_view sentence, TllData& outData, b
         outData.targetNumber = targetNum;
     }
 
-    if (!parseCoordinate(tokens[2], tokens[3], outData.coordinates.latitudeDeg)
-        || !parseCoordinate(tokens[4], tokens[5], outData.coordinates.longitudeDeg)) {
+    double latDeg { 0.0 };
+    double lonDeg { 0.0 };
+    if (!parseCoordinate(tokens[2], tokens[3], latDeg) || !parseCoordinate(tokens[4], tokens[5], lonDeg)) {
         return false;
     }
+    outData.coordinates = NmeaCoordinates(latDeg, lonDeg);
 
     outData.targetName = std::string(tokens[6]);
     static_cast<void>(parseUtcTime(tokens[7], outData.utcTimeTag));
@@ -898,10 +904,12 @@ bool NmeaSentenceParser::parseBwc(std::string_view sentence, BwcData& outData, b
     }
 
     (void)parseUtcTime(tokens[1], outData.utcTime);
-    if (!parseCoordinate(tokens[2], tokens[3], outData.waypointCoordinates.latitudeDeg)
-        || !parseCoordinate(tokens[4], tokens[5], outData.waypointCoordinates.longitudeDeg)) {
+    double latDeg { 0.0 };
+    double lonDeg { 0.0 };
+    if (!parseCoordinate(tokens[2], tokens[3], latDeg) || !parseCoordinate(tokens[4], tokens[5], lonDeg)) {
         return false;
     }
+    outData.waypointCoordinates = NmeaCoordinates(latDeg, lonDeg);
     parseDouble(tokens[6], outData.bearingTrueDeg);
     parseDouble(tokens[8], outData.bearingMagneticDeg);
     parseDouble(tokens[10], outData.distanceNmi);
@@ -1009,8 +1017,7 @@ bool NmeaSentenceParser::parseRmb(std::string_view sentence, RmbData& outData, b
         double lat { 0.0 };
         double lon { 0.0 };
         if (parseCoordinate(tokens[6], tokens[7], lat) && parseCoordinate(tokens[8], tokens[9], lon)) {
-            outData.destCoordinates.latitudeDeg = lat;
-            outData.destCoordinates.longitudeDeg = lon;
+            outData.destCoordinates = NmeaCoordinates(lat, lon);
         }
     }
 
@@ -1088,8 +1095,7 @@ bool NmeaSentenceParser::parseWpl(std::string_view sentence, WplData& outData, b
         return false;
     }
 
-    outData.coordinates.latitudeDeg = lat;
-    outData.coordinates.longitudeDeg = lon;
+    outData.coordinates = NmeaCoordinates(lat, lon);
     outData.waypointId = std::string(tokens[5]);
     outData.valid = true;
     return true;

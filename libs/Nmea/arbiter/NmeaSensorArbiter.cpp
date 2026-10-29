@@ -66,13 +66,13 @@ void NmeaSensorArbiter::updateGps(GpsSourceId source, const GgaData& gga)
             const double dt = std::chrono::duration<double>(now - st.lastUpdate).count();
             if (dt > 0.05) {
                 const double dist = calculateDistanceMeters(
-                    st.latitudeDeg, st.longitudeDeg, gga.coordinates.latitudeDeg, gga.coordinates.longitudeDeg);
+                    st.latitudeDeg, st.longitudeDeg, gga.coordinates.latitudeDeg(), gga.coordinates.longitudeDeg());
                 const double speed = dist / dt;
                 st.kinematicJumpDetected = (speed > m_config.maxSanitySpeedMps && dist > 50.0);
             }
         }
-        st.latitudeDeg = gga.coordinates.latitudeDeg;
-        st.longitudeDeg = gga.coordinates.longitudeDeg;
+        st.latitudeDeg = gga.coordinates.latitudeDeg();
+        st.longitudeDeg = gga.coordinates.longitudeDeg();
         st.altitudeMeters = gga.altitudeMeters;
         st.fixQuality = gga.fixQuality;
         st.satellites = gga.numSatellites;
@@ -100,13 +100,13 @@ void NmeaSensorArbiter::updateGps(GpsSourceId source, const RmcData& rmc)
             const double dt = std::chrono::duration<double>(now - st.lastUpdate).count();
             if (dt > 0.05) {
                 const double dist = calculateDistanceMeters(
-                    st.latitudeDeg, st.longitudeDeg, rmc.coordinates.latitudeDeg, rmc.coordinates.longitudeDeg);
+                    st.latitudeDeg, st.longitudeDeg, rmc.coordinates.latitudeDeg(), rmc.coordinates.longitudeDeg());
                 const double speed = dist / dt;
                 st.kinematicJumpDetected = (speed > m_config.maxSanitySpeedMps && dist > 50.0);
             }
         }
-        st.latitudeDeg = rmc.coordinates.latitudeDeg;
-        st.longitudeDeg = rmc.coordinates.longitudeDeg;
+        st.latitudeDeg = rmc.coordinates.latitudeDeg();
+        st.longitudeDeg = rmc.coordinates.longitudeDeg();
         st.sogKnots = rmc.speedOverGroundKnots;
         st.cogDegrees = rmc.courseOverGroundDegrees;
         st.positionValid = true;
@@ -293,7 +293,7 @@ void NmeaSensorArbiter::computeHeadingHealth(HeadingChannelStatus& st, std::chro
 void NmeaSensorArbiter::arbitrateGps(std::chrono::steady_clock::time_point /*now*/)
 {
     GpsSourceId target = m_activeGps;
-    std::string reason { };
+    std::string reason {};
 
     if (m_config.policy == FailoverPolicy::ManualOverride) {
         target = m_config.manualGpsSelection;
@@ -339,7 +339,7 @@ void NmeaSensorArbiter::arbitrateGps(std::chrono::steady_clock::time_point /*now
 void NmeaSensorArbiter::arbitrateHeading(std::chrono::steady_clock::time_point /*now*/)
 {
     HeadingSourceId target = m_activeHeading;
-    std::string reason { };
+    std::string reason {};
 
     if (m_config.policy == FailoverPolicy::ManualOverride) {
         target = m_config.manualHeadingSelection;
@@ -433,12 +433,11 @@ HeadingSourceId NmeaSensorArbiter::activeHeadingSource() const
 NmeaNavSnapshot NmeaSensorArbiter::activeNavSnapshot() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    NmeaNavSnapshot snapshot { };
+    NmeaNavSnapshot snapshot {};
 
     const GpsChannelStatus& gps = (m_activeGps == GpsSourceId::Primary) ? m_primaryGps : m_secondaryGps;
     if (gps.online && gps.positionValid) {
-        snapshot.position.latitudeDeg = gps.latitudeDeg;
-        snapshot.position.longitudeDeg = gps.longitudeDeg;
+        snapshot.position = NmeaCoordinates(gps.latitudeDeg, gps.longitudeDeg);
         snapshot.altitudeMeters = gps.altitudeMeters;
         snapshot.sogKnots = gps.sogKnots;
         snapshot.cogDegrees = gps.cogDegrees;

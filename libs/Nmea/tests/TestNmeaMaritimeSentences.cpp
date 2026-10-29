@@ -54,7 +54,7 @@ private:
 
 TEST(TestNmeaMaritimeSentences, RsdRadarCursorRoundtrip)
 {
-    RsdData input { };
+    RsdData input {};
     input.cursorRangeNmi = 4.25;
     input.cursorBearingDeg = 135.5;
     input.rangeScaleNmi = 12.0;
@@ -66,7 +66,7 @@ TEST(TestNmeaMaritimeSentences, RsdRadarCursorRoundtrip)
     EXPECT_EQ(NmeaSentenceParser::identifySentence(sentence), NmeaSentenceId::RSD);
     EXPECT_EQ(NmeaSentenceParser::extractTalkerId(sentence), "RA");
 
-    RsdData parsed { };
+    RsdData parsed {};
     EXPECT_TRUE(NmeaSentenceParser::parseRsd(sentence, parsed, true));
     EXPECT_TRUE(parsed.valid);
     EXPECT_NEAR(parsed.cursorRangeNmi, 4.25, 1e-4);
@@ -77,7 +77,7 @@ TEST(TestNmeaMaritimeSentences, RsdRadarCursorRoundtrip)
 
 TEST(TestNmeaMaritimeSentences, OsdOwnShipDataRoundtrip)
 {
-    OsdData input { };
+    OsdData input {};
     input.headingDegrees = 270.4;
     input.headingValid = true;
     input.courseDegrees = 272.1;
@@ -93,7 +93,7 @@ TEST(TestNmeaMaritimeSentences, OsdOwnShipDataRoundtrip)
 
     EXPECT_EQ(NmeaSentenceParser::identifySentence(sentence), NmeaSentenceId::OSD);
 
-    OsdData parsed { };
+    OsdData parsed {};
     EXPECT_TRUE(NmeaSentenceParser::parseOsd(sentence, parsed, true));
     EXPECT_TRUE(parsed.valid);
     EXPECT_DOUBLE_EQ(parsed.headingDegrees, 270.4);
@@ -105,7 +105,7 @@ TEST(TestNmeaMaritimeSentences, OsdOwnShipDataRoundtrip)
 
 TEST(TestNmeaMaritimeSentences, ApbAutopilotRoundtrip)
 {
-    ApbData input { };
+    ApbData input {};
     input.generalWarning = false;
     input.cycleLockWarning = false;
     input.crossTrackErrorNmi = 0.045;
@@ -127,7 +127,7 @@ TEST(TestNmeaMaritimeSentences, ApbAutopilotRoundtrip)
 
     EXPECT_EQ(NmeaSentenceParser::identifySentence(sentence), NmeaSentenceId::APB);
 
-    ApbData parsed { };
+    ApbData parsed {};
     EXPECT_TRUE(NmeaSentenceParser::parseApb(sentence, parsed, true));
     EXPECT_TRUE(parsed.valid);
     EXPECT_FALSE(parsed.generalWarning);
@@ -140,7 +140,7 @@ TEST(TestNmeaMaritimeSentences, ApbAutopilotRoundtrip)
 
 TEST(TestNmeaMaritimeSentences, BwcWaypointRoundtrip)
 {
-    BwcData input { };
+    BwcData input {};
     input.utcTime = { 14, 30, 0, 0 };
     input.waypointCoordinates = { 37.9542, 23.6358 };
     input.bearingTrueDeg = 142.0;
@@ -154,13 +154,13 @@ TEST(TestNmeaMaritimeSentences, BwcWaypointRoundtrip)
 
     EXPECT_EQ(NmeaSentenceParser::identifySentence(sentence), NmeaSentenceId::BWC);
 
-    BwcData parsed { };
+    BwcData parsed {};
     EXPECT_TRUE(NmeaSentenceParser::parseBwc(sentence, parsed, true));
     EXPECT_TRUE(parsed.valid);
     EXPECT_EQ(parsed.utcTime.hour, 14);
     EXPECT_EQ(parsed.utcTime.minute, 30);
-    EXPECT_NEAR(parsed.waypointCoordinates.latitudeDeg, 37.9542, 1e-3);
-    EXPECT_NEAR(parsed.waypointCoordinates.longitudeDeg, 23.6358, 1e-3);
+    EXPECT_NEAR(parsed.waypointCoordinates.latitudeDeg(), 37.9542, 1e-3);
+    EXPECT_NEAR(parsed.waypointCoordinates.longitudeDeg(), 23.6358, 1e-3);
     EXPECT_DOUBLE_EQ(parsed.bearingTrueDeg, 142.0);
     EXPECT_DOUBLE_EQ(parsed.distanceNmi, 8.7);
     EXPECT_EQ(parsed.waypointId, "PIRAEUS_BUOY");
@@ -169,7 +169,7 @@ TEST(TestNmeaMaritimeSentences, BwcWaypointRoundtrip)
 
 TEST(TestNmeaMaritimeSentences, MwvWindSpeedAndAngleRoundtrip)
 {
-    MwvData input { };
+    MwvData input {};
     input.windAngleDeg = 45.0;
     input.reference = 'R'; // Relative / Apparent wind
     input.windSpeed = 18.5;
@@ -181,7 +181,7 @@ TEST(TestNmeaMaritimeSentences, MwvWindSpeedAndAngleRoundtrip)
 
     EXPECT_EQ(NmeaSentenceParser::identifySentence(sentence), NmeaSentenceId::MWV);
 
-    MwvData parsed { };
+    MwvData parsed {};
     EXPECT_TRUE(NmeaSentenceParser::parseMwv(sentence, parsed, true));
     EXPECT_TRUE(parsed.valid);
     EXPECT_DOUBLE_EQ(parsed.windAngleDeg, 45.0);
@@ -192,7 +192,7 @@ TEST(TestNmeaMaritimeSentences, MwvWindSpeedAndAngleRoundtrip)
 
 TEST(TestNmeaMaritimeSentences, HdgHeadingDeviationVariation)
 {
-    HdgData input { };
+    HdgData input {};
     input.magneticHeadingDeg = 120.5;
     input.hasDeviation = true;
     input.magneticDeviationDeg = -2.5; // 2.5 West
@@ -204,7 +204,7 @@ TEST(TestNmeaMaritimeSentences, HdgHeadingDeviationVariation)
 
     EXPECT_EQ(NmeaSentenceParser::identifySentence(sentence), NmeaSentenceId::HDG);
 
-    HdgData parsed { };
+    HdgData parsed {};
     EXPECT_TRUE(NmeaSentenceParser::parseHdg(sentence, parsed, true));
     EXPECT_TRUE(parsed.valid);
     EXPECT_DOUBLE_EQ(parsed.magneticHeadingDeg, 120.5);
@@ -219,10 +219,10 @@ TEST(TestNmeaMaritimeSentences, NmeaDeviceMaritimeCallbacks)
     auto mockTransport = std::make_shared<MockMaritimeTransport>();
     NmeaDevice device(mockTransport);
 
-    std::optional<RsdData> receivedRsd { };
-    std::optional<ApbData> receivedApb { };
-    std::optional<MwvData> receivedMwv { };
-    std::optional<HdgData> receivedHdg { };
+    std::optional<RsdData> receivedRsd {};
+    std::optional<ApbData> receivedApb {};
+    std::optional<MwvData> receivedMwv {};
+    std::optional<HdgData> receivedHdg {};
 
     device.addRsdCallback([&](const RsdData& rsd) { receivedRsd = rsd; });
     device.addApbCallback([&](const ApbData& apb) { receivedApb = apb; });
@@ -235,7 +235,7 @@ TEST(TestNmeaMaritimeSentences, NmeaDeviceMaritimeCallbacks)
     };
 
     // 1. Feed RSD sentence
-    RsdData rsdInput { };
+    RsdData rsdInput {};
     rsdInput.cursorRangeNmi = 3.5;
     rsdInput.cursorBearingDeg = 92.0;
     rsdInput.rangeScaleNmi = 6.0;
@@ -249,7 +249,7 @@ TEST(TestNmeaMaritimeSentences, NmeaDeviceMaritimeCallbacks)
     EXPECT_EQ(device.lastRsd()->cursorRangeNmi, 3.5);
 
     // 2. Feed APB sentence
-    ApbData apbInput { };
+    ApbData apbInput {};
     apbInput.crossTrackErrorNmi = 0.12;
     apbInput.directionToSteer = 'L';
     apbInput.destWaypointId = "WAYPOINT_ALPHA";
@@ -264,7 +264,7 @@ TEST(TestNmeaMaritimeSentences, NmeaDeviceMaritimeCallbacks)
     EXPECT_DOUBLE_EQ(receivedApb->headingToSteerDeg, 315.0);
 
     // 3. Feed MWV sentence
-    MwvData mwvInput { };
+    MwvData mwvInput {};
     mwvInput.windAngleDeg = 210.0;
     mwvInput.reference = 'T';
     mwvInput.windSpeed = 25.0;
@@ -279,7 +279,7 @@ TEST(TestNmeaMaritimeSentences, NmeaDeviceMaritimeCallbacks)
     EXPECT_DOUBLE_EQ(receivedMwv->windSpeed, 25.0);
 
     // 4. Feed HDG sentence (with 3.0 deg East variation)
-    HdgData hdgInput { };
+    HdgData hdgInput {};
     hdgInput.magneticHeadingDeg = 100.0;
     hdgInput.hasVariation = true;
     hdgInput.magneticVariationDeg = 3.0;

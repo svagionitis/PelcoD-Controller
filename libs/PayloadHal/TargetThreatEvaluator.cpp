@@ -213,7 +213,8 @@ std::size_t TargetThreatEvaluator::evaluate(const Nmea::NmeaNavSnapshot& ownNav,
         return 0U;
     }
 
-    const Klv::GeoPoint3D ownPos { ownNav.position.latitudeDeg, ownNav.position.longitudeDeg, ownNav.altitudeMeters };
+    const Klv::GeoPoint3D ownPos { ownNav.position.latitudeDeg(), ownNav.position.longitudeDeg(),
+        ownNav.altitudeMeters };
     const double ownHeading = ownNav.hasHeading ? ownNav.trueHeadingDegrees : ownNav.cogDegrees;
     const double ownSog = ownNav.sogKnots;
     const double ownCog = ownNav.cogDegrees;
@@ -256,7 +257,7 @@ std::size_t TargetThreatEvaluator::evaluate(const Nmea::NmeaNavSnapshot& ownNav,
 
         // Check for correlation against active AIS targets
         for (const auto& ais : aisTargets) {
-            const Klv::GeoPoint2D pAis { ais.coordinates.latitudeDeg, ais.coordinates.longitudeDeg };
+            const Klv::GeoPoint2D pAis { ais.coordinates.latitudeDeg(), ais.coordinates.longitudeDeg() };
             const Klv::GeoPoint2D pRadar { targetPos.latitudeDeg, targetPos.longitudeDeg };
             const double distMeters = Klv::KlvGeodesy::distanceMeters(pRadar, pAis);
             const double speedDiff = std::abs(ttm.targetSpeedKnots - ais.speedOverGroundKnots);
@@ -272,11 +273,11 @@ std::size_t TargetThreatEvaluator::evaluate(const Nmea::NmeaNavSnapshot& ownNav,
 
                 // Successful fusion match
                 ev.source = TargetTrackSource::FusedRadarAis;
-                ev.associatedAisMmsi = ais.mmsi;
+                ev.associatedAisMmsi = ais.mmsi.value();
                 if (!ais.vesselName.empty()) {
                     ev.targetName = ais.vesselName;
                 }
-                matchedAisMmsis.insert(ais.mmsi);
+                matchedAisMmsis.insert(ais.mmsi.value());
                 break;
             }
         }
@@ -295,22 +296,22 @@ std::size_t TargetThreatEvaluator::evaluate(const Nmea::NmeaNavSnapshot& ownNav,
 
     // 2. Process AIS targets that were not already fused with radar
     for (const auto& ais : aisTargets) {
-        if (matchedAisMmsis.find(ais.mmsi) != matchedAisMmsis.end()) {
+        if (matchedAisMmsis.find(ais.mmsi.value()) != matchedAisMmsis.end()) {
             continue;
         }
 
-        const Klv::GeoPoint3D targetPos { ais.coordinates.latitudeDeg, ais.coordinates.longitudeDeg, 0.0 };
+        const Klv::GeoPoint3D targetPos { ais.coordinates.latitudeDeg(), ais.coordinates.longitudeDeg(), 0.0 };
         const Klv::GeoPoint2D pOwn { ownPos.latitudeDeg, ownPos.longitudeDeg };
-        const Klv::GeoPoint2D pAis { ais.coordinates.latitudeDeg, ais.coordinates.longitudeDeg };
+        const Klv::GeoPoint2D pAis { ais.coordinates.latitudeDeg(), ais.coordinates.longitudeDeg() };
 
         const double rangeMeters = Klv::KlvGeodesy::distanceMeters(pOwn, pAis);
         const double trueBearing = Klv::KlvGeodesy::bearingDeg(pOwn, pAis);
 
         EvaluatedTarget ev;
-        ev.targetId = ais.mmsi;
-        ev.associatedAisMmsi = ais.mmsi;
+        ev.targetId = ais.mmsi.value();
+        ev.associatedAisMmsi = ais.mmsi.value();
         ev.source = TargetTrackSource::Ais;
-        ev.targetName = ais.vesselName.empty() ? ("MMSI_" + std::to_string(ais.mmsi)) : ais.vesselName;
+        ev.targetName = ais.vesselName.empty() ? ("MMSI_" + std::to_string(ais.mmsi.value())) : ais.vesselName;
         ev.position = targetPos;
         ev.rangeMeters = rangeMeters;
         ev.trueBearingDeg = trueBearing;
@@ -382,13 +383,14 @@ std::optional<EvaluatedTarget> TargetThreatEvaluator::getTarget(std::uint32_t ta
     return std::nullopt;
 }
 
-void TargetThreatEvaluator::markTargetInspected(std::uint32_t targetId, TargetTrackSource source,
-    std::chrono::milliseconds cooldown)
+void TargetThreatEvaluator::markTargetInspected(
+    std::uint32_t targetId, TargetTrackSource source, std::chrono::milliseconds cooldown)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     const auto now = std::chrono::steady_clock::now();
     for (auto& rec : m_inspectedTargets) {
-        if (rec.targetId == targetId && (source == TargetTrackSource::None || rec.source == TargetTrackSource::None || rec.source == source)) {
+        if (rec.targetId == targetId
+            && (source == TargetTrackSource::None || rec.source == TargetTrackSource::None || rec.source == source)) {
             rec.inspectedAt = now;
             rec.cooldownDuration = cooldown;
             return;
@@ -397,12 +399,13 @@ void TargetThreatEvaluator::markTargetInspected(std::uint32_t targetId, TargetTr
     m_inspectedTargets.push_back({ targetId, source, now, cooldown });
 }
 
-bool TargetThreatEvaluator::isTargetInCooldown(std::uint32_t targetId, TargetTrackSource source,
-    std::chrono::steady_clock::time_point now) const
+bool TargetThreatEvaluator::isTargetInCooldown(
+    std::uint32_t targetId, TargetTrackSource source, std::chrono::steady_clock::time_point now) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     for (const auto& rec : m_inspectedTargets) {
-        if (rec.targetId == targetId && (source == TargetTrackSource::None || rec.source == TargetTrackSource::None || rec.source == source)) {
+        if (rec.targetId == targetId
+            && (source == TargetTrackSource::None || rec.source == TargetTrackSource::None || rec.source == source)) {
             const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - rec.inspectedAt);
             if (elapsed < rec.cooldownDuration) {
                 return true;
@@ -412,8 +415,8 @@ bool TargetThreatEvaluator::isTargetInCooldown(std::uint32_t targetId, TargetTra
     return false;
 }
 
-std::optional<EvaluatedTarget> TargetThreatEvaluator::getNextUninspectedCandidate(double minScore,
-    std::chrono::steady_clock::time_point now) const
+std::optional<EvaluatedTarget> TargetThreatEvaluator::getNextUninspectedCandidate(
+    double minScore, std::chrono::steady_clock::time_point now) const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     for (const auto& target : m_evaluatedTargets) {
@@ -423,11 +426,15 @@ std::optional<EvaluatedTarget> TargetThreatEvaluator::getNextUninspectedCandidat
         bool inCooldown = false;
         for (const auto& rec : m_inspectedTargets) {
             bool matches = false;
-            if (rec.targetId == target.targetId && (rec.source == TargetTrackSource::None || target.source == TargetTrackSource::None || rec.source == target.source)) {
+            if (rec.targetId == target.targetId
+                && (rec.source == TargetTrackSource::None || target.source == TargetTrackSource::None
+                    || rec.source == target.source)) {
                 matches = true;
-            } else if (target.associatedRadarId && rec.targetId == *target.associatedRadarId && (rec.source == TargetTrackSource::RadarArpa || rec.source == TargetTrackSource::None)) {
+            } else if (target.associatedRadarId && rec.targetId == *target.associatedRadarId
+                && (rec.source == TargetTrackSource::RadarArpa || rec.source == TargetTrackSource::None)) {
                 matches = true;
-            } else if (target.associatedAisMmsi && rec.targetId == *target.associatedAisMmsi && (rec.source == TargetTrackSource::Ais || rec.source == TargetTrackSource::None)) {
+            } else if (target.associatedAisMmsi && rec.targetId == *target.associatedAisMmsi
+                && (rec.source == TargetTrackSource::Ais || rec.source == TargetTrackSource::None)) {
                 matches = true;
             }
 
@@ -455,14 +462,13 @@ void TargetThreatEvaluator::clearCooldownHistory()
 void TargetThreatEvaluator::cleanupExpiredCooldowns(std::chrono::steady_clock::time_point now)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_inspectedTargets.erase(
-        std::remove_if(m_inspectedTargets.begin(), m_inspectedTargets.end(),
-            [&now](const InspectedTargetRecord& rec) {
-                const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - rec.inspectedAt);
-                return elapsed >= rec.cooldownDuration;
-            }),
+    m_inspectedTargets.erase(std::remove_if(m_inspectedTargets.begin(), m_inspectedTargets.end(),
+                                 [&now](const InspectedTargetRecord& rec) {
+                                     const auto elapsed
+                                         = std::chrono::duration_cast<std::chrono::milliseconds>(now - rec.inspectedAt);
+                                     return elapsed >= rec.cooldownDuration;
+                                 }),
         m_inspectedTargets.end());
 }
 
 } // namespace PayloadHal
-

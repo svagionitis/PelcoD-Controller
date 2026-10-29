@@ -1,4 +1,5 @@
 add_library(Nmea STATIC
+    NmeaValueObjects.h
     NmeaTypes.h
     NmeaChecksum.h
     NmeaSentenceParser.h
@@ -78,14 +79,15 @@ target_include_directories(Nmea PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/environment>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/gateway>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/arbiter>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
     $<INSTALL_INTERFACE:include>
 )
 
-target_link_libraries(Nmea PUBLIC
-    Transport
-    Threads::Threads
-    glog::glog
+target_link_libraries(Nmea
+    PUBLIC
+        Transport
+        Threads::Threads
+    PRIVATE
+        glog::glog
 )
 
 if(WIN32)

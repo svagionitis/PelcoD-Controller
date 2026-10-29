@@ -46,55 +46,42 @@ enum class AisMessageType : std::uint8_t {
     ClassBStatic24 = 24U
 };
 
-/// @enum AisBeaconType
-/// @brief Classification of AIS transponder based on ITU-R M.585-7 MMSI numbering formats.
-enum class AisBeaconType : std::uint8_t {
-    None = 0U,
-    StandardVessel = 1U,
-    AisSart = 2U, ///< 970 prefix (Search and Rescue Transponder)
-    AisMob = 3U, ///< 972 prefix (Man Overboard Device)
-    EpirbAis = 4U, ///< 974 prefix (Float-Free EPIRB with AIS)
-    SarAircraft = 5U ///< 111 prefix (Search and Rescue Aircraft)
-};
-
 /// @brief Classifies an MMSI into an emergency beacon or standard vessel type.
+/// @param[in] mmsi Strongly-typed Mmsi.
+/// @return Classified AisBeaconType.
+[[nodiscard]] constexpr AisBeaconType classifyAisMmsi(Mmsi mmsi) noexcept
+{
+    return mmsi.beaconType();
+}
+
+/// @brief Classifies a raw MMSI integer into an emergency beacon or standard vessel type.
 /// @param[in] mmsi 9-digit Maritime Mobile Service Identity.
 /// @return Classified AisBeaconType.
 [[nodiscard]] constexpr AisBeaconType classifyAisMmsi(std::uint32_t mmsi) noexcept
 {
-    if (mmsi == 0U) {
-        return AisBeaconType::None;
-    }
-    const std::uint32_t prefix = mmsi / 1000000U;
-    if (prefix == 970U) {
-        return AisBeaconType::AisSart;
-    }
-    if (prefix == 972U) {
-        return AisBeaconType::AisMob;
-    }
-    if (prefix == 974U) {
-        return AisBeaconType::EpirbAis;
-    }
-    if (prefix == 111U) {
-        return AisBeaconType::SarAircraft;
-    }
-    return AisBeaconType::StandardVessel;
+    return Mmsi(mmsi).beaconType();
 }
 
 /// @brief Checks if an MMSI belongs to an active life-saving emergency distress beacon (SART, MOB, EPIRB).
+/// @param[in] mmsi Strongly-typed Mmsi.
+/// @return True if SART, MOB, or EPIRB.
+[[nodiscard]] constexpr bool isAisEmergencyBeacon(Mmsi mmsi) noexcept
+{
+    return mmsi.isEmergencyBeacon();
+}
+
+/// @brief Checks if a raw MMSI belongs to an active life-saving emergency distress beacon (SART, MOB, EPIRB).
 /// @param[in] mmsi 9-digit Maritime Mobile Service Identity.
 /// @return True if SART, MOB, or EPIRB.
 [[nodiscard]] constexpr bool isAisEmergencyBeacon(std::uint32_t mmsi) noexcept
 {
-    const auto type = classifyAisMmsi(mmsi);
-    return type == AisBeaconType::AisSart || type == AisBeaconType::AisMob || type == AisBeaconType::EpirbAis
-        || type == AisBeaconType::SarAircraft;
+    return Mmsi(mmsi).isEmergencyBeacon();
 }
 
 /// @struct AisSafetyBroadcast
 /// @brief Safety-related broadcast message unpacked from AIS Message 14.
 struct AisSafetyBroadcast {
-    std::uint32_t mmsi { 0U };
+    Mmsi mmsi {};
     std::string text {};
     bool isTestMode { false };
     std::chrono::steady_clock::time_point timestamp { std::chrono::steady_clock::now() };
@@ -103,7 +90,7 @@ struct AisSafetyBroadcast {
 /// @struct AisEmergencyAlert
 /// @brief Telemetry snapshot for an activated AIS-SART, AIS-MOB, or EPIRB distress device.
 struct AisEmergencyAlert {
-    std::uint32_t mmsi { 0U };
+    Mmsi mmsi {};
     AisBeaconType beaconType { AisBeaconType::StandardVessel };
     NmeaCoordinates coordinates {};
     bool positionValid { false };
@@ -138,7 +125,7 @@ struct AisDimensions {
 /// @struct AisVesselTarget
 /// @brief Comprehensive state snapshot for an AIS-tracked maritime vessel.
 struct AisVesselTarget {
-    std::uint32_t mmsi { 0U }; ///< 9-digit Maritime Mobile Service Identity
+    Mmsi mmsi {}; ///< 9-digit Maritime Mobile Service Identity
     AisMessageType messageType { AisMessageType::Unknown }; ///< Type of most recent message received
     std::uint8_t repeatIndicator { 0U }; ///< Broadcast repeat count (0-3)
 

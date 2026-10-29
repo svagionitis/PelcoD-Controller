@@ -175,9 +175,8 @@ namespace {
         // Emergency AIS-SART burst arrives
         // !AIVDM Message 1 with MMSI 970012345
         Nmea::AisVesselTarget sart;
-        sart.mmsi = 970012345;
-        sart.coordinates.latitudeDeg = 37.01;
-        sart.coordinates.longitudeDeg = -122.01;
+        sart.mmsi = Nmea::Mmsi(970012345);
+        sart.coordinates = Nmea::NmeaCoordinates(37.01, -122.01);
         sart.beaconType = Nmea::AisBeaconType::AisSart;
         sart.isEmergencyBeacon = true;
 

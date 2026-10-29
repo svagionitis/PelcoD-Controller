@@ -63,56 +63,56 @@ public:
     /// @param[in] panVel Normalized velocity [-1.0 .. +1.0] (-1.0 = Max Left, +1.0 = Max Right).
     /// @param[in] tiltVel Normalized velocity [-1.0 .. +1.0] (-1.0 = Max Down, +1.0 = Max Up).
     /// @return True if command was dispatched.
-    bool setVelocity(float panVel, float tiltVel);
+    [[nodiscard]] bool setVelocity(float panVel, float tiltVel);
 
     /// @brief Commands the gimbal to slew to absolute azimuth and elevation angles.
     /// @param[in] panDeg Target azimuth angle in degrees [0.0 .. 360.0) or [-180.0 .. +180.0].
     /// @param[in] tiltDeg Target elevation angle in degrees [-90.0 .. +90.0].
     /// @return True if target angle command was dispatched.
-    bool setAbsoluteAngles(double panDeg, double tiltDeg);
+    [[nodiscard]] bool setAbsoluteAngles(double panDeg, double tiltDeg);
 
     /// @brief Halts all pan and tilt gimbal motion immediately.
     /// @return True if stop command was dispatched.
-    bool stopMotion();
+    [[nodiscard]] bool stopMotion();
 
     // --- Preset Management ---
 
     /// @brief Saves the current gimbal orientation as a numbered preset.
     /// @param[in] presetId Preset number [1 .. 255].
     /// @return True if preset save command was dispatched.
-    bool savePreset(std::uint8_t presetId);
+    [[nodiscard]] bool savePreset(std::uint8_t presetId);
 
     /// @brief Commands the gimbal to slew to a saved preset orientation.
     /// @param[in] presetId Preset number [1 .. 255].
     /// @return True if preset recall command was dispatched.
-    bool recallPreset(std::uint8_t presetId);
+    [[nodiscard]] bool recallPreset(std::uint8_t presetId);
 
     // --- Optics & Thermal Controls ---
 
     /// @brief Sets optical continuous zoom rate.
     /// @param[in] zoomVel Normalized zoom rate [-1.0 .. +1.0] (-1.0 = Wide, +1.0 = Tele, 0.0 = Stop).
     /// @return True if zoom command was dispatched.
-    bool setZoomRate(float zoomVel);
+    [[nodiscard]] bool setZoomRate(float zoomVel);
 
     /// @brief Selects the active video camera sensor (daylight visible or thermal IR).
     /// @param[in] sensor Target optical sensor.
     /// @return True if sensor select command was dispatched.
-    bool selectSensor(FlirSensorType sensor);
+    [[nodiscard]] bool selectSensor(FlirSensorType sensor);
 
     /// @brief Configures the thermal infrared false color palette.
     /// @param[in] palette Color palette (White-Hot, Black-Hot, Ironbow, etc.).
     /// @return True if palette command was dispatched.
-    bool setColorPalette(FlirColorPalette palette);
+    [[nodiscard]] bool setColorPalette(FlirColorPalette palette);
 
     /// @brief Configures digital zoom factor.
     /// @param[in] level Digital zoom magnification (1x, 2x, 4x, 8x).
     /// @return True if digital zoom command was dispatched.
-    bool setDigitalZoom(FlirZoomLevel level);
+    [[nodiscard]] bool setDigitalZoom(FlirZoomLevel level);
 
     /// @brief Enables or disables internal gyro stabilization.
     /// @param[in] enable True to enable gyro stabilization, false to disable.
     /// @return True if stabilization command was dispatched.
-    bool setStabilization(bool enable);
+    [[nodiscard]] bool setStabilization(bool enable);
 
     /// @brief Returns the active digital zoom level.
     [[nodiscard]] FlirZoomLevel digitalZoom() const;
@@ -125,11 +125,11 @@ public:
 
     /// @brief Triggers Non-Uniformity Correction (NUC / flat field calibration) on the thermal core.
     /// @return True if NUC command was dispatched.
-    bool triggerNuc();
+    [[nodiscard]] bool triggerNuc();
 
     /// @brief Queries current gimbal position manually ($PFEC,GPpos).
     /// @return True if query was dispatched.
-    bool queryPosition();
+    [[nodiscard]] bool queryPosition();
 
     // --- Telemetry & Subscriptions ---
 
@@ -139,7 +139,7 @@ public:
     /// @brief Registers a subscriber callback for gimbal position updates.
     /// @param[in] cb Callback invoked when a $PFEC,GPpos response is received.
     /// @return Unique subscription ID.
-    std::size_t addPositionCallback(PositionCallback cb);
+    [[nodiscard]] std::size_t addPositionCallback(PositionCallback cb);
 
     /// @brief Unregisters a position subscriber callback.
     /// @param[in] id Subscription ID returned by addPositionCallback.

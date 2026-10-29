@@ -102,8 +102,7 @@ namespace {
 
         Nmea::NmeaNavSnapshot ownNav;
         ownNav.hasPosition = true;
-        ownNav.position.latitudeDeg = 37.0;
-        ownNav.position.longitudeDeg = -122.0;
+        ownNav.position = Nmea::NmeaCoordinates(37.0, -122.0);
         ownNav.hasHeading = true;
         ownNav.trueHeadingDegrees = 0.0;
         ownNav.sogKnots = 10.0;
@@ -111,12 +110,11 @@ namespace {
 
         // 1. Distant benign AIS cargo vessel at 5 NM moving away
         Nmea::AisVesselTarget distantAis;
-        distantAis.mmsi = 111222333;
+        distantAis.mmsi = Nmea::Mmsi(111222333);
         distantAis.vesselName = "PACIFIC_TRADER";
         const auto pDistant = Klv::KlvGeodesy::directGeodetic(
-            { ownNav.position.latitudeDeg, ownNav.position.longitudeDeg }, 45.0, 5.0 * 1852.0);
-        distantAis.coordinates.latitudeDeg = pDistant.latitudeDeg;
-        distantAis.coordinates.longitudeDeg = pDistant.longitudeDeg;
+            { ownNav.position.latitudeDeg(), ownNav.position.longitudeDeg() }, 45.0, 5.0 * 1852.0);
+        distantAis.coordinates = Nmea::NmeaCoordinates(pDistant.latitudeDeg, pDistant.longitudeDeg);
         distantAis.speedOverGroundKnots = 12.0;
         distantAis.courseOverGroundDegrees = 45.0;
 
@@ -133,12 +131,11 @@ namespace {
 
         // 3. Fused Radar & AIS contact at 1.0 NM closing slowly
         const auto pAis2 = Klv::KlvGeodesy::directGeodetic(
-            { ownNav.position.latitudeDeg, ownNav.position.longitudeDeg }, 340.0, 1.0 * 1852.0);
+            { ownNav.position.latitudeDeg(), ownNav.position.longitudeDeg() }, 340.0, 1.0 * 1852.0);
         Nmea::AisVesselTarget fusedAis;
-        fusedAis.mmsi = 999888777;
+        fusedAis.mmsi = Nmea::Mmsi(999888777);
         fusedAis.vesselName = "COASTAL_FERRY";
-        fusedAis.coordinates.latitudeDeg = pAis2.latitudeDeg;
-        fusedAis.coordinates.longitudeDeg = pAis2.longitudeDeg;
+        fusedAis.coordinates = Nmea::NmeaCoordinates(pAis2.latitudeDeg, pAis2.longitudeDeg);
         fusedAis.speedOverGroundKnots = 8.0;
         fusedAis.courseOverGroundDegrees = 160.0;
 
@@ -183,15 +180,13 @@ namespace {
 
         Nmea::NmeaNavSnapshot ownNav;
         ownNav.hasPosition = true;
-        ownNav.position.latitudeDeg = 37.0;
-        ownNav.position.longitudeDeg = -122.0;
+        ownNav.position = Nmea::NmeaCoordinates(37.0, -122.0);
 
         // Emergency AIS-SART beacon
         Nmea::AisVesselTarget sartTarget;
-        sartTarget.mmsi = 970012345;
+        sartTarget.mmsi = Nmea::Mmsi(970012345);
         sartTarget.vesselName = "AIS-SART 970012345";
-        sartTarget.coordinates.latitudeDeg = 37.02;
-        sartTarget.coordinates.longitudeDeg = -122.01;
+        sartTarget.coordinates = Nmea::NmeaCoordinates(37.02, -122.01);
         sartTarget.beaconType = Nmea::AisBeaconType::AisSart;
         sartTarget.isEmergencyBeacon = true;
 
@@ -231,8 +226,7 @@ namespace {
 
         Nmea::NmeaNavSnapshot ownNav;
         ownNav.hasPosition = true;
-        ownNav.position.latitudeDeg = 37.0;
-        ownNav.position.longitudeDeg = -122.0;
+        ownNav.position = Nmea::NmeaCoordinates(37.0, -122.0);
 
         // Radar Target #1 (imminent collision, higher threat)
         Nmea::TtmData radarTarget1;

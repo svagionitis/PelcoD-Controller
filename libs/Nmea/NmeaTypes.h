@@ -3,6 +3,8 @@
 /// @file NmeaTypes.h
 /// @brief Strongly-typed data models and enums for NMEA 0183 / IEC 61162-1 navigation and tracking sentences.
 
+#include "NmeaValueObjects.h"
+
 #include <chrono>
 #include <cstdint>
 #include <optional>
@@ -113,10 +115,79 @@ struct NmeaDate {
 };
 
 /// @struct NmeaCoordinates
-/// @brief Geodetic latitude and longitude coordinates in decimal degrees.
+/// @brief Strongly-typed geodetic latitude and longitude coordinates on the WGS-84 ellipsoid.
 struct NmeaCoordinates {
-    double latitudeDeg { 0.0 }; ///< Latitude [-90.0 .. +90.0], North positive, South negative
-    double longitudeDeg { 0.0 }; ///< Longitude [-180.0 .. +180.0], East positive, West negative
+    Latitude latitude {};
+    Longitude longitude {};
+
+    /// @brief Default constructor initializing to Equator / Prime Meridian (0.0, 0.0).
+    constexpr NmeaCoordinates() noexcept = default;
+
+    /// @brief Constructs from strongly typed Latitude and Longitude objects.
+    constexpr NmeaCoordinates(Latitude lat, Longitude lon) noexcept
+        : latitude(lat)
+        , longitude(lon)
+    {
+    }
+
+    /// @brief Constructs from decimal degrees with automatic boundary clamping and normalization.
+    constexpr NmeaCoordinates(double latDeg, double lonDeg) noexcept
+        : latitude(Latitude(latDeg))
+        , longitude(Longitude(lonDeg))
+    {
+    }
+
+    /// @brief Returns latitude in decimal degrees.
+    [[nodiscard]] constexpr double latitudeDeg() const noexcept
+    {
+        return latitude.degrees();
+    }
+
+    /// @brief Returns longitude in decimal degrees.
+    [[nodiscard]] constexpr double longitudeDeg() const noexcept
+    {
+        return longitude.degrees();
+    }
+
+    /// @brief Validates that both latitude and longitude satisfy domain bounds.
+    [[nodiscard]] constexpr bool isValid() const noexcept
+    {
+        return latitude.isValid() && longitude.isValid();
+    }
+
+    /// @brief Sets latitude from a strongly typed Latitude object.
+    void setLatitude(Latitude lat) noexcept
+    {
+        latitude = lat;
+    }
+
+    /// @brief Sets longitude from a strongly typed Longitude object.
+    void setLongitude(Longitude lon) noexcept
+    {
+        longitude = lon;
+    }
+
+    /// @brief Sets latitude from decimal degrees.
+    void setLatitudeDeg(double deg) noexcept
+    {
+        latitude = Latitude(deg);
+    }
+
+    /// @brief Sets longitude from decimal degrees.
+    void setLongitudeDeg(double deg) noexcept
+    {
+        longitude = Longitude(deg);
+    }
+
+    [[nodiscard]] constexpr bool operator==(const NmeaCoordinates& other) const noexcept
+    {
+        return latitude == other.latitude && longitude == other.longitude;
+    }
+
+    [[nodiscard]] constexpr bool operator!=(const NmeaCoordinates& other) const noexcept
+    {
+        return !(*this == other);
+    }
 };
 
 /// @struct GgaData
@@ -216,35 +287,35 @@ struct XdrData {
 /// @brief RT300 / Applanix / Ashtech inertial attitude telemetry unpacked from $PASHR sentence.
 struct PashrData {
     NmeaUtcTime utcTime {};
-    double headingDegrees { 0.0 };     ///< Vessel heading in degrees [0.0 .. 360.0)
-    bool isTrueHeading { true };        ///< True if 'T', False if 'M'
-    double rollDegrees { 0.0 };         ///< Vessel roll in degrees (starboard down positive)
-    double pitchDegrees { 0.0 };        ///< Vessel pitch in degrees (bow up positive)
-    double heaveMeters { 0.0 };         ///< Vessel heave in meters
-    double rollAccuracyDeg { 0.0 };     ///< Roll standard deviation / accuracy
-    double pitchAccuracyDeg { 0.0 };    ///< Pitch standard deviation / accuracy
-    double headingAccuracyDeg { 0.0 };  ///< Heading standard deviation / accuracy
+    double headingDegrees { 0.0 }; ///< Vessel heading in degrees [0.0 .. 360.0)
+    bool isTrueHeading { true }; ///< True if 'T', False if 'M'
+    double rollDegrees { 0.0 }; ///< Vessel roll in degrees (starboard down positive)
+    double pitchDegrees { 0.0 }; ///< Vessel pitch in degrees (bow up positive)
+    double heaveMeters { 0.0 }; ///< Vessel heave in meters
+    double rollAccuracyDeg { 0.0 }; ///< Roll standard deviation / accuracy
+    double pitchAccuracyDeg { 0.0 }; ///< Pitch standard deviation / accuracy
+    double headingAccuracyDeg { 0.0 }; ///< Heading standard deviation / accuracy
     std::uint8_t gpsQualityFlag { 0U }; ///< GPS fix quality flag
-    std::uint8_t imuStatusFlag { 0U };  ///< Inertial / IMU status flag
+    std::uint8_t imuStatusFlag { 0U }; ///< Inertial / IMU status flag
     bool valid { false };
 };
 
 /// @struct PfecAttitudeData
 /// @brief Vessel attitude (yaw, pitch, roll) unpacked from FLIR $PFEC,GPatt sentence.
 struct PfecAttitudeData {
-    double yawDegrees { 0.0 };   ///< Vessel yaw / heading in degrees [0.0 .. 360.0)
+    double yawDegrees { 0.0 }; ///< Vessel yaw / heading in degrees [0.0 .. 360.0)
     double pitchDegrees { 0.0 }; ///< Vessel pitch in degrees (bow up positive)
-    double rollDegrees { 0.0 };  ///< Vessel roll in degrees (starboard down positive)
+    double rollDegrees { 0.0 }; ///< Vessel roll in degrees (starboard down positive)
     bool valid { false };
 };
 
 /// @struct AttitudeData
 /// @brief Unified vessel attitude report containing pitch, roll, heading, and heave.
 struct AttitudeData {
-    double pitchDegrees { 0.0 };   ///< Pitch in degrees (bow up positive)
-    double rollDegrees { 0.0 };    ///< Roll in degrees (starboard down positive)
+    double pitchDegrees { 0.0 }; ///< Pitch in degrees (bow up positive)
+    double rollDegrees { 0.0 }; ///< Roll in degrees (starboard down positive)
     double headingDegrees { 0.0 }; ///< Heading / yaw in degrees [0.0 .. 360.0)
-    double heaveMeters { 0.0 };    ///< Heave in meters
+    double heaveMeters { 0.0 }; ///< Heave in meters
     bool hasHeading { false };
     bool valid { false };
 };
@@ -521,7 +592,9 @@ struct VhwData {
 /// @brief Water depth and transducer keel/waterline offset unpacked from $--DPT sentence.
 struct DptData {
     double waterDepthMeters { 0.0 }; ///< Water depth relative to transducer in meters
-    double offsetMeters { 0.0 }; ///< Offset (+ distance to waterline = depth, - distance to keel = under-keel clearance)
+    double offsetMeters {
+        0.0
+    }; ///< Offset (+ distance to waterline = depth, - distance to keel = under-keel clearance)
     std::optional<double> maximumRangeScaleMeters {}; ///< Maximum range scale in meters
     bool valid { false };
 };
@@ -539,10 +612,10 @@ struct DbtData {
 /// @brief Rudder sensor angle telemetry unpacked from $--RSA sentence.
 struct RsaData {
     double starboardRudderAngleDeg { 0.0 }; ///< Starboard rudder sensor angle in degrees (- = port)
-    bool starboardValid { false };          ///< Starboard sensor valid ('A') or invalid ('V')
-    double portRudderAngleDeg { 0.0 };      ///< Port rudder sensor angle in degrees (- = port)
-    bool portValid { false };               ///< Port sensor valid ('A') or invalid ('V')
-    bool valid { false };                   ///< Overall sentence validity
+    bool starboardValid { false }; ///< Starboard sensor valid ('A') or invalid ('V')
+    double portRudderAngleDeg { 0.0 }; ///< Port rudder sensor angle in degrees (- = port)
+    bool portValid { false }; ///< Port sensor valid ('A') or invalid ('V')
+    bool valid { false }; ///< Overall sentence validity
 };
 
 } // namespace Nmea

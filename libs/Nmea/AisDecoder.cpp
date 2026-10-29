@@ -247,10 +247,10 @@ bool AisDecoder::decodeClassAPosition(AisBitReader& reader, AisVesselTarget& tar
     const auto rawLat = reader.readSignedBits(27U);
 
     if (rawLon != 0x6791AC0 && rawLat != 0x3412140) {
-        target.coordinates.longitudeDeg = static_cast<double>(rawLon) / 600000.0;
-        target.coordinates.latitudeDeg = static_cast<double>(rawLat) / 600000.0;
-        target.positionValid
-            = (std::abs(target.coordinates.latitudeDeg) <= 90.0 && std::abs(target.coordinates.longitudeDeg) <= 180.0);
+        const double lon = static_cast<double>(rawLon) / 600000.0;
+        const double lat = static_cast<double>(rawLat) / 600000.0;
+        target.coordinates = NmeaCoordinates(lat, lon);
+        target.positionValid = (std::abs(lat) <= 90.0 && std::abs(lon) <= 180.0);
     } else {
         target.positionValid = false;
     }
@@ -316,10 +316,10 @@ bool AisDecoder::decodeClassBPosition(AisBitReader& reader, AisVesselTarget& tar
     const auto rawLat = reader.readSignedBits(27U);
 
     if (rawLon != 0x6791AC0 && rawLat != 0x3412140) {
-        target.coordinates.longitudeDeg = static_cast<double>(rawLon) / 600000.0;
-        target.coordinates.latitudeDeg = static_cast<double>(rawLat) / 600000.0;
-        target.positionValid
-            = (std::abs(target.coordinates.latitudeDeg) <= 90.0 && std::abs(target.coordinates.longitudeDeg) <= 180.0);
+        const double lon = static_cast<double>(rawLon) / 600000.0;
+        const double lat = static_cast<double>(rawLat) / 600000.0;
+        target.coordinates = NmeaCoordinates(lat, lon);
+        target.positionValid = (std::abs(lat) <= 90.0 && std::abs(lon) <= 180.0);
     }
 
     const auto rawCog = reader.readBits(12U);
@@ -352,10 +352,10 @@ bool AisDecoder::decodeClassBExtendedPosition(AisBitReader& reader, AisVesselTar
     const auto rawLat = reader.readSignedBits(27U);
 
     if (rawLon != 0x6791AC0 && rawLat != 0x3412140) {
-        target.coordinates.longitudeDeg = static_cast<double>(rawLon) / 600000.0;
-        target.coordinates.latitudeDeg = static_cast<double>(rawLat) / 600000.0;
-        target.positionValid
-            = (std::abs(target.coordinates.latitudeDeg) <= 90.0 && std::abs(target.coordinates.longitudeDeg) <= 180.0);
+        const double lon = static_cast<double>(rawLon) / 600000.0;
+        const double lat = static_cast<double>(rawLat) / 600000.0;
+        target.coordinates = NmeaCoordinates(lat, lon);
+        target.positionValid = (std::abs(lat) <= 90.0 && std::abs(lon) <= 180.0);
     }
 
     const auto rawCog = reader.readBits(12U);

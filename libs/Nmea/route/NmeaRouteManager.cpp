@@ -30,9 +30,9 @@ namespace {
 
     [[nodiscard]] double computeBearing(const NmeaCoordinates& from, const NmeaCoordinates& to) noexcept
     {
-        const double phi1 = from.latitudeDeg * kDegToRad;
-        const double phi2 = to.latitudeDeg * kDegToRad;
-        const double deltaLambda = (to.longitudeDeg - from.longitudeDeg) * kDegToRad;
+        const double phi1 = from.latitudeDeg() * kDegToRad;
+        const double phi2 = to.latitudeDeg() * kDegToRad;
+        const double deltaLambda = (to.longitudeDeg() - from.longitudeDeg()) * kDegToRad;
 
         const double y = std::sin(deltaLambda) * std::cos(phi2);
         const double x = std::cos(phi1) * std::sin(phi2) - std::sin(phi1) * std::cos(phi2) * std::cos(deltaLambda);
@@ -45,8 +45,8 @@ namespace {
     {
         const double delta = distanceMeters / kEarthRadiusMeters;
         const double theta = bearingDeg * kDegToRad;
-        const double phi1 = origin.latitudeDeg * kDegToRad;
-        const double lambda1 = origin.longitudeDeg * kDegToRad;
+        const double phi1 = origin.latitudeDeg() * kDegToRad;
+        const double lambda1 = origin.longitudeDeg() * kDegToRad;
 
         const double sinPhi2 = std::sin(phi1) * std::cos(delta) + std::cos(phi1) * std::sin(delta) * std::cos(theta);
         const double phi2 = std::asin(std::clamp(sinPhi2, -1.0, 1.0));
@@ -55,19 +55,7 @@ namespace {
         const double x = std::cos(delta) - std::sin(phi1) * std::sin(phi2);
         const double lambda2 = lambda1 + std::atan2(y, x);
 
-        NmeaCoordinates target { };
-        target.latitudeDeg = phi2 * kRadToDeg;
-        target.longitudeDeg = lambda2 * kRadToDeg;
-
-        // Wrap longitude to [-180, 180]
-        while (target.longitudeDeg > 180.0) {
-            target.longitudeDeg -= 360.0;
-        }
-        while (target.longitudeDeg < -180.0) {
-            target.longitudeDeg += 360.0;
-        }
-
-        return target;
+        return NmeaCoordinates(phi2 * kRadToDeg, lambda2 * kRadToDeg);
     }
 
 } // namespace
@@ -101,8 +89,8 @@ bool NmeaRouteManager::ingestRte(const RteData& rte)
         return false;
     }
 
-    RouteCallback callbackToInvoke { };
-    NmeaRoute completedRoute { };
+    RouteCallback callbackToInvoke {};
+    NmeaRoute completedRoute {};
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
@@ -136,7 +124,7 @@ bool NmeaRouteManager::ingestRte(const RteData& rte)
 
 void NmeaRouteManager::reassembleRouteLocked(const std::string& routeName, RteAssemblyState& state)
 {
-    NmeaRoute route { };
+    NmeaRoute route {};
     route.routeName = routeName;
     route.routeType = state.routeType;
     route.lastUpdated = std::chrono::steady_clock::now();
@@ -146,7 +134,7 @@ void NmeaRouteManager::reassembleRouteLocked(const std::string& routeName, RteAs
         const auto it = state.slices.find(i);
         if (it != state.slices.end()) {
             for (const auto& wptId : it->second) {
-                NmeaRouteWaypoint wpt { };
+                NmeaRouteWaypoint wpt {};
                 wpt.id = wptId;
                 wpt.sequenceIndex = seqIndex++;
                 route.waypoints.push_back(std::move(wpt));
@@ -175,7 +163,7 @@ void NmeaRouteManager::ingestRmb(const RmbData& rmb)
         return;
     }
 
-    RmbCallback cbToInvoke { };
+    RmbCallback cbToInvoke {};
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_activeRmb = rmb;
@@ -195,7 +183,7 @@ void NmeaRouteManager::ingestRmb(const RmbData& rmb)
 
 void NmeaRouteManager::setWaypoint(std::string waypointId, NmeaCoordinates coordinates)
 {
-    WplData wpl { };
+    WplData wpl {};
     wpl.waypointId = std::move(waypointId);
     wpl.coordinates = coordinates;
     wpl.valid = true;
@@ -254,7 +242,7 @@ std::optional<NmeaCoordinates> NmeaRouteManager::computeLookAhead(double lookAhe
     }
 
     const auto& rmb = *m_activeRmb;
-    std::optional<NmeaCoordinates> originCoords { };
+    std::optional<NmeaCoordinates> originCoords {};
     if (!rmb.originWaypointId.empty()) {
         const auto it = m_waypointDict.find(rmb.originWaypointId);
         if (it != m_waypointDict.end()) {

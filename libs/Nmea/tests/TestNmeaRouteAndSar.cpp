@@ -82,8 +82,8 @@ namespace {
         EXPECT_EQ(rmb.directionToSteer, 'L');
         EXPECT_EQ(rmb.destWaypointId, "WPT02");
         EXPECT_EQ(rmb.originWaypointId, "WPT01");
-        EXPECT_NEAR(rmb.destCoordinates.latitudeDeg, 37.75, 1e-4);
-        EXPECT_NEAR(rmb.destCoordinates.longitudeDeg, -122.41666, 1e-4);
+        EXPECT_NEAR(rmb.destCoordinates.latitudeDeg(), 37.75, 1e-4);
+        EXPECT_NEAR(rmb.destCoordinates.longitudeDeg(), -122.41666, 1e-4);
         EXPECT_DOUBLE_EQ(rmb.rangeToDestNmi, 4.8);
         EXPECT_DOUBLE_EQ(rmb.bearingToDestTrueDeg, 125.0);
         EXPECT_DOUBLE_EQ(rmb.closingVelocityKnots, 10.5);
@@ -101,8 +101,8 @@ namespace {
         EXPECT_NEAR(rmbRoundtrip.crossTrackErrorNmi, 0.25, 0.01);
         EXPECT_EQ(rmbRoundtrip.destWaypointId, "WPT02");
         EXPECT_EQ(rmbRoundtrip.originWaypointId, "WPT01");
-        EXPECT_NEAR(rmbRoundtrip.destCoordinates.latitudeDeg, 37.75, 1e-3);
-        EXPECT_NEAR(rmbRoundtrip.destCoordinates.longitudeDeg, -122.41666, 1e-3);
+        EXPECT_NEAR(rmbRoundtrip.destCoordinates.latitudeDeg(), 37.75, 1e-3);
+        EXPECT_NEAR(rmbRoundtrip.destCoordinates.longitudeDeg(), -122.41666, 1e-3);
     }
 
     TEST(TestNmeaRouteAndSar, RteMultiSentenceReassembly)
@@ -160,8 +160,8 @@ namespace {
 
         const auto wpt1Opt = routeManager.waypoint("WPT01");
         ASSERT_TRUE(wpt1Opt.has_value());
-        EXPECT_NEAR(wpt1Opt->latitudeDeg, 37.75, 1e-4);
-        EXPECT_NEAR(wpt1Opt->longitudeDeg, -122.41666, 1e-4);
+        EXPECT_NEAR(wpt1Opt->latitudeDeg(), 37.75, 1e-4);
+        EXPECT_NEAR(wpt1Opt->longitudeDeg(), -122.41666, 1e-4);
 
         // Now ingest a 1-sentence route containing these waypoints
         const std::string rte = NmeaChecksum::frameSentence("GPRTE,1,1,w,PATROL_A,WPT01,WPT02");
@@ -174,9 +174,9 @@ namespace {
         EXPECT_EQ(activeRoute->routeName, "PATROL_A");
         ASSERT_EQ(activeRoute->waypoints.size(), 2U);
         ASSERT_TRUE(activeRoute->waypoints[0].coordinates.has_value());
-        EXPECT_NEAR(activeRoute->waypoints[0].coordinates->latitudeDeg, 37.75, 1e-4);
+        EXPECT_NEAR(activeRoute->waypoints[0].coordinates->latitudeDeg(), 37.75, 1e-4);
         ASSERT_TRUE(activeRoute->waypoints[1].coordinates.has_value());
-        EXPECT_NEAR(activeRoute->waypoints[1].coordinates->latitudeDeg, 37.76666, 1e-4);
+        EXPECT_NEAR(activeRoute->waypoints[1].coordinates->latitudeDeg(), 37.76666, 1e-4);
     }
 
     TEST(TestNmeaRouteAndSar, LookAheadAndSarSweepCalculation)
@@ -203,21 +203,21 @@ namespace {
         // Compute 10,000 meters look ahead from WPT01 along leg (due East)
         const auto lookOpt = routeManager.computeLookAhead(10000.0);
         ASSERT_TRUE(lookOpt.has_value());
-        EXPECT_NEAR(lookOpt->latitudeDeg, 37.0, 1e-3);
-        EXPECT_GT(lookOpt->longitudeDeg, -122.0); // Shifted East
+        EXPECT_NEAR(lookOpt->latitudeDeg(), 37.0, 1e-3);
+        EXPECT_GT(lookOpt->longitudeDeg(), -122.0); // Shifted East
 
         // Compute SAR sweep point: 500m forward, 200m to the right (+90 deg -> South)
         const NmeaCoordinates shipPos { 37.0, -122.0 };
         const auto sweepRight = routeManager.computeSarSweepPoint(shipPos, 200.0, 500.0);
         ASSERT_TRUE(sweepRight.has_value());
-        EXPECT_GT(sweepRight->longitudeDeg, -122.0); // Forward East
-        EXPECT_LT(sweepRight->latitudeDeg, 37.0); // Displaced South (Right of East)
+        EXPECT_GT(sweepRight->longitudeDeg(), -122.0); // Forward East
+        EXPECT_LT(sweepRight->latitudeDeg(), 37.0); // Displaced South (Right of East)
 
         // Compute SAR sweep point: 500m forward, 200m to the left (-90 deg -> North)
         const auto sweepLeft = routeManager.computeSarSweepPoint(shipPos, -200.0, 500.0);
         ASSERT_TRUE(sweepLeft.has_value());
-        EXPECT_GT(sweepLeft->longitudeDeg, -122.0); // Forward East
-        EXPECT_GT(sweepLeft->latitudeDeg, 37.0); // Displaced North (Left of East)
+        EXPECT_GT(sweepLeft->longitudeDeg(), -122.0); // Forward East
+        EXPECT_GT(sweepLeft->latitudeDeg(), 37.0); // Displaced North (Left of East)
     }
 
     TEST(TestNmeaRouteAndSar, NmeaDeviceRouteDispatch)

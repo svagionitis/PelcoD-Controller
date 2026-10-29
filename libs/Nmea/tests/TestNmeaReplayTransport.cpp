@@ -19,7 +19,7 @@ namespace {
 
     TEST(TestNmeaReplayTransport, TimestampExtractionAndParsing)
     {
-        NmeaReplayTransport transport { };
+        NmeaReplayTransport transport {};
 
         // 1. Tag block timestamps
         const std::string tagBlockLog
@@ -51,7 +51,7 @@ namespace {
 
     TEST(TestNmeaReplayTransport, NavigationSeekingAndStep)
     {
-        NmeaReplayTransport transport { };
+        NmeaReplayTransport transport {};
         const std::string log = "$GPGGA,120000.00,3700.000,N,12200.000,W,1,08,0.9,10.0,M,0.0,M,,*42\r\n"
                                 "$HEHDT,090.0,T*1B\r\n"
                                 "$GPRMC,120000.00,A,3700.000,N,12200.000,W,12.0,090.0,290926,,,A*7C\r\n"
@@ -61,8 +61,8 @@ namespace {
         EXPECT_EQ(transport.totalLines(), 4U);
         EXPECT_EQ(transport.state(), ReplayState::Stopped);
 
-        std::vector<std::string> receivedLines { };
-        std::mutex rxMutex { };
+        std::vector<std::string> receivedLines {};
+        std::mutex rxMutex {};
         transport.setDataCallback([&](const std::vector<std::uint8_t>& data) {
             std::lock_guard<std::mutex> lock(rxMutex);
             receivedLines.emplace_back(reinterpret_cast<const char*>(data.data()), data.size());
@@ -103,7 +103,7 @@ namespace {
 
     TEST(TestNmeaReplayTransport, SpeedMultiplierBurstMode)
     {
-        NmeaReplayTransport transport { };
+        NmeaReplayTransport transport {};
         const std::string log = "$GPGGA,120000.00,3700.000,N,12200.000,W,1,08,0.9,10.0,M,0.0,M,,*42\r\n"
                                 "$HEHDT,090.0,T*1B\r\n"
                                 "$GPRMC,120000.00,A,3700.000,N,12200.000,W,12.0,090.0,290926,,,A*7C\r\n"
@@ -138,7 +138,7 @@ namespace {
 
     TEST(TestNmeaReplayTransport, SentenceFiltering)
     {
-        NmeaReplayTransport transport { };
+        NmeaReplayTransport transport {};
         const std::string log = "$GPGGA,120000.00,3700.000,N,12200.000,W,1,08,0.9,10.0,M,0.0,M,,*42\r\n"
                                 "$HEHDT,090.0,T*1B\r\n"
                                 "$GPRMC,120000.00,A,3700.000,N,12200.000,W,12.0,090.0,290926,,,A*7C\r\n";
@@ -150,8 +150,8 @@ namespace {
         // Only allow GGA sentences
         transport.setSentenceFilter({ "GGA" });
 
-        std::vector<std::string> received { };
-        std::mutex mtx { };
+        std::vector<std::string> received {};
+        std::mutex mtx {};
         transport.setDataCallback([&](const std::vector<std::uint8_t>& data) {
             std::lock_guard<std::mutex> lock(mtx);
             received.emplace_back(reinterpret_cast<const char*>(data.data()), data.size());
@@ -199,14 +199,14 @@ namespace {
         EXPECT_TRUE(aisReceived.load());
         const auto nav = nmeaDevice->navSnapshot();
         EXPECT_TRUE(nav.hasPosition);
-        EXPECT_NEAR(nav.position.latitudeDeg, 37.0, 1e-4);
-        EXPECT_NEAR(nav.position.longitudeDeg, -122.0, 1e-4);
+        EXPECT_NEAR(nav.position.latitudeDeg(), 37.0, 1e-4);
+        EXPECT_NEAR(nav.position.longitudeDeg(), -122.0, 1e-4);
         EXPECT_TRUE(nav.hasHeading);
         EXPECT_NEAR(nav.trueHeadingDegrees, 123.4, 1e-1);
 
         const auto aisOpt = nmeaDevice->aisTarget(477553000U);
         ASSERT_TRUE(aisOpt.has_value());
-        EXPECT_EQ(aisOpt->mmsi, 477553000U);
+        EXPECT_EQ(aisOpt->mmsi.value(), 477553000U);
     }
 
 } // namespace

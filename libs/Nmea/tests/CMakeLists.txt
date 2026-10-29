@@ -15,6 +15,7 @@ function(add_nmea_test test_name test_source)
 endfunction()
 
 add_nmea_test(TestNmeaChecksum         TestNmeaChecksum.cpp)
+add_nmea_test(TestNmeaDomainValueObjects TestNmeaDomainValueObjects.cpp)
 add_nmea_test(TestNmeaSentenceParser   TestNmeaSentenceParser.cpp)
 add_nmea_test(TestNmeaSentenceBuilder  TestNmeaSentenceBuilder.cpp)
 add_nmea_test(TestNmeaStreamAccumulator TestNmeaStreamAccumulator.cpp)
