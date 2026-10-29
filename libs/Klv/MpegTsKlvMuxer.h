@@ -33,7 +33,7 @@ public:
 
     /// @brief Constructs muxer with optional configuration.
     /// @param[in] config Initial configuration parameters.
-    explicit MpegTsKlvMuxer(const MpegTsMuxerConfig& config = {});
+    explicit MpegTsKlvMuxer(const MpegTsMuxerConfig& config = { });
 
     /// @brief Configures output streaming callback.
     /// @param[in] callback Function invoked whenever one or more TS packets are ready.
@@ -47,7 +47,16 @@ public:
     /// @return Const reference to active configuration.
     [[nodiscard]] const MpegTsMuxerConfig& config() const noexcept;
 
-    /// @brief Multiplexes a raw pre-encoded KLV packet into TS packets.
+    /// @brief Multiplexes a raw pre-encoded KLV packet onto a specified elementary PID.
+    /// @param[in] pid Target elementary stream PID.
+    /// @param[in] klvData Pointer to raw KLV bytes (starting with 16-byte UL).
+    /// @param[in] size Size of KLV packet in bytes.
+    /// @param[in] timestampUs Optional microsecond timestamp for PTS/PCR calculation.
+    /// @return Number of 188-byte TS packets emitted.
+    [[nodiscard]] std::size_t muxKlvPacket(std::uint16_t pid, const std::uint8_t* klvData, std::size_t size,
+        std::optional<std::uint64_t> timestampUs = std::nullopt);
+
+    /// @brief Multiplexes a raw pre-encoded KLV packet onto the primary metadata PID.
     /// @param[in] klvData Pointer to raw KLV bytes (starting with 16-byte UL).
     /// @param[in] size Size of KLV packet in bytes.
     /// @param[in] timestampUs Optional microsecond timestamp for PTS/PCR calculation.
@@ -55,10 +64,31 @@ public:
     [[nodiscard]] std::size_t muxKlvPacket(
         const std::uint8_t* klvData, std::size_t size, std::optional<std::uint64_t> timestampUs = std::nullopt);
 
-    /// @brief Encodes and multiplexes a UasDatalinkMessage into TS packets.
+    /// @brief Encodes and multiplexes a UasDatalinkMessage onto a specified elementary PID.
+    /// @param[in] pid Target elementary stream PID.
+    /// @param[in] message High-level telemetry message.
+    /// @return Number of 188-byte TS packets emitted.
+    [[nodiscard]] std::size_t muxMessage(std::uint16_t pid, const UasDatalinkMessage& message);
+
+    /// @brief Encodes and multiplexes a UasDatalinkMessage onto the primary metadata PID.
     /// @param[in] message High-level telemetry message.
     /// @return Number of 188-byte TS packets emitted.
     [[nodiscard]] std::size_t muxMessage(const UasDatalinkMessage& message);
+
+    /// @brief Multiplexes a raw KLV packet targeted by MISB ST 1607 MSID local identifier.
+    /// @param[in] msidLocalId Local ID from MetadataSubstreamId pack.
+    /// @param[in] klvData Pointer to raw KLV bytes.
+    /// @param[in] size Size of KLV packet in bytes.
+    /// @param[in] timestampUs Optional microsecond timestamp.
+    /// @return Number of 188-byte TS packets emitted.
+    [[nodiscard]] std::size_t muxSubstream(std::uint32_t msidLocalId, const std::uint8_t* klvData, std::size_t size,
+        std::optional<std::uint64_t> timestampUs = std::nullopt);
+
+    /// @brief Encodes and multiplexes a UasDatalinkMessage targeted by MISB ST 1607 MSID local identifier.
+    /// @param[in] msidLocalId Local ID from MetadataSubstreamId pack.
+    /// @param[in] message High-level telemetry message.
+    /// @return Number of 188-byte TS packets emitted.
+    [[nodiscard]] std::size_t muxSubstreamMessage(std::uint32_t msidLocalId, const UasDatalinkMessage& message);
 
     /// @brief Multiplexes a parsed VideoAccessUnit into TS packets on the video PID.
     /// @param[in] au Assembled video access unit.
@@ -82,7 +112,16 @@ public:
     [[nodiscard]] std::size_t muxSynchronizedFrame(
         const VideoAccessUnit& au, const std::optional<UasDatalinkMessage>& message);
 
-    /// @brief Multiplexes a KLV packet directly into an allocated byte buffer.
+    /// @brief Multiplexes a KLV packet onto a specified PID directly into an allocated byte buffer.
+    /// @param[in] pid Target elementary stream PID.
+    /// @param[in] klvData Pointer to raw KLV bytes.
+    /// @param[in] size Size of KLV packet in bytes.
+    /// @param[in] timestampUs Optional microsecond timestamp.
+    /// @return Vector of contiguous 188-byte TS packets.
+    [[nodiscard]] std::vector<std::uint8_t> muxToBuffer(std::uint16_t pid, const std::uint8_t* klvData,
+        std::size_t size, std::optional<std::uint64_t> timestampUs = std::nullopt);
+
+    /// @brief Multiplexes a KLV packet directly into an allocated byte buffer (primary PID).
     /// @param[in] klvData Pointer to raw KLV bytes.
     /// @param[in] size Size of KLV packet in bytes.
     /// @param[in] timestampUs Optional microsecond timestamp.
@@ -90,7 +129,13 @@ public:
     [[nodiscard]] std::vector<std::uint8_t> muxToBuffer(
         const std::uint8_t* klvData, std::size_t size, std::optional<std::uint64_t> timestampUs = std::nullopt);
 
-    /// @brief Multiplexes a UasDatalinkMessage directly into an allocated byte buffer.
+    /// @brief Multiplexes a UasDatalinkMessage onto a specified PID directly into an allocated byte buffer.
+    /// @param[in] pid Target elementary stream PID.
+    /// @param[in] message High-level telemetry message.
+    /// @return Vector of contiguous 188-byte TS packets.
+    [[nodiscard]] std::vector<std::uint8_t> muxMessageToBuffer(std::uint16_t pid, const UasDatalinkMessage& message);
+
+    /// @brief Multiplexes a UasDatalinkMessage directly into an allocated byte buffer (primary PID).
     /// @param[in] message High-level telemetry message.
     /// @return Vector of contiguous 188-byte TS packets.
     [[nodiscard]] std::vector<std::uint8_t> muxMessageToBuffer(const UasDatalinkMessage& message);
@@ -125,17 +170,17 @@ private:
         bool active { false };
     };
 
-    MpegTsMuxerConfig m_config {};
-    TsPacketCallback m_callback {};
-    std::array<PidCcEntry, 16> m_continuityCounters {};
+    MpegTsMuxerConfig m_config { };
+    TsPacketCallback m_callback { };
+    std::array<PidCcEntry, 32> m_continuityCounters { };
     std::size_t m_packetCounter { 0U };
     std::uint64_t m_lastPcrTimestampUs { 0U };
-    VideoPesPacketizer m_videoPesPacketizer {};
+    VideoPesPacketizer m_videoPesPacketizer { };
 
     [[nodiscard]] std::uint8_t nextCc(std::uint16_t pid) noexcept;
     [[nodiscard]] std::vector<std::uint8_t> buildPatPacket();
     [[nodiscard]] std::vector<std::uint8_t> buildPmtPacket();
-    [[nodiscard]] std::vector<std::uint8_t> buildPesPacket(
+    [[nodiscard]] std::vector<std::uint8_t> buildPesPacket(KlvStreamId streamId, bool emitPts,
         const std::uint8_t* klvData, std::size_t size, std::optional<std::uint64_t> timestampUs);
 
     [[nodiscard]] std::size_t emitTsPacket(std::uint16_t pid, bool pusi, const std::uint8_t* payload,

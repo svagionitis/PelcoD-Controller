@@ -5,7 +5,9 @@
 #include <cstdio>
 
 #include <algorithm>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -31,14 +33,14 @@ namespace {
             return candidate;
         }
     }
-    return {};
+    return { };
 }
 
 [[nodiscard]] std::vector<std::uint8_t> loadVideoFile(const std::string& path)
 {
     FILE* fp = std::fopen(path.c_str(), "rb");
     if (fp == nullptr) {
-        return {};
+        return { };
     }
 
     std::fseek(fp, 0, SEEK_END);
@@ -683,4 +685,249 @@ TEST(MpegTsKlvMuxerTest, RandomAccessIndicatorOnlyOnKeyframes)
     if ((nonKeyPkt[3] & 0x20U) != 0U) {
         EXPECT_EQ(nonKeyPkt[5] & 0x40U, 0x00U);
     }
+}
+
+TEST(MpegTsKlvMuxerTest, MultiPidPmtGeneration)
+{
+    MpegTsMuxerConfig config;
+    config.programNumber = 101U;
+    config.pmtPid = 0x0100U;
+    config.videoCodec = VideoCodec::H264;
+    config.videoPid = 0x0101U;
+
+    MetadataStreamConfig s1;
+    s1.pid = 0x01E0U;
+    s1.streamType = KlvStreamType::MetadataInPes;
+    s1.formatIdentifier = "KLVA";
+    s1.streamName = "Primary EO/IR";
+    s1.msid = MetadataSubstreamId { 1U, std::nullopt };
+
+    MetadataStreamConfig s2;
+    s2.pid = 0x01E1U;
+    s2.streamType = KlvStreamType::MetadataInPes;
+    s2.formatIdentifier = "KLVA";
+    s2.streamName = "Secondary Radar";
+    s2.msid = MetadataSubstreamId { 2U, std::nullopt };
+
+    MetadataStreamConfig s3;
+    s3.pid = 0x01E2U;
+    s3.streamType = KlvStreamType::MetadataInPes;
+    s3.formatIdentifier = "VMTI";
+    s3.streamName = "VMTI Tracker";
+    s3.msid = MetadataSubstreamId { 3U, std::nullopt };
+
+    config.metadataStreams = { s1, s2, s3 };
+    EXPECT_TRUE(config.validate());
+
+    MpegTsKlvMuxer muxer(config);
+    std::vector<std::vector<std::uint8_t>> packets;
+    muxer.setPacketCallback(
+        [&packets](const std::uint8_t* data, std::size_t size) { packets.emplace_back(data, data + size); });
+
+    const std::size_t emitted = muxer.emitPsiTables();
+    ASSERT_EQ(emitted, 2U);
+    ASSERT_EQ(packets.size(), 2U);
+
+    // Verify PMT Packet (Packet 1)
+    const auto& pmt = packets[1];
+    EXPECT_EQ(pmt.size(), MpegTsKlvMuxer::kTsPacketSize);
+    EXPECT_EQ(pmt[0], MpegTsKlvMuxer::kTsSyncByte);
+    // PID 0x0100, PUSI = 1
+    EXPECT_EQ(pmt[1] & 0x40U, 0x40U);
+    EXPECT_EQ(static_cast<std::uint16_t>(((pmt[1] & 0x1FU) << 8U) | pmt[2]), 0x0100U);
+
+    // PMT pointer field at index 4 (0x00), section begins at index 5
+    EXPECT_EQ(pmt[4], 0x00U);
+    EXPECT_EQ(pmt[5], 0x02U); // Table ID 0x02 = PMT
+
+    const std::size_t sectionLength
+        = ((static_cast<std::size_t>(pmt[6] & 0x0FU)) << 8U) | static_cast<std::size_t>(pmt[7]);
+    const std::size_t totalSectionBytes = 3U + sectionLength;
+
+    // Verify CRC-32 of PMT section
+    const std::uint32_t pmtCrc = KlvCrc::calculateCrc32Mpeg(pmt.data() + 5, totalSectionBytes);
+    EXPECT_EQ(pmtCrc, 0x00000000U);
+}
+
+TEST(MpegTsKlvMuxerTest, IndependentContinuityCountersAcrossPids)
+{
+    MpegTsMuxerConfig config;
+    MetadataStreamConfig s1;
+    s1.pid = 0x01E0U;
+    MetadataStreamConfig s2;
+    s2.pid = 0x01E1U;
+    MetadataStreamConfig s3;
+    s3.pid = 0x01E2U;
+    config.metadataStreams = { s1, s2, s3 };
+
+    MpegTsKlvMuxer muxer(config);
+
+    const std::vector<std::uint8_t> dummyPayload = { 0x06U, 0x0EU, 0x2BU, 0x34U, 0x02U, 0x0BU, 0x01U, 0x01U, 0x0EU,
+        0x01U, 0x03U, 0x01U, 0x01U, 0x00U, 0x00U, 0x00U, 0x00U };
+
+    std::vector<std::uint8_t> ccPidE0;
+    std::vector<std::uint8_t> ccPidE1;
+    std::vector<std::uint8_t> ccPidE2;
+
+    muxer.setPacketCallback([&](const std::uint8_t* pkt, std::size_t) {
+        const std::uint16_t pid
+            = static_cast<std::uint16_t>(((static_cast<std::uint16_t>(pkt[1] & 0x1FU)) << 8U) | pkt[2]);
+        const std::uint8_t cc = pkt[3] & 0x0FU;
+        if (pid == 0x01E0U) {
+            ccPidE0.push_back(cc);
+        } else if (pid == 0x01E1U) {
+            ccPidE1.push_back(cc);
+        } else if (pid == 0x01E2U) {
+            ccPidE2.push_back(cc);
+        }
+    });
+
+    // Interleave packets across the three PIDs
+    for (std::size_t i = 0U; i < 20U; ++i) {
+        static_cast<void>(muxer.muxKlvPacket(0x01E0U, dummyPayload.data(), dummyPayload.size(), 1000000ULL + i));
+        static_cast<void>(muxer.muxKlvPacket(0x01E1U, dummyPayload.data(), dummyPayload.size(), 1000000ULL + i));
+        static_cast<void>(muxer.muxKlvPacket(0x01E2U, dummyPayload.data(), dummyPayload.size(), 1000000ULL + i));
+    }
+
+    ASSERT_EQ(ccPidE0.size(), 20U);
+    ASSERT_EQ(ccPidE1.size(), 20U);
+    ASSERT_EQ(ccPidE2.size(), 20U);
+
+    // Validate that each PID cycled its CC independently
+    for (std::size_t i = 1U; i < 20U; ++i) {
+        EXPECT_EQ(ccPidE0[i], static_cast<std::uint8_t>((ccPidE0[i - 1U] + 1U) & 0x0FU));
+        EXPECT_EQ(ccPidE1[i], static_cast<std::uint8_t>((ccPidE1[i - 1U] + 1U) & 0x0FU));
+        EXPECT_EQ(ccPidE2[i], static_cast<std::uint8_t>((ccPidE2[i - 1U] + 1U) & 0x0FU));
+    }
+}
+
+TEST(MpegTsKlvMuxerTest, MultiPidDemuxRoundTrip)
+{
+    MpegTsMuxerConfig config;
+    MetadataStreamConfig s1;
+    s1.pid = 0x01E0U;
+    s1.formatIdentifier = "KLVA";
+    MetadataStreamConfig s2;
+    s2.pid = 0x01E1U;
+    s2.formatIdentifier = "KLVA";
+    MetadataStreamConfig s3;
+    s3.pid = 0x01E2U;
+    s3.formatIdentifier = "VMTI";
+    config.metadataStreams = { s1, s2, s3 };
+
+    MpegTsKlvMuxer muxer(config);
+    std::vector<std::uint8_t> tsStream;
+    muxer.setPacketCallback([&tsStream](const std::uint8_t* data, std::size_t size) {
+        tsStream.insert(tsStream.end(), data, data + size);
+    });
+
+    UasDatalinkMessage msg1;
+    msg1.platformHeadingDeg = 135.0;
+    msg1.sensorLatitudeDeg = 34.05;
+    msg1.precisionTimeStampUs = 1000000ULL;
+
+    UasDatalinkMessage msg2;
+    msg2.platformHeadingDeg = 270.0;
+    msg2.sensorLatitudeDeg = -20.12;
+    msg2.precisionTimeStampUs = 1000010ULL;
+
+    UasDatalinkMessage msg3;
+    msg3.platformHeadingDeg = 45.0;
+    msg3.sensorLatitudeDeg = 51.50;
+    msg3.precisionTimeStampUs = 1000020ULL;
+
+    static_cast<void>(muxer.muxMessage(0x01E0U, msg1));
+    static_cast<void>(muxer.muxMessage(0x01E1U, msg2));
+    static_cast<void>(muxer.muxMessage(0x01E2U, msg3));
+
+    ASSERT_FALSE(tsStream.empty());
+    ASSERT_EQ(tsStream.size() % MpegTsKlvMuxer::kTsPacketSize, 0U);
+
+    // Demux with MpegTsKlvExtractor
+    MpegTsKlvExtractor extractor;
+    std::vector<std::pair<std::uint16_t, UasDatalinkMessage>> receivedMessages;
+
+    extractor.setMultiPidMessageCallback(
+        [&](std::uint16_t pid, const UasDatalinkMessage& msg) { receivedMessages.emplace_back(pid, msg); });
+
+    const std::size_t processed = extractor.processStream(tsStream.data(), tsStream.size());
+    EXPECT_GT(processed, 0U);
+
+    ASSERT_EQ(receivedMessages.size(), 3U);
+    EXPECT_EQ(receivedMessages[0].first, 0x01E0U);
+    EXPECT_NEAR(receivedMessages[0].second.platformHeadingDeg.value_or(0.0), 135.0, 0.01);
+    EXPECT_NEAR(receivedMessages[0].second.sensorLatitudeDeg.value_or(0.0), 34.05, 0.001);
+
+    EXPECT_EQ(receivedMessages[1].first, 0x01E1U);
+    EXPECT_NEAR(receivedMessages[1].second.platformHeadingDeg.value_or(0.0), 270.0, 0.01);
+    EXPECT_NEAR(receivedMessages[1].second.sensorLatitudeDeg.value_or(0.0), -20.12, 0.001);
+
+    EXPECT_EQ(receivedMessages[2].first, 0x01E2U);
+    EXPECT_NEAR(receivedMessages[2].second.platformHeadingDeg.value_or(0.0), 45.0, 0.01);
+    EXPECT_NEAR(receivedMessages[2].second.sensorLatitudeDeg.value_or(0.0), 51.50, 0.001);
+}
+
+TEST(MpegTsKlvMuxerTest, SubstreamTargetedByMsid)
+{
+    MpegTsMuxerConfig config;
+    MetadataStreamConfig s1;
+    s1.pid = 0x01E0U;
+    s1.msid = MetadataSubstreamId { 1U, std::nullopt };
+
+    MetadataStreamConfig s2;
+    s2.pid = 0x01E1U;
+    s2.msid = MetadataSubstreamId { 2U, std::nullopt };
+
+    config.metadataStreams = { s1, s2 };
+    MpegTsKlvMuxer muxer(config);
+
+    std::vector<std::uint16_t> dispatchedPids;
+    muxer.setPacketCallback([&dispatchedPids](const std::uint8_t* pkt, std::size_t) {
+        const std::uint16_t pid
+            = static_cast<std::uint16_t>(((static_cast<std::uint16_t>(pkt[1] & 0x1FU)) << 8U) | pkt[2]);
+        if (pid == 0x01E0U || pid == 0x01E1U) {
+            dispatchedPids.push_back(pid);
+        }
+    });
+
+    UasDatalinkMessage msg1;
+    msg1.platformHeadingDeg = 90.0;
+    UasDatalinkMessage msg2;
+    msg2.platformHeadingDeg = 180.0;
+
+    static_cast<void>(muxer.muxSubstreamMessage(1U, msg1));
+    static_cast<void>(muxer.muxSubstreamMessage(2U, msg2));
+
+    ASSERT_GE(dispatchedPids.size(), 2U);
+    EXPECT_EQ(dispatchedPids.front(), 0x01E0U);
+    EXPECT_EQ(dispatchedPids.back(), 0x01E1U);
+}
+
+TEST(MpegTsMuxerConfigTest, ValidationInvariants)
+{
+    MpegTsMuxerConfig validConfig;
+    validConfig.pmtPid = 0x0100U;
+    validConfig.videoCodec = VideoCodec::H264;
+    validConfig.videoPid = 0x0101U;
+    MetadataStreamConfig s1;
+    s1.pid = 0x01E0U;
+    MetadataStreamConfig s2;
+    s2.pid = 0x01E1U;
+    validConfig.metadataStreams = { s1, s2 };
+    EXPECT_TRUE(validConfig.validate());
+
+    // Duplicate metadata stream PID
+    MpegTsMuxerConfig duplicatePidConfig = validConfig;
+    duplicatePidConfig.metadataStreams[1].pid = 0x01E0U;
+    EXPECT_FALSE(duplicatePidConfig.validate());
+
+    // Stream PID collides with PMT PID
+    MpegTsMuxerConfig pmtCollisionConfig = validConfig;
+    pmtCollisionConfig.metadataStreams[0].pid = 0x0100U;
+    EXPECT_FALSE(pmtCollisionConfig.validate());
+
+    // Stream PID collides with Video PID
+    MpegTsMuxerConfig videoCollisionConfig = validConfig;
+    videoCollisionConfig.metadataStreams[0].pid = 0x0101U;
+    EXPECT_FALSE(videoCollisionConfig.validate());
 }

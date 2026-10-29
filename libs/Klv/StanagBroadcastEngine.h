@@ -130,17 +130,31 @@ public:
     /// @return True if queued successfully; false if queue overflowed.
     bool pushVideoAccessUnit(VideoAccessUnit au);
 
-    /// @brief Pushes a high-level UasDatalinkMessage into the broadcast pipeline.
+    /// @brief Pushes a high-level UasDatalinkMessage into the broadcast pipeline (primary metadata PID).
     /// @param[in] message Telemetry message.
     /// @return True if queued successfully; false if queue overflowed.
     bool pushTelemetry(UasDatalinkMessage message);
 
-    /// @brief Pushes a pre-encoded KLV byte packet into the broadcast pipeline.
+    /// @brief Pushes a high-level UasDatalinkMessage into the broadcast pipeline for a specific PID.
+    /// @param[in] pid Target elementary stream PID.
+    /// @param[in] message Telemetry message.
+    /// @return True if queued successfully; false if queue overflowed.
+    bool pushTelemetry(std::uint16_t pid, UasDatalinkMessage message);
+
+    /// @brief Pushes a pre-encoded KLV byte packet into the broadcast pipeline (primary metadata PID).
     /// @param[in] data Pointer to raw KLV bytes.
     /// @param[in] size Size of packet in bytes.
     /// @param[in] timestampUs Microsecond timestamp.
     /// @return True if queued successfully; false if queue overflowed.
     bool pushRawKlv(const std::uint8_t* data, std::size_t size, std::uint64_t timestampUs);
+
+    /// @brief Pushes a pre-encoded KLV byte packet into the broadcast pipeline for a specific PID.
+    /// @param[in] pid Target elementary stream PID.
+    /// @param[in] data Pointer to raw KLV bytes.
+    /// @param[in] size Size of packet in bytes.
+    /// @param[in] timestampUs Microsecond timestamp.
+    /// @return True if queued successfully; false if queue overflowed.
+    bool pushRawKlv(std::uint16_t pid, const std::uint8_t* data, std::size_t size, std::uint64_t timestampUs);
 
     /// @brief Flushes all queued frames through synchronization and multiplexer.
     void flush();

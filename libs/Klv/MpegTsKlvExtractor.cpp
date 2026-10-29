@@ -1,12 +1,16 @@
 #include "MpegTsKlvExtractor.h"
+
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
 #include <algorithm>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include "KlvBer.h"
+#include "KlvParser.h"
 
 namespace Klv {
 
@@ -22,6 +26,18 @@ MpegTsKlvExtractor::MpegTsKlvExtractor()
 void MpegTsKlvExtractor::setMetadataPid(std::uint16_t pid) noexcept
 {
     m_metadataPid = pid;
+    m_metadataPids.clear();
+    m_metadataPids.push_back(pid);
+}
+
+void MpegTsKlvExtractor::addMetadataPid(std::uint16_t pid)
+{
+    if (std::find(m_metadataPids.begin(), m_metadataPids.end(), pid) == m_metadataPids.end()) {
+        m_metadataPids.push_back(pid);
+    }
+    if (!m_metadataPid.has_value()) {
+        m_metadataPid = pid;
+    }
 }
 
 void MpegTsKlvExtractor::setKlvPayloadCallback(KlvPayloadCallback callback)
@@ -29,9 +45,20 @@ void MpegTsKlvExtractor::setKlvPayloadCallback(KlvPayloadCallback callback)
     m_payloadCallback = std::move(callback);
 }
 
+void MpegTsKlvExtractor::setMultiPidPayloadCallback(MultiPidPayloadCallback callback)
+{
+    m_multiPayloadCallback = std::move(callback);
+}
+
 void MpegTsKlvExtractor::setMessageCallback(KlvStreamScanner::MessageCallback callback)
 {
+    m_messageCallback = callback;
     m_scanner.setMessageCallback(std::move(callback));
+}
+
+void MpegTsKlvExtractor::setMultiPidMessageCallback(MultiPidMessageCallback callback)
+{
+    m_multiMessageCallback = std::move(callback);
 }
 
 std::optional<std::uint16_t> MpegTsKlvExtractor::metadataPid() const noexcept
@@ -39,20 +66,45 @@ std::optional<std::uint16_t> MpegTsKlvExtractor::metadataPid() const noexcept
     return m_metadataPid;
 }
 
+std::vector<std::uint16_t> MpegTsKlvExtractor::metadataPids() const
+{
+    return m_metadataPids;
+}
+
+bool MpegTsKlvExtractor::isMetadataPid(std::uint16_t pid) const noexcept
+{
+    if (m_metadataPid.has_value() && *m_metadataPid == pid) {
+        return true;
+    }
+    return std::find(m_metadataPids.begin(), m_metadataPids.end(), pid) != m_metadataPids.end();
+}
+
+MpegTsKlvExtractor::SubstreamReassembly& MpegTsKlvExtractor::getOrCreateSubstream(std::uint16_t pid)
+{
+    for (auto& sub : m_substreams) {
+        if (sub.pid == pid) {
+            return sub;
+        }
+    }
+    m_substreams.push_back(SubstreamReassembly { pid, -1, { } });
+    return m_substreams.back();
+}
+
 void MpegTsKlvExtractor::reset()
 {
     m_streamBuffer.clear();
-    m_pesReassemblyBuffer.clear();
-    m_lastContinuityCounter = -1;
+    m_substreams.clear();
     m_scanner.reset();
 }
 
 std::size_t MpegTsKlvExtractor::flush()
 {
     std::size_t dispatched = 0U;
-    if (!m_pesReassemblyBuffer.empty()) {
-        dispatched = handlePesPacket(m_pesReassemblyBuffer.data(), m_pesReassemblyBuffer.size());
-        m_pesReassemblyBuffer.clear();
+    for (auto& sub : m_substreams) {
+        if (!sub.buffer.empty()) {
+            dispatched += handlePesPacket(sub.pid, sub.buffer.data(), sub.buffer.size());
+            sub.buffer.clear();
+        }
     }
     return dispatched;
 }
@@ -143,43 +195,45 @@ std::size_t MpegTsKlvExtractor::processTsPacket(const std::uint8_t* packet)
     }
 
     // If metadata PID not discovered yet, check if this packet contains MISB UL or PES wrapping MISB UL
-    if (!m_metadataPid.has_value()) {
+    if (!m_metadataPid.has_value() && m_metadataPids.empty()) {
         if (payloadSize >= kUniversalLabelSize
             && std::memcmp(payload, kMisb0601UniversalLabel.data(), kMisb0601PrefixSize) == 0) {
-            m_metadataPid = pid;
+            addMetadataPid(pid);
         } else if (payloadSize >= 9U + kUniversalLabelSize && payload[0] == 0x00U && payload[1] == 0x00U
             && payload[2] == 0x01U) {
             const std::size_t pesHdrLen = static_cast<std::size_t>(payload[8]);
             const std::size_t klvOffset = 9U + pesHdrLen;
             if (klvOffset + kUniversalLabelSize <= payloadSize
                 && std::memcmp(payload + klvOffset, kMisb0601UniversalLabel.data(), kMisb0601PrefixSize) == 0) {
-                m_metadataPid = pid;
+                addMetadataPid(pid);
             }
         }
     }
 
-    // Ignore packets that don't match metadata PID
-    if (!m_metadataPid.has_value() || pid != *m_metadataPid) {
+    // Ignore packets that don't match any registered metadata PID
+    if (!isMetadataPid(pid)) {
         return 0U;
     }
+
+    auto& sub = getOrCreateSubstream(pid);
 
     // Continuity Counter checking
     const std::uint8_t cc = packet[3] & 0x0FU;
     bool ccDiscontinuity = false;
-    if (m_lastContinuityCounter >= 0) {
-        if (static_cast<int>(cc) == m_lastContinuityCounter) {
+    if (sub.lastContinuityCounter >= 0) {
+        if (static_cast<int>(cc) == sub.lastContinuityCounter) {
             // Duplicate packet, ignore
             return 0U;
         }
-        const int expectedCc = (m_lastContinuityCounter + 1) & 0x0F;
+        const int expectedCc = (sub.lastContinuityCounter + 1) & 0x0F;
         if (static_cast<int>(cc) != expectedCc) {
             ccDiscontinuity = true;
         }
     }
-    m_lastContinuityCounter = static_cast<int>(cc);
+    sub.lastContinuityCounter = static_cast<int>(cc);
 
     if (ccDiscontinuity) {
-        m_pesReassemblyBuffer.clear();
+        sub.buffer.clear();
         if (!pusi) {
             // Fragment following dropped packets cannot be assembled
             return 0U;
@@ -190,66 +244,62 @@ std::size_t MpegTsKlvExtractor::processTsPacket(const std::uint8_t* packet)
 
     // On PUSI boundary, flush any previously buffered unbounded or unconsumed PES packet
     if (pusi) {
-        if (!m_pesReassemblyBuffer.empty()) {
-            dispatched += handlePesPacket(m_pesReassemblyBuffer.data(), m_pesReassemblyBuffer.size());
-            m_pesReassemblyBuffer.clear();
+        if (!sub.buffer.empty()) {
+            dispatched += handlePesPacket(pid, sub.buffer.data(), sub.buffer.size());
+            sub.buffer.clear();
         }
     }
 
-    if (m_pesReassemblyBuffer.size() + payloadSize > kMaxPesBufferSize) {
-        m_pesReassemblyBuffer.clear();
+    if (sub.buffer.size() + payloadSize > kMaxPesBufferSize) {
+        sub.buffer.clear();
         return 0U;
     }
 
-    m_pesReassemblyBuffer.insert(m_pesReassemblyBuffer.end(), payload, payload + payloadSize);
+    sub.buffer.insert(sub.buffer.end(), payload, payload + payloadSize);
 
     // Immediate complete PES / KLV packet extraction loop
-    while (m_pesReassemblyBuffer.size() >= 6U) {
-        if (m_pesReassemblyBuffer[0] == 0x00U && m_pesReassemblyBuffer[1] == 0x00U
-            && m_pesReassemblyBuffer[2] == 0x01U) {
-            const std::size_t pesLen = (static_cast<std::size_t>(m_pesReassemblyBuffer[4]) << 8U)
-                | static_cast<std::size_t>(m_pesReassemblyBuffer[5]);
+    while (sub.buffer.size() >= 6U) {
+        if (sub.buffer[0] == 0x00U && sub.buffer[1] == 0x00U && sub.buffer[2] == 0x01U) {
+            const std::size_t pesLen
+                = (static_cast<std::size_t>(sub.buffer[4]) << 8U) | static_cast<std::size_t>(sub.buffer[5]);
             if (pesLen == 0U) {
                 // Unbounded PES stream: wait for next PUSI or flush()
                 break;
             }
 
             const std::size_t totalPesSize = 6U + pesLen;
-            if (m_pesReassemblyBuffer.size() < totalPesSize) {
+            if (sub.buffer.size() < totalPesSize) {
                 // Incomplete PES fragment: wait for more TS packets
                 break;
             }
 
-            dispatched += handlePesPacket(m_pesReassemblyBuffer.data(), totalPesSize);
-            m_pesReassemblyBuffer.erase(m_pesReassemblyBuffer.begin(),
-                m_pesReassemblyBuffer.begin() + static_cast<std::ptrdiff_t>(totalPesSize));
-        } else if (m_pesReassemblyBuffer.size() >= kUniversalLabelSize + 2U
-            && std::memcmp(m_pesReassemblyBuffer.data(), kMisb0601UniversalLabel.data(), kMisb0601PrefixSize) == 0) {
+            dispatched += handlePesPacket(pid, sub.buffer.data(), totalPesSize);
+            sub.buffer.erase(sub.buffer.begin(), sub.buffer.begin() + static_cast<std::ptrdiff_t>(totalPesSize));
+        } else if (sub.buffer.size() >= kUniversalLabelSize + 2U
+            && std::memcmp(sub.buffer.data(), kMisb0601UniversalLabel.data(), kMisb0601PrefixSize) == 0) {
             // Raw KLV packet without PES encapsulation
             std::size_t payloadLength { 0U };
             std::size_t berLenConsumed { 0U };
-            const std::uint8_t* berPtr = m_pesReassemblyBuffer.data() + kUniversalLabelSize;
-            const std::size_t avail = m_pesReassemblyBuffer.size() - kUniversalLabelSize;
+            const std::uint8_t* berPtr = sub.buffer.data() + kUniversalLabelSize;
+            const std::size_t avail = sub.buffer.size() - kUniversalLabelSize;
             if (!KlvBer::decodeLength(berPtr, avail, payloadLength, berLenConsumed)) {
                 break;
             }
 
             const std::size_t totalKlvSize = kUniversalLabelSize + berLenConsumed + payloadLength;
-            if (m_pesReassemblyBuffer.size() < totalKlvSize) {
+            if (sub.buffer.size() < totalKlvSize) {
                 break;
             }
 
-            dispatched += handlePesPacket(m_pesReassemblyBuffer.data(), totalKlvSize);
-            m_pesReassemblyBuffer.erase(m_pesReassemblyBuffer.begin(),
-                m_pesReassemblyBuffer.begin() + static_cast<std::ptrdiff_t>(totalKlvSize));
+            dispatched += handlePesPacket(pid, sub.buffer.data(), totalKlvSize);
+            sub.buffer.erase(sub.buffer.begin(), sub.buffer.begin() + static_cast<std::ptrdiff_t>(totalKlvSize));
         } else {
             // If remainder is all 0xFF TS stuffing, clear buffer and finish
-            if (std::all_of(m_pesReassemblyBuffer.begin(), m_pesReassemblyBuffer.end(),
-                    [](std::uint8_t b) { return b == 0xFFU; })) {
-                m_pesReassemblyBuffer.clear();
+            if (std::all_of(sub.buffer.begin(), sub.buffer.end(), [](std::uint8_t b) { return b == 0xFFU; })) {
+                sub.buffer.clear();
                 break;
             }
-            m_pesReassemblyBuffer.erase(m_pesReassemblyBuffer.begin());
+            sub.buffer.erase(sub.buffer.begin());
         }
     }
 
@@ -334,19 +384,21 @@ void MpegTsKlvExtractor::parsePmt(const std::uint8_t* payload, std::size_t size)
 
         // STANAG 4609 specifies stream_type 0x06 (PES private data) or 0x15 (metadata in PES)
         if (streamType == 0x06U || streamType == 0x15U) {
-            m_metadataPid = elemPid;
-            break;
+            addMetadataPid(elemPid);
         }
 
         offset += 5U + esInfoLen;
     }
 }
 
-std::size_t MpegTsKlvExtractor::handlePesPacket(const std::uint8_t* pesData, std::size_t pesSize)
+std::size_t MpegTsKlvExtractor::handlePesPacket(std::uint16_t pid, const std::uint8_t* pesData, std::size_t pesSize)
 {
     if (pesData == nullptr || pesSize < 6U) {
         return 0U;
     }
+
+    const std::uint8_t* klvBytes = pesData;
+    std::size_t klvSize = pesSize;
 
     // Check for PES start code prefix: 0x00 0x00 0x01
     if (pesData[0] == 0x00U && pesData[1] == 0x00U && pesData[2] == 0x01U) {
@@ -361,14 +413,28 @@ std::size_t MpegTsKlvExtractor::handlePesPacket(const std::uint8_t* pesData, std
                 return 0U;
             }
         }
-        if (payloadOffset < pesSize) {
-            return m_scanner.processBytes(pesData + payloadOffset, pesSize - payloadOffset);
+        if (payloadOffset >= pesSize) {
+            return 0U;
         }
-        return 0U;
+        klvBytes = pesData + payloadOffset;
+        klvSize = pesSize - payloadOffset;
     }
 
-    // If not standard PES header (e.g. raw KLV packet), feed to scanner
-    return m_scanner.processBytes(pesData, pesSize);
+    // Multi-PID payload callback
+    if (m_multiPayloadCallback) {
+        m_multiPayloadCallback(pid, klvBytes, klvSize);
+    }
+
+    // Attempt multi-PID message decoding
+    if (m_multiMessageCallback) {
+        UasDatalinkMessage parsedMsg { };
+        if (KlvParser::parse(klvBytes, klvSize, parsedMsg) == KlvStatus::Success) {
+            m_multiMessageCallback(pid, parsedMsg);
+        }
+    }
+
+    // Feed to scanner for legacy single-PID callbacks
+    return m_scanner.processBytes(klvBytes, klvSize);
 }
 
 } // namespace Klv

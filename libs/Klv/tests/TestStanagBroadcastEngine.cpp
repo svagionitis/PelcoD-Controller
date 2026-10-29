@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -274,4 +275,55 @@ TEST(TestStanagBroadcastEngine, CbrPacingIntegration)
 
     engine.stop();
     EXPECT_FALSE(engine.isRunning());
+}
+
+TEST(TestStanagBroadcastEngine, MultiPidTelemetryIngest)
+{
+    StanagBroadcastConfig config { };
+    config.enableNetworkPublishing = false;
+    MetadataStreamConfig s1;
+    s1.pid = 0x01E0U;
+    s1.formatIdentifier = "KLVA";
+    MetadataStreamConfig s2;
+    s2.pid = 0x01E1U;
+    s2.formatIdentifier = "KLVA";
+    config.muxerConfig.metadataStreams = { s1, s2 };
+
+    StanagBroadcastEngine engine(config);
+
+    std::vector<std::pair<std::uint16_t, std::vector<std::uint8_t>>> packets;
+    engine.setPacketCallback([&packets](const std::uint8_t* pkt, std::size_t size) {
+        const std::uint16_t pid
+            = static_cast<std::uint16_t>(((static_cast<std::uint16_t>(pkt[1] & 0x1FU)) << 8U) | pkt[2]);
+        packets.emplace_back(pid, std::vector<std::uint8_t>(pkt, pkt + size));
+    });
+
+    EXPECT_TRUE(engine.start());
+
+    UasDatalinkMessage msg1;
+    msg1.platformHeadingDeg = 100.0;
+    msg1.precisionTimeStampUs = 1000000ULL;
+
+    UasDatalinkMessage msg2;
+    msg2.platformHeadingDeg = 200.0;
+    msg2.precisionTimeStampUs = 1000010ULL;
+
+    EXPECT_TRUE(engine.pushTelemetry(0x01E0U, msg1));
+    EXPECT_TRUE(engine.pushTelemetry(0x01E1U, msg2));
+
+    engine.flush();
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+
+    engine.stop();
+
+    bool foundE0 = false;
+    bool foundE1 = false;
+    for (const auto& p : packets) {
+        if (p.first == 0x01E0U)
+            foundE0 = true;
+        if (p.first == 0x01E1U)
+            foundE1 = true;
+    }
+    EXPECT_TRUE(foundE0);
+    EXPECT_TRUE(foundE1);
 }

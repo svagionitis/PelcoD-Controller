@@ -1,14 +1,12 @@
-/// @file StanagBroadcastEngine.cpp
-/// @brief Master orchestrator coordinating live video, KLV telemetry, and MPEG-TS broadcasting.
-
 #include "StanagBroadcastEngine.h"
-#include "CbrRatePacer.h"
 
+#include <cstddef>
+#include <cstdint>
+
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
-#include <cstddef>
-#include <cstdint>
 #include <deque>
 #include <memory>
 #include <mutex>
@@ -17,14 +15,11 @@
 #include <utility>
 #include <vector>
 
+#include "CbrRatePacer.h"
 #include "KlvTypes.h"
-#include "MasterTimeBase.h"
 #include "MpegTsKlvMuxer.h"
-#include "MpegTsMuxerTypes.h"
 #include "MpegTsNetworkPublisher.h"
 #include "PtsSyncManager.h"
-#include "PtsSyncTypes.h"
-#include "TsNetworkTypes.h"
 #include "VideoNaluParser.h"
 #include "VideoTypes.h"
 
@@ -154,7 +149,7 @@ public:
         return enqueueVideoUnit(std::move(au));
     }
 
-    bool pushTelemetry(UasDatalinkMessage message)
+    bool pushTelemetry(std::uint16_t pid, UasDatalinkMessage message)
     {
         {
             std::lock_guard<std::mutex> lock(m_statsMutex);
@@ -162,6 +157,7 @@ public:
         }
 
         QueuedTelemetryItem item { };
+        item.pid = pid;
         item.timestampUs = message.precisionTimeStampUs.value_or(0U);
         item.message = std::move(message);
 
@@ -177,7 +173,7 @@ public:
         return true;
     }
 
-    bool pushRawKlv(const std::uint8_t* data, std::size_t size, std::uint64_t timestampUs)
+    bool pushRawKlv(std::uint16_t pid, const std::uint8_t* data, std::size_t size, std::uint64_t timestampUs)
     {
         if (data == nullptr || size == 0U) {
             return false;
@@ -189,6 +185,7 @@ public:
         }
 
         QueuedTelemetryItem item { };
+        item.pid = pid;
         item.timestampUs = timestampUs;
         item.rawBytes.assign(data, data + size);
 
@@ -238,6 +235,7 @@ public:
 
 private:
     struct QueuedTelemetryItem {
+        std::uint16_t pid { 0U };
         std::uint64_t timestampUs { 0U };
         std::optional<UasDatalinkMessage> message { };
         std::vector<std::uint8_t> rawBytes { };
@@ -264,8 +262,8 @@ private:
     MpegTsKlvMuxer m_muxer;
     PtsSyncManager m_syncManager;
     VideoNaluParser m_naluParser;
-    std::unique_ptr<Transport::MpegTsNetworkPublisher> m_publisher { };
-    std::unique_ptr<Transport::CbrRatePacer> m_pacer { };
+    std::unique_ptr<Transport::MpegTsNetworkPublisher> m_publisher { nullptr };
+    std::unique_ptr<Transport::CbrRatePacer> m_pacer { nullptr };
 
     bool enqueueVideoUnit(VideoAccessUnit au)
     {
@@ -286,17 +284,16 @@ private:
         while (m_running.load()) {
             std::unique_lock<std::mutex> lock(m_queueMutex);
             m_cv.wait_for(lock, std::chrono::milliseconds(10),
-                [this]() { return !m_running.load() || !m_videoQueue.empty() || !m_telemetryQueue.empty(); });
+                [this] { return !m_running.load() || !m_videoQueue.empty() || !m_telemetryQueue.empty(); });
 
-            if (!m_running.load() && m_videoQueue.empty() && m_telemetryQueue.empty()) {
+            if (!m_running.load()) {
                 break;
             }
 
             lock.unlock();
-            {
-                std::lock_guard<std::mutex> procLock(m_processMutex);
-                processQueues();
-            }
+
+            std::lock_guard<std::mutex> procLock(m_processMutex);
+            processQueues();
         }
 
         // Drain queues upon exit
@@ -319,10 +316,25 @@ private:
         }
 
         for (auto& telem : localTelem) {
-            if (telem.message.has_value()) {
-                m_syncManager.pushTelemetryMessage(std::move(*telem.message));
-            } else if (!telem.rawBytes.empty()) {
-                m_syncManager.pushRawKlv(telem.rawBytes.data(), telem.rawBytes.size(), telem.timestampUs);
+            if (telem.pid != 0U) {
+                // Secondary / multi-PID metadata stream multiplexing
+                if (telem.message.has_value()) {
+                    static_cast<void>(m_muxer.muxMessage(telem.pid, *telem.message));
+                    std::lock_guard<std::mutex> statsLock(m_statsMutex);
+                    m_stats.telemetryProcessed++;
+                } else if (!telem.rawBytes.empty()) {
+                    static_cast<void>(m_muxer.muxKlvPacket(
+                        telem.pid, telem.rawBytes.data(), telem.rawBytes.size(), telem.timestampUs));
+                    std::lock_guard<std::mutex> statsLock(m_statsMutex);
+                    m_stats.telemetryProcessed++;
+                }
+            } else {
+                // Primary metadata stream -> video PTS sync manager
+                if (telem.message.has_value()) {
+                    m_syncManager.pushTelemetryMessage(std::move(*telem.message));
+                } else if (!telem.rawBytes.empty()) {
+                    m_syncManager.pushRawKlv(telem.rawBytes.data(), telem.rawBytes.size(), telem.timestampUs);
+                }
             }
         }
 
@@ -445,12 +457,23 @@ bool StanagBroadcastEngine::pushVideoAccessUnit(VideoAccessUnit au)
 
 bool StanagBroadcastEngine::pushTelemetry(UasDatalinkMessage message)
 {
-    return m_impl->pushTelemetry(std::move(message));
+    return m_impl->pushTelemetry(0U, std::move(message));
+}
+
+bool StanagBroadcastEngine::pushTelemetry(std::uint16_t pid, UasDatalinkMessage message)
+{
+    return m_impl->pushTelemetry(pid, std::move(message));
 }
 
 bool StanagBroadcastEngine::pushRawKlv(const std::uint8_t* data, std::size_t size, std::uint64_t timestampUs)
 {
-    return m_impl->pushRawKlv(data, size, timestampUs);
+    return m_impl->pushRawKlv(0U, data, size, timestampUs);
+}
+
+bool StanagBroadcastEngine::pushRawKlv(
+    std::uint16_t pid, const std::uint8_t* data, std::size_t size, std::uint64_t timestampUs)
+{
+    return m_impl->pushRawKlv(pid, data, size, timestampUs);
 }
 
 void StanagBroadcastEngine::flush()
