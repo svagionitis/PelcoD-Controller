@@ -3,8 +3,8 @@
 
 #include "GeoJsonExporter.h"
 
+#include <filesystem>
 #include <fstream>
-#include <gtest/gtest.h>
 #include <sstream>
 #include <string>
 
@@ -19,9 +19,9 @@ using namespace Mapping;
 
 TEST(TestGeoJsonExporter, ExportFeatureCollectionStructure)
 {
-    SpatialDataRecorder recorder { };
+    SpatialDataRecorder recorder {};
 
-    Klv::UasDatalinkMessage msg1 { };
+    Klv::UasDatalinkMessage msg1 {};
     msg1.precisionTimeStampUs = 1728043200000000ULL;
     msg1.sensorLatitudeDeg = 32.7157;
     msg1.sensorLongitudeDeg = -117.1611;
@@ -29,7 +29,7 @@ TEST(TestGeoJsonExporter, ExportFeatureCollectionStructure)
     msg1.platformTailNumber = "TEST-UAV";
     msg1.missionId = "ALPHA";
 
-    Klv::FrustumCorners corners { };
+    Klv::FrustumCorners corners {};
     corners.topLeft = { 32.720, -117.150 };
     corners.topRight = { 32.720, -117.140 };
     corners.bottomRight = { 32.710, -117.140 };
@@ -50,7 +50,7 @@ TEST(TestGeoJsonExporter, ExportFeatureCollectionStructure)
     msg2.sensorLongitudeDeg = -117.1610;
     recorder.addTelemetryFrame(msg2);
 
-    GeoJsonConfig config { };
+    GeoJsonConfig config {};
     config.coordinatePrecision = 6;
     const std::string json { GeoJsonExporter::exportToString(recorder, config) };
 
@@ -85,15 +85,15 @@ TEST(TestGeoJsonExporter, ExportFeatureCollectionStructure)
 
 TEST(TestGeoJsonExporter, DisableLayers)
 {
-    SpatialDataRecorder recorder { };
-    Klv::UasDatalinkMessage msg { };
+    SpatialDataRecorder recorder {};
+    Klv::UasDatalinkMessage msg {};
     msg.precisionTimeStampUs = 1728043200000000ULL;
     msg.sensorLatitudeDeg = 10.0;
     msg.sensorLongitudeDeg = 20.0;
     msg.sensorTrueAltitudeM = 500.0;
     recorder.addTelemetryFrame(msg);
 
-    GeoJsonConfig config { };
+    GeoJsonConfig config {};
     config.includeFlightTrack = false;
     config.includeFootprints = false;
     config.includeVolumetricFrustums = false;
@@ -108,15 +108,15 @@ TEST(TestGeoJsonExporter, DisableLayers)
 
 TEST(TestGeoJsonExporter, OutOfOrderTimestampsZeroDuration)
 {
-    SpatialDataRecorder recorder { };
+    SpatialDataRecorder recorder {};
 
-    Klv::UasDatalinkMessage msg1 { };
+    Klv::UasDatalinkMessage msg1 {};
     msg1.precisionTimeStampUs = 5000000ULL;
     msg1.sensorLatitudeDeg = 10.0;
     msg1.sensorLongitudeDeg = 20.0;
     recorder.addTelemetryFrame(msg1);
 
-    Klv::UasDatalinkMessage msg2 { };
+    Klv::UasDatalinkMessage msg2 {};
     msg2.precisionTimeStampUs = 1000000ULL; // Earlier than msg1
     msg2.sensorLatitudeDeg = 10.01;
     msg2.sensorLongitudeDeg = 20.01;
@@ -128,17 +128,17 @@ TEST(TestGeoJsonExporter, OutOfOrderTimestampsZeroDuration)
 
 TEST(TestGeoJsonExporter, Rfc7946NoCrsControlCharEscapingAndDelayedMetadata)
 {
-    SpatialDataRecorder recorder { };
+    SpatialDataRecorder recorder {};
 
     // Frame 0 omits tailNumber and missionId
-    Klv::UasDatalinkMessage msg1 { };
+    Klv::UasDatalinkMessage msg1 {};
     msg1.precisionTimeStampUs = 1728043200000000ULL;
     msg1.sensorLatitudeDeg = 37.9838;
     msg1.sensorLongitudeDeg = 23.7275;
     recorder.addTelemetryFrame(msg1);
 
     // Frame 1 provides tailNumber and missionId with RFC 8259 control characters (\x01, \x1f)
-    Klv::UasDatalinkMessage msg2 { };
+    Klv::UasDatalinkMessage msg2 {};
     msg2.precisionTimeStampUs = 1728043201000000ULL;
     msg2.sensorLatitudeDeg = 37.9840;
     msg2.sensorLongitudeDeg = 23.7280;
@@ -158,14 +158,14 @@ TEST(TestGeoJsonExporter, Rfc7946NoCrsControlCharEscapingAndDelayedMetadata)
 
 TEST(TestGeoJsonExporter, VmtiTargetLayerExport)
 {
-    SpatialDataRecorder recorder { };
-    Klv::UasDatalinkMessage msg { };
+    SpatialDataRecorder recorder {};
+    Klv::UasDatalinkMessage msg {};
     msg.precisionTimeStampUs = 1728043200000000ULL;
     msg.sensorLatitudeDeg = 37.9838;
     msg.sensorLongitudeDeg = 23.7275;
 
-    Klv::VmtiLocalSet vmti { };
-    Klv::VTargetPack pack { };
+    Klv::VmtiLocalSet vmti {};
+    Klv::VTargetPack pack {};
     pack.targetId = 42U;
     pack.targetLocation = Klv::GeoPoint3D { 37.9900, 23.7300, 15.0 };
     pack.confidence = 88U;
@@ -184,8 +184,8 @@ TEST(TestGeoJsonExporter, VmtiTargetLayerExport)
 
 TEST(TestGeoJsonExporter, ExportToFileAndSpecialCharEscaping)
 {
-    SpatialDataRecorder recorder { };
-    Klv::UasDatalinkMessage msg { };
+    SpatialDataRecorder recorder {};
+    Klv::UasDatalinkMessage msg {};
     msg.precisionTimeStampUs = 1728043200000000ULL;
     msg.sensorLatitudeDeg = 37.9838;
     msg.sensorLongitudeDeg = 23.7275;
@@ -200,10 +200,10 @@ TEST(TestGeoJsonExporter, ExportToFileAndSpecialCharEscaping)
     EXPECT_TRUE(GeoJsonExporter::exportToFile(outPath.string(), recorder));
     ASSERT_TRUE(std::filesystem::exists(outPath));
 
-    std::string content { };
+    std::string content {};
     {
         std::ifstream ifs(outPath);
-        std::ostringstream buffer { };
+        std::ostringstream buffer {};
         buffer << ifs.rdbuf();
         content = buffer.str();
     }
