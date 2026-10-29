@@ -159,13 +159,18 @@ void VmtiEncoder::encodeTarget(
     }
 
     // 11. Tag 17: Target Location Pack (10 bytes: Lat 4, Lon 4, HAE 2)
+    // Extended: 12 bytes (+ CE90 2) or 14 bytes (+ CE90 2, LE90 2)
     if (target.targetLocation.has_value()) {
         const auto rawLat = KlvScaling::scaleLatitude(target.targetLocation->latitudeDeg);
         const auto rawLon = KlvScaling::scaleLongitude(target.targetLocation->longitudeDeg);
         const std::uint16_t rawHae = scaleHae(target.targetLocation->altitudeM);
 
+        const bool hasCe = target.targetCe90M.has_value();
+        const bool hasLe = target.targetLe90M.has_value();
+        const std::uint8_t packLen = (hasCe && hasLe) ? 14U : (hasCe ? 12U : 10U);
+
         out.push_back(static_cast<std::uint8_t>(VTargetTag::TargetLocation));
-        out.push_back(10U);
+        out.push_back(packLen);
 
         const auto uLat = static_cast<std::uint32_t>(rawLat);
         out.push_back(static_cast<std::uint8_t>((uLat >> 24U) & 0xFFU));
@@ -181,6 +186,17 @@ void VmtiEncoder::encodeTarget(
 
         out.push_back(static_cast<std::uint8_t>((rawHae >> 8U) & 0xFFU));
         out.push_back(static_cast<std::uint8_t>(rawHae & 0xFFU));
+
+        if (packLen >= 12U) {
+            const std::uint16_t rawCe = KlvScaling::scaleErrorCe90(target.targetCe90M.value_or(0.0));
+            out.push_back(static_cast<std::uint8_t>((rawCe >> 8U) & 0xFFU));
+            out.push_back(static_cast<std::uint8_t>(rawCe & 0xFFU));
+        }
+        if (packLen >= 14U) {
+            const std::uint16_t rawLe = KlvScaling::scaleErrorCe90(target.targetLe90M.value_or(0.0));
+            out.push_back(static_cast<std::uint8_t>((rawLe >> 8U) & 0xFFU));
+            out.push_back(static_cast<std::uint8_t>(rawLe & 0xFFU));
+        }
     }
 
     // 12. Tag 23: Detection Status
@@ -255,6 +271,33 @@ std::vector<std::uint8_t> VmtiEncoder::encode(const VmtiLocalSet& vmti, bool sta
 
     // Tag 9: FrameHeight
     appendTagVarUint(static_cast<std::uint32_t>(VmtiTag::FrameHeight), vmti.frameHeight, payload);
+
+    // Tag 10: SourceSensor
+    if (vmti.sourceSensor.has_value() && !vmti.sourceSensor->empty()) {
+        KlvBer::encodeTag(static_cast<std::uint32_t>(VmtiTag::SourceSensor), payload);
+        KlvBer::encodeLength(vmti.sourceSensor->size(), payload);
+        for (const char ch : *vmti.sourceSensor) {
+            payload.push_back(static_cast<std::uint8_t>(ch));
+        }
+    }
+
+    // Tag 11: HorizontalFov
+    if (vmti.horizontalFovDeg.has_value()) {
+        const std::uint16_t fovVal = KlvScaling::scaleFov(*vmti.horizontalFovDeg);
+        KlvBer::encodeTag(static_cast<std::uint32_t>(VmtiTag::HorizontalFov), payload);
+        payload.push_back(2U);
+        payload.push_back(static_cast<std::uint8_t>((fovVal >> 8U) & 0xFFU));
+        payload.push_back(static_cast<std::uint8_t>(fovVal & 0xFFU));
+    }
+
+    // Tag 12: VerticalFov
+    if (vmti.verticalFovDeg.has_value()) {
+        const std::uint16_t fovVal = KlvScaling::scaleFov(*vmti.verticalFovDeg);
+        KlvBer::encodeTag(static_cast<std::uint32_t>(VmtiTag::VerticalFov), payload);
+        payload.push_back(2U);
+        payload.push_back(static_cast<std::uint8_t>((fovVal >> 8U) & 0xFFU));
+        payload.push_back(static_cast<std::uint8_t>(fovVal & 0xFFU));
+    }
 
     // Tag 13: MIIS Core Identifier
     if (vmti.miisId.has_value()) {

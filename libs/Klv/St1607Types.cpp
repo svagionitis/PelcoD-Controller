@@ -82,6 +82,14 @@ void AmendLocalSet::applyTo(UasDatalinkMessage& target) const
             target.security->objectCountryCodes = *securityObjectCountryCodes;
         }
     }
+
+    if (geoRegistration) {
+        target.geoRegistration = geoRegistration;
+    }
+
+    for (const auto& child : childAmends) {
+        child.applyTo(target);
+    }
 }
 
 bool SegmentLocalSet::validate() const noexcept
@@ -159,6 +167,13 @@ void SegmentLocalSet::applyTo(UasDatalinkMessage& target) const
         if (securityObjectCountryCodes) {
             target.security->objectCountryCodes = *securityObjectCountryCodes;
         }
+    }
+
+    for (const auto& child : childSegments) {
+        child.applyTo(target);
+    }
+    for (const auto& child : childAmends) {
+        child.applyTo(target);
     }
 }
 

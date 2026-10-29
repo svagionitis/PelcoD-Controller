@@ -1,4 +1,5 @@
 #include "KlvParser.h"
+#include "GeoRegistrationParser.h"
 #include "KlvBer.h"
 #include "KlvCrc.h"
 #include "RvtParser.h"
@@ -508,7 +509,7 @@ KlvStatus KlvParser::parse(const std::uint8_t* data, std::size_t size, UasDatali
             }
             break;
         case Tag::MiisCoreId: {
-            MiisCoreId miis { };
+            MiisCoreId miis {};
             if (miis.decode(valPtr, len) == KlvStatus::Success) {
                 message.miisCoreId = miis;
             }
@@ -520,7 +521,7 @@ KlvStatus KlvParser::parse(const std::uint8_t* data, std::size_t size, UasDatali
             }
             break;
         case Tag::SecurityLocalSet: {
-            SecurityMetadata sec { };
+            SecurityMetadata sec {};
             if (parseSecurityLocalSet(valPtr, len, sec) == KlvStatus::Success) {
                 message.security = sec;
             }
@@ -532,28 +533,35 @@ KlvStatus KlvParser::parse(const std::uint8_t* data, std::size_t size, UasDatali
             }
             break;
         case Tag::RvtLocalSet: {
-            RvtLocalSet rvtSet { };
+            RvtLocalSet rvtSet {};
             if (RvtParser::parse(valPtr, len, rvtSet, false) == KlvStatus::Success) {
                 message.rvt = rvtSet;
             }
             break;
         }
         case Tag::VmtiLocalSet: {
-            VmtiLocalSet vmtiSet { };
+            VmtiLocalSet vmtiSet {};
             if (VmtiParser::parse(valPtr, len, vmtiSet, false) == KlvStatus::Success) {
                 message.vmti = vmtiSet;
             }
             break;
         }
+        case Tag::GeoRegistration: {
+            GeoRegistrationLocalSet geoReg {};
+            if (GeoRegistrationParser::parse(valPtr, len, geoReg) == KlvStatus::Success) {
+                message.geoRegistration = geoReg;
+            }
+            break;
+        }
         case Tag::SegmentLocalSet: {
-            SegmentLocalSet segSet { };
+            SegmentLocalSet segSet {};
             if (St1607Parser::parseSegment(valPtr, len, segSet) == KlvStatus::Success) {
                 message.segments.push_back(segSet);
             }
             break;
         }
         case Tag::AmendLocalSet: {
-            AmendLocalSet amendSet { };
+            AmendLocalSet amendSet {};
             if (St1607Parser::parseAmend(valPtr, len, amendSet) == KlvStatus::Success) {
                 message.amends.push_back(amendSet);
             }

@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <optional>
 
 #include <vector>
 
@@ -326,4 +327,37 @@ TEST(KlvEncoderParserTest, HeadingWrapNearZeroBoundary)
     ASSERT_EQ(KlvParser::parse(packet2.data(), packet2.size(), parsed2, true), KlvStatus::Success);
     EXPECT_GE(*parsed2.platformHeadingDeg, 0.0);
     EXPECT_LE(*parsed2.platformHeadingDeg, 360.0);
+}
+
+TEST(KlvEncoderParserTest, St0601Tag98GeoRegistrationRoundTrip)
+{
+    UasDatalinkMessage original;
+    original.precisionTimeStampUs = 1600000000000000ULL;
+    original.missionId = "GEOREG-TAG98-TEST";
+
+    GeoRegistrationLocalSet geoReg {};
+    geoReg.documentVersion = 2U;
+    geoReg.algorithmName = "SIFT-GPU";
+    geoReg.algorithmVersion = "1.4.2";
+    geoReg.pixelPoints = { { 100U, 150U, std::nullopt, std::nullopt } };
+    geoReg.geoPoints = { { 37.7749, -122.4194 } };
+
+    original.geoRegistration = geoReg;
+
+    const auto encodedPacket = KlvEncoder::encode(original);
+    ASSERT_FALSE(encodedPacket.empty());
+
+    UasDatalinkMessage parsed;
+    const KlvStatus status = KlvParser::parse(encodedPacket.data(), encodedPacket.size(), parsed, true);
+    ASSERT_EQ(status, KlvStatus::Success);
+    ASSERT_TRUE(parsed.geoRegistration.has_value());
+    EXPECT_EQ(parsed.geoRegistration->documentVersion, 2U);
+    EXPECT_EQ(parsed.geoRegistration->algorithmName, "SIFT-GPU");
+    EXPECT_EQ(parsed.geoRegistration->algorithmVersion, "1.4.2");
+    ASSERT_EQ(parsed.geoRegistration->pixelPoints.size(), 1U);
+    EXPECT_EQ(parsed.geoRegistration->pixelPoints[0].row1, 100U);
+    EXPECT_EQ(parsed.geoRegistration->pixelPoints[0].col1, 150U);
+    ASSERT_EQ(parsed.geoRegistration->geoPoints.size(), 1U);
+    EXPECT_NEAR(parsed.geoRegistration->geoPoints[0].lat, 37.7749, 1e-4);
+    EXPECT_NEAR(parsed.geoRegistration->geoPoints[0].lon, -122.4194, 1e-4);
 }

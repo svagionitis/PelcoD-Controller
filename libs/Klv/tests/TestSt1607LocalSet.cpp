@@ -251,3 +251,62 @@ TEST(TestSt1607LocalSet, RecursionDepthExceededRejection)
     const KlvStatus status = St1607Parser::parseAmend(inner.data(), inner.size(), rootAmend);
     EXPECT_TRUE(status == KlvStatus::Success || status == KlvStatus::TagError);
 }
+
+TEST(TestSt1607LocalSet, CornerCoordinatesRoundTrip)
+{
+    AmendLocalSet amend {};
+    amend.msid.localId = 1U;
+
+    FrustumCorners corners {};
+    corners.topLeft = { 37.8, -122.4 };
+    corners.topRight = { 37.8, -122.3 };
+    corners.bottomRight = { 37.7, -122.3 };
+    corners.bottomLeft = { 37.7, -122.4 };
+    amend.cornerCoordinates = corners;
+
+    std::vector<std::uint8_t> encoded {};
+    ASSERT_EQ(St1607Encoder::encodeAmend(amend, encoded), KlvStatus::Success);
+
+    AmendLocalSet decoded {};
+    ASSERT_EQ(St1607Parser::parseAmend(encoded.data(), encoded.size(), decoded), KlvStatus::Success);
+    ASSERT_TRUE(decoded.cornerCoordinates.has_value());
+    EXPECT_NEAR(decoded.cornerCoordinates->topLeft.latitudeDeg, 37.8, 1e-4);
+    EXPECT_NEAR(decoded.cornerCoordinates->topLeft.longitudeDeg, -122.4, 1e-4);
+    EXPECT_NEAR(decoded.cornerCoordinates->topRight.latitudeDeg, 37.8, 1e-4);
+    EXPECT_NEAR(decoded.cornerCoordinates->topRight.longitudeDeg, -122.3, 1e-4);
+    EXPECT_NEAR(decoded.cornerCoordinates->bottomRight.latitudeDeg, 37.7, 1e-4);
+    EXPECT_NEAR(decoded.cornerCoordinates->bottomRight.longitudeDeg, -122.3, 1e-4);
+    EXPECT_NEAR(decoded.cornerCoordinates->bottomLeft.latitudeDeg, 37.7, 1e-4);
+    EXPECT_NEAR(decoded.cornerCoordinates->bottomLeft.longitudeDeg, -122.4, 1e-4);
+}
+
+TEST(TestSt1607LocalSet, MissingOrMalformedMsidRejected)
+{
+    // Tag 5 (Heading = 180 deg) without Tag 143 (MSID)
+    std::vector<std::uint8_t> payload = { 5U, 2U, 0x80U, 0x00U };
+    AmendLocalSet amend {};
+    EXPECT_EQ(St1607Parser::parseAmend(payload.data(), payload.size(), amend), KlvStatus::TagError);
+}
+
+TEST(TestSt1607LocalSet, RecursiveApplyToWithChildSets)
+{
+    UasDatalinkMessage baseMsg {};
+    baseMsg.platformHeadingDeg = 50.0;
+    baseMsg.sensorLatitudeDeg = 30.0;
+
+    AmendLocalSet parent {};
+    parent.msid.localId = 1U;
+    parent.platformHeadingDeg = 100.0; // Overrides baseMsg heading
+
+    AmendLocalSet child {};
+    child.msid.localId = 2U;
+    child.sensorLatitudeDeg = 45.0; // Overrides baseMsg latitude
+    parent.childAmends.push_back(child);
+
+    parent.applyTo(baseMsg);
+
+    ASSERT_TRUE(baseMsg.platformHeadingDeg.has_value());
+    EXPECT_NEAR(*baseMsg.platformHeadingDeg, 100.0, 1e-4);
+    ASSERT_TRUE(baseMsg.sensorLatitudeDeg.has_value());
+    EXPECT_NEAR(*baseMsg.sensorLatitudeDeg, 45.0, 1e-4);
+}

@@ -21,7 +21,7 @@ namespace {
     TEST(TestMiisCoreId, UuidStringParsingAndFormatting)
     {
         const std::string canonical = "f592f023-7336-4af8-aa91-62c00f2eb2da";
-        Uuid u { };
+        Uuid u {};
         EXPECT_TRUE(Uuid::fromString(canonical, u));
         EXPECT_FALSE(u.isNull());
         EXPECT_TRUE(u.isValidVariant());
@@ -30,17 +30,17 @@ namespace {
         EXPECT_EQ(u.toUrn(), "urn:uuid:" + canonical);
 
         // Test with "urn:uuid:" prefix
-        Uuid u2 { };
+        Uuid u2 {};
         EXPECT_TRUE(Uuid::fromString("urn:uuid:F592F023-7336-4AF8-AA91-62C00F2EB2DA", u2));
         EXPECT_EQ(u, u2);
 
         // Test with 32 continuous hex chars
-        Uuid u3 { };
+        Uuid u3 {};
         EXPECT_TRUE(Uuid::fromString("f592f02373364af8aa9162c00f2eb2da", u3));
         EXPECT_EQ(u, u3);
 
         // Invalid strings
-        Uuid bad { };
+        Uuid bad {};
         EXPECT_FALSE(Uuid::fromString("invalid-uuid-string", bad));
         EXPECT_FALSE(Uuid::fromString("f592f023-7336-4af8-aa91", bad));
     }
@@ -62,7 +62,7 @@ namespace {
     TEST(TestMiisCoreId, UuidV5DeterministicGeneration)
     {
         // RFC 4122 DNS namespace UUID: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
-        Uuid dnsNs { };
+        Uuid dnsNs {};
         ASSERT_TRUE(Uuid::fromString("6ba7b810-9dad-11d1-80b4-00c04fd430c8", dnsNs));
 
         // RFC 4122 test vector for name "python.org":
@@ -91,7 +91,7 @@ namespace {
 
     TEST(TestMiisCoreId, SingleUuidRoundTrip)
     {
-        Uuid sensorUuid { };
+        Uuid sensorUuid {};
         ASSERT_TRUE(Uuid::fromString("f592f023-7336-4af8-aa91-62c00f2eb2da", sensorUuid));
 
         MiisCoreId original(sensorUuid);
@@ -101,7 +101,7 @@ namespace {
         const std::vector<std::uint8_t> encoded = original.encode();
         EXPECT_EQ(encoded.size(), 16U);
 
-        MiisCoreId decoded { };
+        MiisCoreId decoded {};
         EXPECT_EQ(decoded.decode(encoded.data(), encoded.size()), KlvStatus::Success);
         EXPECT_EQ(decoded.primaryUuid(), sensorUuid);
         EXPECT_EQ(original, decoded);
@@ -109,8 +109,8 @@ namespace {
 
     TEST(TestMiisCoreId, Composite33ByteRoundTrip)
     {
-        Uuid sensorUuid { };
-        Uuid platformUuid { };
+        Uuid sensorUuid {};
+        Uuid platformUuid {};
         ASSERT_TRUE(Uuid::fromString("f592f023-7336-4af8-aa91-62c00f2eb2da", sensorUuid));
         ASSERT_TRUE(Uuid::fromString("16b74341-0008-41a0-be36-5b5ab96a3645", platformUuid));
 
@@ -121,7 +121,7 @@ namespace {
         EXPECT_EQ(encoded.size(), 33U);
         EXPECT_EQ(encoded[0], 1U); // Version
 
-        MiisCoreId decoded { };
+        MiisCoreId decoded {};
         EXPECT_EQ(decoded.decode(encoded.data(), encoded.size()), KlvStatus::Success);
         ASSERT_TRUE(decoded.sensorId.has_value());
         ASSERT_TRUE(decoded.platformId.has_value());
@@ -132,8 +132,8 @@ namespace {
 
     TEST(TestMiisCoreId, Composite35ByteQualityRoundTrip)
     {
-        Uuid sensorUuid { };
-        Uuid platformUuid { };
+        Uuid sensorUuid {};
+        Uuid platformUuid {};
         ASSERT_TRUE(Uuid::fromString("f592f023-7336-4af8-aa91-62c00f2eb2da", sensorUuid));
         ASSERT_TRUE(Uuid::fromString("16b74341-0008-41a0-be36-5b5ab96a3645", platformUuid));
 
@@ -146,7 +146,7 @@ namespace {
         EXPECT_EQ(encoded[1], static_cast<std::uint8_t>(MiisIdQuality::Physical));
         EXPECT_EQ(encoded[18], static_cast<std::uint8_t>(MiisIdQuality::Virtual));
 
-        MiisCoreId decoded { };
+        MiisCoreId decoded {};
         EXPECT_EQ(decoded.decode(encoded.data(), encoded.size()), KlvStatus::Success);
         ASSERT_TRUE(decoded.sensorId.has_value());
         ASSERT_TRUE(decoded.platformId.has_value());
@@ -159,12 +159,12 @@ namespace {
 
     TEST(TestMiisCoreId, St0601Tag94Integration)
     {
-        Uuid sensorUuid { };
-        Uuid platformUuid { };
+        Uuid sensorUuid {};
+        Uuid platformUuid {};
         ASSERT_TRUE(Uuid::fromString("f592f023-7336-4af8-aa91-62c00f2eb2da", sensorUuid));
         ASSERT_TRUE(Uuid::fromString("16b74341-0008-41a0-be36-5b5ab96a3645", platformUuid));
 
-        UasDatalinkMessage originalMsg { };
+        UasDatalinkMessage originalMsg {};
         originalMsg.precisionTimeStampUs = 1690000000000ULL;
         originalMsg.missionId = "TEST_MISSION";
         originalMsg.miisCoreId = MiisCoreId(sensorUuid, platformUuid);
@@ -172,7 +172,7 @@ namespace {
         const std::vector<std::uint8_t> packet = KlvEncoder::encode(originalMsg);
         EXPECT_GT(packet.size(), 50U);
 
-        UasDatalinkMessage decodedMsg { };
+        UasDatalinkMessage decodedMsg {};
         EXPECT_EQ(KlvParser::parse(packet.data(), packet.size(), decodedMsg), KlvStatus::Success);
 
         ASSERT_TRUE(decodedMsg.miisCoreId.has_value());
@@ -185,22 +185,23 @@ namespace {
 
     TEST(TestMiisCoreId, St1607Tag94Integration)
     {
-        Uuid sensorUuid { };
+        Uuid sensorUuid {};
         ASSERT_TRUE(Uuid::fromString("f592f023-7336-4af8-aa91-62c00f2eb2da", sensorUuid));
 
-        SegmentLocalSet seg { };
+        SegmentLocalSet seg {};
+        seg.msid.localId = 1U;
         seg.miisCoreId = MiisCoreId(sensorUuid);
 
-        std::vector<std::uint8_t> segBytes { };
+        std::vector<std::uint8_t> segBytes {};
         EXPECT_EQ(St1607Encoder::encodeSegment(seg, segBytes), KlvStatus::Success);
 
-        SegmentLocalSet decSeg { };
+        SegmentLocalSet decSeg {};
         EXPECT_EQ(St1607Parser::parseSegment(segBytes.data(), segBytes.size(), decSeg), KlvStatus::Success);
         ASSERT_TRUE(decSeg.miisCoreId.has_value());
         EXPECT_EQ(*decSeg.miisCoreId, *seg.miisCoreId);
 
         // Test applyTo
-        UasDatalinkMessage targetMsg { };
+        UasDatalinkMessage targetMsg {};
         decSeg.applyTo(targetMsg);
         ASSERT_TRUE(targetMsg.miisCoreId.has_value());
         EXPECT_EQ(targetMsg.miisCoreId->primaryUuid(), sensorUuid);
@@ -210,14 +211,14 @@ namespace {
     {
         Uuid streamUuid = Uuid::generateV4();
 
-        VmtiLocalSet vmti { };
+        VmtiLocalSet vmti {};
         vmti.precisionTimeStampUs = 1700000000000ULL;
         vmti.systemName = "TRACKER_V1";
         vmti.miisId = MiisCoreId(streamUuid);
 
         const std::vector<std::uint8_t> packet = VmtiEncoder::encode(vmti, true);
 
-        VmtiLocalSet decVmti { };
+        VmtiLocalSet decVmti {};
         EXPECT_EQ(VmtiParser::parse(packet.data(), packet.size(), decVmti, true), KlvStatus::Success);
         ASSERT_TRUE(decVmti.miisId.has_value());
         EXPECT_EQ(decVmti.miisId->primaryUuid(), streamUuid);

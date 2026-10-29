@@ -15,9 +15,9 @@
 namespace Klv {
 
 /// @brief 16-byte Universal Label for MISB ST 1601 Geo-Registration Local Set.
-/// @details 06.0E.2B.34.02.0B.01.01.0E.01.03.03.01.00.00.00 (CRC 39238).
+/// @details 06.0E.2B.34.02.0B.01.01.0E.01.03.03.20.00.00.00.
 inline constexpr std::array<std::uint8_t, 16> GeoRegistrationUl = { 0x06U, 0x0EU, 0x2BU, 0x34U, 0x02U, 0x0BU, 0x01U,
-    0x01U, 0x0EU, 0x01U, 0x03U, 0x03U, 0x01U, 0x00U, 0x00U, 0x00U };
+    0x01U, 0x0EU, 0x01U, 0x03U, 0x03U, 0x20U, 0x00U, 0x00U, 0x00U };
 
 /// @enum GeoRegistrationTag
 /// @brief Tag identifiers for MISB ST 1601.2 Geo-Registration Local Set items (Table 1).

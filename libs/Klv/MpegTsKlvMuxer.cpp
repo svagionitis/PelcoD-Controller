@@ -241,7 +241,7 @@ std::vector<std::uint8_t> MpegTsKlvMuxer::buildPesPacket(
 }
 
 std::size_t MpegTsKlvMuxer::emitTsPacket(std::uint16_t pid, bool pusi, const std::uint8_t* payload,
-    std::size_t payloadSize, std::optional<std::uint64_t> pcrUs)
+    std::size_t payloadSize, std::optional<std::uint64_t> pcrUs, bool isRandomAccess)
 {
     if (payloadSize > 184U) {
         payloadSize = 184U;
@@ -254,7 +254,7 @@ std::size_t MpegTsKlvMuxer::emitTsPacket(std::uint16_t pid, bool pusi, const std
 
     // PCR requires at least 8 bytes of adaptation field (1 byte length + 1 byte flags + 6 bytes PCR)
     const bool hasPcr = pcrUs.has_value() && (payloadSize <= 176U);
-    const bool needsAdaptation = hasPcr || (payloadSize < 184U);
+    const bool needsAdaptation = hasPcr || (payloadSize < 184U) || isRandomAccess;
 
     if (!needsAdaptation) {
         // Payload only (AFC = 01)
@@ -274,7 +274,7 @@ std::size_t MpegTsKlvMuxer::emitTsPacket(std::uint16_t pid, bool pusi, const std
             packet[4] = afLength;
 
             std::uint8_t flags = 0x00U;
-            if (pusi) {
+            if (isRandomAccess) {
                 flags |= 0x40U; // Random access indicator
             }
             if (hasPcr) {
@@ -313,8 +313,8 @@ std::size_t MpegTsKlvMuxer::emitTsPacket(std::uint16_t pid, bool pusi, const std
     return 1U;
 }
 
-std::size_t MpegTsKlvMuxer::emitPesStream(
-    std::uint16_t pid, const std::vector<std::uint8_t>& pesData, std::optional<std::uint64_t> pcrUs)
+std::size_t MpegTsKlvMuxer::emitPesStream(std::uint16_t pid, const std::vector<std::uint8_t>& pesData,
+    std::optional<std::uint64_t> pcrUs, bool isRandomAccess)
 {
     if (pesData.empty()) {
         return 0U;
@@ -327,11 +327,12 @@ std::size_t MpegTsKlvMuxer::emitPesStream(
     while (pesOffset < pesData.size()) {
         const std::size_t remaining = pesData.size() - pesOffset;
         const bool includePcr = isFirst && pcrUs.has_value();
-        const std::size_t maxPayload = includePcr ? (184U - 8U) : 184U;
+        const bool firstRa = isFirst && isRandomAccess;
+        const std::size_t maxPayload = includePcr ? (184U - 8U) : (firstRa ? (184U - 2U) : 184U);
         const std::size_t chunkSize = std::min(remaining, maxPayload);
 
-        emittedCount
-            += emitTsPacket(pid, isFirst, pesData.data() + pesOffset, chunkSize, includePcr ? pcrUs : std::nullopt);
+        emittedCount += emitTsPacket(
+            pid, isFirst, pesData.data() + pesOffset, chunkSize, includePcr ? pcrUs : std::nullopt, firstRa);
 
         pesOffset += chunkSize;
         isFirst = false;
@@ -411,7 +412,7 @@ std::size_t MpegTsKlvMuxer::muxVideoAccessUnit(const VideoAccessUnit& au)
     }
 
     const auto pes = m_videoPesPacketizer.packetize(au);
-    emittedCount += emitPesStream(m_config.videoPid, pes, pcrUs);
+    emittedCount += emitPesStream(m_config.videoPid, pes, pcrUs, au.isKeyframe);
     return emittedCount;
 }
 
@@ -439,7 +440,7 @@ std::size_t MpegTsKlvMuxer::muxVideoFrame(const std::uint8_t* data, std::size_t 
     }
 
     const auto pes = m_videoPesPacketizer.buildPesPacket(data, size, ptsUs, dtsUs, isKeyframe);
-    emittedCount += emitPesStream(m_config.videoPid, pes, pcrUs);
+    emittedCount += emitPesStream(m_config.videoPid, pes, pcrUs, isKeyframe);
     return emittedCount;
 }
 

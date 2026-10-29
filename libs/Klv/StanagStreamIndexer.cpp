@@ -1,5 +1,6 @@
 #include "StanagStreamIndexer.h"
 #include "KlvCrc.h"
+#include "KlvEncoder.h"
 #include "KlvParser.h"
 #include "VideoNaluParser.h"
 
@@ -10,6 +11,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace Klv {
@@ -38,6 +40,63 @@ void StanagStreamIndexer::reset() noexcept
     m_klvPacketCount = 0U;
     m_lastVideoPts = 0U;
     m_lastKlvPts = 0U;
+    m_videoPes.buffer.clear();
+    m_videoPes.fileOffset = 0U;
+    m_videoPes.active = false;
+    m_klvPes.buffer.clear();
+    m_klvPes.fileOffset = 0U;
+    m_klvPes.active = false;
+}
+
+void StanagStreamIndexer::flushVideoPes()
+{
+    if (m_videoPes.active && !m_videoPes.buffer.empty()) {
+        processVideoPes(m_videoPes.buffer.data(), m_videoPes.buffer.size(), m_videoPes.fileOffset);
+        m_videoPes.buffer.clear();
+        m_videoPes.active = false;
+    }
+}
+
+void StanagStreamIndexer::flushKlvPes()
+{
+    if (m_klvPes.active && !m_klvPes.buffer.empty()) {
+        processKlvPes(m_klvPes.buffer.data(), m_klvPes.buffer.size(), m_klvPes.fileOffset);
+        m_klvPes.buffer.clear();
+        m_klvPes.active = false;
+    }
+}
+
+void StanagStreamIndexer::checkVideoPesComplete()
+{
+    if (m_videoPes.active && m_videoPes.buffer.size() >= 6U) {
+        if (m_videoPes.buffer[0] == 0x00U && m_videoPes.buffer[1] == 0x00U && m_videoPes.buffer[2] == 0x01U) {
+            const std::size_t pesLen = (static_cast<std::size_t>(m_videoPes.buffer[4]) << 8U)
+                | static_cast<std::size_t>(m_videoPes.buffer[5]);
+            if (pesLen > 0U && m_videoPes.buffer.size() >= 6U + pesLen) {
+                flushVideoPes();
+            }
+        }
+    }
+}
+
+void StanagStreamIndexer::checkKlvPesComplete()
+{
+    if (m_klvPes.active && m_klvPes.buffer.size() >= 6U) {
+        if (m_klvPes.buffer[0] == 0x00U && m_klvPes.buffer[1] == 0x00U && m_klvPes.buffer[2] == 0x01U) {
+            const std::size_t pesLen
+                = (static_cast<std::size_t>(m_klvPes.buffer[4]) << 8U) | static_cast<std::size_t>(m_klvPes.buffer[5]);
+            if (pesLen > 0U && m_klvPes.buffer.size() >= 6U + pesLen) {
+                flushKlvPes();
+            }
+        }
+    }
+}
+
+void StanagStreamIndexer::flush()
+{
+    flushVideoPes();
+    flushKlvPes();
+    m_timeIndex.finalize();
 }
 
 std::optional<std::uint16_t> StanagStreamIndexer::videoPid() const noexcept
@@ -67,6 +126,8 @@ const TelemetryTimeIndex& StanagStreamIndexer::timeIndex() const noexcept
 
 TelemetryTimeIndex& StanagStreamIndexer::timeIndex() noexcept
 {
+    flushVideoPes();
+    flushKlvPes();
     return m_timeIndex;
 }
 
@@ -110,7 +171,7 @@ bool StanagStreamIndexer::indexFile(std::string_view filePath, ProgressCallback 
         }
     }
 
-    m_timeIndex.finalize();
+    flush();
     return true;
 }
 
@@ -165,15 +226,41 @@ std::size_t StanagStreamIndexer::indexChunk(const std::uint8_t* data, std::size_
             parsePat(payload, payloadSize);
         } else if (m_pmtPid && pid == *m_pmtPid) {
             parsePmt(payload, payloadSize);
-        } else if (m_videoPid && pid == *m_videoPid && pusi) {
-            processVideoPes(payload, payloadSize, filePacketOffset);
-        } else if (m_metadataPid && pid == *m_metadataPid && pusi) {
-            processKlvPes(payload, payloadSize, filePacketOffset);
+        } else if (m_videoPid && pid == *m_videoPid) {
+            if (pusi) {
+                flushVideoPes();
+                m_videoPes.active = true;
+                m_videoPes.fileOffset = filePacketOffset;
+                m_videoPes.buffer.assign(payload, payload + payloadSize);
+                checkVideoPesComplete();
+            } else if (m_videoPes.active) {
+                if (m_videoPes.buffer.size() + payloadSize <= 10485760U) {
+                    m_videoPes.buffer.insert(m_videoPes.buffer.end(), payload, payload + payloadSize);
+                }
+                checkVideoPesComplete();
+            }
+        } else if (m_metadataPid && pid == *m_metadataPid) {
+            if (pusi) {
+                flushKlvPes();
+                m_klvPes.active = true;
+                m_klvPes.fileOffset = filePacketOffset;
+                m_klvPes.buffer.assign(payload, payload + payloadSize);
+                checkKlvPesComplete();
+            } else if (m_klvPes.active) {
+                if (m_klvPes.buffer.size() + payloadSize <= 2097152U) {
+                    m_klvPes.buffer.insert(m_klvPes.buffer.end(), payload, payload + payloadSize);
+                }
+                checkKlvPesComplete();
+            }
         } else if (!m_metadataPid && pusi && payloadSize >= 16U) {
             // Check for unannounced KLV stream
             if (std::memcmp(payload, kMisb0601UlPrefix, sizeof(kMisb0601UlPrefix)) == 0) {
                 m_metadataPid = pid;
-                processKlvPes(payload, payloadSize, filePacketOffset);
+                flushKlvPes();
+                m_klvPes.active = true;
+                m_klvPes.fileOffset = filePacketOffset;
+                m_klvPes.buffer.assign(payload, payload + payloadSize);
+                checkKlvPesComplete();
             }
         }
 
@@ -339,7 +426,7 @@ void StanagStreamIndexer::processVideoPes(const std::uint8_t* pesData, std::size
         }
     }
 
-    VideoIndexEntry entry { };
+    VideoIndexEntry entry {};
     entry.ptsTicks = ptsTicks;
     entry.dtsTicks = dtsTicks;
     entry.fileByteOffset = fileOffset;
@@ -374,7 +461,7 @@ void StanagStreamIndexer::processKlvPes(const std::uint8_t* pesData, std::size_t
 
     const std::size_t payloadOffset = 9U + pesHeaderDataLen;
     std::uint64_t utcUs = 0U;
-    std::optional<UasDatalinkMessage> parsedMsg { };
+    std::optional<UasDatalinkMessage> parsedMsg {};
 
     if (size > payloadOffset) {
         const std::uint8_t* klvData = pesData + payloadOffset;
@@ -387,7 +474,7 @@ void StanagStreamIndexer::processKlvPes(const std::uint8_t* pesData, std::size_t
 
         for (std::size_t i = 0U; i + 16U <= klvSize; ++i) {
             if (KlvParser::isMisb0601(klvData + i, klvSize - i)) {
-                UasDatalinkMessage msg { };
+                UasDatalinkMessage msg {};
                 if (KlvParser::parse(klvData + i, klvSize - i, msg, false) == KlvStatus::Success) {
                     parsedMsg = msg;
                     if (msg.precisionTimeStampUs && utcUs == 0U) {
@@ -399,7 +486,7 @@ void StanagStreamIndexer::processKlvPes(const std::uint8_t* pesData, std::size_t
         }
     }
 
-    KlvIndexEntry entry { };
+    KlvIndexEntry entry {};
     entry.ptsTicks = ptsTicks;
     entry.utcTimestampUs = utcUs;
     entry.fileByteOffset = fileOffset;
@@ -482,7 +569,7 @@ bool StanagStreamIndexer::saveIndex(std::string_view indexPath) const
         return false;
     }
 
-    std::vector<std::uint8_t> payload { };
+    std::vector<std::uint8_t> payload {};
 
     auto append64 = [&payload](std::uint64_t v) {
         for (int i = 0; i < 8; ++i) {
@@ -501,15 +588,46 @@ bool StanagStreamIndexer::saveIndex(std::string_view indexPath) const
     append64(m_timeIndex.basePts());
     append64(m_timeIndex.baseUtcUs());
 
-    double dur = m_timeIndex.durationSeconds();
+    const double dur = m_timeIndex.durationSeconds();
     std::uint64_t durBits = 0U;
     std::memcpy(&durBits, &dur, sizeof(dur));
     append64(durBits);
 
-    append32(static_cast<std::uint32_t>(m_timeIndex.videoFrameCount()));
-    // We iterate video frames through window
-    // (Or save from m_timeIndex directly)
-    // Write a dummy record count for now and append CRC
+    const auto& videoEntries = m_timeIndex.videoEntries();
+    const auto& klvEntries = m_timeIndex.klvEntries();
+
+    append32(static_cast<std::uint32_t>(videoEntries.size()));
+    append32(static_cast<std::uint32_t>(klvEntries.size()));
+
+    for (const auto& v : videoEntries) {
+        append64(v.ptsTicks);
+        append64(v.dtsTicks);
+        append64(v.fileByteOffset);
+        append32(v.packetSizeBytes);
+        append32(v.frameIndex);
+        payload.push_back(v.isKeyframe ? 1U : 0U);
+        payload.push_back(0U);
+        payload.push_back(0U);
+        payload.push_back(0U);
+    }
+
+    for (const auto& k : klvEntries) {
+        append64(k.ptsTicks);
+        append64(k.utcTimestampUs);
+        append64(k.fileByteOffset);
+        append32(k.packetSizeBytes);
+        append32(k.messageIndex);
+        if (k.message.has_value()) {
+            payload.push_back(1U);
+            const auto encoded = KlvEncoder::encode(*k.message);
+            append32(static_cast<std::uint32_t>(encoded.size()));
+            payload.insert(payload.end(), encoded.begin(), encoded.end());
+        } else {
+            payload.push_back(0U);
+            append32(0U);
+        }
+    }
+
     const std::uint32_t crc = KlvCrc::calculateCrc32Mpeg(payload.data(), payload.size());
     append32(crc);
 
@@ -526,13 +644,16 @@ bool StanagStreamIndexer::loadIndex(std::string_view indexPath)
 
     in.seekg(0, std::ios::end);
     const auto fileSize = in.tellg();
-    if (fileSize < 36) {
+    if (fileSize < 44) {
         return false;
     }
 
     in.seekg(0, std::ios::beg);
     std::vector<std::uint8_t> buffer(static_cast<std::size_t>(fileSize));
     in.read(reinterpret_cast<char*>(buffer.data()), fileSize);
+    if (!in.good()) {
+        return false;
+    }
 
     const std::size_t payloadSize = buffer.size() - 4U;
     const std::uint32_t storedCrc = static_cast<std::uint32_t>(buffer[payloadSize])
@@ -545,6 +666,97 @@ bool StanagStreamIndexer::loadIndex(std::string_view indexPath)
         return false;
     }
 
+    std::size_t pos = 0U;
+    auto read32 = [&buffer, &pos]() -> std::uint32_t {
+        const std::uint32_t v = static_cast<std::uint32_t>(buffer[pos])
+            | (static_cast<std::uint32_t>(buffer[pos + 1]) << 8U) | (static_cast<std::uint32_t>(buffer[pos + 2]) << 16U)
+            | (static_cast<std::uint32_t>(buffer[pos + 3]) << 24U);
+        pos += 4U;
+        return v;
+    };
+
+    auto read64 = [&buffer, &pos]() -> std::uint64_t {
+        std::uint64_t v = 0U;
+        for (int i = 0; i < 8; ++i) {
+            v |= (static_cast<std::uint64_t>(buffer[pos + static_cast<std::size_t>(i)]) << (i * 8));
+        }
+        pos += 8U;
+        return v;
+    };
+
+    const std::uint32_t magic = read32();
+    if (magic != kSidxMagic) {
+        return false;
+    }
+
+    const std::uint32_t version = read32();
+    if (version != kSidxVersion) {
+        return false;
+    }
+
+    const std::uint64_t basePts = read64();
+    const std::uint64_t baseUtc = read64();
+    const std::uint64_t durBits = read64();
+    double durationSec = 0.0;
+    std::memcpy(&durationSec, &durBits, sizeof(durationSec));
+
+    const std::uint32_t videoCount = read32();
+    const std::uint32_t klvCount = read32();
+
+    constexpr std::size_t kVideoEntryBytes = 36U;
+    if (pos + (static_cast<std::size_t>(videoCount) * kVideoEntryBytes) > payloadSize) {
+        return false;
+    }
+
+    std::vector<VideoIndexEntry> videoEntries {};
+    videoEntries.reserve(videoCount);
+    for (std::uint32_t i = 0U; i < videoCount; ++i) {
+        VideoIndexEntry v {};
+        v.ptsTicks = read64();
+        v.dtsTicks = read64();
+        v.fileByteOffset = read64();
+        v.packetSizeBytes = read32();
+        v.frameIndex = read32();
+        v.isKeyframe = (buffer[pos] != 0U);
+        pos += 4U;
+        videoEntries.push_back(v);
+    }
+
+    std::vector<KlvIndexEntry> klvEntries {};
+    klvEntries.reserve(klvCount);
+    for (std::uint32_t i = 0U; i < klvCount; ++i) {
+        constexpr std::size_t kKlvHeaderBytes = 33U;
+        if (pos + kKlvHeaderBytes + 4U > payloadSize) {
+            return false;
+        }
+        KlvIndexEntry k {};
+        k.ptsTicks = read64();
+        k.utcTimestampUs = read64();
+        k.fileByteOffset = read64();
+        k.packetSizeBytes = read32();
+        k.messageIndex = read32();
+        const bool hasMsg = (buffer[pos++] != 0U);
+        const std::uint32_t klvLen = read32();
+        if (hasMsg && klvLen > 0U) {
+            if (pos + klvLen > payloadSize) {
+                return false;
+            }
+            UasDatalinkMessage msg {};
+            if (KlvParser::parse(buffer.data() + pos, klvLen, msg, false) == KlvStatus::Success) {
+                k.message = msg;
+            }
+            pos += klvLen;
+        }
+        klvEntries.push_back(k);
+    }
+
+    if (pos != payloadSize) {
+        return false;
+    }
+
+    m_timeIndex.loadEntries(std::move(videoEntries), std::move(klvEntries), basePts, baseUtc, durationSec);
+    m_videoFrameCount = static_cast<std::uint32_t>(m_timeIndex.videoFrameCount());
+    m_klvPacketCount = static_cast<std::uint32_t>(m_timeIndex.klvPacketCount());
     return true;
 }
 

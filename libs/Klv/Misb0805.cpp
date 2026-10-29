@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Klv {
@@ -28,13 +29,14 @@ namespace {
 std::string CotEvent::toXml() const
 {
     std::ostringstream oss;
-    oss << "<event version=\"" << version << "\""
-        << " uid=\"" << uid << "\""
-        << " type=\"" << type << "\""
-        << " time=\"" << time << "\""
-        << " start=\"" << start << "\""
-        << " stale=\"" << stale << "\""
-        << " how=\"" << how << "\">" << std::fixed << std::setprecision(6) << "<point lat=\"" << point.lat << "\""
+    oss << "<event version=\"" << Misb0805::escapeXmlAscii(version) << "\""
+        << " uid=\"" << Misb0805::escapeXmlAscii(uid) << "\""
+        << " type=\"" << Misb0805::escapeXmlAscii(type) << "\""
+        << " time=\"" << Misb0805::escapeXmlAscii(time) << "\""
+        << " start=\"" << Misb0805::escapeXmlAscii(start) << "\""
+        << " stale=\"" << Misb0805::escapeXmlAscii(stale) << "\""
+        << " how=\"" << Misb0805::escapeXmlAscii(how) << "\">" << std::fixed << std::setprecision(6) << "<point lat=\""
+        << point.lat << "\""
         << " lon=\"" << point.lon << "\"" << std::setprecision(2) << " hae=\"" << point.hae << "\""
         << " ce=\"" << point.ce << "\""
         << " le=\"" << point.le << "\"/>";
@@ -43,6 +45,35 @@ std::string CotEvent::toXml() const
     }
     oss << "</event>";
     return oss.str();
+}
+
+std::string Misb0805::escapeXmlAscii(std::string_view input)
+{
+    std::string out;
+    out.reserve(input.size() + 16U);
+    for (const char ch : input) {
+        switch (ch) {
+        case '&':
+            out.append("&amp;");
+            break;
+        case '<':
+            out.append("&lt;");
+            break;
+        case '>':
+            out.append("&gt;");
+            break;
+        case '\"':
+            out.append("&quot;");
+            break;
+        case '\'':
+            out.append("&apos;");
+            break;
+        default:
+            out.push_back(ch);
+            break;
+        }
+    }
+    return out;
 }
 
 std::string Misb0805::formatIso8601(std::uint64_t timestampUs)
@@ -139,7 +170,7 @@ CotEvent Misb0805::toPlatformPosition(const UasDatalinkMessage& msg, double stal
         detail << " vfov=\"" << *msg.sensorVfovDeg << "\"";
     }
     if (msg.imageSourceSensor.has_value()) {
-        detail << " model=\"" << *msg.imageSourceSensor << "\"";
+        detail << " model=\"" << escapeXmlAscii(*msg.imageSourceSensor) << "\"";
     }
     if (msg.slantRangeM.has_value()) {
         detail << " range=\"" << *msg.slantRangeM << "\"";
@@ -198,7 +229,8 @@ CotEvent Misb0805::toSensorPointOfInterest(
 
     std::ostringstream detail;
     detail << "<_flow-tags_ ST0601CoT=\"" << event.time << "\"/>";
-    detail << "<link relation=\"p-p\" type=\"" << platformType << "\" uid=\"" << platUid << "\"/>";
+    detail << "<link relation=\"p-p\" type=\"" << escapeXmlAscii(platformType) << "\" uid=\"" << escapeXmlAscii(platUid)
+           << "\"/>";
 
     event.detailXml = detail.str();
     return event;
@@ -237,19 +269,19 @@ CotEvent Misb0805::toCot(const PoiPack& poi, const std::string& parentUid, std::
     detail << "<_flow-tags_ ST0806CoT=\"" << event.time << "\"/>";
 
     if (poi.label.has_value() && !poi.label->empty()) {
-        detail << "<contact callsign=\"" << *poi.label << "\"/>";
+        detail << "<contact callsign=\"" << escapeXmlAscii(*poi.label) << "\"/>";
     }
 
     if (poi.text.has_value() && !poi.text->empty()) {
-        detail << "<remarks>" << *poi.text << "</remarks>";
+        detail << "<remarks>" << escapeXmlAscii(*poi.text) << "</remarks>";
     }
 
     if (!parentUid.empty()) {
-        detail << "<link relation=\"p-p\" type=\"a-f-A-M-F\" uid=\"" << parentUid << "\"/>";
+        detail << "<link relation=\"p-p\" type=\"a-f-A-M-F\" uid=\"" << escapeXmlAscii(parentUid) << "\"/>";
     }
 
     if (poi.sourceIcon.has_value() && !poi.sourceIcon->empty()) {
-        detail << "<usericon iconsetpath=\"" << *poi.sourceIcon << "\"/>";
+        detail << "<usericon iconsetpath=\"" << escapeXmlAscii(*poi.sourceIcon) << "\"/>";
     }
 
     event.detailXml = detail.str();

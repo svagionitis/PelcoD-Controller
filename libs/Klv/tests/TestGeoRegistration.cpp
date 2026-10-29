@@ -332,12 +332,22 @@ TEST(TestGeoRegistration, MalformedPackets)
         KlvStatus::InvalidUniversalLabel);
 
     // Valid UL but truncated payload length
-    std::vector<std::uint8_t> truncatedPayload = {
-        0x06, 0x0E, 0x2B, 0x34, 0x02, 0x0B, 0x01, 0x01, 0x0E, 0x01, 0x03, 0x03, 0x01, 0x00, 0x00, 0x00, 0x82,
-        0x01 // Declares 2-byte length but only 1 byte follows
-    };
+    std::vector<std::uint8_t> truncatedPayload;
+    truncatedPayload.reserve(GeoRegistrationUl.size() + 2U);
+    for (const auto b : GeoRegistrationUl) {
+        truncatedPayload.push_back(static_cast<std::uint8_t>(b));
+    }
+    truncatedPayload.push_back(0x82U);
+    truncatedPayload.push_back(0x01U); // Declares 2-byte length but only 1 byte follows
     EXPECT_EQ(GeoRegistrationParser::parsePacket(truncatedPayload.data(), truncatedPayload.size(), outSet),
         KlvStatus::MalformedBerLength);
+}
+
+TEST(TestGeoRegistration, GeoRegistrationUlDistinctionFromVmti)
+{
+    EXPECT_EQ(GeoRegistrationUl[12], 0x20U);
+    // VMTI ST 0903 has 0x01 at byte 13 (index 12)
+    EXPECT_NE(GeoRegistrationUl[12], 0x01U);
 }
 
 TEST(TestGeoRegistration, DecodeUInt2DAdversarialHugeDimensions)

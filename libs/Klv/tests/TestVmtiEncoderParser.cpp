@@ -1,13 +1,17 @@
+#include <cstddef>
+#include <cstdint>
+
+#include <array>
+#include <string>
+#include <vector>
+
+#include <gtest/gtest.h>
+
 #include "KlvEncoder.h"
 #include "KlvParser.h"
 #include "VmtiEncoder.h"
 #include "VmtiParser.h"
 #include "VmtiTypes.h"
-#include <cstdint>
-
-#include <array>
-#include <gtest/gtest.h>
-#include <vector>
 
 using namespace Klv;
 
@@ -219,4 +223,97 @@ TEST(VmtiTest, EmbeddedInMisb0601RoundTrip)
     EXPECT_EQ(parsedMsg.vmti->targets[0].centroid->row, 480U);
     ASSERT_TRUE(parsedMsg.vmti->targets[0].confidence.has_value());
     EXPECT_EQ(*parsedMsg.vmti->targets[0].confidence, 99U);
+}
+
+TEST(VmtiTest, VmtiParseWithTrailingPadding)
+{
+    VmtiLocalSet original;
+    original.precisionTimeStampUs = 1695500000888888ULL;
+    original.systemName = "PADDING_TEST";
+    original.version = 6U;
+    original.totalTargetsDetected = 1U;
+    original.numTargetsReported = 1U;
+
+    VTargetPack target;
+    target.targetId = 7U;
+    target.centroid = PixelCoord { 100U, 200U };
+    original.targets.push_back(target);
+
+    std::vector<std::uint8_t> packet = VmtiEncoder::encode(original, true);
+    ASSERT_FALSE(packet.empty());
+
+    // Append 64 bytes of TS padding (0xFF)
+    packet.insert(packet.end(), 64U, 0xFFU);
+
+    VmtiLocalSet decoded;
+    const KlvStatus status = VmtiParser::parse(packet.data(), packet.size(), decoded, true);
+    EXPECT_EQ(status, KlvStatus::Success);
+    ASSERT_TRUE(decoded.systemName.has_value());
+    EXPECT_EQ(*decoded.systemName, "PADDING_TEST");
+    ASSERT_EQ(decoded.targets.size(), 1U);
+    EXPECT_EQ(decoded.targets[0].targetId, 7U);
+}
+
+TEST(VmtiTest, VmtiExtendedTag17AndSensorTags)
+{
+    VmtiLocalSet original;
+    original.precisionTimeStampUs = 1695500000777777ULL;
+    original.systemName = "SENSOR_TAGS_TEST";
+    original.sourceSensor = "EO-NARROW";
+    original.horizontalFovDeg = 30.5;
+    original.verticalFovDeg = 17.2;
+
+    // Target 1 with 16-byte Tag 17 (Lat, Lon, HAE, CE90, LE90)
+    VTargetPack target1;
+    target1.targetId = 1U;
+    target1.targetLocation = GeoPoint3D { 34.05, -118.25, 150.0 };
+    target1.targetCe90M = 12.0;
+    target1.targetLe90M = 8.0;
+    original.targets.push_back(target1);
+
+    // Target 2 with 14-byte Tag 17 (Lat, Lon, HAE, CE90 only)
+    VTargetPack target2;
+    target2.targetId = 2U;
+    target2.targetLocation = GeoPoint3D { 34.10, -118.30, 200.0 };
+    target2.targetCe90M = 25.0;
+    original.targets.push_back(target2);
+
+    const std::vector<std::uint8_t> packet = VmtiEncoder::encode(original, true);
+    ASSERT_FALSE(packet.empty());
+
+    VmtiLocalSet decoded;
+    const KlvStatus status = VmtiParser::parse(packet.data(), packet.size(), decoded, true);
+    EXPECT_EQ(status, KlvStatus::Success);
+
+    ASSERT_TRUE(decoded.sourceSensor.has_value());
+    EXPECT_EQ(*decoded.sourceSensor, "EO-NARROW");
+    ASSERT_TRUE(decoded.horizontalFovDeg.has_value());
+    EXPECT_NEAR(*decoded.horizontalFovDeg, 30.5, 0.01);
+    ASSERT_TRUE(decoded.verticalFovDeg.has_value());
+    EXPECT_NEAR(*decoded.verticalFovDeg, 17.2, 0.01);
+
+    ASSERT_EQ(decoded.targets.size(), 2U);
+
+    // Verify Target 1 (16 bytes)
+    const auto& decT1 = decoded.targets[0];
+    EXPECT_EQ(decT1.targetId, 1U);
+    ASSERT_TRUE(decT1.targetLocation.has_value());
+    EXPECT_NEAR(decT1.targetLocation->latitudeDeg, 34.05, 1e-4);
+    EXPECT_NEAR(decT1.targetLocation->longitudeDeg, -118.25, 1e-4);
+    EXPECT_NEAR(decT1.targetLocation->altitudeM, 150.0, 1.0);
+    ASSERT_TRUE(decT1.targetCe90M.has_value());
+    EXPECT_NEAR(*decT1.targetCe90M, 12.0, 0.5);
+    ASSERT_TRUE(decT1.targetLe90M.has_value());
+    EXPECT_NEAR(*decT1.targetLe90M, 8.0, 0.5);
+
+    // Verify Target 2 (14 bytes)
+    const auto& decT2 = decoded.targets[1];
+    EXPECT_EQ(decT2.targetId, 2U);
+    ASSERT_TRUE(decT2.targetLocation.has_value());
+    EXPECT_NEAR(decT2.targetLocation->latitudeDeg, 34.10, 1e-4);
+    EXPECT_NEAR(decT2.targetLocation->longitudeDeg, -118.30, 1e-4);
+    EXPECT_NEAR(decT2.targetLocation->altitudeM, 200.0, 1.0);
+    ASSERT_TRUE(decT2.targetCe90M.has_value());
+    EXPECT_NEAR(*decT2.targetCe90M, 25.0, 0.5);
+    EXPECT_FALSE(decT2.targetLe90M.has_value());
 }

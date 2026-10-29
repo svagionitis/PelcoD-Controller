@@ -632,3 +632,55 @@ TEST(MpegTsKlvMuxerTest, NextCcZeroHeapNoAlloc)
         EXPECT_EQ(buf.size() % MpegTsKlvMuxer::kTsPacketSize, 0U);
     }
 }
+
+TEST(MpegTsKlvMuxerTest, RandomAccessIndicatorOnlyOnKeyframes)
+{
+    MpegTsMuxerConfig config;
+    config.videoCodec = VideoCodec::H264;
+    config.videoPid = 0x0101U;
+    config.metadataPid = 0x01E0U;
+    config.pcrOnVideo = false;
+    MpegTsKlvMuxer muxer(config);
+
+    // 1. Keyframe video AU
+    VideoAccessUnit keyAu;
+    keyAu.codec = VideoCodec::H264;
+    keyAu.ptsUs = 1000000ULL;
+    keyAu.isKeyframe = true;
+    keyAu.primarySliceType = VideoSliceType::I;
+    keyAu.data = { 0x00U, 0x00U, 0x00U, 0x01U, 0x65U, 0x88U };
+
+    const auto keyBuffer = muxer.muxVideoToBuffer(keyAu);
+    ASSERT_FALSE(keyBuffer.empty());
+
+    // Skip PAT and PMT (first 2 packets)
+    ASSERT_GE(keyBuffer.size(), 3U * MpegTsKlvMuxer::kTsPacketSize);
+    const auto* keyVideoPkt = keyBuffer.data() + (2U * MpegTsKlvMuxer::kTsPacketSize);
+
+    // Verify PUSI = 1
+    EXPECT_TRUE((keyVideoPkt[1] & 0x40U) != 0U);
+    // Verify adaptation field present (AFC bit 5 set)
+    EXPECT_TRUE((keyVideoPkt[3] & 0x20U) != 0U);
+    // Verify random_access_indicator (bit 6 of adaptation flags at byte 5) is SET
+    EXPECT_TRUE((keyVideoPkt[5] & 0x40U) != 0U);
+
+    // 2. Non-keyframe video AU
+    VideoAccessUnit nonKeyAu;
+    nonKeyAu.codec = VideoCodec::H264;
+    nonKeyAu.ptsUs = 1033333ULL;
+    nonKeyAu.isKeyframe = false;
+    nonKeyAu.primarySliceType = VideoSliceType::P;
+    nonKeyAu.data = { 0x00U, 0x00U, 0x00U, 0x01U, 0x41U, 0x01U };
+
+    const auto nonKeyBuffer = muxer.muxVideoToBuffer(nonKeyAu);
+    ASSERT_FALSE(nonKeyBuffer.empty());
+    // Since PAT/PMT was emitted, non-keyframe is packet 0 in this buffer
+    const auto* nonKeyPkt = nonKeyBuffer.data();
+
+    // Verify PUSI = 1
+    EXPECT_TRUE((nonKeyPkt[1] & 0x40U) != 0U);
+    // If adaptation field is present, random_access_indicator MUST NOT be set
+    if ((nonKeyPkt[3] & 0x20U) != 0U) {
+        EXPECT_EQ(nonKeyPkt[5] & 0x40U, 0x00U);
+    }
+}

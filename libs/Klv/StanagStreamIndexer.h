@@ -30,17 +30,14 @@ public:
     /// @param[in] filePath Path to the .ts or .mpg file.
     /// @param[in] progress Optional progress callback.
     /// @return True if indexing succeeded.
-    [[nodiscard]] bool indexFile(std::string_view filePath,
-                                 ProgressCallback progress = nullptr);
+    [[nodiscard]] bool indexFile(std::string_view filePath, ProgressCallback progress = nullptr);
 
     /// @brief Ingests arbitrary streaming TS chunks for progressive indexing.
     /// @param[in] data Pointer to raw TS data.
     /// @param[in] size Number of bytes.
     /// @param[in] baseOffset File offset of this chunk.
     /// @return Number of TS packets indexed.
-    [[nodiscard]] std::size_t indexChunk(const std::uint8_t* data,
-                                         std::size_t size,
-                                         std::uint64_t baseOffset);
+    [[nodiscard]] std::size_t indexChunk(const std::uint8_t* data, std::size_t size, std::uint64_t baseOffset);
 
     /// @brief Serializes generated index to a binary `.sidx` file for instant loading.
     /// @param[in] indexPath Output index file path.
@@ -72,10 +69,19 @@ public:
     /// @param[in] pid Elementary Stream PID.
     void setMetadataPid(std::uint16_t pid) noexcept;
 
+    /// @brief Flushes any in-progress video and KLV PES reassembly buffers.
+    void flush();
+
     /// @brief Clears indexer state and resets time index.
     void reset() noexcept;
 
 private:
+    struct PesReassembly {
+        std::vector<std::uint8_t> buffer {};
+        std::uint64_t fileOffset { 0U };
+        bool active { false };
+    };
+
     TelemetryTimeIndex m_timeIndex {};
     std::optional<std::uint16_t> m_videoPid {};
     std::optional<std::uint16_t> m_metadataPid {};
@@ -87,12 +93,19 @@ private:
     std::uint64_t m_lastVideoPts { 0U };
     std::uint64_t m_lastKlvPts { 0U };
 
+    PesReassembly m_videoPes {};
+    PesReassembly m_klvPes {};
+
     void parsePat(const std::uint8_t* payload, std::size_t size);
     void parsePmt(const std::uint8_t* payload, std::size_t size);
     void processVideoPes(const std::uint8_t* pesData, std::size_t size, std::uint64_t fileOffset);
     void processKlvPes(const std::uint8_t* pesData, std::size_t size, std::uint64_t fileOffset);
-    [[nodiscard]] static std::optional<std::uint64_t> peekUtcTimestamp(const std::uint8_t* data,
-                                                                      std::size_t size) noexcept;
+    void flushVideoPes();
+    void flushKlvPes();
+    void checkVideoPesComplete();
+    void checkKlvPesComplete();
+    [[nodiscard]] static std::optional<std::uint64_t> peekUtcTimestamp(
+        const std::uint8_t* data, std::size_t size) noexcept;
 };
 
 } // namespace Klv

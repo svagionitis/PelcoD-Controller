@@ -10,10 +10,6 @@
 #include <functional>
 #include <mutex>
 
-namespace Video {
-class IVideoDecoder;
-}
-
 namespace Klv {
 
 /// @class StanagScrubController
@@ -23,12 +19,18 @@ public:
     /// @brief Callback signature for synchronized scrub frames.
     using ScrubFrameCallback = std::function<void(const SynchronizedScrubFrame& frame)>;
 
+    /// @brief Callback signature for external video seek requests.
+    /// @param[in] seconds Target timeline seek position in seconds.
+    /// @param[in] keyframeOnly True to seek only to nearest preceding keyframe; false for exact frame.
+    /// @return True if seek succeeded.
+    using SeekSecondsCallback = std::function<bool(double seconds, bool keyframeOnly)>;
+
     StanagScrubController();
     ~StanagScrubController() = default;
 
-    /// @brief Attaches a video decoder instance for coordinated seeking.
-    /// @param[in] decoder Video decoder instance pointer (optional, can be nullptr).
-    void attachDecoder(Video::IVideoDecoder* decoder);
+    /// @brief Registers external seek target callback.
+    /// @param[in] callback Callback invoked during seeking operations.
+    void setSeekCallback(SeekSecondsCallback callback);
 
     /// @brief Loads or sets the timeline index.
     /// @param[in] index Finalized TelemetryTimeIndex.
@@ -83,7 +85,7 @@ public:
 private:
     mutable std::mutex m_mutex {};
     TelemetryTimeIndex m_timeIndex {};
-    Video::IVideoDecoder* m_decoder { nullptr };
+    SeekSecondsCallback m_seekCallback {};
     ScrubFrameCallback m_callback {};
 
     ScrubSeekMode m_seekMode { ScrubSeekMode::AdaptiveScrub };

@@ -6,12 +6,14 @@
 ///          and MISB ST 0806 (RVT Points of Interest) into standard Cursor-on-Target XML events.
 /// @see MISB ST 0805.1 "KLV to Cursor-on-Target (CoT) Conversions"
 
+#include <cstdint>
+
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "KlvTypes.h"
 #include "RvtTypes.h"
-
-#include <cstdint>
-#include <string>
-#include <vector>
 
 namespace Klv {
 
@@ -102,6 +104,12 @@ public:
     /// @param[in] type Target type enumeration.
     /// @return CoT entity type string (e.g. "a-f-G", "a-h-G").
     [[nodiscard]] static std::string targetTypeToCot(RvtTargetType type);
+
+    /// @brief Escapes XML special characters in an ASCII string to prevent injection.
+    /// @details Escapes &, <, >, ", and ' to standard XML predefined entities.
+    /// @param[in] input Input string or string view.
+    /// @return Escaped XML string.
+    [[nodiscard]] static std::string escapeXmlAscii(std::string_view input);
 };
 
 } // namespace Klv

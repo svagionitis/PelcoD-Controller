@@ -1,13 +1,16 @@
 #include "VmtiParser.h"
-#include "KlvBer.h"
-#include "KlvCrc.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
 #include <algorithm>
 #include <array>
-#include <cstdint>
-#include <cstring>
 #include <string>
 #include <vector>
+
+#include "KlvBer.h"
+#include "KlvCrc.h"
 
 namespace Klv {
 
@@ -197,8 +200,41 @@ bool VmtiParser::parseTarget(const std::uint8_t* data, std::size_t size, VTarget
                 const double hae = unscaleHae(rawHae);
 
                 target.targetLocation = GeoPoint3D { lat, lon, hae };
+
+                if (itemLen >= 12U) {
+                    const auto rawCe = static_cast<std::uint16_t>(
+                        (static_cast<std::uint16_t>(val[10]) << 8U) | static_cast<std::uint16_t>(val[11]));
+                    target.targetCe90M = static_cast<double>(rawCe);
+                }
+                if (itemLen >= 14U) {
+                    const auto rawLe = static_cast<std::uint16_t>(
+                        (static_cast<std::uint16_t>(val[12]) << 8U) | static_cast<std::uint16_t>(val[13]));
+                    target.targetLe90M = static_cast<double>(rawLe);
+                }
             }
             break;
+        case VTargetTag::CentroidPixRow: {
+            std::uint32_t rowVal { 0U };
+            if (readVarUint(val, itemLen, rowVal)) {
+                if (!target.centroid.has_value()) {
+                    target.centroid = PixelCoord { 1U, rowVal };
+                } else {
+                    target.centroid->row = rowVal;
+                }
+            }
+            break;
+        }
+        case VTargetTag::CentroidPixCol: {
+            std::uint32_t colVal { 0U };
+            if (readVarUint(val, itemLen, colVal)) {
+                if (!target.centroid.has_value()) {
+                    target.centroid = PixelCoord { colVal, 1U };
+                } else {
+                    target.centroid->col = colVal;
+                }
+            }
+            break;
+        }
         case VTargetTag::DetectionStatus:
             if (itemLen >= 1U) {
                 target.detectionStatus = val[0];
@@ -255,15 +291,6 @@ KlvStatus VmtiParser::parse(const std::uint8_t* data, std::size_t size, VmtiLoca
     std::size_t payloadSize = size;
 
     if (isVmti(data, size)) {
-        if (verifyChecksum) {
-            if (size < kVmtiUniversalLabelSize + 4U) {
-                return KlvStatus::BufferUnderflow;
-            }
-            if (!KlvCrc::verifyPacket(data, size)) {
-                return KlvStatus::CrcMismatch;
-            }
-        }
-
         std::size_t offset = kVmtiUniversalLabelSize;
         std::size_t berLen { 0U };
         std::size_t lenConsumed { 0U };
@@ -274,6 +301,17 @@ KlvStatus VmtiParser::parse(const std::uint8_t* data, std::size_t size, VmtiLoca
 
         if (offset + berLen > size) {
             return KlvStatus::BufferUnderflow;
+        }
+
+        const std::size_t totalPacketSize = offset + berLen;
+
+        if (verifyChecksum) {
+            if (totalPacketSize < kVmtiUniversalLabelSize + 4U) {
+                return KlvStatus::BufferUnderflow;
+            }
+            if (!KlvCrc::verifyPacket(data, totalPacketSize)) {
+                return KlvStatus::CrcMismatch;
+            }
         }
 
         payload = data + offset;
@@ -352,6 +390,25 @@ KlvStatus VmtiParser::parse(const std::uint8_t* data, std::size_t size, VmtiLoca
             }
             break;
         }
+        case VmtiTag::SourceSensor:
+            if (itemLen > 0U) {
+                vmti.sourceSensor = std::string(reinterpret_cast<const char*>(val), itemLen);
+            }
+            break;
+        case VmtiTag::HorizontalFov:
+            if (itemLen >= 2U) {
+                const auto raw = static_cast<std::uint16_t>(
+                    (static_cast<std::uint16_t>(val[0]) << 8U) | static_cast<std::uint16_t>(val[1]));
+                vmti.horizontalFovDeg = static_cast<double>(raw) * (180.0 / 65535.0);
+            }
+            break;
+        case VmtiTag::VerticalFov:
+            if (itemLen >= 2U) {
+                const auto raw = static_cast<std::uint16_t>(
+                    (static_cast<std::uint16_t>(val[0]) << 8U) | static_cast<std::uint16_t>(val[1]));
+                vmti.verticalFovDeg = static_cast<double>(raw) * (180.0 / 65535.0);
+            }
+            break;
         case VmtiTag::MiisId: {
             MiisCoreId miis {};
             if (miis.decode(val, itemLen) == KlvStatus::Success) {

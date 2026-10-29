@@ -97,6 +97,26 @@ public:
     /// @brief Returns total timeline duration in seconds.
     [[nodiscard]] double durationSeconds() const noexcept;
 
+    /// @brief Returns immutable reference to indexed video entries.
+    [[nodiscard]] const std::vector<VideoIndexEntry>& videoEntries() const noexcept;
+
+    /// @brief Returns immutable reference to indexed KLV entries.
+    [[nodiscard]] const std::vector<KlvIndexEntry>& klvEntries() const noexcept;
+
+    /// @brief Retrieves indexed video entry at a specified frame index.
+    /// @param[in] index Monotonic frame index.
+    /// @return Pointer to entry if valid; nullptr otherwise.
+    [[nodiscard]] const VideoIndexEntry* videoEntryAt(std::size_t index) const noexcept;
+
+    /// @brief Replaces entries with pre-loaded tables and builds acceleration structures.
+    /// @param[in] videoEntries Pre-deserialized video entries.
+    /// @param[in] klvEntries Pre-deserialized KLV entries.
+    /// @param[in] basePts Base PTS origin.
+    /// @param[in] baseUtcUs Base UTC epoch timestamp in microseconds.
+    /// @param[in] durationSec Total duration in seconds.
+    void loadEntries(std::vector<VideoIndexEntry> videoEntries, std::vector<KlvIndexEntry> klvEntries,
+        std::uint64_t basePts, std::uint64_t baseUtcUs, double durationSec);
+
     /// @brief Checks whether the timeline index is empty.
     [[nodiscard]] bool empty() const noexcept;
 

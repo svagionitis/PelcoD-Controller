@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "GeoRegistrationEncoder.h"
 #include "KlvBer.h"
 #include "KlvCrc.h"
 #include "KlvScaling.h"
@@ -348,6 +349,14 @@ std::vector<std::uint8_t> KlvEncoder::encode(const UasDatalinkMessage& msg)
     // Tag 95: Wavelength Bands (1 byte bitmask per MISB ST 0601)
     if (msg.wavelengthBands.has_value()) {
         appendTagUint8(static_cast<std::uint32_t>(Tag::WavelengthBands), *msg.wavelengthBands, payload);
+    }
+
+    // Tag 98: MISB ST 1601 Geo-Registration Local Set
+    if (msg.geoRegistration.has_value()) {
+        std::vector<std::uint8_t> geoBytes {};
+        if (GeoRegistrationEncoder::encode(*msg.geoRegistration, geoBytes) == KlvStatus::Success) {
+            appendTagBytes(static_cast<std::uint32_t>(Tag::GeoRegistration), geoBytes, payload);
+        }
     }
 
     // Tag 118: Sensor Roll Angle

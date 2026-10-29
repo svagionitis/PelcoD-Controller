@@ -138,10 +138,10 @@ private:
         const std::uint8_t* klvData, std::size_t size, std::optional<std::uint64_t> timestampUs);
 
     std::size_t emitTsPacket(std::uint16_t pid, bool pusi, const std::uint8_t* payload, std::size_t payloadSize,
-        std::optional<std::uint64_t> pcrUs);
+        std::optional<std::uint64_t> pcrUs, bool isRandomAccess = false);
 
-    std::size_t emitPesStream(
-        std::uint16_t pid, const std::vector<std::uint8_t>& pesData, std::optional<std::uint64_t> pcrUs);
+    std::size_t emitPesStream(std::uint16_t pid, const std::vector<std::uint8_t>& pesData,
+        std::optional<std::uint64_t> pcrUs, bool isRandomAccess = false);
 
     void dispatchPacket(const std::vector<std::uint8_t>& packet);
 };

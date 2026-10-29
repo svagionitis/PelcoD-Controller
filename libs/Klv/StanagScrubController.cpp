@@ -7,16 +7,15 @@
 #include <utility>
 
 #include "TelemetryInterpolator.h"
-#include "Video/IVideoDecoder.h"
 
 namespace Klv {
 
 StanagScrubController::StanagScrubController() = default;
 
-void StanagScrubController::attachDecoder(Video::IVideoDecoder* decoder)
+void StanagScrubController::setSeekCallback(SeekSecondsCallback callback)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_decoder = decoder;
+    m_seekCallback = std::move(callback);
 }
 
 void StanagScrubController::setTimeIndex(TelemetryTimeIndex index)
@@ -118,11 +117,12 @@ bool StanagScrubController::stepFrames(int frameDelta)
         const int desiredIdx = std::clamp(static_cast<int>(m_currentFrameIndex) + frameDelta, 0, maxIdx);
         m_currentFrameIndex = static_cast<std::uint32_t>(desiredIdx);
 
-        // Approximate target PTS based on frame index
-        const double frameTimeSec = (m_timeIndex.videoFrameCount() > 1U)
-            ? (static_cast<double>(desiredIdx) * m_timeIndex.durationSeconds() / static_cast<double>(maxIdx))
-            : 0.0;
-        targetPts = m_timeIndex.secondsToPts(frameTimeSec);
+        const auto* entry = m_timeIndex.videoEntryAt(static_cast<std::size_t>(desiredIdx));
+        if (entry != nullptr) {
+            targetPts = entry->ptsTicks;
+        } else {
+            return false;
+        }
     }
 
     return scrubToPts(targetPts);
@@ -148,18 +148,37 @@ bool StanagScrubController::executeSeekLocked(std::uint64_t targetPts)
 
     std::uint64_t framePts = targetPts;
     bool isKeyframe = false;
+    bool requestKeyframeOnly = false;
 
-    const auto optVf = m_timeIndex.findVideoFrame(targetPts);
-    if (optVf) {
-        framePts = optVf->ptsTicks;
-        isKeyframe = optVf->isKeyframe;
-        m_currentFrameIndex = optVf->frameIndex;
+    if (m_seekMode == ScrubSeekMode::FastKeyframeOnly) {
+        requestKeyframeOnly = true;
+        const auto optKf = m_timeIndex.findPrecedingKeyframe(targetPts);
+        if (optKf) {
+            framePts = optKf->ptsTicks;
+            isKeyframe = true;
+            m_currentFrameIndex = optKf->frameIndex;
+        } else {
+            const auto optVf = m_timeIndex.findVideoFrame(targetPts);
+            if (optVf) {
+                framePts = optVf->ptsTicks;
+                isKeyframe = optVf->isKeyframe;
+                m_currentFrameIndex = optVf->frameIndex;
+            }
+        }
+        ++m_stats.keyframeSeekCount;
+    } else {
+        const auto optVf = m_timeIndex.findVideoFrame(targetPts);
+        if (optVf) {
+            framePts = optVf->ptsTicks;
+            isKeyframe = optVf->isKeyframe;
+            m_currentFrameIndex = optVf->frameIndex;
+        }
+        ++m_stats.exactSeekCount;
     }
 
-    // Command decoder seek if attached
-    if (m_decoder) {
+    if (m_seekCallback) {
         const double seekSec = m_timeIndex.ptsToSeconds(framePts);
-        static_cast<void>(m_decoder->seek(seekSec));
+        static_cast<void>(m_seekCallback(seekSec, requestKeyframeOnly));
     }
 
     UasDatalinkMessage telemetry {};

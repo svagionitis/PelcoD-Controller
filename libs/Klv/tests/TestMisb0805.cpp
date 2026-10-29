@@ -1,12 +1,14 @@
 #include <cstdint>
+
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include <gtest/gtest.h>
 
 #include "KlvTypes.h"
 #include "Misb0805.h"
 #include "RvtTypes.h"
-
-#include <string>
-#include <vector>
 
 using namespace Klv;
 
@@ -33,7 +35,7 @@ TEST(TestMisb0805, ErrorEstimatesConversion)
 
 TEST(TestMisb0805, PlatformPositionMessageConversion)
 {
-    UasDatalinkMessage msg { };
+    UasDatalinkMessage msg {};
     msg.platformDesignation = "PREDATOR";
     msg.missionId = "RECON_01";
     msg.precisionTimeStampUs = 1700000000000000ULL;
@@ -69,7 +71,7 @@ TEST(TestMisb0805, PlatformPositionMessageConversion)
 
 TEST(TestMisb0805, SensorPointOfInterestConversion)
 {
-    UasDatalinkMessage msg { };
+    UasDatalinkMessage msg {};
     msg.platformDesignation = "REAPER";
     msg.missionId = "OVERWATCH_42";
     msg.imageSourceSensor = "FLIR_MTS_B";
@@ -99,7 +101,7 @@ TEST(TestMisb0805, SensorPointOfInterestConversion)
 
 TEST(TestMisb0805, RvtPoiToCotConversion)
 {
-    PoiPack poi { };
+    PoiPack poi {};
     poi.poiNumber = 12U;
     poi.latitudeDeg = 35.5000;
     poi.longitudeDeg = -117.8000;
@@ -126,17 +128,17 @@ TEST(TestMisb0805, RvtPoiToCotConversion)
 
 TEST(TestMisb0805, RvtLocalSetBatchConversion)
 {
-    RvtLocalSet rvt { };
+    RvtLocalSet rvt {};
     rvt.precisionTimeStampUs = 1700000000000000ULL;
 
-    PoiPack p1 { };
+    PoiPack p1 {};
     p1.poiNumber = 1U;
     p1.latitudeDeg = 36.1;
     p1.longitudeDeg = -115.1;
     p1.type = RvtTargetType::Friendly;
     rvt.pois.push_back(p1);
 
-    PoiPack p2 { };
+    PoiPack p2 {};
     p2.poiNumber = 2U;
     p2.latitudeDeg = 36.2;
     p2.longitudeDeg = -115.2;
@@ -149,4 +151,45 @@ TEST(TestMisb0805, RvtLocalSetBatchConversion)
     EXPECT_EQ(cotList[0].uid, "PREDATOR_A_POI_1");
     EXPECT_EQ(cotList[1].type, "a-h-G");
     EXPECT_EQ(cotList[1].uid, "PREDATOR_A_POI_2");
+}
+
+TEST(TestMisb0805, CotXmlEscapingSpecialCharacters)
+{
+    // 1. Direct unit verification of escapeXmlAscii
+    const std::string rawInput = "AT&T <wireless> \"4G/5G\" 'LTE'";
+    const std::string escaped = Misb0805::escapeXmlAscii(rawInput);
+    EXPECT_EQ(escaped, "AT&amp;T &lt;wireless&gt; &quot;4G/5G&quot; &apos;LTE&apos;");
+
+    // 2. Integration test via Platform Position with special characters
+    UasDatalinkMessage msg {};
+    msg.platformDesignation = "DRONE & COPTER";
+    msg.missionId = "RECON <SPECIAL> \"A\"";
+    msg.imageSourceSensor = "EO/IR 'NIGHT'";
+    msg.precisionTimeStampUs = 1700000000000000ULL;
+
+    const CotEvent event = Misb0805::toPlatformPosition(msg, 10.0);
+    const std::string xml = event.toXml();
+
+    EXPECT_NE(xml.find("&amp;"), std::string::npos);
+    EXPECT_NE(xml.find("&lt;"), std::string::npos);
+    EXPECT_NE(xml.find("&gt;"), std::string::npos);
+    EXPECT_NE(xml.find("&quot;"), std::string::npos);
+    EXPECT_NE(xml.find("&apos;"), std::string::npos);
+
+    // Verify unescaped characters do NOT appear within the attributes
+    EXPECT_EQ(xml.find("DRONE & COPTER"), std::string::npos);
+    EXPECT_EQ(xml.find("<SPECIAL>"), std::string::npos);
+
+    // 3. Integration test via POI pack
+    PoiPack poi {};
+    poi.poiNumber = 5U;
+    poi.label = "TGT <1> & '2'";
+    poi.text = "Hostile \"BUNKER\" <underground>";
+
+    const CotEvent poiEvent = Misb0805::toCot(poi, "BASE & TOWER");
+    const std::string poiXml = poiEvent.toXml();
+
+    EXPECT_NE(poiXml.find("callsign=\"TGT &lt;1&gt; &amp; &apos;2&apos;\""), std::string::npos);
+    EXPECT_NE(poiXml.find("<remarks>Hostile &quot;BUNKER&quot; &lt;underground&gt;</remarks>"), std::string::npos);
+    EXPECT_NE(poiXml.find("uid=\"BASE &amp; TOWER\""), std::string::npos);
 }

@@ -295,6 +295,70 @@ KlvStatus St1607Parser::parseAmendInternal(
             if (len >= 2U)
                 outSet.frameCenterElevHaeM = unscaleAlt(readU16(valPtr));
             break;
+        case 82U: // Corner Lat 1 Full
+            if (len >= 4U) {
+                if (!outSet.cornerCoordinates.has_value()) {
+                    outSet.cornerCoordinates.emplace();
+                }
+                outSet.cornerCoordinates->topLeft.latitudeDeg = unscaleLat(readI32(valPtr));
+            }
+            break;
+        case 83U: // Corner Lon 1 Full
+            if (len >= 4U) {
+                if (!outSet.cornerCoordinates.has_value()) {
+                    outSet.cornerCoordinates.emplace();
+                }
+                outSet.cornerCoordinates->topLeft.longitudeDeg = unscaleLon(readI32(valPtr));
+            }
+            break;
+        case 84U: // Corner Lat 2 Full
+            if (len >= 4U) {
+                if (!outSet.cornerCoordinates.has_value()) {
+                    outSet.cornerCoordinates.emplace();
+                }
+                outSet.cornerCoordinates->topRight.latitudeDeg = unscaleLat(readI32(valPtr));
+            }
+            break;
+        case 85U: // Corner Lon 2 Full
+            if (len >= 4U) {
+                if (!outSet.cornerCoordinates.has_value()) {
+                    outSet.cornerCoordinates.emplace();
+                }
+                outSet.cornerCoordinates->topRight.longitudeDeg = unscaleLon(readI32(valPtr));
+            }
+            break;
+        case 86U: // Corner Lat 3 Full
+            if (len >= 4U) {
+                if (!outSet.cornerCoordinates.has_value()) {
+                    outSet.cornerCoordinates.emplace();
+                }
+                outSet.cornerCoordinates->bottomRight.latitudeDeg = unscaleLat(readI32(valPtr));
+            }
+            break;
+        case 87U: // Corner Lon 3 Full
+            if (len >= 4U) {
+                if (!outSet.cornerCoordinates.has_value()) {
+                    outSet.cornerCoordinates.emplace();
+                }
+                outSet.cornerCoordinates->bottomRight.longitudeDeg = unscaleLon(readI32(valPtr));
+            }
+            break;
+        case 88U: // Corner Lat 4 Full
+            if (len >= 4U) {
+                if (!outSet.cornerCoordinates.has_value()) {
+                    outSet.cornerCoordinates.emplace();
+                }
+                outSet.cornerCoordinates->bottomLeft.latitudeDeg = unscaleLat(readI32(valPtr));
+            }
+            break;
+        case 89U: // Corner Lon 4 Full
+            if (len >= 4U) {
+                if (!outSet.cornerCoordinates.has_value()) {
+                    outSet.cornerCoordinates.emplace();
+                }
+                outSet.cornerCoordinates->bottomLeft.longitudeDeg = unscaleLon(readI32(valPtr));
+            }
+            break;
         case 98U: { // MISB ST 1601 Geo-Registration Local Set
             GeoRegistrationLocalSet geoReg {};
             if (GeoRegistrationParser::parse(valPtr, len, geoReg) == KlvStatus::Success) {
@@ -316,7 +380,7 @@ KlvStatus St1607Parser::parseAmendInternal(
         case 143U: { // MSID Pack
             std::size_t msidRead { 0U };
             if (!parseMsid(valPtr, len, outSet.msid, msidRead)) {
-                // Malformed MSID pack
+                return KlvStatus::TagError;
             }
             break;
         }
@@ -325,6 +389,10 @@ KlvStatus St1607Parser::parseAmendInternal(
         }
 
         offset += len;
+    }
+
+    if (!outSet.validate()) {
+        return KlvStatus::TagError;
     }
 
     return KlvStatus::Success;
@@ -459,6 +527,70 @@ KlvStatus St1607Parser::parseSegmentInternal(
             if (len >= 2U)
                 outSet.frameCenterElevHaeM = unscaleAlt(readU16(valPtr));
             break;
+        case 82U: // Corner Lat 1 Full
+            if (len >= 4U) {
+                if (!outSet.cornerCoordinates.has_value()) {
+                    outSet.cornerCoordinates.emplace();
+                }
+                outSet.cornerCoordinates->topLeft.latitudeDeg = unscaleLat(readI32(valPtr));
+            }
+            break;
+        case 83U: // Corner Lon 1 Full
+            if (len >= 4U) {
+                if (!outSet.cornerCoordinates.has_value()) {
+                    outSet.cornerCoordinates.emplace();
+                }
+                outSet.cornerCoordinates->topLeft.longitudeDeg = unscaleLon(readI32(valPtr));
+            }
+            break;
+        case 84U: // Corner Lat 2 Full
+            if (len >= 4U) {
+                if (!outSet.cornerCoordinates.has_value()) {
+                    outSet.cornerCoordinates.emplace();
+                }
+                outSet.cornerCoordinates->topRight.latitudeDeg = unscaleLat(readI32(valPtr));
+            }
+            break;
+        case 85U: // Corner Lon 2 Full
+            if (len >= 4U) {
+                if (!outSet.cornerCoordinates.has_value()) {
+                    outSet.cornerCoordinates.emplace();
+                }
+                outSet.cornerCoordinates->topRight.longitudeDeg = unscaleLon(readI32(valPtr));
+            }
+            break;
+        case 86U: // Corner Lat 3 Full
+            if (len >= 4U) {
+                if (!outSet.cornerCoordinates.has_value()) {
+                    outSet.cornerCoordinates.emplace();
+                }
+                outSet.cornerCoordinates->bottomRight.latitudeDeg = unscaleLat(readI32(valPtr));
+            }
+            break;
+        case 87U: // Corner Lon 3 Full
+            if (len >= 4U) {
+                if (!outSet.cornerCoordinates.has_value()) {
+                    outSet.cornerCoordinates.emplace();
+                }
+                outSet.cornerCoordinates->bottomRight.longitudeDeg = unscaleLon(readI32(valPtr));
+            }
+            break;
+        case 88U: // Corner Lat 4 Full
+            if (len >= 4U) {
+                if (!outSet.cornerCoordinates.has_value()) {
+                    outSet.cornerCoordinates.emplace();
+                }
+                outSet.cornerCoordinates->bottomLeft.latitudeDeg = unscaleLat(readI32(valPtr));
+            }
+            break;
+        case 89U: // Corner Lon 4 Full
+            if (len >= 4U) {
+                if (!outSet.cornerCoordinates.has_value()) {
+                    outSet.cornerCoordinates.emplace();
+                }
+                outSet.cornerCoordinates->bottomLeft.longitudeDeg = unscaleLon(readI32(valPtr));
+            }
+            break;
         case 94U: {
             MiisCoreId miis {};
             if (miis.decode(valPtr, len) == KlvStatus::Success) {
@@ -487,7 +619,7 @@ KlvStatus St1607Parser::parseSegmentInternal(
         case 143U: {
             std::size_t msidRead { 0U };
             if (!parseMsid(valPtr, len, outSet.msid, msidRead)) {
-                // Malformed MSID pack
+                return KlvStatus::TagError;
             }
             break;
         }
@@ -496,6 +628,10 @@ KlvStatus St1607Parser::parseSegmentInternal(
         }
 
         offset += len;
+    }
+
+    if (!outSet.validate()) {
+        return KlvStatus::TagError;
     }
 
     return KlvStatus::Success;

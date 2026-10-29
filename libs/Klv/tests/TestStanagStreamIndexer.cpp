@@ -1,3 +1,4 @@
+#include "KlvEncoder.h"
 #include "StanagStreamIndexer.h"
 
 #include <cstddef>
@@ -39,7 +40,7 @@ namespace {
 
     TEST(TestStanagStreamIndexer, SyntheticPatPmtAndStreamIndexing)
     {
-        StanagStreamIndexer indexer { };
+        StanagStreamIndexer indexer {};
 
         // 1. Construct PAT packet (PID 0): Program 1 -> PMT PID 0x0100
         std::vector<std::uint8_t> patPayload = {
@@ -65,7 +66,7 @@ namespace {
         auto pmtPkt = makeTsPacket(0x0100U, true, pmtPayload);
 
         // 3. Construct Video PES packet on PID 0x0101 (PTS = 90000, IDR slice NAL 0x0000000165)
-        std::uint8_t vidPtsBytes[5] { };
+        std::uint8_t vidPtsBytes[5] {};
         encodePts(90000U, vidPtsBytes);
 
         std::vector<std::uint8_t> vidPayload = { 0x00U, 0x00U, 0x01U, 0xE0U, // PES start, stream 0xE0
@@ -77,7 +78,7 @@ namespace {
         auto vidPkt = makeTsPacket(0x0101U, true, vidPayload);
 
         // 4. Construct KLV PES packet on PID 0x0102 (PTS = 90000, MISB ST 0601 UL + Tag 2)
-        std::uint8_t klvPtsBytes[5] { };
+        std::uint8_t klvPtsBytes[5] {};
         encodePts(90000U, klvPtsBytes);
 
         std::vector<std::uint8_t> klvPayload = {
@@ -95,7 +96,7 @@ namespace {
         auto klvPkt = makeTsPacket(0x0102U, true, klvPayload);
 
         // Combine all packets
-        std::vector<std::uint8_t> streamData { };
+        std::vector<std::uint8_t> streamData {};
         streamData.insert(streamData.end(), patPkt.begin(), patPkt.end());
         streamData.insert(streamData.end(), pmtPkt.begin(), pmtPkt.end());
         streamData.insert(streamData.end(), vidPkt.begin(), vidPkt.end());
@@ -125,16 +126,20 @@ namespace {
 
     TEST(TestStanagStreamIndexer, SaveAndLoadSidxFile)
     {
-        StanagStreamIndexer indexer { };
+        StanagStreamIndexer indexer {};
 
-        VideoIndexEntry v { };
+        VideoIndexEntry v {};
         v.ptsTicks = 90000U;
         v.isKeyframe = true;
         indexer.timeIndex().addVideoEntry(v);
 
-        KlvIndexEntry k { };
+        KlvIndexEntry k {};
         k.ptsTicks = 90000U;
         k.utcTimestampUs = 1600000000000000ULL;
+        UasDatalinkMessage msg {};
+        msg.missionId = "TEST-MISSION-SIDX";
+        msg.platformHeadingDeg = 123.45;
+        k.message = msg;
         indexer.timeIndex().addKlvEntry(k);
         indexer.timeIndex().finalize();
 
@@ -142,10 +147,115 @@ namespace {
         EXPECT_TRUE(indexer.saveIndex(testFile));
         EXPECT_TRUE(std::filesystem::exists(testFile));
 
-        StanagStreamIndexer loader { };
+        StanagStreamIndexer loader {};
         EXPECT_TRUE(loader.loadIndex(testFile));
+        EXPECT_EQ(loader.timeIndex().videoFrameCount(), 1U);
+        EXPECT_EQ(loader.timeIndex().keyframeCount(), 1U);
+        EXPECT_EQ(loader.timeIndex().klvPacketCount(), 1U);
+        EXPECT_EQ(loader.timeIndex().basePts(), 90000U);
+
+        const auto optKlv = loader.timeIndex().findTelemetry(90000U);
+        ASSERT_TRUE(optKlv.has_value());
+        ASSERT_TRUE(optKlv->message.has_value());
+        EXPECT_EQ(optKlv->message->missionId.value_or(""), "TEST-MISSION-SIDX");
+        if (optKlv->message->platformHeadingDeg) {
+            EXPECT_NEAR(*optKlv->message->platformHeadingDeg, 123.45, 0.05);
+        }
 
         std::filesystem::remove(testFile);
+    }
+
+    TEST(TestStanagStreamIndexer, MultiPacketKlvPesIndexing)
+    {
+        StanagStreamIndexer indexer {};
+
+        // Construct a large ST 0601 message (> 200 bytes)
+        UasDatalinkMessage msg {};
+        msg.precisionTimeStampUs = 1600000000000000ULL;
+        msg.missionId = "MULTI-PACKET-KLV-INGEST-MISSION-VERY-LONG-STRING-FOR-OVERFLOW";
+        msg.platformDesignation = "MQ-9-REAPER-EXTENDED-PAYLOAD-TEST";
+        msg.platformHeadingDeg = 270.5;
+        msg.platformPitchDeg = 5.2;
+        msg.platformRollDeg = -2.1;
+        msg.sensorLatitudeDeg = 34.123456;
+        msg.sensorLongitudeDeg = -117.654321;
+        msg.sensorTrueAltitudeM = 5400.0;
+        msg.slantRangeM = 12500.0;
+        msg.targetWidthM = 15.0;
+
+        const auto klvBytes = KlvEncoder::encode(msg);
+        ASSERT_GT(klvBytes.size(), 180U); // Ensure it exceeds a single TS packet payload
+
+        // Build PES packet wrapping klvBytes
+        const auto pesLen = static_cast<std::uint16_t>(klvBytes.size() + 8U);
+        std::vector<std::uint8_t> pesPacket = {
+            0x00U, 0x00U, 0x01U, 0xBDU, static_cast<std::uint8_t>((pesLen >> 8U) & 0xFFU),
+            static_cast<std::uint8_t>(pesLen & 0xFFU), 0x80U, 0x80U, 0x05U, // Flags: PTS present
+            0x21U, 0x00U, 0x01U, 0x00U, 0x01U // Dummy 33-bit PTS
+        };
+        pesPacket.insert(pesPacket.end(), klvBytes.begin(), klvBytes.end());
+
+        // Fragment PES across TS packets on PID 0x0102
+        std::vector<std::uint8_t> streamData {};
+        std::size_t offset = 0U;
+        bool isFirst = true;
+
+        while (offset < pesPacket.size()) {
+            const std::size_t chunk = std::min(pesPacket.size() - offset, static_cast<std::size_t>(184U));
+            std::vector<std::uint8_t> chunkData(pesPacket.begin() + static_cast<std::ptrdiff_t>(offset),
+                pesPacket.begin() + static_cast<std::ptrdiff_t>(offset + chunk));
+            auto ts = makeTsPacket(0x0102U, isFirst, chunkData);
+            streamData.insert(streamData.end(), ts.begin(), ts.end());
+            offset += chunk;
+            isFirst = false;
+        }
+
+        indexer.setMetadataPid(0x0102U);
+        static_cast<void>(indexer.indexChunk(streamData.data(), streamData.size(), 0U));
+        indexer.flush();
+
+        EXPECT_EQ(indexer.timeIndex().klvPacketCount(), 1U);
+        const auto optEntry = indexer.timeIndex().findTelemetry(indexer.timeIndex().basePts());
+        ASSERT_TRUE(optEntry.has_value());
+        ASSERT_TRUE(optEntry->message.has_value());
+        EXPECT_EQ(optEntry->message->missionId.value_or(""), msg.missionId);
+        EXPECT_EQ(optEntry->message->platformDesignation.value_or(""), msg.platformDesignation);
+        if (optEntry->message->platformHeadingDeg) {
+            EXPECT_NEAR(*optEntry->message->platformHeadingDeg, 270.5, 0.05);
+        }
+    }
+
+    TEST(TestStanagStreamIndexer, MultiPacketVideoKeyframeDetection)
+    {
+        StanagStreamIndexer indexer {};
+        indexer.setVideoPid(0x0101U);
+
+        // First packet: PES header + AUD (Access Unit Delimiter) NAL (non-IDR)
+        std::vector<std::uint8_t> pesPart1 = { 0x00U, 0x00U, 0x01U, 0xE0U, 0x00U, 0x00U, // Length = 0 (unbounded video)
+            0x80U, 0x80U, 0x05U, 0x21U, 0x00U, 0x01U, 0x00U, 0x01U, // PTS
+            // AUD NAL: 0x00 0x00 0x00 0x01 0x09
+            0x00U, 0x00U, 0x00U, 0x01U, 0x09U, 0xF0U };
+        // Pad part1 to 184 bytes
+        pesPart1.resize(184U, 0xFFU);
+        auto ts1 = makeTsPacket(0x0101U, true, pesPart1);
+
+        // Second packet: IDR NAL: 0x00 0x00 0x00 0x01 0x65
+        std::vector<std::uint8_t> pesPart2 = { 0x00U, 0x00U, 0x00U, 0x01U, 0x65U, 0x88U, 0x88U, 0x88U };
+        auto ts2 = makeTsPacket(0x0101U, false, pesPart2);
+
+        std::vector<std::uint8_t> streamData {};
+        streamData.insert(streamData.end(), ts1.begin(), ts1.end());
+        streamData.insert(streamData.end(), ts2.begin(), ts2.end());
+
+        static_cast<void>(indexer.indexChunk(streamData.data(), streamData.size(), 0U));
+        indexer.flush();
+
+        EXPECT_EQ(indexer.timeIndex().videoFrameCount(), 1U);
+        EXPECT_EQ(indexer.timeIndex().keyframeCount(), 1U);
+        const auto* vf = indexer.timeIndex().videoEntryAt(0U);
+        ASSERT_NE(vf, nullptr);
+        EXPECT_TRUE(vf->isKeyframe);
+        EXPECT_GT(vf->packetSizeBytes, 184U);
     }
 
     TEST(TestStanagStreamIndexer, RealSampleVideoIndexingIfAvailable)
@@ -161,7 +271,7 @@ namespace {
             GTEST_SKIP() << "Sample video not found at " << samplePath;
         }
 
-        StanagStreamIndexer indexer { };
+        StanagStreamIndexer indexer {};
         bool progressCalled = false;
         bool ok = indexer.indexFile(samplePath, [&progressCalled](int pct) {
             if (pct >= 50) {

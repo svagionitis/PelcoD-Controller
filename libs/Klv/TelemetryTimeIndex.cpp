@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdint>
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace Klv {
@@ -298,6 +299,48 @@ std::size_t TelemetryTimeIndex::klvPacketCount() const noexcept
 double TelemetryTimeIndex::durationSeconds() const noexcept
 {
     return m_durationSeconds;
+}
+
+const std::vector<VideoIndexEntry>& TelemetryTimeIndex::videoEntries() const noexcept
+{
+    return m_videoEntries;
+}
+
+const std::vector<KlvIndexEntry>& TelemetryTimeIndex::klvEntries() const noexcept
+{
+    return m_klvEntries;
+}
+
+const VideoIndexEntry* TelemetryTimeIndex::videoEntryAt(std::size_t index) const noexcept
+{
+    if (index >= m_videoEntries.size()) {
+        return nullptr;
+    }
+    return &m_videoEntries[index];
+}
+
+void TelemetryTimeIndex::loadEntries(std::vector<VideoIndexEntry> videoEntries, std::vector<KlvIndexEntry> klvEntries,
+    std::uint64_t basePts, std::uint64_t baseUtcUs, double durationSec)
+{
+    m_videoEntries = std::move(videoEntries);
+    m_klvEntries = std::move(klvEntries);
+    m_basePts = basePts;
+    m_baseUtcUs = baseUtcUs;
+    m_durationSeconds = durationSec;
+
+    m_keyframeIndices.clear();
+    for (std::size_t i = 0U; i < m_videoEntries.size(); ++i) {
+        m_videoEntries[i].frameIndex = static_cast<std::uint32_t>(i);
+        if (m_videoEntries[i].isKeyframe) {
+            m_keyframeIndices.push_back(i);
+        }
+    }
+
+    for (std::size_t i = 0U; i < m_klvEntries.size(); ++i) {
+        m_klvEntries[i].messageIndex = static_cast<std::uint32_t>(i);
+    }
+
+    m_finalized = true;
 }
 
 bool TelemetryTimeIndex::empty() const noexcept
