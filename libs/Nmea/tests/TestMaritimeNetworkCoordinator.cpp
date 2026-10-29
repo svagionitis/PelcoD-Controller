@@ -26,7 +26,7 @@ TEST(TestMaritimeNetworkCoordinator, EndToEndOrchestration)
     static constexpr std::uint16_t kWsPort = 8095U;
 
     auto firewall = std::make_shared<Iec61162_460Firewall>();
-    BamConfig cfg { };
+    BamConfig cfg {};
     cfg.talkerId = "GP";
     auto bam = std::make_shared<BridgeAlertManager>(cfg);
 
@@ -67,6 +67,42 @@ TEST(TestMaritimeNetworkCoordinator, EndToEndOrchestration)
     // Broadcast telemetry to WebSocket
     const std::string vesselJson = NmeaJsonSerializer::serializeVessel(48.0, 11.0, 10.0, 90.0, 90.0);
     coordinator.broadcastTelemetry(vesselJson);
+
+    client.close();
+    coordinator.stop();
+}
+
+TEST(TestMaritimeNetworkCoordinator, ReentrantBroadcastInsideInboundCallback)
+{
+    static constexpr std::uint16_t kTcpPort = 10132U;
+    static constexpr std::uint16_t kUdpPort = 10133U;
+    static constexpr std::uint16_t kWsPort = 8096U;
+
+    auto firewall = std::make_shared<Iec61162_460Firewall>();
+    auto bam = std::make_shared<BridgeAlertManager>();
+
+    MaritimeNetworkCoordinator coordinator(firewall, bam, kTcpPort, kUdpPort, kWsPort);
+    ASSERT_TRUE(coordinator.start());
+
+    std::promise<bool> reentrantPromise;
+    auto reentrantFuture = reentrantPromise.get_future();
+
+    // In the inbound callback, execute a re-entrant call back into coordinator
+    coordinator.setInboundCallback([&](std::string_view /*source*/, std::string_view /*sentence*/) {
+        coordinator.broadcastSentence("$HEHDT,150.0,T*2D");
+        reentrantPromise.set_value(true);
+    });
+
+    Transport::TcpTransport client("127.0.0.1", kTcpPort);
+    ASSERT_TRUE(client.open());
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    const std::string testSentence = "$HEHDT,100.0,T*28\r\n";
+    const auto* pData = reinterpret_cast<const std::uint8_t*>(testSentence.data());
+    EXPECT_TRUE(client.sendData(std::vector<std::uint8_t>(pData, pData + testSentence.size())));
+
+    ASSERT_EQ(reentrantFuture.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+    EXPECT_TRUE(reentrantFuture.get());
 
     client.close();
     coordinator.stop();

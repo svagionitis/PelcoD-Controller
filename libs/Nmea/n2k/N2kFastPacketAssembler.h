@@ -35,7 +35,7 @@ public:
     /// @brief Checks if a PGN is registered as a Fast Packet multi-frame PGN.
     /// @param[in] pgn Parameter Group Number to query.
     /// @return True if registered as Fast Packet, false otherwise.
-    [[nodiscard]] bool isFastPacketPgn(std::uint32_t pgn) const noexcept;
+    [[nodiscard]] bool isFastPacketPgn(std::uint32_t pgn) const;
 
     /// @brief Registers a PGN to be handled by the Fast Packet multi-frame state machine.
     /// @param[in] pgn Parameter Group Number to register.

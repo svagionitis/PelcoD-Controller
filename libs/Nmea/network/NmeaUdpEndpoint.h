@@ -8,6 +8,8 @@
 
 #include <atomic>
 #include <cstdint>
+#include <functional>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -20,8 +22,8 @@ namespace Nmea::Network {
 /// @details Implements Transport::ITransport, allowing direct attachment to NmeaDevice.
 class NmeaUdpEndpoint : public Transport::BaseTransport {
 public:
-    explicit NmeaUdpEndpoint(std::uint16_t rxPort = 10110U, std::string broadcastIp = "255.255.255.255",
-                             std::uint16_t txPort = 10110U);
+    explicit NmeaUdpEndpoint(
+        std::uint16_t rxPort = 10110U, std::string broadcastIp = "255.255.255.255", std::uint16_t txPort = 10110U);
     ~NmeaUdpEndpoint() override;
 
     // Non-copyable, non-movable
@@ -40,6 +42,13 @@ public:
     /// @return True if sent successfully.
     [[nodiscard]] bool sendSentence(std::string_view sentence);
 
+    using DatagramCallback = std::function<void(
+        const std::vector<std::uint8_t>& data, std::string_view senderIp, std::uint16_t senderPort)>;
+
+    /// @brief Registers a callback receiving datagram payload alongside sender IP and port.
+    /// @param[in] cb Callback receiving raw data, sender IP string view, and sender port.
+    void setDatagramCallback(DatagramCallback cb);
+
     [[nodiscard]] std::uint16_t getRxPort() const noexcept;
     [[nodiscard]] std::uint16_t getTxPort() const noexcept;
     [[nodiscard]] std::string getBroadcastIp() const;
@@ -54,6 +63,9 @@ private:
     std::atomic<Transport::Net::SocketHandle> m_sockfd { Transport::Net::InvalidSocket };
     std::atomic<bool> m_running { false };
     std::thread m_rxThread {};
+
+    mutable std::mutex m_cbMutex {};
+    DatagramCallback m_datagramCb {};
 };
 
 } // namespace Nmea::Network

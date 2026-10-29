@@ -23,7 +23,7 @@ namespace {
         }
         unsigned int val { 0U };
         const auto res = std::from_chars(sv.data(), sv.data() + sv.size(), val);
-        if (res.ec != std::errc { }) {
+        if (res.ec != std::errc {}) {
             return false;
         }
         outVal = val;
@@ -63,7 +63,7 @@ bool AisDecoder::decodeSentence(std::string_view sentence, AisVesselTarget& outT
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     NmeaSentenceParser::tokenize(sentence, tokens);
 
     // Format: !AIVDM,totalSentences,sentenceNum,seqId,channel,payload,fillBits
@@ -103,7 +103,7 @@ bool AisDecoder::decodeSentence(std::string_view sentence, AisVesselTarget& outT
     }
 
     // Multi-sentence reassembly path
-    std::string assembledPayload { };
+    std::string assembledPayload {};
     std::size_t finalFillBits { 0U };
 
     {
@@ -115,7 +115,7 @@ bool AisDecoder::decodeSentence(std::string_view sentence, AisVesselTarget& outT
         auto it = m_fragments.find(key);
 
         if (sentenceNum == 1U) {
-            MultiPartFragment frag { };
+            MultiPartFragment frag {};
             frag.totalParts = static_cast<std::uint8_t>(totalSentences);
             frag.lastPart = 1U;
             frag.combinedPayload = std::string(payload);
@@ -150,10 +150,9 @@ bool AisDecoder::decodeSentence(std::string_view sentence, AisVesselTarget& outT
     return decodePayload(assembledPayload, finalFillBits, outTarget);
 }
 
-bool AisDecoder::decodePayload(
-    std::string_view armoredPayload, std::size_t fillBits, AisVesselTarget& outTarget) noexcept
+bool AisDecoder::decodePayload(std::string_view armoredPayload, std::size_t fillBits, AisVesselTarget& outTarget)
 {
-    outTarget = AisVesselTarget { };
+    outTarget = AisVesselTarget {};
     if (armoredPayload.empty()) {
         return false;
     }
@@ -263,7 +262,7 @@ bool AisDecoder::decodeClassAPosition(AisBitReader& reader, AisVesselTarget& tar
     return true;
 }
 
-bool AisDecoder::decodeClassAStatic(AisBitReader& reader, AisVesselTarget& target) noexcept
+bool AisDecoder::decodeClassAStatic(AisBitReader& reader, AisVesselTarget& target)
 {
     // Total required bits for Type 5: 424 bits (38 already read -> 386 remaining)
     if (reader.remainingBits() < 386U) {
@@ -330,7 +329,7 @@ bool AisDecoder::decodeClassBPosition(AisBitReader& reader, AisVesselTarget& tar
     return true;
 }
 
-bool AisDecoder::decodeClassBExtendedPosition(AisBitReader& reader, AisVesselTarget& target) noexcept
+bool AisDecoder::decodeClassBExtendedPosition(AisBitReader& reader, AisVesselTarget& target)
 {
     // Total required bits for Type 19: 312 bits (38 already read -> 274 remaining)
     if (reader.remainingBits() < 274U) {
@@ -377,7 +376,7 @@ bool AisDecoder::decodeClassBExtendedPosition(AisBitReader& reader, AisVesselTar
     return true;
 }
 
-bool AisDecoder::decodeClassBStatic(AisBitReader& reader, AisVesselTarget& target) noexcept
+bool AisDecoder::decodeClassBStatic(AisBitReader& reader, AisVesselTarget& target)
 {
     // Total bits for Type 24: Part A (160 bits) or Part B (168 bits)
     if (reader.remainingBits() < 122U) {
@@ -408,7 +407,7 @@ bool AisDecoder::decodeClassBStatic(AisBitReader& reader, AisVesselTarget& targe
     return true;
 }
 
-bool AisDecoder::decodeSafetyBroadcast(AisBitReader& reader, AisVesselTarget& target) noexcept
+bool AisDecoder::decodeSafetyBroadcast(AisBitReader& reader, AisVesselTarget& target)
 {
     // Spare: 2 bits
     if (reader.remainingBits() < 2U) {

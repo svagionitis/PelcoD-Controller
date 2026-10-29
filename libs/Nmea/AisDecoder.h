@@ -45,25 +45,25 @@ public:
     /// @param[out] outTarget Deserialized vessel target.
     /// @return True if message was recognized and parsed successfully.
     [[nodiscard]] static bool decodePayload(
-        std::string_view armoredPayload, std::size_t fillBits, AisVesselTarget& outTarget) noexcept;
+        std::string_view armoredPayload, std::size_t fillBits, AisVesselTarget& outTarget);
 
     /// @brief Decodes Types 1, 2, and 3 (Class A Position Report).
     [[nodiscard]] static bool decodeClassAPosition(AisBitReader& reader, AisVesselTarget& target) noexcept;
 
     /// @brief Decodes Type 5 (Class A Static and Voyage Data).
-    [[nodiscard]] static bool decodeClassAStatic(AisBitReader& reader, AisVesselTarget& target) noexcept;
+    [[nodiscard]] static bool decodeClassAStatic(AisBitReader& reader, AisVesselTarget& target);
 
     /// @brief Decodes Type 14 (Safety-Related Broadcast Message).
-    [[nodiscard]] static bool decodeSafetyBroadcast(AisBitReader& reader, AisVesselTarget& target) noexcept;
+    [[nodiscard]] static bool decodeSafetyBroadcast(AisBitReader& reader, AisVesselTarget& target);
 
     /// @brief Decodes Type 18 (Standard Class B Position Report).
     [[nodiscard]] static bool decodeClassBPosition(AisBitReader& reader, AisVesselTarget& target) noexcept;
 
     /// @brief Decodes Type 19 (Extended Class B Position Report).
-    [[nodiscard]] static bool decodeClassBExtendedPosition(AisBitReader& reader, AisVesselTarget& target) noexcept;
+    [[nodiscard]] static bool decodeClassBExtendedPosition(AisBitReader& reader, AisVesselTarget& target);
 
     /// @brief Decodes Type 24 (Class B Static Data Report, Parts A and B).
-    [[nodiscard]] static bool decodeClassBStatic(AisBitReader& reader, AisVesselTarget& target) noexcept;
+    [[nodiscard]] static bool decodeClassBStatic(AisBitReader& reader, AisVesselTarget& target);
 
     /// @brief Clears pending multi-part fragments.
     void reset();
@@ -76,15 +76,15 @@ private:
     struct MultiPartFragment {
         std::uint8_t totalParts { 0U };
         std::uint8_t lastPart { 0U };
-        std::string combinedPayload { };
+        std::string combinedPayload {};
         std::size_t fillBits { 0U };
         std::chrono::steady_clock::time_point lastSeen { std::chrono::steady_clock::now() };
     };
 
     void pruneStaleFragmentsLocked(std::chrono::steady_clock::time_point now);
 
-    mutable std::mutex m_mutex { };
-    std::map<std::pair<char, std::uint8_t>, MultiPartFragment> m_fragments { };
+    mutable std::mutex m_mutex {};
+    std::map<std::pair<char, std::uint8_t>, MultiPartFragment> m_fragments {};
     std::chrono::milliseconds m_fragmentTtl { 5000 };
 };
 

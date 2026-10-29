@@ -7,8 +7,10 @@
 #include <chrono>
 #include <cstdint>
 #include <cstring>
+#include <mutex>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace Nmea::Network {
@@ -42,7 +44,7 @@ bool NmeaUdpEndpoint::open()
     ::setsockopt(s, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&opt), sizeof(opt));
     ::setsockopt(s, SOL_SOCKET, SO_BROADCAST, reinterpret_cast<const char*>(&opt), sizeof(opt));
 
-    sockaddr_in bindAddr { };
+    sockaddr_in bindAddr {};
     bindAddr.sin_family = AF_INET;
     bindAddr.sin_port = htons(m_rxPort);
     bindAddr.sin_addr.s_addr = INADDR_ANY;
@@ -88,7 +90,7 @@ bool NmeaUdpEndpoint::sendData(const std::vector<std::uint8_t>& data)
         return false;
     }
 
-    sockaddr_in targetAddr { };
+    sockaddr_in targetAddr {};
     targetAddr.sin_family = AF_INET;
     targetAddr.sin_port = htons(m_txPort);
     ::inet_pton(AF_INET, m_broadcastIp.c_str(), &targetAddr.sin_addr);
@@ -125,23 +127,43 @@ std::string NmeaUdpEndpoint::getBroadcastIp() const
     return m_broadcastIp;
 }
 
+void NmeaUdpEndpoint::setDatagramCallback(DatagramCallback cb)
+{
+    std::lock_guard<std::mutex> lock { m_cbMutex };
+    m_datagramCb = std::move(cb);
+}
+
 void NmeaUdpEndpoint::rxWorkerLoop()
 {
-    std::array<char, 2048> buf { };
+    std::array<char, 2048> buf {};
     while (m_running.load()) {
         const auto s = m_sockfd.load();
         if (s == Transport::Net::InvalidSocket) {
             break;
         }
 
-        sockaddr_in fromAddr { };
+        sockaddr_in fromAddr {};
         auto fromLen = static_cast<Transport::Net::SockOptLenType>(sizeof(fromAddr));
         const auto n = ::recvfrom(s, buf.data(), static_cast<Transport::Net::SockBufLenType>(buf.size()), 0,
             reinterpret_cast<sockaddr*>(&fromAddr), &fromLen);
 
         if (n > 0) {
+            std::array<char, INET_ADDRSTRLEN> ipStr {};
+            ::inet_ntop(AF_INET, &fromAddr.sin_addr, ipStr.data(), ipStr.size());
+            const auto senderPort = ntohs(fromAddr.sin_port);
+
             const auto* pBytes = reinterpret_cast<const std::uint8_t*>(buf.data());
-            invokeDataCallback(std::vector<std::uint8_t>(pBytes, pBytes + n));
+            std::vector<std::uint8_t> dataVec(pBytes, pBytes + n);
+
+            DatagramCallback dgramCb {};
+            {
+                std::lock_guard<std::mutex> lock { m_cbMutex };
+                dgramCb = m_datagramCb;
+            }
+            if (dgramCb) {
+                dgramCb(dataVec, ipStr.data(), senderPort);
+            }
+            invokeDataCallback(dataVec);
         } else {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }

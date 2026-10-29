@@ -9,6 +9,7 @@
 #include <chrono>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -48,16 +49,65 @@ void Iec61162_460Firewall::setAlertCallback(SecurityAlertCallback cb)
     m_alertCallback = std::move(cb);
 }
 
+namespace {
+
+    [[nodiscard]] std::optional<std::uint32_t> parseIpv4Address(std::string_view ipStr) noexcept
+    {
+        std::uint32_t result { 0U };
+        std::uint32_t octet { 0U };
+        std::size_t octetCount { 0U };
+        bool hasDigits { false };
+
+        for (const char c : ipStr) {
+            if (c >= '0' && c <= '9') {
+                octet = (octet * 10U) + static_cast<std::uint32_t>(c - '0');
+                if (octet > 255U) {
+                    return std::nullopt;
+                }
+                hasDigits = true;
+            } else if (c == '.') {
+                if (!hasDigits || octetCount >= 3U) {
+                    return std::nullopt;
+                }
+                result = (result << 8U) | octet;
+                octet = 0U;
+                hasDigits = false;
+                ++octetCount;
+            } else {
+                return std::nullopt;
+            }
+        }
+
+        if (!hasDigits || octetCount != 3U) {
+            return std::nullopt;
+        }
+        return (result << 8U) | octet;
+    }
+
+} // namespace
+
 bool Iec61162_460Firewall::inspectInbound(
     SecurityZone zone, std::string_view sourceIp, std::string_view sourceMac, std::string_view payload)
 {
-    std::lock_guard<std::mutex> lock { m_mutex };
+    DeferredAlert alert {};
+    bool passed { false };
+    {
+        std::lock_guard<std::mutex> lock { m_mutex };
+        passed = inspectInboundLocked(zone, sourceIp, sourceMac, payload, alert);
+    }
+    dispatchAlert(alert);
+    return passed;
+}
 
+bool Iec61162_460Firewall::inspectInboundLocked(SecurityZone zone, std::string_view sourceIp,
+    std::string_view sourceMac, std::string_view payload, DeferredAlert& outAlert)
+{
     // 1. Check Anti-Spoofing IP-to-MAC Binding
     const auto itMac = m_macBindings.find(std::string { sourceIp });
     if (itMac != m_macBindings.end() && !sourceMac.empty() && itMac->second != sourceMac) {
-        recordViolation(SecurityViolationType::MacIpMismatch, zone, sourceIp, sourceMac,
-            "MAC address mismatch for bound IP: expected " + itMac->second + ", got " + std::string { sourceMac });
+        recordViolationLocked(SecurityViolationType::MacIpMismatch, zone, sourceIp, sourceMac,
+            "MAC address mismatch for bound IP: expected " + itMac->second + ", got " + std::string { sourceMac },
+            outAlert);
         return false;
     }
 
@@ -74,24 +124,24 @@ bool Iec61162_460Firewall::inspectInbound(
         // Check IP / CIDR filter
         if (!rule.ipCidr.empty() && !matchesCidr(sourceIp, rule.ipCidr)) {
             passedAllFilters = false;
-            recordViolation(SecurityViolationType::UnauthorizedIp, zone, sourceIp, sourceMac,
-                "Source IP rejected by zone CIDR policy");
+            recordViolationLocked(SecurityViolationType::UnauthorizedIp, zone, sourceIp, sourceMac,
+                "Source IP rejected by zone CIDR policy", outAlert);
             return false;
         }
 
         // Check MAC filter if rule explicitly demands it
         if (!rule.macAddress.empty() && !sourceMac.empty() && rule.macAddress != sourceMac) {
             passedAllFilters = false;
-            recordViolation(SecurityViolationType::MacIpMismatch, zone, sourceIp, sourceMac,
-                "Source MAC does not match rule requirement");
+            recordViolationLocked(SecurityViolationType::MacIpMismatch, zone, sourceIp, sourceMac,
+                "Source MAC does not match rule requirement", outAlert);
             return false;
         }
 
         // Check Rate Limiting
         if (rule.maxPacketsPerSec > 0U && !checkRateLimit(sourceIp, rule.maxPacketsPerSec)) {
             passedAllFilters = false;
-            recordViolation(SecurityViolationType::RateLimitExceeded, zone, sourceIp, sourceMac,
-                "Traffic rate limit exceeded (> " + std::to_string(rule.maxPacketsPerSec) + " PPS)");
+            recordViolationLocked(SecurityViolationType::RateLimitExceeded, zone, sourceIp, sourceMac,
+                "Traffic rate limit exceeded (> " + std::to_string(rule.maxPacketsPerSec) + " PPS)", outAlert);
             return false;
         }
 
@@ -102,8 +152,8 @@ bool Iec61162_460Firewall::inspectInbound(
                 const auto itFmt = std::find(rule.allowedFormatters.begin(), rule.allowedFormatters.end(), formatter);
                 if (itFmt == rule.allowedFormatters.end()) {
                     passedAllFilters = false;
-                    recordViolation(SecurityViolationType::DisallowedSentence, zone, sourceIp, sourceMac,
-                        "Sentence formatter " + formatter + " disallowed by zone policy");
+                    recordViolationLocked(SecurityViolationType::DisallowedSentence, zone, sourceIp, sourceMac,
+                        "Sentence formatter " + formatter + " disallowed by zone policy", outAlert);
                     return false;
                 }
             }
@@ -113,8 +163,8 @@ bool Iec61162_460Firewall::inspectInbound(
 
     // If rules are configured but this zone has no matching rule, block untrusted zones
     if (!matchedZoneRule && !m_rules.empty() && zone == SecurityZone::InternetShore) {
-        recordViolation(SecurityViolationType::UnauthorizedIp, zone, sourceIp, sourceMac,
-            "Untrusted shore network denied ingress by default");
+        recordViolationLocked(SecurityViolationType::UnauthorizedIp, zone, sourceIp, sourceMac,
+            "Untrusted shore network denied ingress by default", outAlert);
         return false;
     }
 
@@ -123,13 +173,25 @@ bool Iec61162_460Firewall::inspectInbound(
 
 bool Iec61162_460Firewall::inspectOutbound(SecurityZone targetZone, std::string_view payload)
 {
-    std::lock_guard<std::mutex> lock { m_mutex };
+    DeferredAlert alert {};
+    bool passed { false };
+    {
+        std::lock_guard<std::mutex> lock { m_mutex };
+        passed = inspectOutboundLocked(targetZone, payload, alert);
+    }
+    dispatchAlert(alert);
+    return passed;
+}
+
+bool Iec61162_460Firewall::inspectOutboundLocked(
+    SecurityZone targetZone, std::string_view payload, DeferredAlert& outAlert)
+{
     // Block sensitive internal security alerts or proprietary camera commands from egressing to Internet
     if (targetZone == SecurityZone::InternetShore) {
         const std::string formatter { extractFormatter(payload) };
         if (formatter == "ALF" || formatter == "ARC" || formatter == "PFLIR" || formatter == "PFEC") {
-            recordViolation(SecurityViolationType::DisallowedSentence, targetZone, "localhost", "",
-                "Egress leak prevented: " + formatter + " blocked to untrusted network");
+            recordViolationLocked(SecurityViolationType::DisallowedSentence, targetZone, "localhost", "",
+                "Egress leak prevented: " + formatter + " blocked to untrusted network", outAlert);
             return false;
         }
     }
@@ -180,14 +242,29 @@ bool Iec61162_460Firewall::matchesCidr(std::string_view ip, std::string_view cid
         return ip == cidr;
     }
 
-    // Check subnet prefix (e.g. "192.168.1." for "192.168.1.0/24")
-    const std::string_view prefix = cidr.substr(0U, slashPos);
-    const auto lastDot = prefix.rfind('.');
-    if (lastDot != std::string_view::npos) {
-        const std::string_view basePrefix = prefix.substr(0U, lastDot + 1U);
-        return ip.substr(0U, basePrefix.size()) == basePrefix;
+    const auto ipNum = parseIpv4Address(ip);
+    const auto subnetNum = parseIpv4Address(cidr.substr(0U, slashPos));
+    if (!ipNum.has_value() || !subnetNum.has_value()) {
+        return false;
     }
-    return ip == prefix;
+
+    std::uint32_t prefixLen { 0U };
+    const auto prefixStr = cidr.substr(slashPos + 1U);
+    if (prefixStr.empty() || prefixStr.size() > 2U) {
+        return false;
+    }
+    for (const char c : prefixStr) {
+        if (c < '0' || c > '9') {
+            return false;
+        }
+        prefixLen = (prefixLen * 10U) + static_cast<std::uint32_t>(c - '0');
+    }
+    if (prefixLen > 32U) {
+        return false;
+    }
+
+    const std::uint32_t mask = (prefixLen == 0U) ? 0U : ((prefixLen == 32U) ? 0xFFFFFFFFU : (~0U << (32U - prefixLen)));
+    return (*ipNum & mask) == (*subnetNum & mask);
 }
 
 std::string Iec61162_460Firewall::extractFormatter(std::string_view payload)
@@ -215,12 +292,12 @@ std::string Iec61162_460Firewall::extractFormatter(std::string_view payload)
     return std::string { addressField };
 }
 
-void Iec61162_460Firewall::recordViolation(
-    SecurityViolationType type, SecurityZone zone, std::string_view ip, std::string_view mac, std::string_view desc)
+void Iec61162_460Firewall::recordViolationLocked(SecurityViolationType type, SecurityZone zone, std::string_view ip,
+    std::string_view mac, std::string_view desc, DeferredAlert& outAlert)
 {
     ++m_violationCount;
 
-    SecurityIncident incident { };
+    SecurityIncident incident {};
     incident.timestamp = std::chrono::system_clock::now();
     incident.violationType = type;
     incident.sourceZone = zone;
@@ -233,17 +310,33 @@ void Iec61162_460Firewall::recordViolation(
     }
     m_incidents.push_back(incident);
 
-    if (m_alertCallback) {
-        m_alertCallback(incident);
+    outAlert.hasIncident = true;
+    outAlert.incident = std::move(incident);
+    outAlert.alertCallback = m_alertCallback;
+    outAlert.bam = m_bam;
+    if (type == SecurityViolationType::RateLimitExceeded) {
+        outAlert.raiseBamFlood = true;
+    } else {
+        outAlert.raiseBamViolation = true;
+        outAlert.bamDescription = std::string { desc };
     }
+}
 
-    if (m_bam) {
-        if (type == SecurityViolationType::RateLimitExceeded) {
-            m_bam->registerAlert(kAlertIdNetworkFlood, 1U, Bam::AlertPriority::Warning, Bam::AlertCategory::CategoryB,
-                "Network Flood", "Bridge Network Flood Detected");
-        } else {
-            m_bam->registerAlert(kAlertIdSecurityViolation, 1U, Bam::AlertPriority::Warning,
-                Bam::AlertCategory::CategoryB, "Security Violation", std::string { desc });
+void Iec61162_460Firewall::dispatchAlert(const DeferredAlert& alert)
+{
+    if (!alert.hasIncident) {
+        return;
+    }
+    if (alert.alertCallback) {
+        alert.alertCallback(alert.incident);
+    }
+    if (alert.bam) {
+        if (alert.raiseBamFlood) {
+            alert.bam->registerAlert(kAlertIdNetworkFlood, 1U, Bam::AlertPriority::Warning,
+                Bam::AlertCategory::CategoryB, "Network Flood", "Bridge Network Flood Detected");
+        } else if (alert.raiseBamViolation) {
+            alert.bam->registerAlert(kAlertIdSecurityViolation, 1U, Bam::AlertPriority::Warning,
+                Bam::AlertCategory::CategoryB, "Security Violation", alert.bamDescription);
         }
     }
 }

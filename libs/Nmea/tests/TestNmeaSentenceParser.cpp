@@ -1,5 +1,6 @@
 #include "NmeaSentenceParser.h"
 
+#include <cstddef>
 #include <string>
 
 #include <gtest/gtest.h>
@@ -55,7 +56,7 @@ namespace {
     {
         // Sample: $GPGGA,092750.000,5321.6802,N,00630.3372,W,1,8,1.03,61.7,M,55.2,M,,*76
         const std::string sentence = "$GPGGA,092750.000,5321.6802,N,00630.3372,W,1,8,1.03,61.7,M,55.2,M,,*76\r\n";
-        GgaData gga { };
+        GgaData gga {};
         ASSERT_TRUE(NmeaSentenceParser::parseGga(sentence, gga, true));
 
         EXPECT_TRUE(gga.valid);
@@ -82,7 +83,7 @@ namespace {
         const std::string raw = "GPRMC,083559.00,A,4717.11437,N,00833.91522,E,12.5,77.5,091218,2.1,W,A";
         const std::string sentence = NmeaChecksum::frameSentence(raw);
 
-        RmcData rmc { };
+        RmcData rmc {};
         ASSERT_TRUE(NmeaSentenceParser::parseRmc(sentence, rmc, true));
 
         EXPECT_TRUE(rmc.valid);
@@ -108,14 +109,14 @@ namespace {
     TEST(TestNmeaSentenceParser, ParseHdtAndThs)
     {
         const std::string hdtSentence = "$HEHDT,341.8,T*21\r\n";
-        HdtData hdt { };
+        HdtData hdt {};
         ASSERT_TRUE(NmeaSentenceParser::parseHdt(hdtSentence, hdt, true));
         EXPECT_TRUE(hdt.valid);
         EXPECT_NEAR(hdt.headingDegrees, 341.8, 1e-2);
 
         const std::string thsRaw = "HETHS,185.3,A";
         const std::string thsSentence = NmeaChecksum::frameSentence(thsRaw);
-        ThsData ths { };
+        ThsData ths {};
         ASSERT_TRUE(NmeaSentenceParser::parseThs(thsSentence, ths, true));
         EXPECT_TRUE(ths.valid);
         EXPECT_NEAR(ths.headingDegrees, 185.3, 1e-2);
@@ -128,7 +129,7 @@ namespace {
         const std::string raw = "RATTM,05,12.34,045.2,T,18.5,120.0,T,1.2,-5.4,K,VESSEL_ALPHA,T,,142530.00,A";
         const std::string sentence = NmeaChecksum::frameSentence(raw);
 
-        TtmData ttm { };
+        TtmData ttm {};
         ASSERT_TRUE(NmeaSentenceParser::parseTtm(sentence, ttm, true));
 
         EXPECT_TRUE(ttm.valid);
@@ -160,7 +161,7 @@ namespace {
         const std::string raw = "RATLL,03,3612.34,N,01425.67,E,FERRY_1,123045.00,T,";
         const std::string sentence = NmeaChecksum::frameSentence(raw);
 
-        TllData tll { };
+        TllData tll {};
         ASSERT_TRUE(NmeaSentenceParser::parseTll(sentence, tll, true));
 
         EXPECT_TRUE(tll.valid);
@@ -180,7 +181,7 @@ namespace {
         const std::string raw = "IIXDR,A,-2.45,D,PITCH,A,1.80,D,ROLL";
         const std::string sentence = NmeaChecksum::frameSentence(raw);
 
-        XdrData xdr { };
+        XdrData xdr {};
         ASSERT_TRUE(NmeaSentenceParser::parseXdr(sentence, xdr, true));
 
         EXPECT_TRUE(xdr.valid);
@@ -203,7 +204,7 @@ namespace {
         const std::string raw = "PASHR,120000.00,045.20,T,+03.50,-02.10,+0.12,0.05,0.05,0.10,2,1";
         const std::string sentence = NmeaChecksum::frameSentence(raw);
 
-        PashrData pashr { };
+        PashrData pashr {};
         ASSERT_TRUE(NmeaSentenceParser::parsePashr(sentence, pashr, true));
 
         EXPECT_TRUE(pashr.valid);
@@ -228,7 +229,7 @@ namespace {
         const std::string raw = "PFEC,GPatt,180.50,-04.20,+08.10";
         const std::string sentence = NmeaChecksum::frameSentence(raw);
 
-        PfecAttitudeData pfec { };
+        PfecAttitudeData pfec {};
         ASSERT_TRUE(NmeaSentenceParser::parsePfecAtt(sentence, pfec, true));
 
         EXPECT_TRUE(pfec.valid);
@@ -242,7 +243,7 @@ namespace {
         const std::string raw = "GPGSA,A,3,04,05,,09,12,,,24,,,,,2.5,1.3,2.1,1";
         const std::string sentence = NmeaChecksum::frameSentence(raw);
 
-        GsaData gsa { };
+        GsaData gsa {};
         ASSERT_TRUE(NmeaSentenceParser::parseGsa(sentence, gsa, true));
         EXPECT_TRUE(gsa.valid);
         EXPECT_EQ(gsa.selectionMode, 'A');
@@ -265,7 +266,7 @@ namespace {
         const std::string raw = "GPGSV,2,1,08,01,40,083,46,02,17,308,41,12,07,344,,14,66,039,45,1";
         const std::string sentence = NmeaChecksum::frameSentence(raw);
 
-        GsvData gsv { };
+        GsvData gsv {};
         ASSERT_TRUE(NmeaSentenceParser::parseGsv(sentence, gsv, true));
         EXPECT_TRUE(gsv.valid);
         EXPECT_EQ(gsv.totalSentences, 2U);
@@ -291,7 +292,7 @@ namespace {
         const std::string raw = "GPZDA,201530.50,04,07,2026,02,30";
         const std::string sentence = NmeaChecksum::frameSentence(raw);
 
-        ZdaData zda { };
+        ZdaData zda {};
         ASSERT_TRUE(NmeaSentenceParser::parseZda(sentence, zda, true));
         EXPECT_TRUE(zda.valid);
         EXPECT_EQ(zda.utcTime.hour, 20U);
@@ -310,7 +311,7 @@ namespace {
         const std::string raw = "IIVBW,12.50,0.30,A,12.80,0.40,A,0.20,A,0.25,A";
         const std::string sentence = NmeaChecksum::frameSentence(raw);
 
-        VbwData vbw { };
+        VbwData vbw {};
         ASSERT_TRUE(NmeaSentenceParser::parseVbw(sentence, vbw, true));
         EXPECT_TRUE(vbw.valid);
         EXPECT_NEAR(vbw.longitudinalWaterSpeedKnots, 12.5, 1e-2);
@@ -328,7 +329,7 @@ namespace {
         const std::string raw = "IIVHW,125.4,T,122.1,M,12.4,N,23.0,K";
         const std::string sentence = NmeaChecksum::frameSentence(raw);
 
-        VhwData vhw { };
+        VhwData vhw {};
         ASSERT_TRUE(NmeaSentenceParser::parseVhw(sentence, vhw, true));
         EXPECT_TRUE(vhw.valid);
         ASSERT_TRUE(vhw.headingDegreesTrue.has_value());
@@ -346,7 +347,7 @@ namespace {
         // DPT
         const std::string dptRaw = "SDDPT,24.5,1.5,100.0";
         const std::string dptSent = NmeaChecksum::frameSentence(dptRaw);
-        DptData dpt { };
+        DptData dpt {};
         ASSERT_TRUE(NmeaSentenceParser::parseDpt(dptSent, dpt, true));
         EXPECT_TRUE(dpt.valid);
         EXPECT_NEAR(dpt.waterDepthMeters, 24.5, 1e-2);
@@ -357,7 +358,7 @@ namespace {
         // DBT
         const std::string dbtRaw = "SDDBT,80.4,f,24.5,M,13.4,F";
         const std::string dbtSent = NmeaChecksum::frameSentence(dbtRaw);
-        DbtData dbt { };
+        DbtData dbt {};
         ASSERT_TRUE(NmeaSentenceParser::parseDbt(dbtSent, dbt, true));
         EXPECT_TRUE(dbt.valid);
         EXPECT_NEAR(dbt.depthFeet, 80.4, 1e-2);
@@ -370,7 +371,7 @@ namespace {
         // ALF
         const std::string alfRaw = "BNALF,1,1,0,123045.00,A,B,V,1001,1,1,0,Thermal Overheat";
         const std::string alfSent = NmeaChecksum::frameSentence(alfRaw);
-        Bam::AlfData alf { };
+        Bam::AlfData alf {};
         ASSERT_TRUE(NmeaSentenceParser::parseAlf(alfSent, alf, true));
         EXPECT_TRUE(alf.valid);
         EXPECT_EQ(alf.alertPriority, 'A');
@@ -383,7 +384,7 @@ namespace {
         // ALC
         const std::string alcRaw = "BNALC,1,1,0,2,1001,1,1,1002,1,2";
         const std::string alcSent = NmeaChecksum::frameSentence(alcRaw);
-        Bam::AlcData alc { };
+        Bam::AlcData alc {};
         ASSERT_TRUE(NmeaSentenceParser::parseAlc(alcSent, alc, true));
         EXPECT_TRUE(alc.valid);
         EXPECT_EQ(alc.alertCount, 2U);
@@ -395,7 +396,7 @@ namespace {
         // ARC
         const std::string arcRaw = "BNARC,123100.00,1001,1,A";
         const std::string arcSent = NmeaChecksum::frameSentence(arcRaw);
-        Bam::ArcData arc { };
+        Bam::ArcData arc {};
         ASSERT_TRUE(NmeaSentenceParser::parseArc(arcSent, arc, true));
         EXPECT_TRUE(arc.valid);
         EXPECT_EQ(arc.alertIdentifier, 1001U);
@@ -404,7 +405,7 @@ namespace {
         // HBT
         const std::string hbtRaw = "BNHBT,60.0,A,1";
         const std::string hbtSent = NmeaChecksum::frameSentence(hbtRaw);
-        Bam::HbtData hbt { };
+        Bam::HbtData hbt {};
         ASSERT_TRUE(NmeaSentenceParser::parseHbt(hbtSent, hbt, true));
         EXPECT_TRUE(hbt.valid);
         EXPECT_NEAR(hbt.configuredIntervalSec, 60.0, 1e-1);
@@ -414,7 +415,7 @@ namespace {
         // ALR
         const std::string alrRaw = "BNALR,123045.00,1001,A,V,Thermal Overheat";
         const std::string alrSent = NmeaChecksum::frameSentence(alrRaw);
-        Bam::AlrData alr { };
+        Bam::AlrData alr {};
         ASSERT_TRUE(NmeaSentenceParser::parseAlr(alrSent, alr, true));
         EXPECT_TRUE(alr.valid);
         EXPECT_EQ(alr.alertIdentifier, 1001U);
@@ -424,10 +425,61 @@ namespace {
         // ACK
         const std::string ackRaw = "BNACK,1001";
         const std::string ackSent = NmeaChecksum::frameSentence(ackRaw);
-        Bam::AckData ack { };
+        Bam::AckData ack {};
         ASSERT_TRUE(NmeaSentenceParser::parseAck(ackSent, ack, true));
         EXPECT_TRUE(ack.valid);
         EXPECT_EQ(ack.alertIdentifier, 1001U);
+    }
+
+    TEST(TestNmeaSentenceParser, ParseMaxTokenSentenceBoundary)
+    {
+        // Construct a sentence with exactly 48 tokens
+        std::string raw = "$PTEST";
+        for (std::size_t i = 1; i < 48; ++i) {
+            raw += ",val" + std::to_string(i);
+        }
+        raw += "*00\r\n";
+
+        ParsedTokens tokens {};
+        NmeaSentenceParser::tokenize(raw, tokens);
+        EXPECT_EQ(tokens.size(), 48U);
+        EXPECT_EQ(tokens[0], "PTEST");
+        EXPECT_EQ(tokens[47], "val47");
+
+        // Sentence exceeding 48 tokens should be gracefully capped without crash or buffer overflow
+        raw = "$PTEST";
+        for (std::size_t i = 1; i < 60; ++i) {
+            raw += ",val" + std::to_string(i);
+        }
+        raw += "*00\r\n";
+
+        ParsedTokens cappedTokens {};
+        NmeaSentenceParser::tokenize(raw, cappedTokens);
+        EXPECT_EQ(cappedTokens.size(), kMaxSentenceTokens);
+        EXPECT_EQ(cappedTokens[0], "PTEST");
+    }
+
+    TEST(TestNmeaSentenceParser, ParseTruncatedAndCorruptTokens)
+    {
+        ParsedTokens tokens {};
+        // Empty sentence
+        NmeaSentenceParser::tokenize("", tokens);
+        EXPECT_TRUE(tokens.empty());
+
+        // Framing delimiters only without content
+        NmeaSentenceParser::tokenize("$*", tokens);
+        EXPECT_TRUE(tokens.empty());
+
+        // Single field sentence
+        NmeaSentenceParser::tokenize("$P*00", tokens);
+        EXPECT_EQ(tokens.size(), 1U);
+        EXPECT_EQ(tokens[0], "P");
+
+        // Consecutive commas
+        NmeaSentenceParser::tokenize("$GPGGA,,,,,,,,,,,,,,*00", tokens);
+        EXPECT_GT(tokens.size(), 1U);
+        EXPECT_EQ(tokens[0], "GPGGA");
+        EXPECT_TRUE(tokens[1].empty());
     }
 
 } // namespace

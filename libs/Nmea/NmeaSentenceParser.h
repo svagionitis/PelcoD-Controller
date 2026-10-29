@@ -8,17 +8,67 @@
 #include "PfecTypes.h"
 #include "bam/BridgeAlertTypes.h"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <string_view>
 #include <vector>
 
 namespace Nmea {
 
+/// @brief Maximum number of comma-separated tokens supported per NMEA sentence.
+inline constexpr std::size_t kMaxSentenceTokens = 48U;
+
+/// @struct ParsedTokens
+/// @brief Fixed-capacity, zero-allocation container storing string_view slices of sentence fields.
+struct ParsedTokens {
+    std::array<std::string_view, kMaxSentenceTokens> tokens {};
+    std::size_t count { 0U };
+
+    [[nodiscard]] constexpr std::size_t size() const noexcept
+    {
+        return count;
+    }
+    [[nodiscard]] constexpr bool empty() const noexcept
+    {
+        return count == 0U;
+    }
+    [[nodiscard]] constexpr std::string_view operator[](std::size_t index) const noexcept
+    {
+        return (index < count) ? tokens[index] : std::string_view {};
+    }
+
+    constexpr bool push_back(std::string_view token) noexcept
+    {
+        if (count < kMaxSentenceTokens) {
+            tokens[count] = token;
+            ++count;
+            return true;
+        }
+        return false;
+    }
+
+    [[nodiscard]] constexpr const std::string_view* begin() const noexcept
+    {
+        return tokens.data();
+    }
+    [[nodiscard]] constexpr const std::string_view* end() const noexcept
+    {
+        return tokens.data() + count;
+    }
+};
+
 /// @class NmeaSentenceParser
 /// @brief High-performance stateless parser for NMEA 0183 and IEC 61162-1 navigation sentences.
 class NmeaSentenceParser {
 public:
-    /// @brief Splits an NMEA sentence into comma-separated tokens without dynamic heap allocation.
+    /// @brief Splits an NMEA sentence into comma-separated tokens with zero dynamic heap allocation.
+    /// @param[in] sentence Input string view containing sentence.
+    /// @param[out] outTokens Fixed-capacity container of field token slices.
+    /// @note Strips leading $/!, trailing *HH checksum, and \r\n before tokenizing.
+    static void tokenize(std::string_view sentence, ParsedTokens& outTokens) noexcept;
+
+    /// @brief Splits an NMEA sentence into comma-separated tokens.
     /// @param[in] sentence Input string view containing sentence.
     /// @param[out] outTokens Vector of string_view slices representing field tokens.
     /// @note Strips leading $/!, trailing *HH checksum, and \r\n before tokenizing.

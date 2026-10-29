@@ -27,12 +27,13 @@ TEST(TestNmeaTcpServer, LifecycleAndBroadcast)
     EXPECT_EQ(server.clientCount(), 0U);
 
     // Promise for receiving client message
-    std::promise<std::string> clientMsgPromise;
+    std::promise<std::pair<std::string, std::string>> clientMsgPromise;
     auto clientMsgFuture = clientMsgPromise.get_future();
 
-    server.setSentenceCallback([&clientMsgPromise](std::uint32_t /*clientId*/, std::string_view sentence) {
-        clientMsgPromise.set_value(std::string { sentence });
-    });
+    server.setSentenceCallback(
+        [&clientMsgPromise](std::uint32_t /*clientId*/, std::string_view clientIp, std::string_view sentence) {
+            clientMsgPromise.set_value({ std::string { clientIp }, std::string { sentence } });
+        });
 
     // Connect a client via TcpTransport
     Transport::TcpTransport client("127.0.0.1", kPort);
@@ -65,8 +66,9 @@ TEST(TestNmeaTcpServer, LifecycleAndBroadcast)
     EXPECT_TRUE(client.sendData(std::vector<std::uint8_t>(pCmd, pCmd + clientCmd.size())));
 
     ASSERT_EQ(clientMsgFuture.wait_for(std::chrono::seconds(2)), std::future_status::ready);
-    const std::string receivedByServer = clientMsgFuture.get();
-    EXPECT_EQ(receivedByServer, "$PFLIR,cmd,pan,10.5*2B");
+    const auto [receivedIp, receivedSentence] = clientMsgFuture.get();
+    EXPECT_EQ(receivedIp, "127.0.0.1");
+    EXPECT_EQ(receivedSentence, "$PFLIR,cmd,pan,10.5*2B");
 
     // 3. Clean disconnect
     client.close();

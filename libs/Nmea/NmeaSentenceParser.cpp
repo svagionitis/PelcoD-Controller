@@ -24,7 +24,7 @@ namespace {
             return false;
         }
         // std::from_chars for double is available in modern GCC/Clang, or fallback to strtod with null-terminated copy
-        char buf[64] { };
+        char buf[64] {};
         if (sv.size() >= sizeof(buf)) {
             return false;
         }
@@ -49,7 +49,7 @@ namespace {
         }
         unsigned int val { 0U };
         const auto res = std::from_chars(sv.data(), sv.data() + sv.size(), val);
-        if (res.ec != std::errc { }) {
+        if (res.ec != std::errc {}) {
             return false;
         }
         outVal = val;
@@ -58,9 +58,9 @@ namespace {
 
 } // namespace
 
-void NmeaSentenceParser::tokenize(std::string_view sentence, std::vector<std::string_view>& outTokens)
+void NmeaSentenceParser::tokenize(std::string_view sentence, ParsedTokens& outTokens) noexcept
 {
-    outTokens.clear();
+    outTokens.count = 0U;
 
     // Strip optional leading tag block
     if (!sentence.empty() && sentence.front() == '\\') {
@@ -87,16 +87,30 @@ void NmeaSentenceParser::tokenize(std::string_view sentence, std::vector<std::st
         sentence.remove_suffix(1U);
     }
 
+    if (sentence.empty()) {
+        return;
+    }
+
     std::size_t start { 0U };
     while (start <= sentence.size()) {
         const auto commaPos = sentence.find(',', start);
         if (commaPos == std::string_view::npos) {
-            outTokens.push_back(sentence.substr(start));
+            static_cast<void>(outTokens.push_back(sentence.substr(start)));
             break;
         }
-        outTokens.push_back(sentence.substr(start, commaPos - start));
+        if (!outTokens.push_back(sentence.substr(start, commaPos - start))) {
+            break;
+        }
         start = commaPos + 1U;
     }
+}
+
+void NmeaSentenceParser::tokenize(std::string_view sentence, std::vector<std::string_view>& outTokens)
+{
+    outTokens.clear();
+    ParsedTokens fixedTokens {};
+    tokenize(sentence, fixedTokens);
+    outTokens.assign(fixedTokens.begin(), fixedTokens.end());
 }
 
 NmeaSentenceId NmeaSentenceParser::identifySentence(std::string_view sentence) noexcept
@@ -249,7 +263,7 @@ NmeaSentenceId NmeaSentenceParser::identifySentence(std::string_view sentence) n
 std::string_view NmeaSentenceParser::extractTalkerId(std::string_view sentence) noexcept
 {
     if (sentence.empty()) {
-        return { };
+        return {};
     }
 
     // Strip optional leading tag block
@@ -271,7 +285,7 @@ std::string_view NmeaSentenceParser::extractTalkerId(std::string_view sentence) 
     if (header.size() == 5U) {
         return header.substr(0U, 2U);
     }
-    return { };
+    return {};
 }
 
 bool NmeaSentenceParser::parseCoordinate(
@@ -379,12 +393,12 @@ bool NmeaSentenceParser::parseDate(std::string_view dateStr, NmeaDate& outDate) 
 
 bool NmeaSentenceParser::parseGga(std::string_view sentence, GgaData& outData, bool verifyChecksum) noexcept
 {
-    outData = GgaData { };
+    outData = GgaData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--GGA,hhmmss.ss,llll.ll,a,yyyyy.yy,a,x,xx,x.x,x.x,M,x.x,M,x.x,xxxx
@@ -425,12 +439,12 @@ bool NmeaSentenceParser::parseGga(std::string_view sentence, GgaData& outData, b
 
 bool NmeaSentenceParser::parseRmc(std::string_view sentence, RmcData& outData, bool verifyChecksum) noexcept
 {
-    outData = RmcData { };
+    outData = RmcData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--RMC,hhmmss.ss,A,llll.ll,a,yyyyy.yy,a,x.x,x.x,ddmmyy,x.x,a,m
@@ -471,12 +485,12 @@ bool NmeaSentenceParser::parseRmc(std::string_view sentence, RmcData& outData, b
 
 bool NmeaSentenceParser::parseHdt(std::string_view sentence, HdtData& outData, bool verifyChecksum) noexcept
 {
-    outData = HdtData { };
+    outData = HdtData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--HDT,x.x,T
@@ -494,12 +508,12 @@ bool NmeaSentenceParser::parseHdt(std::string_view sentence, HdtData& outData, b
 
 bool NmeaSentenceParser::parseThs(std::string_view sentence, ThsData& outData, bool verifyChecksum) noexcept
 {
-    outData = ThsData { };
+    outData = ThsData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--THS,x.x,a
@@ -521,12 +535,12 @@ bool NmeaSentenceParser::parseThs(std::string_view sentence, ThsData& outData, b
 
 bool NmeaSentenceParser::parseTtm(std::string_view sentence, TtmData& outData, bool verifyChecksum) noexcept
 {
-    outData = TtmData { };
+    outData = TtmData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--TTM,xx,x.x,x.x,a,x.x,x.x,a,x.x,x.x,a,c--c,a,a,hhmmss.ss,a
@@ -576,12 +590,12 @@ bool NmeaSentenceParser::parseTtm(std::string_view sentence, TtmData& outData, b
 
 bool NmeaSentenceParser::parseTll(std::string_view sentence, TllData& outData, bool verifyChecksum) noexcept
 {
-    outData = TllData { };
+    outData = TllData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--TLL,xx,llll.ll,a,yyyyy.yy,a,c--c,hhmmss.ss,a,a
@@ -616,12 +630,12 @@ bool NmeaSentenceParser::parseTll(std::string_view sentence, TllData& outData, b
 
 bool NmeaSentenceParser::parseXdr(std::string_view sentence, XdrData& outData, bool verifyChecksum) noexcept
 {
-    outData = XdrData { };
+    outData = XdrData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--XDR,a,x.x,a,c--c,... (repeating groups of 4 fields)
@@ -631,7 +645,7 @@ bool NmeaSentenceParser::parseXdr(std::string_view sentence, XdrData& outData, b
 
     std::size_t idx { 1U };
     while (idx + 3U < tokens.size()) {
-        XdrTransducer tr { };
+        XdrTransducer tr {};
         if (!tokens[idx].empty()) {
             tr.type = tokens[idx].front();
         }
@@ -651,12 +665,12 @@ bool NmeaSentenceParser::parseXdr(std::string_view sentence, XdrData& outData, b
 bool NmeaSentenceParser::parsePfecPos(
     std::string_view sentence, PfecGimbalPosition& outPos, bool verifyChecksum) noexcept
 {
-    outPos = PfecGimbalPosition { };
+    outPos = PfecGimbalPosition {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $PFEC,GPpos,pan,tilt
@@ -679,12 +693,12 @@ bool NmeaSentenceParser::parsePfecPos(
 
 bool NmeaSentenceParser::parsePashr(std::string_view sentence, PashrData& outData, bool verifyChecksum) noexcept
 {
-    outData = PashrData { };
+    outData = PashrData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $PASHR,hhmmss.ss,hhh.hh,T,rrr.rr,ppp.pp,hhh.hh,r.rrr,p.ppp,h.hhh,q,a
@@ -734,12 +748,12 @@ bool NmeaSentenceParser::parsePashr(std::string_view sentence, PashrData& outDat
 
 bool NmeaSentenceParser::parsePfecAtt(std::string_view sentence, PfecAttitudeData& outAtt, bool verifyChecksum) noexcept
 {
-    outAtt = PfecAttitudeData { };
+    outAtt = PfecAttitudeData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $PFEC,GPatt,yaw,pitch,roll
@@ -762,12 +776,12 @@ bool NmeaSentenceParser::parsePfecAtt(std::string_view sentence, PfecAttitudeDat
 
 bool NmeaSentenceParser::parseRsd(std::string_view sentence, RsdData& outData, bool verifyChecksum) noexcept
 {
-    outData = RsdData { };
+    outData = RsdData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--RSD,d1,b1,d2,b2,d3,b3,d4,b4,cursorRange,cursorBearing,rangeScale,rotation
@@ -787,12 +801,12 @@ bool NmeaSentenceParser::parseRsd(std::string_view sentence, RsdData& outData, b
 
 bool NmeaSentenceParser::parseOsd(std::string_view sentence, OsdData& outData, bool verifyChecksum) noexcept
 {
-    outData = OsdData { };
+    outData = OsdData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--OSD,heading,headingStatus,course,courseRef,speed,speedRef,set,drift,speedUnits
@@ -822,12 +836,12 @@ bool NmeaSentenceParser::parseOsd(std::string_view sentence, OsdData& outData, b
 
 bool NmeaSentenceParser::parseApb(std::string_view sentence, ApbData& outData, bool verifyChecksum) noexcept
 {
-    outData = ApbData { };
+    outData = ApbData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format:
@@ -870,12 +884,12 @@ bool NmeaSentenceParser::parseApb(std::string_view sentence, ApbData& outData, b
 
 bool NmeaSentenceParser::parseBwc(std::string_view sentence, BwcData& outData, bool verifyChecksum) noexcept
 {
-    outData = BwcData { };
+    outData = BwcData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--BWC,utcTime,lat,N/S,lon,E/W,brgTrue,T,brgMag,M,dist,N,wptId,faaMode
@@ -902,12 +916,12 @@ bool NmeaSentenceParser::parseBwc(std::string_view sentence, BwcData& outData, b
 
 bool NmeaSentenceParser::parseMwv(std::string_view sentence, MwvData& outData, bool verifyChecksum) noexcept
 {
-    outData = MwvData { };
+    outData = MwvData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--MWV,windAngle,ref,windSpeed,speedUnits,status
@@ -931,12 +945,12 @@ bool NmeaSentenceParser::parseMwv(std::string_view sentence, MwvData& outData, b
 
 bool NmeaSentenceParser::parseHdg(std::string_view sentence, HdgData& outData, bool verifyChecksum) noexcept
 {
-    outData = HdgData { };
+    outData = HdgData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--HDG,magHeading,magDev,devDir,magVar,varDir
@@ -970,12 +984,12 @@ bool NmeaSentenceParser::parseHdg(std::string_view sentence, HdgData& outData, b
 
 bool NmeaSentenceParser::parseRmb(std::string_view sentence, RmbData& outData, bool verifyChecksum) noexcept
 {
-    outData = RmbData { };
+    outData = RmbData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--RMB,status,xte,steerDir,destId,origId,lat,latHem,lon,lonHem,range,bearing,vmg,arrival,faa
@@ -1016,12 +1030,12 @@ bool NmeaSentenceParser::parseRmb(std::string_view sentence, RmbData& outData, b
 
 bool NmeaSentenceParser::parseRte(std::string_view sentence, RteData& outData, bool verifyChecksum) noexcept
 {
-    outData = RteData { };
+    outData = RteData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--RTE,totalSentences,sentenceNum,routeType,routeName,wpt1,wpt2,...
@@ -1055,12 +1069,12 @@ bool NmeaSentenceParser::parseRte(std::string_view sentence, RteData& outData, b
 
 bool NmeaSentenceParser::parseWpl(std::string_view sentence, WplData& outData, bool verifyChecksum) noexcept
 {
-    outData = WplData { };
+    outData = WplData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--WPL,lat,latHem,lon,lonHem,wptId
@@ -1083,12 +1097,12 @@ bool NmeaSentenceParser::parseWpl(std::string_view sentence, WplData& outData, b
 
 bool NmeaSentenceParser::parseMtw(std::string_view sentence, MtwData& outData, bool verifyChecksum) noexcept
 {
-    outData = MtwData { };
+    outData = MtwData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--MTW,tempC,C
@@ -1106,12 +1120,12 @@ bool NmeaSentenceParser::parseMtw(std::string_view sentence, MtwData& outData, b
 
 bool NmeaSentenceParser::parseMmb(std::string_view sentence, MmbData& outData, bool verifyChecksum) noexcept
 {
-    outData = MmbData { };
+    outData = MmbData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--MMB,pressInHg,I,pressBar,B
@@ -1128,12 +1142,12 @@ bool NmeaSentenceParser::parseMmb(std::string_view sentence, MmbData& outData, b
 
 bool NmeaSentenceParser::parseMda(std::string_view sentence, MdaData& outData, bool verifyChecksum) noexcept
 {
-    outData = MdaData { };
+    outData = MdaData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format:
@@ -1193,12 +1207,12 @@ bool NmeaSentenceParser::parseMda(std::string_view sentence, MdaData& outData, b
 
 bool NmeaSentenceParser::parseGsa(std::string_view sentence, GsaData& outData, bool verifyChecksum) noexcept
 {
-    outData = GsaData { };
+    outData = GsaData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--GSA,mode,fixMode,sat1..sat12,pdop,hdop,vdop[,systemId]
@@ -1241,12 +1255,12 @@ bool NmeaSentenceParser::parseGsa(std::string_view sentence, GsaData& outData, b
 
 bool NmeaSentenceParser::parseGsv(std::string_view sentence, GsvData& outData, bool verifyChecksum) noexcept
 {
-    outData = GsvData { };
+    outData = GsvData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--GSV,totalSentences,sentenceNumber,totalSatsInView,[prn,elev,azim,snr]x1..4[,signalId]
@@ -1275,7 +1289,7 @@ bool NmeaSentenceParser::parseGsv(std::string_view sentence, GsvData& outData, b
         if (idx + 4U == tokens.size() && tokens[idx].size() <= 2U) {
             // Might be trailing signalId if no more 4-tuples can be formed
         }
-        GsvSatelliteInfo sat { };
+        GsvSatelliteInfo sat {};
         unsigned int prnVal { 0U };
         if (parseUInt(tokens[idx], prnVal)) {
             sat.prn = static_cast<std::uint16_t>(prnVal);
@@ -1305,12 +1319,12 @@ bool NmeaSentenceParser::parseGsv(std::string_view sentence, GsvData& outData, b
 
 bool NmeaSentenceParser::parseZda(std::string_view sentence, ZdaData& outData, bool verifyChecksum) noexcept
 {
-    outData = ZdaData { };
+    outData = ZdaData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--ZDA,hhmmss.ss,day,month,year,localZoneHours,localZoneMinutes
@@ -1340,7 +1354,7 @@ bool NmeaSentenceParser::parseZda(std::string_view sentence, ZdaData& outData, b
     if (!tokens[5].empty()) {
         int zh { 0 };
         const auto res = std::from_chars(tokens[5].data(), tokens[5].data() + tokens[5].size(), zh);
-        if (res.ec == std::errc { }) {
+        if (res.ec == std::errc {}) {
             outData.localZoneHours = static_cast<std::int8_t>(zh);
         }
     }
@@ -1356,12 +1370,12 @@ bool NmeaSentenceParser::parseZda(std::string_view sentence, ZdaData& outData, b
 
 bool NmeaSentenceParser::parseVbw(std::string_view sentence, VbwData& outData, bool verifyChecksum) noexcept
 {
-    outData = VbwData { };
+    outData = VbwData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format:
@@ -1407,12 +1421,12 @@ bool NmeaSentenceParser::parseVbw(std::string_view sentence, VbwData& outData, b
 
 bool NmeaSentenceParser::parseVhw(std::string_view sentence, VhwData& outData, bool verifyChecksum) noexcept
 {
-    outData = VhwData { };
+    outData = VhwData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--VHW,headingTrue,T,headingMag,M,speedKnots,N,speedKmh,K
@@ -1451,12 +1465,12 @@ bool NmeaSentenceParser::parseVhw(std::string_view sentence, VhwData& outData, b
 
 bool NmeaSentenceParser::parseDpt(std::string_view sentence, DptData& outData, bool verifyChecksum) noexcept
 {
-    outData = DptData { };
+    outData = DptData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--DPT,depth,offset[,maxRange]
@@ -1480,12 +1494,12 @@ bool NmeaSentenceParser::parseDpt(std::string_view sentence, DptData& outData, b
 
 bool NmeaSentenceParser::parseDbt(std::string_view sentence, DbtData& outData, bool verifyChecksum) noexcept
 {
-    outData = DbtData { };
+    outData = DbtData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--DBT,depthFeet,f,depthMeters,M,depthFathoms,F
@@ -1503,12 +1517,12 @@ bool NmeaSentenceParser::parseDbt(std::string_view sentence, DbtData& outData, b
 
 bool NmeaSentenceParser::parseRsa(std::string_view sentence, RsaData& outData, bool verifyChecksum) noexcept
 {
-    outData = RsaData { };
+    outData = RsaData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--RSA,starboardAngle,starboardStatus,portAngle,portStatus
@@ -1536,12 +1550,12 @@ bool NmeaSentenceParser::parseRsa(std::string_view sentence, RsaData& outData, b
 
 bool NmeaSentenceParser::parseAlf(std::string_view sentence, Bam::AlfData& outData, bool verifyChecksum) noexcept
 {
-    outData = Bam::AlfData { };
+    outData = Bam::AlfData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format:
@@ -1606,12 +1620,12 @@ bool NmeaSentenceParser::parseAlf(std::string_view sentence, Bam::AlfData& outDa
 
 bool NmeaSentenceParser::parseAlc(std::string_view sentence, Bam::AlcData& outData, bool verifyChecksum) noexcept
 {
-    outData = Bam::AlcData { };
+    outData = Bam::AlcData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--ALC,totSentences,sentNum,seqMsgId,alertCount[,alertId,alertInst,revCnt]...
@@ -1641,7 +1655,7 @@ bool NmeaSentenceParser::parseAlc(std::string_view sentence, Bam::AlcData& outDa
 
     std::size_t idx { 5U };
     while (idx + 2U < tokens.size()) {
-        Bam::AlcEntry entry { };
+        Bam::AlcEntry entry {};
         unsigned int idVal { 0U };
         unsigned int instVal { 0U };
         unsigned int revVal { 0U };
@@ -1661,12 +1675,12 @@ bool NmeaSentenceParser::parseAlc(std::string_view sentence, Bam::AlcData& outDa
 
 bool NmeaSentenceParser::parseArc(std::string_view sentence, Bam::ArcData& outData, bool verifyChecksum) noexcept
 {
-    outData = Bam::ArcData { };
+    outData = Bam::ArcData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--ARC,releaseTime,alertId,alertInst,command
@@ -1698,12 +1712,12 @@ bool NmeaSentenceParser::parseArc(std::string_view sentence, Bam::ArcData& outDa
 
 bool NmeaSentenceParser::parseHbt(std::string_view sentence, Bam::HbtData& outData, bool verifyChecksum) noexcept
 {
-    outData = Bam::HbtData { };
+    outData = Bam::HbtData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--HBT,intervalSec,equipmentStatus,seqSentenceId
@@ -1728,12 +1742,12 @@ bool NmeaSentenceParser::parseHbt(std::string_view sentence, Bam::HbtData& outDa
 
 bool NmeaSentenceParser::parseAlr(std::string_view sentence, Bam::AlrData& outData, bool verifyChecksum) noexcept
 {
-    outData = Bam::AlrData { };
+    outData = Bam::AlrData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--ALR,timeChange,alertId,condition,ackState,alertText
@@ -1765,12 +1779,12 @@ bool NmeaSentenceParser::parseAlr(std::string_view sentence, Bam::AlrData& outDa
 
 bool NmeaSentenceParser::parseAck(std::string_view sentence, Bam::AckData& outData, bool verifyChecksum) noexcept
 {
-    outData = Bam::AckData { };
+    outData = Bam::AckData {};
     if (verifyChecksum && !NmeaChecksum::validate(sentence)) {
         return false;
     }
 
-    std::vector<std::string_view> tokens { };
+    ParsedTokens tokens {};
     tokenize(sentence, tokens);
 
     // Format: $--ACK,alertId

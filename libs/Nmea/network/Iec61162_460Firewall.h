@@ -61,8 +61,8 @@ public:
     /// @param[in] sourceMac Source MAC address string.
     /// @param[in] payload Raw packet payload or NMEA sentence.
     /// @return True if packet is permitted, false if rejected/dropped.
-    [[nodiscard]] bool inspectInbound(SecurityZone zone, std::string_view sourceIp,
-                                      std::string_view sourceMac, std::string_view payload);
+    [[nodiscard]] bool inspectInbound(
+        SecurityZone zone, std::string_view sourceIp, std::string_view sourceMac, std::string_view payload);
 
     /// @brief Validates if an outbound sentence is permitted to egress towards a target zone.
     /// @param[in] targetZone Destination network zone.
@@ -86,12 +86,28 @@ private:
         std::uint32_t packetCount { 0U };
     };
 
+    struct DeferredAlert {
+        bool hasIncident { false };
+        SecurityIncident incident {};
+        bool raiseBamFlood { false };
+        bool raiseBamViolation { false };
+        std::string bamDescription {};
+        SecurityAlertCallback alertCallback {};
+        std::shared_ptr<Bam::BridgeAlertManager> bam {};
+    };
+
     [[nodiscard]] bool checkRateLimit(std::string_view ip, std::uint32_t maxPps);
     [[nodiscard]] static bool matchesCidr(std::string_view ip, std::string_view cidr);
     [[nodiscard]] static std::string extractFormatter(std::string_view payload);
 
-    void recordViolation(SecurityViolationType type, SecurityZone zone, std::string_view ip,
-                         std::string_view mac, std::string_view desc);
+    [[nodiscard]] bool inspectInboundLocked(SecurityZone zone, std::string_view sourceIp, std::string_view sourceMac,
+        std::string_view payload, DeferredAlert& outAlert);
+    [[nodiscard]] bool inspectOutboundLocked(
+        SecurityZone targetZone, std::string_view payload, DeferredAlert& outAlert);
+
+    void recordViolationLocked(SecurityViolationType type, SecurityZone zone, std::string_view ip, std::string_view mac,
+        std::string_view desc, DeferredAlert& outAlert);
+    static void dispatchAlert(const DeferredAlert& alert);
 
     mutable std::mutex m_mutex {};
     std::vector<FirewallRule> m_rules {};

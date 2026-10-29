@@ -24,33 +24,47 @@ MaritimeNetworkCoordinator::MaritimeNetworkCoordinator(std::shared_ptr<Iec61162_
     }
 
     // Configure TCP server inbound callback
-    m_tcpServer->setSentenceCallback([this](std::uint32_t /*clientId*/, std::string_view sentence) {
-        if (m_firewall && !m_firewall->inspectInbound(SecurityZone::GeneralShipLan, "tcp-client", "", sentence)) {
-            return; // Dropped by firewall
-        }
-        std::lock_guard<std::mutex> lock { m_mutex };
-        if (m_sentenceCallback) {
-            m_sentenceCallback("TCP", sentence);
-        }
-    });
+    m_tcpServer->setSentenceCallback(
+        [this](std::uint32_t /*clientId*/, std::string_view clientIp, std::string_view sentence) {
+            if (m_firewall && !m_firewall->inspectInbound(SecurityZone::GeneralShipLan, clientIp, "", sentence)) {
+                return; // Dropped by firewall
+            }
+            InboundSentenceCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock { m_mutex };
+                cb = m_sentenceCallback;
+            }
+            if (cb) {
+                cb("TCP", sentence);
+            }
+        });
 
     // Configure UDP endpoint inbound callback
-    m_udpEndpoint->setDataCallback([this](const std::vector<std::uint8_t>& data) {
-        const std::string_view sentence { reinterpret_cast<const char*>(data.data()), data.size() };
-        if (m_firewall && !m_firewall->inspectInbound(SecurityZone::BridgeNetwork, "udp-peer", "", sentence)) {
-            return; // Dropped by firewall
-        }
-        std::lock_guard<std::mutex> lock { m_mutex };
-        if (m_sentenceCallback) {
-            m_sentenceCallback("UDP", sentence);
-        }
-    });
+    m_udpEndpoint->setDatagramCallback(
+        [this](const std::vector<std::uint8_t>& data, std::string_view senderIp, std::uint16_t /*senderPort*/) {
+            const std::string_view sentence { reinterpret_cast<const char*>(data.data()), data.size() };
+            if (m_firewall && !m_firewall->inspectInbound(SecurityZone::BridgeNetwork, senderIp, "", sentence)) {
+                return; // Dropped by firewall
+            }
+            InboundSentenceCallback cb {};
+            {
+                std::lock_guard<std::mutex> lock { m_mutex };
+                cb = m_sentenceCallback;
+            }
+            if (cb) {
+                cb("UDP", sentence);
+            }
+        });
 
     // Configure WebSocket server command callback
     m_wsServer->setMessageCallback([this](std::uint32_t clientId, std::string_view jsonCommand) {
-        std::lock_guard<std::mutex> lock { m_mutex };
-        if (m_commandCallback) {
-            m_commandCallback(clientId, jsonCommand);
+        InboundCommandCallback cb {};
+        {
+            std::lock_guard<std::mutex> lock { m_mutex };
+            cb = m_commandCallback;
+        }
+        if (cb) {
+            cb(clientId, jsonCommand);
         }
     });
 }

@@ -142,7 +142,7 @@ public:
     /// @brief Reads a 6-bit ASCII string of specified character count and strips trailing '@' and whitespace.
     /// @param[in] numChars Number of 6-bit characters to extract.
     /// @return Trimmed ASCII string.
-    [[nodiscard]] std::string readString(std::size_t numChars) noexcept
+    [[nodiscard]] std::string readString(std::size_t numChars)
     {
         std::string str {};
         str.reserve(numChars);

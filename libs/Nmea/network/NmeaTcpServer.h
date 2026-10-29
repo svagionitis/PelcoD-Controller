@@ -33,7 +33,9 @@ struct TcpClientInfo {
 ///          Broadcasts navigation sentences to all clients and accepts bidirectional client inputs.
 class NmeaTcpServer {
 public:
-    using SentenceCallback = std::function<void(std::uint32_t clientId, std::string_view sentence)>;
+    using SentenceCallback
+        = std::function<void(std::uint32_t clientId, std::string_view clientIp, std::string_view sentence)>;
+    using LegacySentenceCallback = std::function<void(std::uint32_t clientId, std::string_view sentence)>;
 
     explicit NmeaTcpServer(std::uint16_t port = 10110U, std::string bindIp = "0.0.0.0");
     ~NmeaTcpServer();
@@ -60,8 +62,12 @@ public:
     std::size_t broadcastSentence(std::string_view sentence);
 
     /// @brief Sets callback invoked when a connected client sends an NMEA sentence.
-    /// @param[in] cb Callback receiving client ID and sentence text.
+    /// @param[in] cb Callback receiving client ID, peer IP string, and sentence text.
     void setSentenceCallback(SentenceCallback cb);
+
+    /// @brief Sets legacy callback without peer IP parameter.
+    /// @param[in] cb Callback receiving client ID and sentence text.
+    void setSentenceCallback(LegacySentenceCallback cb);
 
     /// @brief Returns the count of actively connected TCP clients.
     [[nodiscard]] std::size_t clientCount() const;
