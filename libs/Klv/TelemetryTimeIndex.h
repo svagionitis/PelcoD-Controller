@@ -49,24 +49,21 @@ public:
     /// @param[in] pts 90 kHz presentation timestamp.
     /// @param[in] maxDeltaUs Maximum allowed skew in microseconds (default 50,000 us).
     /// @return Closest KlvIndexEntry if within tolerance.
-    [[nodiscard]] std::optional<KlvIndexEntry> findTelemetry(std::uint64_t pts,
-                                                            std::uint64_t maxDeltaUs = 50000U) const noexcept;
+    [[nodiscard]] std::optional<KlvIndexEntry> findTelemetry(
+        std::uint64_t pts, std::uint64_t maxDeltaUs = 50000U) const;
 
     /// @brief Locates bounding pair of telemetry entries for interpolation.
     /// @param[in] pts Target 90 kHz presentation timestamp.
     /// @param[out] before Entry immediately prior to or at pts.
     /// @param[out] after Entry immediately following pts.
     /// @return True if valid bounding pair was found.
-    [[nodiscard]] bool findTelemetryBounds(std::uint64_t pts,
-                                           KlvIndexEntry& before,
-                                           KlvIndexEntry& after) const noexcept;
+    [[nodiscard]] bool findTelemetryBounds(std::uint64_t pts, KlvIndexEntry& before, KlvIndexEntry& after) const;
 
     /// @brief Retrieves a contiguous window of telemetry entries for spatial trajectory rendering.
     /// @param[in] startPts Beginning of window.
     /// @param[in] endPts End of window.
     /// @return Vector of KLV entries within the requested interval.
-    [[nodiscard]] std::vector<KlvIndexEntry> findWindow(std::uint64_t startPts,
-                                                       std::uint64_t endPts) const;
+    [[nodiscard]] std::vector<KlvIndexEntry> findWindow(std::uint64_t startPts, std::uint64_t endPts) const;
 
     /// @brief Converts 90 kHz PTS to presentation time in seconds relative to origin.
     /// @param[in] pts 90 kHz presentation timestamp.

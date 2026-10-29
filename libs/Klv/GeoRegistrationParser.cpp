@@ -20,7 +20,7 @@ bool GeoRegistrationParser::isGeoRegistration(const std::uint8_t* data, std::siz
 }
 
 KlvStatus GeoRegistrationParser::parsePacket(
-    const std::uint8_t* data, std::size_t size, GeoRegistrationLocalSet& outSet) noexcept
+    const std::uint8_t* data, std::size_t size, GeoRegistrationLocalSet& outSet)
 {
     if (!isGeoRegistration(data, size)) {
         return KlvStatus::InvalidUniversalLabel;
@@ -42,10 +42,9 @@ KlvStatus GeoRegistrationParser::parsePacket(
     return parse(data + offset, payloadLength, outSet);
 }
 
-KlvStatus GeoRegistrationParser::parse(
-    const std::uint8_t* data, std::size_t size, GeoRegistrationLocalSet& outSet) noexcept
+KlvStatus GeoRegistrationParser::parse(const std::uint8_t* data, std::size_t size, GeoRegistrationLocalSet& outSet)
 {
-    outSet = GeoRegistrationLocalSet { };
+    outSet = GeoRegistrationLocalSet {};
     if (data == nullptr || size == 0U) {
         return KlvStatus::BufferUnderflow;
     }
@@ -89,7 +88,7 @@ KlvStatus GeoRegistrationParser::parse(
             break;
         }
         case GeoRegistrationTag::RowColPoints: {
-            std::vector<std::vector<std::uint32_t>> matrix { };
+            std::vector<std::vector<std::uint32_t>> matrix {};
             if (MdArray::decodeUInt2D(valPtr, length, matrix)) {
                 if (matrix.size() >= 2U && !matrix[0].empty()) {
                     const std::size_t numPoints = matrix[0].size();
@@ -108,7 +107,7 @@ KlvStatus GeoRegistrationParser::parse(
             break;
         }
         case GeoRegistrationTag::LatLonPoints: {
-            std::vector<std::vector<double>> matrix { };
+            std::vector<std::vector<double>> matrix {};
             if (MdArray::decodeFloat2D(valPtr, length, matrix)) {
                 if (matrix.size() >= 2U && !matrix[0].empty()) {
                     const std::size_t numPoints = matrix[0].size();
@@ -129,14 +128,14 @@ KlvStatus GeoRegistrationParser::parse(
         }
         case GeoRegistrationTag::AlgorithmConfigId: {
             if (length == 16U) {
-                std::array<std::uint8_t, 16> uuid { };
+                std::array<std::uint8_t, 16> uuid {};
                 std::memcpy(uuid.data(), valPtr, 16U);
                 outSet.configUuid = uuid;
             }
             break;
         }
         case GeoRegistrationTag::ElevationPoints: {
-            std::vector<double> elevVec { };
+            std::vector<double> elevVec {};
             if (MdArray::decodeFloat1D(valPtr, length, elevVec)) {
                 const std::size_t numPoints = elevVec.size();
                 if (outSet.geoPoints.size() < numPoints) {
@@ -149,7 +148,7 @@ KlvStatus GeoRegistrationParser::parse(
             break;
         }
         case GeoRegistrationTag::RowColCovariance: {
-            std::vector<std::vector<double>> matrix { };
+            std::vector<std::vector<double>> matrix {};
             if (MdArray::decodeFloat2D(valPtr, length, matrix)) {
                 if (matrix.size() >= 3U && !matrix[0].empty()) {
                     const std::size_t numPoints = matrix[0].size();
@@ -170,7 +169,7 @@ KlvStatus GeoRegistrationParser::parse(
             break;
         }
         case GeoRegistrationTag::LatLonElevCovariance: {
-            std::vector<std::vector<double>> matrix { };
+            std::vector<std::vector<double>> matrix {};
             if (MdArray::decodeFloat2D(valPtr, length, matrix)) {
                 if (matrix.size() >= 3U && !matrix[0].empty()) {
                     const std::size_t numPoints = matrix[0].size();

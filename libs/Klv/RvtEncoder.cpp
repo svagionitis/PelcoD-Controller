@@ -1,12 +1,15 @@
 #include "RvtEncoder.h"
-#include "KlvBer.h"
-#include "KlvCrc.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstdint>
+
+#include <algorithm>
 #include <string>
 #include <vector>
+
+#include "KlvBer.h"
+#include "KlvCrc.h"
+#include "KlvScaling.h"
 
 namespace Klv {
 
@@ -87,25 +90,17 @@ namespace {
 
 std::int32_t RvtEncoder::scaleLatitude(double latDeg) noexcept
 {
-    constexpr double kMaxVal = 2147483647.0;
-    const double clamped = std::clamp(latDeg, -90.0, 90.0);
-    return static_cast<std::int32_t>(std::round(clamped * (kMaxVal / 90.0)));
+    return KlvScaling::scaleLatitude(latDeg);
 }
 
 std::int32_t RvtEncoder::scaleLongitude(double lonDeg) noexcept
 {
-    constexpr double kMaxVal = 2147483647.0;
-    const double clamped = std::clamp(lonDeg, -180.0, 180.0);
-    return static_cast<std::int32_t>(std::round(clamped * (kMaxVal / 180.0)));
+    return KlvScaling::scaleLongitude(lonDeg);
 }
 
 std::uint16_t RvtEncoder::scaleAltitude(double altM) noexcept
 {
-    constexpr double kRange = 19900.0;
-    constexpr double kMaxVal = 65535.0;
-    constexpr double kOffset = 900.0;
-    const double clamped = std::clamp(altM, -900.0, 19000.0);
-    return static_cast<std::uint16_t>(std::round((clamped + kOffset) * (kMaxVal / kRange)));
+    return KlvScaling::scaleAltitude(altM);
 }
 
 void RvtEncoder::encodePoi(const PoiPack& poi, std::vector<std::uint8_t>& out)

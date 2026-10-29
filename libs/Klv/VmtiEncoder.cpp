@@ -1,12 +1,15 @@
 #include "VmtiEncoder.h"
-#include "KlvBer.h"
-#include "KlvCrc.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+
+#include <algorithm>
 #include <vector>
+
+#include "KlvBer.h"
+#include "KlvCrc.h"
+#include "KlvScaling.h"
 
 namespace Klv {
 
@@ -40,6 +43,9 @@ namespace {
 
 std::uint32_t VmtiEncoder::scaleOffset(double offsetDeg) noexcept
 {
+    if (!std::isfinite(offsetDeg)) {
+        return 0U;
+    }
     const double clamped = std::clamp(offsetDeg, -19.2, 19.2);
     const double scaled = std::round((clamped + 19.2) * 131072.0);
     return static_cast<std::uint32_t>(std::clamp(scaled, 0.0, 16777215.0));
@@ -47,6 +53,9 @@ std::uint32_t VmtiEncoder::scaleOffset(double offsetDeg) noexcept
 
 std::uint16_t VmtiEncoder::scaleHae(double haeM) noexcept
 {
+    if (!std::isfinite(haeM)) {
+        return 0U;
+    }
     const double clamped = std::clamp(haeM, -900.0, 19000.0);
     const double scaled = std::round(clamped + 900.0);
     return static_cast<std::uint16_t>(std::clamp(scaled, 0.0, 65535.0));
@@ -151,14 +160,8 @@ void VmtiEncoder::encodeTarget(
 
     // 11. Tag 17: Target Location Pack (10 bytes: Lat 4, Lon 4, HAE 2)
     if (target.targetLocation.has_value()) {
-        const double clampedLat = std::clamp(target.targetLocation->latitudeDeg, -90.0, 90.0);
-        const auto rawLat = static_cast<std::int32_t>(
-            std::clamp(std::round(clampedLat * (2147483647.0 / 90.0)), -2147483648.0, 2147483647.0));
-
-        const double clampedLon = std::clamp(target.targetLocation->longitudeDeg, -180.0, 180.0);
-        const auto rawLon = static_cast<std::int32_t>(
-            std::clamp(std::round(clampedLon * (2147483647.0 / 180.0)), -2147483648.0, 2147483647.0));
-
+        const auto rawLat = KlvScaling::scaleLatitude(target.targetLocation->latitudeDeg);
+        const auto rawLon = KlvScaling::scaleLongitude(target.targetLocation->longitudeDeg);
         const std::uint16_t rawHae = scaleHae(target.targetLocation->altitudeM);
 
         out.push_back(static_cast<std::uint8_t>(VTargetTag::TargetLocation));

@@ -31,14 +31,14 @@ namespace {
             return candidate;
         }
     }
-    return { };
+    return {};
 }
 
 [[nodiscard]] std::vector<std::uint8_t> loadVideoFile(const std::string& path)
 {
     FILE* fp = std::fopen(path.c_str(), "rb");
     if (fp == nullptr) {
-        return { };
+        return {};
     }
 
     std::fseek(fp, 0, SEEK_END);
@@ -595,4 +595,40 @@ TEST(MpegTsKlvMuxerTest, SynchronizedVideoAndTelemetryMuxing)
     // Validate that the temporal skew between Video PTS and KLV PTS is <= 50 ms
     const auto deltaUs = (kKlvPtsUs > kVideoPtsUs) ? (kKlvPtsUs - kVideoPtsUs) : (kVideoPtsUs - kKlvPtsUs);
     EXPECT_LE(deltaUs / 1000ULL, 50ULL);
+}
+
+TEST(MpegTsKlvMuxerTest, PatPmtPeriodZeroNoCrash)
+{
+    MpegTsMuxerConfig config;
+    config.patPmtPeriodPackets = 0U; // Deliberate 0 to test div-by-zero protection
+    MpegTsKlvMuxer muxer(config);
+
+    VideoAccessUnit au;
+    au.codec = VideoCodec::H264;
+    au.ptsUs = 1000000ULL;
+    au.isKeyframe = true;
+    au.data = { 0x00U, 0x00U, 0x00U, 0x01U, 0x65U, 0x88U };
+
+    const auto tsBuffer = muxer.muxVideoToBuffer(au);
+    EXPECT_FALSE(tsBuffer.empty());
+    EXPECT_EQ(tsBuffer.size() % MpegTsKlvMuxer::kTsPacketSize, 0U);
+}
+
+TEST(MpegTsKlvMuxerTest, NextCcZeroHeapNoAlloc)
+{
+    MpegTsMuxerConfig config;
+    MpegTsKlvMuxer muxer(config);
+
+    VideoAccessUnit au;
+    au.codec = VideoCodec::H264;
+    au.ptsUs = 1000000ULL;
+    au.isKeyframe = false;
+    au.data = { 0x00U, 0x00U, 0x00U, 0x01U, 0x41U, 0x01U };
+
+    for (std::size_t i = 0U; i < 50U; ++i) {
+        au.ptsUs += 33333ULL;
+        const auto buf = muxer.muxVideoToBuffer(au);
+        EXPECT_FALSE(buf.empty());
+        EXPECT_EQ(buf.size() % MpegTsKlvMuxer::kTsPacketSize, 0U);
+    }
 }

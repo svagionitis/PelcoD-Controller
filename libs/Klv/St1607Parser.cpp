@@ -139,15 +139,25 @@ bool St1607Parser::parseMsid(
         return false;
     }
 
-    std::array<std::uint8_t, 16> uuid { };
+    std::array<std::uint8_t, 16> uuid {};
     std::copy_n(data + oidBytes, 16U, uuid.begin());
     outMsid.universalId = uuid;
     bytesRead = oidBytes + 16U;
     return true;
 }
 
-KlvStatus St1607Parser::parseAmend(const std::uint8_t* data, std::size_t size, AmendLocalSet& outSet) noexcept
+KlvStatus St1607Parser::parseAmend(const std::uint8_t* data, std::size_t size, AmendLocalSet& outSet)
 {
+    return parseAmendInternal(data, size, outSet, 0U);
+}
+
+KlvStatus St1607Parser::parseAmendInternal(
+    const std::uint8_t* data, std::size_t size, AmendLocalSet& outSet, std::size_t depth)
+{
+    if (depth >= kMaxRecursionDepth) {
+        return KlvStatus::TagError;
+    }
+
     if (data == nullptr && size > 0U) {
         return KlvStatus::BufferUnderflow;
     }
@@ -286,15 +296,15 @@ KlvStatus St1607Parser::parseAmend(const std::uint8_t* data, std::size_t size, A
                 outSet.frameCenterElevHaeM = unscaleAlt(readU16(valPtr));
             break;
         case 98U: { // MISB ST 1601 Geo-Registration Local Set
-            GeoRegistrationLocalSet geoReg { };
+            GeoRegistrationLocalSet geoReg {};
             if (GeoRegistrationParser::parse(valPtr, len, geoReg) == KlvStatus::Success) {
                 outSet.geoRegistration = geoReg;
             }
             break;
         }
         case 101U: { // Child Amend Local Set
-            AmendLocalSet childAmend { };
-            if (parseAmend(valPtr, len, childAmend) == KlvStatus::Success) {
+            AmendLocalSet childAmend {};
+            if (parseAmendInternal(valPtr, len, childAmend, depth + 1U) == KlvStatus::Success) {
                 outSet.childAmends.push_back(childAmend);
             }
             break;
@@ -320,8 +330,18 @@ KlvStatus St1607Parser::parseAmend(const std::uint8_t* data, std::size_t size, A
     return KlvStatus::Success;
 }
 
-KlvStatus St1607Parser::parseSegment(const std::uint8_t* data, std::size_t size, SegmentLocalSet& outSet) noexcept
+KlvStatus St1607Parser::parseSegment(const std::uint8_t* data, std::size_t size, SegmentLocalSet& outSet)
 {
+    return parseSegmentInternal(data, size, outSet, 0U);
+}
+
+KlvStatus St1607Parser::parseSegmentInternal(
+    const std::uint8_t* data, std::size_t size, SegmentLocalSet& outSet, std::size_t depth)
+{
+    if (depth >= kMaxRecursionDepth) {
+        return KlvStatus::TagError;
+    }
+
     if (data == nullptr && size > 0U) {
         return KlvStatus::BufferUnderflow;
     }
@@ -440,22 +460,22 @@ KlvStatus St1607Parser::parseSegment(const std::uint8_t* data, std::size_t size,
                 outSet.frameCenterElevHaeM = unscaleAlt(readU16(valPtr));
             break;
         case 94U: {
-            MiisCoreId miis { };
+            MiisCoreId miis {};
             if (miis.decode(valPtr, len) == KlvStatus::Success) {
                 outSet.miisCoreId = miis;
             }
             break;
         }
         case 100U: { // Child Segment Local Set
-            SegmentLocalSet childSeg { };
-            if (parseSegment(valPtr, len, childSeg) == KlvStatus::Success) {
+            SegmentLocalSet childSeg {};
+            if (parseSegmentInternal(valPtr, len, childSeg, depth + 1U) == KlvStatus::Success) {
                 outSet.childSegments.push_back(childSeg);
             }
             break;
         }
         case 101U: { // Child Amend Local Set (ST 1607.2 allows Amend child inside Segment)
-            AmendLocalSet childAmend { };
-            if (parseAmend(valPtr, len, childAmend) == KlvStatus::Success) {
+            AmendLocalSet childAmend {};
+            if (parseAmendInternal(valPtr, len, childAmend, depth + 1U) == KlvStatus::Success) {
                 outSet.childAmends.push_back(childAmend);
             }
             break;
@@ -481,7 +501,7 @@ KlvStatus St1607Parser::parseSegment(const std::uint8_t* data, std::size_t size,
     return KlvStatus::Success;
 }
 
-KlvStatus St1607Parser::parsePacket(const std::uint8_t* data, std::size_t size, AmendLocalSet& outSet) noexcept
+KlvStatus St1607Parser::parsePacket(const std::uint8_t* data, std::size_t size, AmendLocalSet& outSet)
 {
     if (!isAmendLocalSet(data, size)) {
         return KlvStatus::InvalidUniversalLabel;
@@ -503,7 +523,7 @@ KlvStatus St1607Parser::parsePacket(const std::uint8_t* data, std::size_t size, 
     return parseAmend(data + offset, length, outSet);
 }
 
-KlvStatus St1607Parser::parsePacket(const std::uint8_t* data, std::size_t size, SegmentLocalSet& outSet) noexcept
+KlvStatus St1607Parser::parsePacket(const std::uint8_t* data, std::size_t size, SegmentLocalSet& outSet)
 {
     if (!isSegmentLocalSet(data, size)) {
         return KlvStatus::InvalidUniversalLabel;

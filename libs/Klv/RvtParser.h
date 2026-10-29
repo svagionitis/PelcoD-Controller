@@ -30,40 +30,28 @@ public:
     /// @param[in] verifyChecksum When true, validates Tag 1 CRC-32 on standalone packets.
     /// @return KlvStatus code indicating outcome of operation.
     [[nodiscard]] static KlvStatus parse(
-        const std::uint8_t* data,
-        std::size_t size,
-        RvtLocalSet& rvt,
-        bool verifyChecksum = false) noexcept;
+        const std::uint8_t* data, std::size_t size, RvtLocalSet& rvt, bool verifyChecksum = false);
 
     /// @brief Parses an individual Point of Interest (POI) Local Set.
     /// @param[in] data Pointer to POI KLV bytes.
     /// @param[in] size Length of POI bytes.
     /// @param[out] poi Decoded POI pack.
     /// @return True if mandatory tags were parsed successfully; false otherwise.
-    [[nodiscard]] static bool parsePoi(
-        const std::uint8_t* data,
-        std::size_t size,
-        PoiPack& poi) noexcept;
+    [[nodiscard]] static bool parsePoi(const std::uint8_t* data, std::size_t size, PoiPack& poi);
 
     /// @brief Parses an individual Area of Interest (AOI) Local Set.
     /// @param[in] data Pointer to AOI KLV bytes.
     /// @param[in] size Length of AOI bytes.
     /// @param[out] aoi Decoded AOI pack.
     /// @return True if mandatory tags were parsed successfully; false otherwise.
-    [[nodiscard]] static bool parseAoi(
-        const std::uint8_t* data,
-        std::size_t size,
-        AoiPack& aoi) noexcept;
+    [[nodiscard]] static bool parseAoi(const std::uint8_t* data, std::size_t size, AoiPack& aoi);
 
     /// @brief Parses an individual User Defined Data Local Set.
     /// @param[in] data Pointer to User Defined KLV bytes.
     /// @param[in] size Length of User Defined bytes.
     /// @param[out] userDef Decoded User Defined pack.
     /// @return True if mandatory tags were parsed successfully; false otherwise.
-    [[nodiscard]] static bool parseUserDefined(
-        const std::uint8_t* data,
-        std::size_t size,
-        UserDefinedPack& userDef) noexcept;
+    [[nodiscard]] static bool parseUserDefined(const std::uint8_t* data, std::size_t size, UserDefinedPack& userDef);
 
     /// @brief Unscales a 32-bit signed integer to WGS-84 latitude in degrees [-90, +90].
     /// @param[in] rawVal 32-bit signed integer.

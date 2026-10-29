@@ -1,9 +1,14 @@
 #include "KlvGeodesy.h"
+
+#include <cmath>
+#include <limits>
+
 #include <gtest/gtest.h>
 
 using namespace Klv;
 
-TEST(KlvGeodesyTest, DirectGeodeticAndDistance) {
+TEST(KlvGeodesyTest, DirectGeodeticAndDistance)
+{
     const GeoPoint2D equatorOrigin { 0.0, 0.0 };
 
     // Move 10,000 meters Due North (bearing 0)
@@ -22,7 +27,8 @@ TEST(KlvGeodesyTest, DirectGeodeticAndDistance) {
     EXPECT_NEAR(KlvGeodesy::bearingDeg(northPoint, equatorOrigin), 180.0, 1e-3);
 }
 
-TEST(KlvGeodesyTest, SlantRangeCalculations) {
+TEST(KlvGeodesyTest, SlantRangeCalculations)
+{
     // 1000m MSL, nadir (-90 deg), ground at 0m -> 1000m slant range
     const auto nadirRange = KlvGeodesy::computeSlantRange(1000.0, -90.0, 0.0);
     ASSERT_TRUE(nadirRange.has_value());
@@ -38,7 +44,8 @@ TEST(KlvGeodesyTest, SlantRangeCalculations) {
     EXPECT_FALSE(KlvGeodesy::computeSlantRange(1000.0, 10.0, 0.0).has_value());
 }
 
-TEST(KlvGeodesyTest, FrameCenterAndFrustum) {
+TEST(KlvGeodesyTest, FrameCenterAndFrustum)
+{
     const GeoPoint3D platform { 37.7749, -122.4194, 500.0 }; // 500m altitude
 
     // Looking North (heading 0, rel az 0) at 45 deg depression
@@ -49,7 +56,8 @@ TEST(KlvGeodesyTest, FrameCenterAndFrustum) {
     EXPECT_GT(center->latitudeDeg, platform.latitudeDeg);
     EXPECT_NEAR(center->longitudeDeg, platform.longitudeDeg, 1e-4);
 
-    const double distToCenter = KlvGeodesy::distanceMeters(GeoPoint2D { platform.latitudeDeg, platform.longitudeDeg }, *center);
+    const double distToCenter
+        = KlvGeodesy::distanceMeters(GeoPoint2D { platform.latitudeDeg, platform.longitudeDeg }, *center);
     EXPECT_NEAR(distToCenter, 500.0, 1.0);
 
     // Frustum with 30 deg HFOV and 20 deg VFOV
@@ -65,14 +73,15 @@ TEST(KlvGeodesyTest, FrameCenterAndFrustum) {
     EXPECT_GT(frustum->bottomRight.longitudeDeg, frustum->bottomLeft.longitudeDeg);
 }
 
-TEST(KlvGeodesyTest, Attitude3DRotation) {
+TEST(KlvGeodesyTest, Attitude3DRotation)
+{
     const GeoPoint3D platform { 0.0, 0.0, 1000.0 }; // 1000m MSL at Equator
     const GeoPoint2D platform2D { platform.latitudeDeg, platform.longitudeDeg };
 
-    const PlatformAttitude levelAtt { 0.0, 0.0, 0.0 };       // Heading 0, Pitch 0, Roll 0
-    const PlatformAttitude pitchUpAtt { 0.0, 5.0, 0.0 };      // Pitch up +5 deg
-    const CameraOrientation camNominal { 0.0, -30.0, 0.0 };   // Az 0, El -30 deg, Roll 0
-    const CameraOrientation camRolled { 0.0, -30.0, 45.0 };   // Optical roll 45 deg
+    const PlatformAttitude levelAtt { 0.0, 0.0, 0.0 }; // Heading 0, Pitch 0, Roll 0
+    const PlatformAttitude pitchUpAtt { 0.0, 5.0, 0.0 }; // Pitch up +5 deg
+    const CameraOrientation camNominal { 0.0, -30.0, 0.0 }; // Az 0, El -30 deg, Roll 0
+    const CameraOrientation camRolled { 0.0, -30.0, 45.0 }; // Optical roll 45 deg
 
     // Frame center under level flight
     const auto centerLevel = KlvGeodesy::computeFrameCenter(platform, levelAtt, camNominal, 0.0);
@@ -106,7 +115,8 @@ TEST(KlvGeodesyTest, Attitude3DRotation) {
     EXPECT_NE(frustum45->topLeft.longitudeDeg, frustum0->topLeft.longitudeDeg);
 }
 
-TEST(KlvGeodesyTest, HorizonClippingAndDistance) {
+TEST(KlvGeodesyTest, HorizonClippingAndDistance)
+{
     const GeoPoint3D platform { 0.0, 0.0, 1000.0 }; // 1000m MSL
     const GeoPoint2D platform2D { platform.latitudeDeg, platform.longitudeDeg };
 
@@ -140,4 +150,27 @@ TEST(KlvGeodesyTest, HorizonClippingAndDistance) {
     // Top corners should be bounded near horizon distance
     const double distTl = KlvGeodesy::distanceMeters(platform2D, frustum->topLeft);
     EXPECT_NEAR(distTl, hDist, 5.0);
+}
+
+TEST(KlvGeodesyTest, NormalizeLonWithInfAndNan)
+{
+    const double nanVal = std::numeric_limits<double>::quiet_NaN();
+    const double infVal = std::numeric_limits<double>::infinity();
+
+    EXPECT_DOUBLE_EQ(KlvGeodesy::normalizeLon(nanVal), 0.0);
+    EXPECT_DOUBLE_EQ(KlvGeodesy::normalizeLon(infVal), 0.0);
+    EXPECT_DOUBLE_EQ(KlvGeodesy::normalizeLon(-infVal), 0.0);
+    EXPECT_DOUBLE_EQ(KlvGeodesy::normalizeAngle360(nanVal), 0.0);
+    EXPECT_DOUBLE_EQ(KlvGeodesy::normalizeAngle360(infVal), 0.0);
+    EXPECT_DOUBLE_EQ(KlvGeodesy::normalizeAngle360(-infVal), 0.0);
+}
+
+TEST(KlvGeodesyTest, NormalizeLonWithLargeNumbers)
+{
+    EXPECT_NEAR(KlvGeodesy::normalizeLon(720.0), 0.0, 1e-6);
+    EXPECT_NEAR(KlvGeodesy::normalizeLon(-720.0), 0.0, 1e-6);
+    EXPECT_NEAR(KlvGeodesy::normalizeLon(190.0), -170.0, 1e-6);
+    EXPECT_NEAR(KlvGeodesy::normalizeLon(-190.0), 170.0, 1e-6);
+    EXPECT_NEAR(KlvGeodesy::normalizeAngle360(725.0), 5.0, 1e-6);
+    EXPECT_NEAR(KlvGeodesy::normalizeAngle360(-30.0), 330.0, 1e-6);
 }

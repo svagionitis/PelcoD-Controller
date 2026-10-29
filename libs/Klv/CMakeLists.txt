@@ -8,6 +8,7 @@ add_library(Klv STATIC
     KlvCrc.cpp
     KlvEncoder.h
     KlvEncoder.cpp
+    KlvScaling.h
     KlvParser.h
     KlvParser.cpp
     VmtiEncoder.h

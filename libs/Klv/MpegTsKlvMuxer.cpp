@@ -31,7 +31,7 @@ const MpegTsMuxerConfig& MpegTsKlvMuxer::config() const noexcept
 
 void MpegTsKlvMuxer::reset() noexcept
 {
-    m_continuityCounters.clear();
+    m_continuityCounters.fill(PidCcEntry {});
     m_packetCounter = 0U;
     m_lastPcrTimestampUs = 0U;
 }
@@ -46,14 +46,22 @@ std::uint16_t MpegTsKlvMuxer::effectivePcrPid() const noexcept
 
 std::uint8_t MpegTsKlvMuxer::nextCc(std::uint16_t pid) noexcept
 {
-    auto it = m_continuityCounters.find(pid);
-    if (it == m_continuityCounters.end()) {
-        m_continuityCounters[pid] = 0U;
-        return 0U;
+    for (auto& entry : m_continuityCounters) {
+        if (entry.active && entry.pid == pid) {
+            const std::uint8_t cc = static_cast<std::uint8_t>((entry.cc + 1U) & 0x0FU);
+            entry.cc = cc;
+            return cc;
+        }
     }
-    const std::uint8_t cc = static_cast<std::uint8_t>((it->second + 1U) & 0x0FU);
-    it->second = cc;
-    return cc;
+    for (auto& entry : m_continuityCounters) {
+        if (!entry.active) {
+            entry.active = true;
+            entry.pid = pid;
+            entry.cc = 0U;
+            return 0U;
+        }
+    }
+    return 0U;
 }
 
 void MpegTsKlvMuxer::dispatchPacket(const std::vector<std::uint8_t>& packet)
@@ -235,12 +243,17 @@ std::vector<std::uint8_t> MpegTsKlvMuxer::buildPesPacket(
 std::size_t MpegTsKlvMuxer::emitTsPacket(std::uint16_t pid, bool pusi, const std::uint8_t* payload,
     std::size_t payloadSize, std::optional<std::uint64_t> pcrUs)
 {
+    if (payloadSize > 184U) {
+        payloadSize = 184U;
+    }
+
     std::vector<std::uint8_t> packet(kTsPacketSize, 0xFFU);
     packet[0] = kTsSyncByte;
     packet[1] = static_cast<std::uint8_t>((pusi ? 0x40U : 0x00U) | ((pid >> 8U) & 0x1FU));
     packet[2] = static_cast<std::uint8_t>(pid & 0xFFU);
 
-    const bool hasPcr = pcrUs.has_value();
+    // PCR requires at least 8 bytes of adaptation field (1 byte length + 1 byte flags + 6 bytes PCR)
+    const bool hasPcr = pcrUs.has_value() && (payloadSize <= 176U);
     const bool needsAdaptation = hasPcr || (payloadSize < 184U);
 
     if (!needsAdaptation) {
@@ -348,7 +361,7 @@ std::size_t MpegTsKlvMuxer::muxKlvPacket(
     std::size_t emittedCount = 0U;
 
     // Periodic PAT / PMT emission
-    if (m_packetCounter % m_config.patPmtPeriodPackets == 0U) {
+    if (m_config.patPmtPeriodPackets > 0U && m_packetCounter % m_config.patPmtPeriodPackets == 0U) {
         emittedCount += emitPsiTables();
     }
     m_packetCounter++;
@@ -382,7 +395,7 @@ std::size_t MpegTsKlvMuxer::muxVideoAccessUnit(const VideoAccessUnit& au)
 
     std::size_t emittedCount = 0U;
 
-    if (m_packetCounter % m_config.patPmtPeriodPackets == 0U) {
+    if (m_config.patPmtPeriodPackets > 0U && m_packetCounter % m_config.patPmtPeriodPackets == 0U) {
         emittedCount += emitPsiTables();
     }
     m_packetCounter++;
@@ -411,7 +424,7 @@ std::size_t MpegTsKlvMuxer::muxVideoFrame(const std::uint8_t* data, std::size_t 
 
     std::size_t emittedCount = 0U;
 
-    if (m_packetCounter % m_config.patPmtPeriodPackets == 0U) {
+    if (m_config.patPmtPeriodPackets > 0U && m_packetCounter % m_config.patPmtPeriodPackets == 0U) {
         emittedCount += emitPsiTables();
     }
     m_packetCounter++;

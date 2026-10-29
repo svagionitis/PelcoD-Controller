@@ -31,26 +31,39 @@ namespace {
 
 std::size_t Misb1201::computeLength(double minVal, double maxVal, double precision) noexcept
 {
+    if (!std::isfinite(minVal) || !std::isfinite(maxVal) || !std::isfinite(precision)) {
+        return 0U;
+    }
     if (minVal >= maxVal || precision <= 0.0 || precision >= (maxVal - minVal)) {
         return 0U;
     }
 
     const double span = maxVal - minVal;
+    if (!std::isfinite(span) || span <= 0.0) {
+        return 0U;
+    }
     const double bPow = std::ceil(std::log2(span));
     const double gPow = std::floor(std::log2(precision));
     const double lBits = bPow - gPow + 1.0;
+    if (!std::isfinite(lBits)) {
+        return 0U;
+    }
     const auto lengthBytes = static_cast<std::size_t>(std::ceil(lBits / 8.0));
     return std::clamp(lengthBytes, std::size_t { 1U }, std::size_t { 8U });
 }
 
 Misb1201Params Misb1201::computeParams(double minVal, double maxVal, std::size_t lengthBytes) noexcept
 {
-    if (minVal >= maxVal || lengthBytes == 0U) {
-        return Misb1201Params { };
+    if (!std::isfinite(minVal) || !std::isfinite(maxVal) || minVal >= maxVal || lengthBytes == 0U) {
+        return Misb1201Params {};
+    }
+
+    const double span = maxVal - minVal;
+    if (!std::isfinite(span) || span <= 0.0) {
+        return Misb1201Params {};
     }
 
     const std::size_t clampedLen = std::min(lengthBytes, std::size_t { 8U });
-    const double span = maxVal - minVal;
     const double bPow = std::ceil(std::log2(span));
     const double dPow = static_cast<double>(8U * clampedLen - 1U);
     const double sF = std::exp2(dPow - bPow);

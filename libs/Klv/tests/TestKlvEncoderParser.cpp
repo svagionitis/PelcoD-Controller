@@ -1,5 +1,7 @@
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 #include <vector>
 
@@ -278,4 +280,50 @@ TEST(KlvEncoderParserTest, Misb0601MandatoryTagsEnforced)
     EXPECT_TRUE(parsed.security.has_value());
     EXPECT_TRUE(parsed.uasLsVersion.has_value());
     EXPECT_EQ(*parsed.uasLsVersion, 16U);
+}
+
+TEST(KlvEncoderParserTest, RejectNanAndInfTelemetryValues)
+{
+    UasDatalinkMessage msg;
+    const double nanVal = std::numeric_limits<double>::quiet_NaN();
+    const double infVal = std::numeric_limits<double>::infinity();
+
+    msg.platformHeadingDeg = nanVal;
+    msg.platformPitchDeg = infVal;
+    msg.platformRollDeg = -infVal;
+    msg.sensorLatitudeDeg = nanVal;
+    msg.sensorLongitudeDeg = infVal;
+    msg.sensorTrueAltitudeM = nanVal;
+
+    // Encoding should not crash or produce invalid memory
+    const auto packet = KlvEncoder::encode(msg);
+    EXPECT_GT(packet.size(), 0U);
+
+    UasDatalinkMessage parsed;
+    const KlvStatus status = KlvParser::parse(packet.data(), packet.size(), parsed, true);
+    ASSERT_EQ(status, KlvStatus::Success);
+
+    EXPECT_TRUE(std::isfinite(*parsed.platformHeadingDeg));
+    EXPECT_TRUE(std::isfinite(*parsed.platformPitchDeg));
+    EXPECT_TRUE(std::isfinite(*parsed.platformRollDeg));
+    EXPECT_TRUE(std::isfinite(*parsed.sensorLatitudeDeg));
+    EXPECT_TRUE(std::isfinite(*parsed.sensorLongitudeDeg));
+    EXPECT_TRUE(std::isfinite(*parsed.sensorTrueAltitudeM));
+}
+
+TEST(KlvEncoderParserTest, HeadingWrapNearZeroBoundary)
+{
+    UasDatalinkMessage msg;
+    msg.platformHeadingDeg = 360.0;
+    const auto packet1 = KlvEncoder::encode(msg);
+    UasDatalinkMessage parsed1;
+    ASSERT_EQ(KlvParser::parse(packet1.data(), packet1.size(), parsed1, true), KlvStatus::Success);
+    EXPECT_NEAR(*parsed1.platformHeadingDeg, 0.0, 0.1);
+
+    msg.platformHeadingDeg = 359.99999;
+    const auto packet2 = KlvEncoder::encode(msg);
+    UasDatalinkMessage parsed2;
+    ASSERT_EQ(KlvParser::parse(packet2.data(), packet2.size(), parsed2, true), KlvStatus::Success);
+    EXPECT_GE(*parsed2.platformHeadingDeg, 0.0);
+    EXPECT_LE(*parsed2.platformHeadingDeg, 360.0);
 }

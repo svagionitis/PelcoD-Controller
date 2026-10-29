@@ -1,5 +1,9 @@
 #include "TelemetryInterpolator.h"
+
+#include <cmath>
 #include <cstdint>
+#include <limits>
+
 #include <gtest/gtest.h>
 
 namespace Klv {
@@ -39,7 +43,7 @@ namespace {
 
     TEST(TestTelemetryInterpolator, FullMessageInterpolation)
     {
-        UasDatalinkMessage m1 { };
+        UasDatalinkMessage m1 {};
         m1.precisionTimeStampUs = 1000000ULL;
         m1.platformHeadingDeg = 350.0;
         m1.platformPitchDeg = -5.0;
@@ -50,7 +54,7 @@ namespace {
         m1.sensorHfovDeg = 30.0;
         m1.missionId = "MISSION_ALPHA";
 
-        UasDatalinkMessage m2 { };
+        UasDatalinkMessage m2 {};
         m2.precisionTimeStampUs = 2000000ULL;
         m2.platformHeadingDeg = 10.0;
         m2.platformPitchDeg = 5.0;
@@ -97,6 +101,30 @@ namespace {
 
         auto atEnd = TelemetryInterpolator::interpolate(m1, pts1, m2, pts2, pts2);
         EXPECT_EQ(atEnd.missionId, "MISSION_BRAVO");
+    }
+
+    TEST(TestTelemetryInterpolator, InterpolateLongitudeWithInfAndNan)
+    {
+        const double nanVal = std::numeric_limits<double>::quiet_NaN();
+        const double infVal = std::numeric_limits<double>::infinity();
+
+        EXPECT_DOUBLE_EQ(TelemetryInterpolator::interpolateLongitude(nanVal, 10.0, 0.5), 0.0);
+        EXPECT_DOUBLE_EQ(TelemetryInterpolator::interpolateLongitude(10.0, nanVal, 0.5), 0.0);
+        EXPECT_DOUBLE_EQ(TelemetryInterpolator::interpolateLongitude(10.0, 20.0, nanVal), 0.0);
+        EXPECT_DOUBLE_EQ(TelemetryInterpolator::interpolateLongitude(infVal, 10.0, 0.5), 0.0);
+        EXPECT_DOUBLE_EQ(TelemetryInterpolator::interpolateLongitude(10.0, -infVal, 0.5), 0.0);
+
+        EXPECT_DOUBLE_EQ(TelemetryInterpolator::interpolateAngle(nanVal, 10.0, 0.5), 0.0);
+        EXPECT_DOUBLE_EQ(TelemetryInterpolator::interpolateAngle(10.0, nanVal, 0.5), 0.0);
+        EXPECT_DOUBLE_EQ(TelemetryInterpolator::interpolateAngle(10.0, 20.0, infVal), 0.0);
+    }
+
+    TEST(TestTelemetryInterpolator, InterpolateAngleExtremeValues)
+    {
+        EXPECT_NEAR(TelemetryInterpolator::interpolateAngle(0.0, 360.0, 0.5), 0.0, 1e-6);
+        EXPECT_NEAR(TelemetryInterpolator::interpolateAngle(359.9, 0.1, 0.5), 0.0, 1e-4);
+        EXPECT_NEAR(TelemetryInterpolator::interpolateLongitude(179.9, -179.9, 0.5), 180.0, 1e-4);
+        EXPECT_NEAR(TelemetryInterpolator::interpolateLongitude(-179.9, 179.9, 0.5), -180.0, 1e-4);
     }
 
 } // namespace

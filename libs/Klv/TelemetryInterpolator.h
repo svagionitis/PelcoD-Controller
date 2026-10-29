@@ -22,29 +22,22 @@ public:
     /// @param[in] pts2 Timestamp of m2 in 90 kHz ticks.
     /// @param[in] targetPts Target timestamp.
     /// @return Interpolated UasDatalinkMessage with updated timestamp.
-    [[nodiscard]] static UasDatalinkMessage interpolate(const UasDatalinkMessage& m1,
-                                                       std::uint64_t pts1,
-                                                       const UasDatalinkMessage& m2,
-                                                       std::uint64_t pts2,
-                                                       std::uint64_t targetPts) noexcept;
+    [[nodiscard]] static UasDatalinkMessage interpolate(const UasDatalinkMessage& m1, std::uint64_t pts1,
+        const UasDatalinkMessage& m2, std::uint64_t pts2, std::uint64_t targetPts);
 
     /// @brief Interpolates spherical angles [0, 360) with shortest-arc wrapping.
     /// @param[in] angle1Deg Start angle in degrees.
     /// @param[in] angle2Deg End angle in degrees.
     /// @param[in] factor Normalized factor [0.0, 1.0].
     /// @return Interpolated angle in degrees [0, 360).
-    [[nodiscard]] static double interpolateAngle(double angle1Deg,
-                                                 double angle2Deg,
-                                                 double factor) noexcept;
+    [[nodiscard]] static double interpolateAngle(double angle1Deg, double angle2Deg, double factor) noexcept;
 
     /// @brief Interpolates longitude coordinates [-180, +180] with anti-meridian wrapping.
     /// @param[in] lon1Deg Start longitude in degrees.
     /// @param[in] lon2Deg End longitude in degrees.
     /// @param[in] factor Normalized factor [0.0, 1.0].
     /// @return Interpolated longitude in degrees [-180, +180].
-    [[nodiscard]] static double interpolateLongitude(double lon1Deg,
-                                                    double lon2Deg,
-                                                    double factor) noexcept;
+    [[nodiscard]] static double interpolateLongitude(double lon1Deg, double lon2Deg, double factor) noexcept;
 
     /// @brief Performs linear interpolation of double scalar value.
     /// @param[in] v1 Start value.

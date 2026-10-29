@@ -1,16 +1,18 @@
+#include <cmath>
+#include <cstddef>
 #include <cstdint>
+
+#include <array>
+#include <string>
+#include <vector>
+
 #include <gtest/gtest.h>
 
 #include "GeoRegistrationEncoder.h"
 #include "GeoRegistrationParser.h"
 #include "GeoRegistrationTypes.h"
+#include "KlvBer.h"
 #include "MdArray.h"
-
-#include <cmath>
-
-#include <array>
-#include <string>
-#include <vector>
 
 using namespace Klv;
 
@@ -30,11 +32,11 @@ TEST(TestGeoRegistration, MdArrayUInt2DNaturalFormat)
     const std::vector<std::vector<std::uint32_t>> original
         = { { 133U, 128U, 97U, 69U }, { 31U, 91U, 122U, 129U }, { 89U, 82U, 52U, 27U }, { 125U, 176U, 204U, 210U } };
 
-    std::vector<std::uint8_t> encoded { };
+    std::vector<std::uint8_t> encoded {};
     ASSERT_TRUE(MdArray::encodeUInt2D(original, 2U, encoded));
     EXPECT_FALSE(encoded.empty());
 
-    std::vector<std::vector<std::uint32_t>> decoded { };
+    std::vector<std::vector<std::uint32_t>> decoded {};
     ASSERT_TRUE(MdArray::decodeUInt2D(encoded.data(), encoded.size(), decoded));
 
     ASSERT_EQ(decoded.size(), original.size());
@@ -51,10 +53,10 @@ TEST(TestGeoRegistration, MdArrayFloat2DST1201)
     const std::vector<std::vector<double>> original
         = { { 32.98416, 32.98417, 32.98418, 32.98419 }, { 48.08388, 48.08389, 48.08390, 48.08391 } };
 
-    std::vector<std::uint8_t> encoded { };
+    std::vector<std::uint8_t> encoded {};
     ASSERT_TRUE(MdArray::encodeFloat2D(original, -180.0, 180.0, 4U, encoded));
 
-    std::vector<std::vector<double>> decoded { };
+    std::vector<std::vector<double>> decoded {};
     ASSERT_TRUE(MdArray::decodeFloat2D(encoded.data(), encoded.size(), decoded));
 
     ASSERT_EQ(decoded.size(), 2U);
@@ -72,10 +74,10 @@ TEST(TestGeoRegistration, MdArrayFloat1DST1201)
 {
     const std::vector<double> original = { 1500.0, 1501.0, 1500.0, 1499.0 };
 
-    std::vector<std::uint8_t> encoded { };
+    std::vector<std::uint8_t> encoded {};
     ASSERT_TRUE(MdArray::encodeFloat1D(original, 0.0, 3000.0, 4U, encoded));
 
-    std::vector<double> decoded { };
+    std::vector<double> decoded {};
     ASSERT_TRUE(MdArray::decodeFloat1D(encoded.data(), encoded.size(), decoded));
 
     ASSERT_EQ(decoded.size(), original.size());
@@ -86,17 +88,17 @@ TEST(TestGeoRegistration, MdArrayFloat1DST1201)
 
 TEST(TestGeoRegistration, MandatoryTagsOnly)
 {
-    GeoRegistrationLocalSet setIn { };
+    GeoRegistrationLocalSet setIn {};
     setIn.documentVersion = 2U;
     setIn.algorithmName = "SURF-Homography";
     setIn.algorithmVersion = "1.4.2";
 
     EXPECT_TRUE(setIn.validate());
 
-    std::vector<std::uint8_t> payload { };
+    std::vector<std::uint8_t> payload {};
     ASSERT_EQ(GeoRegistrationEncoder::encode(setIn, payload), KlvStatus::Success);
 
-    GeoRegistrationLocalSet setOut { };
+    GeoRegistrationLocalSet setOut {};
     ASSERT_EQ(GeoRegistrationParser::parse(payload.data(), payload.size(), setOut), KlvStatus::Success);
 
     EXPECT_EQ(setOut.documentVersion, 2U);
@@ -109,7 +111,7 @@ TEST(TestGeoRegistration, MandatoryTagsOnly)
 TEST(TestGeoRegistration, TwoImageTiePoints)
 {
     // ST 1601.2 Table 2: 4 tie points between Image 1 and Image 2
-    GeoRegistrationLocalSet setIn { };
+    GeoRegistrationLocalSet setIn {};
     setIn.documentVersion = 2U;
     setIn.algorithmName = "SIFT-RANSAC";
     setIn.algorithmVersion = "2.0";
@@ -121,7 +123,7 @@ TEST(TestGeoRegistration, TwoImageTiePoints)
     const std::vector<std::uint32_t> img2Cols = { 125U, 176U, 204U, 210U };
 
     for (std::size_t i = 0U; i < 4U; ++i) {
-        TiePointPixel pt { };
+        TiePointPixel pt {};
         pt.row1 = img1Rows[i];
         pt.col1 = img1Cols[i];
         pt.row2 = img2Rows[i];
@@ -132,10 +134,10 @@ TEST(TestGeoRegistration, TwoImageTiePoints)
     EXPECT_TRUE(setIn.validate());
     EXPECT_EQ(setIn.tiePointCount(), 4U);
 
-    std::vector<std::uint8_t> packet { };
+    std::vector<std::uint8_t> packet {};
     ASSERT_EQ(GeoRegistrationEncoder::encodePacket(setIn, packet), KlvStatus::Success);
 
-    GeoRegistrationLocalSet setOut { };
+    GeoRegistrationLocalSet setOut {};
     ASSERT_EQ(GeoRegistrationParser::parsePacket(packet.data(), packet.size(), setOut), KlvStatus::Success);
 
     EXPECT_EQ(setOut.documentVersion, 2U);
@@ -158,7 +160,7 @@ TEST(TestGeoRegistration, TwoImageTiePoints)
 TEST(TestGeoRegistration, OneImageWithGeoPointsAndElevation)
 {
     // ST 1601.2 Table 3: One image with 4 ground geographic tie points
-    GeoRegistrationLocalSet setIn { };
+    GeoRegistrationLocalSet setIn {};
     setIn.documentVersion = 2U;
     setIn.algorithmName = "DEM-Correlator";
     setIn.algorithmVersion = "3.1";
@@ -170,12 +172,12 @@ TEST(TestGeoRegistration, OneImageWithGeoPointsAndElevation)
     const std::vector<double> haes = { 1500.0, 1501.0, 1500.0, 1499.0 };
 
     for (std::size_t i = 0U; i < 4U; ++i) {
-        TiePointPixel pix { };
+        TiePointPixel pix {};
         pix.row1 = rows[i];
         pix.col1 = cols[i];
         setIn.pixelPoints.push_back(pix);
 
-        TiePointGeo geo { };
+        TiePointGeo geo {};
         geo.lat = lats[i];
         geo.lon = lons[i];
         geo.elevation = haes[i];
@@ -185,10 +187,10 @@ TEST(TestGeoRegistration, OneImageWithGeoPointsAndElevation)
     EXPECT_TRUE(setIn.validate());
     EXPECT_EQ(setIn.tiePointCount(), 4U);
 
-    std::vector<std::uint8_t> payload { };
+    std::vector<std::uint8_t> payload {};
     ASSERT_EQ(GeoRegistrationEncoder::encode(setIn, payload), KlvStatus::Success);
 
-    GeoRegistrationLocalSet setOut { };
+    GeoRegistrationLocalSet setOut {};
     ASSERT_EQ(GeoRegistrationParser::parse(payload.data(), payload.size(), setOut), KlvStatus::Success);
 
     ASSERT_EQ(setOut.pixelPoints.size(), 4U);
@@ -208,7 +210,7 @@ TEST(TestGeoRegistration, OneImageWithGeoPointsAndElevation)
 
 TEST(TestGeoRegistration, FullSetWithCovariancesAndUuid)
 {
-    GeoRegistrationLocalSet setIn { };
+    GeoRegistrationLocalSet setIn {};
     setIn.documentVersion = 2U;
     setIn.algorithmName = "Combined-Bundle-Adjustment";
     setIn.algorithmVersion = "4.0.0";
@@ -218,20 +220,20 @@ TEST(TestGeoRegistration, FullSetWithCovariancesAndUuid)
 
     // 2 tie points
     for (std::size_t i = 0U; i < 2U; ++i) {
-        TiePointPixel pix { };
+        TiePointPixel pix {};
         pix.row1 = 100U + static_cast<std::uint32_t>(i * 50U);
         pix.col1 = 200U + static_cast<std::uint32_t>(i * 50U);
         pix.row2 = 110U + static_cast<std::uint32_t>(i * 50U);
         pix.col2 = 210U + static_cast<std::uint32_t>(i * 50U);
         setIn.pixelPoints.push_back(pix);
 
-        TiePointGeo geo { };
+        TiePointGeo geo {};
         geo.lat = 35.0 + static_cast<double>(i) * 0.1;
         geo.lon = -115.0 + static_cast<double>(i) * 0.1;
         geo.elevation = 800.0 + static_cast<double>(i) * 10.0;
         setIn.geoPoints.push_back(geo);
 
-        TiePointPixelCovariance pixCov { };
+        TiePointPixelCovariance pixCov {};
         pixCov.sigmaRow1 = 1.5;
         pixCov.sigmaCol1 = 1.2;
         pixCov.rho1 = 0.45;
@@ -240,7 +242,7 @@ TEST(TestGeoRegistration, FullSetWithCovariancesAndUuid)
         pixCov.rho2 = 0.35;
         setIn.pixelCovariances.push_back(pixCov);
 
-        TiePointGeoCovariance geoCov { };
+        TiePointGeoCovariance geoCov {};
         geoCov.sigmaLat = 15.0;
         geoCov.sigmaLon = 12.0;
         geoCov.rhoLatLon = 0.10;
@@ -252,10 +254,10 @@ TEST(TestGeoRegistration, FullSetWithCovariancesAndUuid)
 
     EXPECT_TRUE(setIn.validate());
 
-    std::vector<std::uint8_t> packet { };
+    std::vector<std::uint8_t> packet {};
     ASSERT_EQ(GeoRegistrationEncoder::encodePacket(setIn, packet), KlvStatus::Success);
 
-    GeoRegistrationLocalSet setOut { };
+    GeoRegistrationLocalSet setOut {};
     ASSERT_EQ(GeoRegistrationParser::parsePacket(packet.data(), packet.size(), setOut), KlvStatus::Success);
 
     EXPECT_EQ(setOut.documentVersion, 2U);
@@ -289,25 +291,25 @@ TEST(TestGeoRegistration, FullSetWithCovariancesAndUuid)
 TEST(TestGeoRegistration, St1601Rule03ParityValidation)
 {
     // ST 1601.1-03: All included array items shall use the same number of tie points
-    GeoRegistrationLocalSet set { };
+    GeoRegistrationLocalSet set {};
     set.documentVersion = 2U;
     set.algorithmName = "Test";
     set.algorithmVersion = "1.0";
 
-    TiePointPixel pix { };
+    TiePointPixel pix {};
     pix.row1 = 10U;
     pix.col1 = 20U;
     set.pixelPoints.push_back(pix);
     set.pixelPoints.push_back(pix); // 2 points
 
-    TiePointGeo geo { };
+    TiePointGeo geo {};
     geo.lat = 30.0;
     geo.lon = 40.0;
     set.geoPoints.push_back(geo); // 1 point -> Mismatch!
 
     EXPECT_FALSE(set.validate());
 
-    std::vector<std::uint8_t> out { };
+    std::vector<std::uint8_t> out {};
     EXPECT_EQ(GeoRegistrationEncoder::encode(set, out), KlvStatus::TagError);
 
     // Fix parity: add second geo point
@@ -318,7 +320,7 @@ TEST(TestGeoRegistration, St1601Rule03ParityValidation)
 
 TEST(TestGeoRegistration, MalformedPackets)
 {
-    GeoRegistrationLocalSet outSet { };
+    GeoRegistrationLocalSet outSet {};
 
     // Null or empty
     EXPECT_EQ(GeoRegistrationParser::parse(nullptr, 0U, outSet), KlvStatus::BufferUnderflow);
@@ -336,4 +338,36 @@ TEST(TestGeoRegistration, MalformedPackets)
     };
     EXPECT_EQ(GeoRegistrationParser::parsePacket(truncatedPayload.data(), truncatedPayload.size(), outSet),
         KlvStatus::MalformedBerLength);
+}
+
+TEST(TestGeoRegistration, DecodeUInt2DAdversarialHugeDimensions)
+{
+    std::vector<std::uint8_t> malicious;
+    KlvBer::encodeTag(2U, malicious); // ndim = 2
+    KlvBer::encodeTag(1000000U, malicious); // dim1 = 1,000,000 rows
+    KlvBer::encodeTag(1000000U, malicious); // dim2 = 1,000,000 cols
+    KlvBer::encodeTag(4U, malicious); // ebytes = 4
+    KlvBer::encodeTag(static_cast<std::uint32_t>(MdArrayApa::NaturalFormat), malicious);
+    malicious.push_back(0x01U);
+    malicious.push_back(0x02U);
+    malicious.push_back(0x03U);
+    malicious.push_back(0x04U);
+
+    std::vector<std::vector<std::uint32_t>> outMatrix;
+    EXPECT_FALSE(MdArray::decodeUInt2D(malicious.data(), malicious.size(), outMatrix));
+    EXPECT_TRUE(outMatrix.empty());
+}
+
+TEST(TestGeoRegistration, DecodeUInt1DAdversarialDimensions)
+{
+    std::vector<std::uint8_t> malicious;
+    KlvBer::encodeTag(1U, malicious); // ndim = 1
+    KlvBer::encodeTag(0xFFFFFFFFU, malicious); // len = 4 billion
+    KlvBer::encodeTag(4U, malicious); // ebytes = 4
+    KlvBer::encodeTag(static_cast<std::uint32_t>(MdArrayApa::NaturalFormat), malicious);
+    malicious.push_back(0x01U);
+
+    std::vector<std::uint32_t> outVec;
+    EXPECT_FALSE(MdArray::decodeUInt1D(malicious.data(), malicious.size(), outVec));
+    EXPECT_TRUE(outVec.empty());
 }

@@ -30,10 +30,7 @@ public:
     /// @param[in] verifyChecksum When true, validates Tag 1 CRC checksum on standalone packets.
     /// @return KlvStatus code indicating outcome of operation.
     [[nodiscard]] static KlvStatus parse(
-        const std::uint8_t* data,
-        std::size_t size,
-        VmtiLocalSet& vmti,
-        bool verifyChecksum = false) noexcept;
+        const std::uint8_t* data, std::size_t size, VmtiLocalSet& vmti, bool verifyChecksum = false);
 
     /// @brief Unscales an IMAPB(-19.2, 19.2, 3) 24-bit unsigned integer to degrees.
     /// @param[in] rawVal 24-bit unsigned integer value.
@@ -52,12 +49,8 @@ public:
     /// @param[in] frameWidth Video frame width for pixel conversions.
     /// @param[in] frameHeight Video frame height for pixel conversions.
     /// @return True if parsing succeeded; false otherwise.
-    [[nodiscard]] static bool parseTarget(
-        const std::uint8_t* data,
-        std::size_t size,
-        VTargetPack& target,
-        std::uint32_t frameWidth,
-        std::uint32_t frameHeight) noexcept;
+    [[nodiscard]] static bool parseTarget(const std::uint8_t* data, std::size_t size, VTargetPack& target,
+        std::uint32_t frameWidth, std::uint32_t frameHeight);
 
     /// @brief Parses a Tag 101 VTargetSeries into target packs.
     /// @param[in] data Pointer to series value bytes.
@@ -66,12 +59,8 @@ public:
     /// @param[in] frameWidth Video frame width.
     /// @param[in] frameHeight Video frame height.
     /// @return True if parsing succeeded; false otherwise.
-    [[nodiscard]] static bool parseSeries(
-        const std::uint8_t* data,
-        std::size_t size,
-        std::vector<VTargetPack>& targets,
-        std::uint32_t frameWidth,
-        std::uint32_t frameHeight) noexcept;
+    [[nodiscard]] static bool parseSeries(const std::uint8_t* data, std::size_t size, std::vector<VTargetPack>& targets,
+        std::uint32_t frameWidth, std::uint32_t frameHeight);
 };
 
 } // namespace Klv

@@ -33,46 +33,45 @@ public:
     /// @param[out] outMsid Decoded MetadataSubstreamId.
     /// @param[out] bytesRead Number of bytes consumed.
     /// @return True on success, false on malformed data.
-    [[nodiscard]] static bool parseMsid(const std::uint8_t* data,
-                                        std::size_t size,
-                                        MetadataSubstreamId& outMsid,
-                                        std::size_t& bytesRead) noexcept;
+    [[nodiscard]] static bool parseMsid(
+        const std::uint8_t* data, std::size_t size, MetadataSubstreamId& outMsid, std::size_t& bytesRead) noexcept;
 
     /// @brief Parses an embedded Amend Local Set (Tag 101 payload).
     /// @param[in] data Pointer to TLV payload.
     /// @param[in] size Payload length in bytes.
     /// @param[out] outSet Decoded AmendLocalSet structure.
     /// @return KlvStatus code indicating outcome of operation.
-    [[nodiscard]] static KlvStatus parseAmend(const std::uint8_t* data,
-                                             std::size_t size,
-                                             AmendLocalSet& outSet) noexcept;
+    [[nodiscard]] static KlvStatus parseAmend(const std::uint8_t* data, std::size_t size, AmendLocalSet& outSet);
 
     /// @brief Parses an embedded Segment Local Set (Tag 100 payload).
     /// @param[in] data Pointer to TLV payload.
     /// @param[in] size Payload length in bytes.
     /// @param[out] outSet Decoded SegmentLocalSet structure.
     /// @return KlvStatus code indicating outcome of operation.
-    [[nodiscard]] static KlvStatus parseSegment(const std::uint8_t* data,
-                                               std::size_t size,
-                                               SegmentLocalSet& outSet) noexcept;
+    [[nodiscard]] static KlvStatus parseSegment(const std::uint8_t* data, std::size_t size, SegmentLocalSet& outSet);
 
     /// @brief Parses a standalone Amend Local Set packet (with 16-byte UL and length).
     /// @param[in] data Pointer to raw KLV packet buffer.
     /// @param[in] size Available buffer size in bytes.
     /// @param[out] outSet Decoded AmendLocalSet structure.
     /// @return KlvStatus code indicating outcome of operation.
-    [[nodiscard]] static KlvStatus parsePacket(const std::uint8_t* data,
-                                               std::size_t size,
-                                               AmendLocalSet& outSet) noexcept;
+    [[nodiscard]] static KlvStatus parsePacket(const std::uint8_t* data, std::size_t size, AmendLocalSet& outSet);
 
     /// @brief Parses a standalone Segment Local Set packet (with 16-byte UL and length).
     /// @param[in] data Pointer to raw KLV packet buffer.
     /// @param[in] size Available buffer size in bytes.
     /// @param[out] outSet Decoded SegmentLocalSet structure.
     /// @return KlvStatus code indicating outcome of operation.
-    [[nodiscard]] static KlvStatus parsePacket(const std::uint8_t* data,
-                                               std::size_t size,
-                                               SegmentLocalSet& outSet) noexcept;
+    [[nodiscard]] static KlvStatus parsePacket(const std::uint8_t* data, std::size_t size, SegmentLocalSet& outSet);
+
+private:
+    static constexpr std::size_t kMaxRecursionDepth { 8U };
+
+    [[nodiscard]] static KlvStatus parseAmendInternal(
+        const std::uint8_t* data, std::size_t size, AmendLocalSet& outSet, std::size_t depth);
+
+    [[nodiscard]] static KlvStatus parseSegmentInternal(
+        const std::uint8_t* data, std::size_t size, SegmentLocalSet& outSet, std::size_t depth);
 };
 
 } // namespace Klv

@@ -193,6 +193,11 @@ std::size_t MpegTsKlvExtractor::processTsPacket(const std::uint8_t* packet)
         }
     }
 
+    if (m_pesReassemblyBuffer.size() + payloadSize > kMaxPesBufferSize) {
+        m_pesReassemblyBuffer.clear();
+        return 0U;
+    }
+
     m_pesReassemblyBuffer.insert(m_pesReassemblyBuffer.end(), payload, payload + payloadSize);
 
     // Immediate complete PES / KLV packet extraction loop

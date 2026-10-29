@@ -227,3 +227,69 @@ TEST(TestPtsSyncManager, MuxerBindingRoundTrip)
     EXPECT_TRUE(foundVideo);
     EXPECT_TRUE(foundMeta);
 }
+
+TEST(TestPtsSyncManager, ReentrantCallbackDoesNotDeadlock)
+{
+    PtsSyncConfig config;
+    PtsSyncManager manager(config);
+
+    bool callbackInvoked = false;
+    manager.setSyncCallback([&](const SynchronizedAccessUnit& /*item*/) {
+        callbackInvoked = true;
+        // Re-entrant call to manager inside callback: should not deadlock
+        const auto s = manager.stats();
+        EXPECT_GE(s.totalFrames, 0U);
+    });
+
+    UasDatalinkMessage msg;
+    msg.precisionTimeStampUs = 1000000ULL;
+    manager.pushTelemetryMessage(msg);
+
+    const std::vector<std::uint8_t> frameData = { 0x00U, 0x00U, 0x00U, 0x01U, 0x41U };
+    manager.pushVideoFrame(frameData.data(), frameData.size(), 1000000ULL);
+    manager.flush();
+
+    EXPECT_TRUE(callbackInvoked);
+}
+
+TEST(TestPtsSyncManager, StrictClampUnderflowNearZeroPts)
+{
+    PtsSyncConfig config;
+    config.syncPolicy = PtsSyncPolicy::StrictClamp;
+    config.maxSyncDeltaMs = 50U;
+    config.preserveSensorTimestamp = false;
+    PtsSyncManager manager(config);
+
+    std::vector<SynchronizedAccessUnit> outputs;
+    manager.setSyncCallback([&outputs](const SynchronizedAccessUnit& item) { outputs.push_back(item); });
+
+    UasDatalinkMessage msg;
+    msg.precisionTimeStampUs = 100000ULL;
+    manager.pushTelemetryMessage(msg);
+
+    const std::vector<std::uint8_t> frameData = { 0x00U, 0x00U, 0x00U, 0x01U, 0x41U };
+    manager.pushVideoFrame(frameData.data(), frameData.size(), 5ULL);
+    manager.flush();
+
+    ASSERT_EQ(outputs.size(), 1U);
+    EXPECT_TRUE(outputs[0].wasClamped);
+    ASSERT_TRUE(outputs[0].metadataMessage.has_value());
+    EXPECT_LE(outputs[0].metadataMessage->precisionTimeStampUs.value_or(0ULL), 5ULL + 50000ULL);
+}
+
+TEST(TestPtsSyncManager, QueueCapacityEnforcement)
+{
+    PtsSyncConfig config;
+    config.maxQueueDepth = 10U;
+    PtsSyncManager manager(config);
+
+    UasDatalinkMessage msg;
+    for (std::size_t i = 0U; i < 50U; ++i) {
+        msg.precisionTimeStampUs = 1000000ULL + i * 33333ULL;
+        manager.pushTelemetryMessage(msg);
+    }
+
+    const auto s = manager.stats();
+    EXPECT_GT(s.droppedPackets, 0U);
+    EXPECT_EQ(s.droppedPackets, 40U);
+}

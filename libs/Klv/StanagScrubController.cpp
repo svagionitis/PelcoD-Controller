@@ -13,7 +13,7 @@ namespace Klv {
 
 StanagScrubController::StanagScrubController() = default;
 
-void StanagScrubController::attachDecoder(Video::IVideoDecoder* decoder) noexcept
+void StanagScrubController::attachDecoder(Video::IVideoDecoder* decoder)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_decoder = decoder;
@@ -33,8 +33,9 @@ void StanagScrubController::setTimeIndex(TelemetryTimeIndex index)
     m_stats.indexDurationSec = m_timeIndex.durationSeconds();
 }
 
-const TelemetryTimeIndex& StanagScrubController::timeIndex() const noexcept
+TelemetryTimeIndex StanagScrubController::timeIndex() const
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     return m_timeIndex;
 }
 
@@ -44,31 +45,31 @@ void StanagScrubController::setScrubCallback(ScrubFrameCallback callback)
     m_callback = std::move(callback);
 }
 
-void StanagScrubController::setSeekMode(ScrubSeekMode mode) noexcept
+void StanagScrubController::setSeekMode(ScrubSeekMode mode)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_seekMode = mode;
 }
 
-ScrubSeekMode StanagScrubController::seekMode() const noexcept
+ScrubSeekMode StanagScrubController::seekMode() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_seekMode;
 }
 
-void StanagScrubController::setInterpolate(bool enable) noexcept
+void StanagScrubController::setInterpolate(bool enable)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_interpolateTelemetry = enable;
 }
 
-bool StanagScrubController::isInterpolateEnabled() const noexcept
+bool StanagScrubController::isInterpolateEnabled() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_interpolateTelemetry;
 }
 
-void StanagScrubController::setSyncTolerance(std::uint32_t toleranceMs) noexcept
+void StanagScrubController::setSyncTolerance(std::uint32_t toleranceMs)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_syncToleranceMs = toleranceMs;
@@ -178,25 +179,27 @@ bool StanagScrubController::executeSeekLocked(std::uint64_t targetPts)
         KlvIndexEntry before {};
         KlvIndexEntry after {};
         if (m_timeIndex.findTelemetryBounds(framePts, before, after)) {
-            const std::uint64_t gapTicks = (after.ptsTicks >= before.ptsTicks)
-                ? (after.ptsTicks - before.ptsTicks) : 0U;
+            const std::uint64_t gapTicks
+                = (after.ptsTicks >= before.ptsTicks) ? (after.ptsTicks - before.ptsTicks) : 0U;
             const std::uint64_t gapMs = (gapTicks * 1000ULL) / 90000ULL;
 
             if (before.message && after.message && before.ptsTicks < after.ptsTicks && gapMs <= 1000ULL) {
-                telemetry = TelemetryInterpolator::interpolate(*before.message, before.ptsTicks,
-                                                               *after.message, after.ptsTicks, framePts);
+                telemetry = TelemetryInterpolator::interpolate(
+                    *before.message, before.ptsTicks, *after.message, after.ptsTicks, framePts);
                 skewUs = 0LL;
                 isInterpolated = true;
                 ++m_stats.cacheHitCount;
             } else if (before.message) {
                 telemetry = *before.message;
-                const std::int64_t diff = static_cast<std::int64_t>(framePts) - static_cast<std::int64_t>(before.ptsTicks);
+                const std::int64_t diff
+                    = static_cast<std::int64_t>(framePts) - static_cast<std::int64_t>(before.ptsTicks);
                 skewUs = (diff * 1000000LL) / 90000LL;
                 isInterpolated = false;
                 ++m_stats.cacheHitCount;
             } else if (after.message) {
                 telemetry = *after.message;
-                const std::int64_t diff = static_cast<std::int64_t>(framePts) - static_cast<std::int64_t>(after.ptsTicks);
+                const std::int64_t diff
+                    = static_cast<std::int64_t>(framePts) - static_cast<std::int64_t>(after.ptsTicks);
                 skewUs = (diff * 1000000LL) / 90000LL;
                 isInterpolated = false;
                 ++m_stats.cacheHitCount;
@@ -204,10 +207,12 @@ bool StanagScrubController::executeSeekLocked(std::uint64_t targetPts)
         }
     } else {
         // Nearest packet within sync tolerance
-        const auto optNearest = m_timeIndex.findTelemetry(framePts, static_cast<std::uint64_t>(m_syncToleranceMs) * 1000ULL);
+        const auto optNearest
+            = m_timeIndex.findTelemetry(framePts, static_cast<std::uint64_t>(m_syncToleranceMs) * 1000ULL);
         if (optNearest && optNearest->message) {
             telemetry = *optNearest->message;
-            const std::int64_t ptsDiff = static_cast<std::int64_t>(framePts) - static_cast<std::int64_t>(optNearest->ptsTicks);
+            const std::int64_t ptsDiff
+                = static_cast<std::int64_t>(framePts) - static_cast<std::int64_t>(optNearest->ptsTicks);
             skewUs = (ptsDiff * 1000000LL) / 90000LL;
             isInterpolated = false;
             ++m_stats.cacheHitCount;

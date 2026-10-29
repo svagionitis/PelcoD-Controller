@@ -28,7 +28,7 @@ public:
     /// @brief Constructs a PTS synchronization manager with configuration and optional time base.
     /// @param[in] config Initial sync configuration.
     /// @param[in] timeBase Shared master time base reference (nullptr to use default system time base).
-    explicit PtsSyncManager(const PtsSyncConfig& config = { }, std::shared_ptr<IMasterTimeBase> timeBase = nullptr);
+    explicit PtsSyncManager(const PtsSyncConfig& config = {}, std::shared_ptr<IMasterTimeBase> timeBase = nullptr);
 
     /// @brief Destructor.
     ~PtsSyncManager() = default;
@@ -54,7 +54,7 @@ public:
     [[nodiscard]] PtsSyncStats stats() const;
 
     /// @brief Resets accumulated synchronization statistics.
-    void resetStats() noexcept;
+    void resetStats();
 
     /// @brief Ingests an assembled VideoAccessUnit into the synchronization buffer.
     /// @param[in] au Video access unit.
@@ -84,26 +84,27 @@ public:
     std::size_t flush();
 
     /// @brief Clears all internal queues and resets clock state.
-    void reset() noexcept;
+    void reset();
 
 private:
     struct QueuedTelemetry {
         std::uint64_t timestampUs { 0U };
-        std::optional<UasDatalinkMessage> message { };
-        std::vector<std::uint8_t> rawBytes { };
+        std::optional<UasDatalinkMessage> message {};
+        std::vector<std::uint8_t> rawBytes {};
     };
 
-    mutable std::mutex m_mutex { };
-    PtsSyncConfig m_config { };
-    std::shared_ptr<IMasterTimeBase> m_timeBase { };
-    SyncOutputCallback m_callback { };
+    mutable std::mutex m_mutex {};
+    PtsSyncConfig m_config {};
+    std::shared_ptr<IMasterTimeBase> m_timeBase {};
+    SyncOutputCallback m_callback {};
     MpegTsKlvMuxer* m_boundMuxer { nullptr };
 
-    std::deque<VideoAccessUnit> m_videoQueue { };
-    std::deque<QueuedTelemetry> m_telemetryQueue { };
-    PtsSyncStats m_stats { };
+    std::deque<VideoAccessUnit> m_videoQueue {};
+    std::deque<QueuedTelemetry> m_telemetryQueue {};
+    PtsSyncStats m_stats {};
 
-    void processQueuesLocked();
+    void processQueuesLocked(std::vector<SynchronizedAccessUnit>& outBatch);
+    void dispatchBatch(const std::vector<SynchronizedAccessUnit>& batch);
     void dispatchSynchronized(const SynchronizedAccessUnit& syncd);
     [[nodiscard]] std::size_t findBestTelemetry(std::uint64_t targetUs) const noexcept;
 };

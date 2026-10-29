@@ -15,7 +15,8 @@
 namespace Klv {
 
 /// @class MpegTsKlvExtractor
-/// @brief Ingests 188-byte MPEG-2 Transport Stream packets, demultiplexes metadata PES streams, and forwards KLV packets.
+/// @brief Ingests 188-byte MPEG-2 Transport Stream packets, demultiplexes metadata PES streams, and forwards KLV
+/// packets.
 class MpegTsKlvExtractor {
 public:
     /// @brief TS packet fixed size in bytes.
@@ -64,6 +65,9 @@ public:
     /// @brief Returns the discovered or manually set metadata PID, if any.
     [[nodiscard]] std::optional<std::uint16_t> metadataPid() const noexcept;
 
+    /// @brief Maximum allowed PES reassembly buffer size in bytes.
+    static constexpr std::size_t kMaxPesBufferSize { 2097152U }; // 2 MB
+
 private:
     std::optional<std::uint16_t> m_metadataPid;
     std::optional<std::uint16_t> m_pmtPid;
@@ -78,6 +82,5 @@ private:
     void parsePmt(const std::uint8_t* payload, std::size_t size);
     std::size_t handlePesPacket(const std::uint8_t* pesData, std::size_t pesSize);
 };
-
 
 } // namespace Klv

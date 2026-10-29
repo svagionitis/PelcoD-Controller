@@ -48,7 +48,7 @@ double VmtiParser::unscaleHae(std::uint16_t rawVal) noexcept
 }
 
 bool VmtiParser::parseTarget(const std::uint8_t* data, std::size_t size, VTargetPack& target, std::uint32_t frameWidth,
-    std::uint32_t frameHeight) noexcept
+    std::uint32_t frameHeight)
 {
     (void)frameHeight;
     if (data == nullptr || size == 0U) {
@@ -93,7 +93,7 @@ bool VmtiParser::parseTarget(const std::uint8_t* data, std::size_t size, VTarget
             std::uint32_t pixNum { 0U };
             if (readVarUint(val, itemLen, pixNum)) {
                 if (!target.boundingBox.has_value()) {
-                    target.boundingBox = PixelBoundingBox { };
+                    target.boundingBox = PixelBoundingBox {};
                 }
                 target.boundingBox->topLeft = PixelCoord::fromPixelNumber(pixNum, frameWidth);
             }
@@ -103,7 +103,7 @@ bool VmtiParser::parseTarget(const std::uint8_t* data, std::size_t size, VTarget
             std::uint32_t pixNum { 0U };
             if (readVarUint(val, itemLen, pixNum)) {
                 if (!target.boundingBox.has_value()) {
-                    target.boundingBox = PixelBoundingBox { };
+                    target.boundingBox = PixelBoundingBox {};
                 }
                 target.boundingBox->bottomRight = PixelCoord::fromPixelNumber(pixNum, frameWidth);
             }
@@ -157,7 +157,7 @@ bool VmtiParser::parseTarget(const std::uint8_t* data, std::size_t size, VTarget
                 const auto raw = (static_cast<std::uint32_t>(val[0]) << 16U)
                     | (static_cast<std::uint32_t>(val[1]) << 8U) | static_cast<std::uint32_t>(val[2]);
                 if (!target.locationOffsetDeg.has_value()) {
-                    target.locationOffsetDeg = GeoPoint2D { };
+                    target.locationOffsetDeg = GeoPoint2D {};
                 }
                 target.locationOffsetDeg->latitudeDeg = unscaleOffset(raw);
             }
@@ -167,7 +167,7 @@ bool VmtiParser::parseTarget(const std::uint8_t* data, std::size_t size, VTarget
                 const auto raw = (static_cast<std::uint32_t>(val[0]) << 16U)
                     | (static_cast<std::uint32_t>(val[1]) << 8U) | static_cast<std::uint32_t>(val[2]);
                 if (!target.locationOffsetDeg.has_value()) {
-                    target.locationOffsetDeg = GeoPoint2D { };
+                    target.locationOffsetDeg = GeoPoint2D {};
                 }
                 target.locationOffsetDeg->longitudeDeg = unscaleOffset(raw);
             }
@@ -215,7 +215,7 @@ bool VmtiParser::parseTarget(const std::uint8_t* data, std::size_t size, VTarget
 }
 
 bool VmtiParser::parseSeries(const std::uint8_t* data, std::size_t size, std::vector<VTargetPack>& targets,
-    std::uint32_t frameWidth, std::uint32_t frameHeight) noexcept
+    std::uint32_t frameWidth, std::uint32_t frameHeight)
 {
     if (data == nullptr || size == 0U) {
         return true;
@@ -245,8 +245,7 @@ bool VmtiParser::parseSeries(const std::uint8_t* data, std::size_t size, std::ve
     return true;
 }
 
-KlvStatus VmtiParser::parse(
-    const std::uint8_t* data, std::size_t size, VmtiLocalSet& vmti, bool verifyChecksum) noexcept
+KlvStatus VmtiParser::parse(const std::uint8_t* data, std::size_t size, VmtiLocalSet& vmti, bool verifyChecksum)
 {
     if (data == nullptr || size == 0U) {
         return KlvStatus::BufferUnderflow;
@@ -354,7 +353,7 @@ KlvStatus VmtiParser::parse(
             break;
         }
         case VmtiTag::MiisId: {
-            MiisCoreId miis { };
+            MiisCoreId miis {};
             if (miis.decode(val, itemLen) == KlvStatus::Success) {
                 vmti.miisId = miis;
             }

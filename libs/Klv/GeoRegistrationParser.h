@@ -27,18 +27,15 @@ public:
     /// @param[in] size Number of bytes in payload.
     /// @param[out] outSet Decoded GeoRegistrationLocalSet structure.
     /// @return KlvStatus code indicating outcome of operation.
-    [[nodiscard]] static KlvStatus parse(const std::uint8_t* data,
-                                         std::size_t size,
-                                         GeoRegistrationLocalSet& outSet) noexcept;
+    [[nodiscard]] static KlvStatus parse(const std::uint8_t* data, std::size_t size, GeoRegistrationLocalSet& outSet);
 
     /// @brief Parses a standalone Geo-Registration Local Set packet (with 16-byte UL).
     /// @param[in] data Pointer to raw KLV packet starting with 16-byte UL.
     /// @param[in] size Number of bytes available.
     /// @param[out] outSet Decoded GeoRegistrationLocalSet structure.
     /// @return KlvStatus code indicating outcome of operation.
-    [[nodiscard]] static KlvStatus parsePacket(const std::uint8_t* data,
-                                               std::size_t size,
-                                               GeoRegistrationLocalSet& outSet) noexcept;
+    [[nodiscard]] static KlvStatus parsePacket(
+        const std::uint8_t* data, std::size_t size, GeoRegistrationLocalSet& outSet);
 };
 
 } // namespace Klv

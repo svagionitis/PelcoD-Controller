@@ -13,30 +13,41 @@ double TelemetryInterpolator::lerp(double v1, double v2, double factor) noexcept
 
 double TelemetryInterpolator::interpolateAngle(double angle1Deg, double angle2Deg, double factor) noexcept
 {
+    if (!std::isfinite(angle1Deg) || !std::isfinite(angle2Deg) || !std::isfinite(factor)) {
+        return 0.0;
+    }
     const double diff = std::fmod(angle2Deg - angle1Deg + 540.0, 360.0) - 180.0;
     double res = angle1Deg + factor * diff;
     res = std::fmod(res, 360.0);
     if (res < 0.0) {
         res += 360.0;
     }
+    if (res >= 360.0) {
+        res = 0.0;
+    }
     return res;
 }
 
 double TelemetryInterpolator::interpolateLongitude(double lon1Deg, double lon2Deg, double factor) noexcept
 {
+    if (!std::isfinite(lon1Deg) || !std::isfinite(lon2Deg) || !std::isfinite(factor)) {
+        return 0.0;
+    }
     const double diff = std::fmod(lon2Deg - lon1Deg + 540.0, 360.0) - 180.0;
     double res = lon1Deg + factor * diff;
-    while (res > 180.0) {
-        res -= 360.0;
+    double wrapped = std::fmod(res + 180.0, 360.0);
+    if (wrapped < 0.0) {
+        wrapped += 360.0;
     }
-    while (res < -180.0) {
-        res += 360.0;
+    double result = wrapped - 180.0;
+    if (std::abs(result) >= 180.0 - 1e-9) {
+        result = (diff > 0.0 || (diff == 0.0 && lon1Deg > 0.0)) ? 180.0 : -180.0;
     }
-    return res;
+    return result;
 }
 
 UasDatalinkMessage TelemetryInterpolator::interpolate(const UasDatalinkMessage& m1, std::uint64_t pts1,
-    const UasDatalinkMessage& m2, std::uint64_t pts2, std::uint64_t targetPts) noexcept
+    const UasDatalinkMessage& m2, std::uint64_t pts2, std::uint64_t targetPts)
 {
     if (pts1 >= pts2 || targetPts <= pts1) {
         return m1;
@@ -126,7 +137,7 @@ UasDatalinkMessage TelemetryInterpolator::interpolate(const UasDatalinkMessage& 
 
     // 4-corner ground footprint coordinates
     if (m1.cornerCoordinates && m2.cornerCoordinates) {
-        FrustumCorners corners { };
+        FrustumCorners corners {};
         corners.topLeft.latitudeDeg
             = lerp(m1.cornerCoordinates->topLeft.latitudeDeg, m2.cornerCoordinates->topLeft.latitudeDeg, factor);
         corners.topLeft.longitudeDeg = interpolateLongitude(

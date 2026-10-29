@@ -3,9 +3,11 @@
 /// @file GeoRegistrationTypes.h
 /// @brief MISB ST 1601.2 Geo-Registration Local Set data structures and constants.
 
-#include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+
+#include <array>
 #include <optional>
 #include <string>
 #include <vector>
@@ -14,81 +16,80 @@ namespace Klv {
 
 /// @brief 16-byte Universal Label for MISB ST 1601 Geo-Registration Local Set.
 /// @details 06.0E.2B.34.02.0B.01.01.0E.01.03.03.01.00.00.00 (CRC 39238).
-inline constexpr std::array<std::uint8_t, 16> GeoRegistrationUl = {
-    0x06U, 0x0EU, 0x2BU, 0x34U, 0x02U, 0x0BU, 0x01U, 0x01U,
-    0x0EU, 0x01U, 0x03U, 0x03U, 0x01U, 0x00U, 0x00U, 0x00U
-};
+inline constexpr std::array<std::uint8_t, 16> GeoRegistrationUl = { 0x06U, 0x0EU, 0x2BU, 0x34U, 0x02U, 0x0BU, 0x01U,
+    0x01U, 0x0EU, 0x01U, 0x03U, 0x03U, 0x01U, 0x00U, 0x00U, 0x00U };
 
 /// @enum GeoRegistrationTag
 /// @brief Tag identifiers for MISB ST 1601.2 Geo-Registration Local Set items (Table 1).
 enum class GeoRegistrationTag : std::uint8_t {
-    DocumentVersion = 1U,      ///< uint (Mandatory, value 2 for ST 1601.2)
-    AlgorithmName = 2U,        ///< utf8 string (Mandatory)
-    AlgorithmVersion = 3U,     ///< utf8 string (Mandatory)
-    RowColPoints = 4U,         ///< MDARRAY pixels (Optional)
-    LatLonPoints = 5U,         ///< MDARRAY degrees (Optional)
-    SecondImageName = 6U,      ///< utf8 string (Optional)
-    AlgorithmConfigId = 7U,    ///< UUID 16 bytes (Optional)
-    ElevationPoints = 8U,      ///< MDARRAY meters HAE (Optional)
-    RowColCovariance = 9U,     ///< MDARRAY standard deviation & correlation (Optional)
+    DocumentVersion = 1U, ///< uint (Mandatory, value 2 for ST 1601.2)
+    AlgorithmName = 2U, ///< utf8 string (Mandatory)
+    AlgorithmVersion = 3U, ///< utf8 string (Mandatory)
+    RowColPoints = 4U, ///< MDARRAY pixels (Optional)
+    LatLonPoints = 5U, ///< MDARRAY degrees (Optional)
+    SecondImageName = 6U, ///< utf8 string (Optional)
+    AlgorithmConfigId = 7U, ///< UUID 16 bytes (Optional)
+    ElevationPoints = 8U, ///< MDARRAY meters HAE (Optional)
+    RowColCovariance = 9U, ///< MDARRAY standard deviation & correlation (Optional)
     LatLonElevCovariance = 10U ///< MDARRAY standard deviation & correlation (Optional)
 };
 
 /// @struct TiePointPixel
 /// @brief Represents row/column pixel coordinates for a tie point (ST 1601 Tag 4).
 struct TiePointPixel {
-    std::uint32_t row1 { 0U };               ///< Image 1 Row coordinate
-    std::uint32_t col1 { 0U };               ///< Image 1 Column coordinate
-    std::optional<std::uint32_t> row2 {};   ///< Image 2 Row coordinate (if 2 images)
-    std::optional<std::uint32_t> col2 {};   ///< Image 2 Column coordinate (if 2 images)
+    std::uint32_t row1 { 0U }; ///< Image 1 Row coordinate
+    std::uint32_t col1 { 0U }; ///< Image 1 Column coordinate
+    std::optional<std::uint32_t> row2 {}; ///< Image 2 Row coordinate (if 2 images)
+    std::optional<std::uint32_t> col2 {}; ///< Image 2 Column coordinate (if 2 images)
 };
 
 /// @struct TiePointGeo
 /// @brief Represents geographic coordinates and optional elevation for a tie point (Tags 5 & 8).
 struct TiePointGeo {
-    double lat { 0.0 };                      ///< Latitude in degrees [-90.0, +90.0]
-    double lon { 0.0 };                      ///< Longitude in degrees [-180.0, +180.0]
-    std::optional<double> elevation {};      ///< Height Above Ellipsoid (HAE) in meters (Tag 8)
+    double lat { 0.0 }; ///< Latitude in degrees [-90.0, +90.0]
+    double lon { 0.0 }; ///< Longitude in degrees [-180.0, +180.0]
+    std::optional<double> elevation {}; ///< Height Above Ellipsoid (HAE) in meters (Tag 8)
 };
 
 /// @struct TiePointPixelCovariance
 /// @brief Pixel-space standard deviations and cross-correlation coefficients (Tag 9).
 struct TiePointPixelCovariance {
-    double sigmaRow1 { 0.0 };                ///< Standard deviation for Image 1 Row (pixels)
-    double sigmaCol1 { 0.0 };                ///< Standard deviation for Image 1 Column (pixels)
-    double rho1 { 0.0 };                     ///< Cross-correlation coefficient for Image 1 [-1, 1]
-    std::optional<double> sigmaRow2 {};      ///< Standard deviation for Image 2 Row (pixels)
-    std::optional<double> sigmaCol2 {};      ///< Standard deviation for Image 2 Column (pixels)
-    std::optional<double> rho2 {};           ///< Cross-correlation coefficient for Image 2 [-1, 1]
+    double sigmaRow1 { 0.0 }; ///< Standard deviation for Image 1 Row (pixels)
+    double sigmaCol1 { 0.0 }; ///< Standard deviation for Image 1 Column (pixels)
+    double rho1 { 0.0 }; ///< Cross-correlation coefficient for Image 1 [-1, 1]
+    std::optional<double> sigmaRow2 {}; ///< Standard deviation for Image 2 Row (pixels)
+    std::optional<double> sigmaCol2 {}; ///< Standard deviation for Image 2 Column (pixels)
+    std::optional<double> rho2 {}; ///< Cross-correlation coefficient for Image 2 [-1, 1]
 };
 
 /// @struct TiePointGeoCovariance
 /// @brief Geographic standard deviations and cross-correlation coefficients (Tag 10).
 struct TiePointGeoCovariance {
-    double sigmaLat { 0.0 };                 ///< Standard deviation for Latitude in meters [0, 650]
-    double sigmaLon { 0.0 };                 ///< Standard deviation for Longitude in meters [0, 650]
-    double rhoLatLon { 0.0 };                ///< Correlation coefficient between Lat and Lon [-1, 1]
-    std::optional<double> sigmaElev {};      ///< Standard deviation for Elevation in meters [0, 1000]
-    std::optional<double> rhoLatElev {};     ///< Correlation coefficient between Lat and Elev [-1, 1]
-    std::optional<double> rhoLonElev {};     ///< Correlation coefficient between Lon and Elev [-1, 1]
+    double sigmaLat { 0.0 }; ///< Standard deviation for Latitude in meters [0, 650]
+    double sigmaLon { 0.0 }; ///< Standard deviation for Longitude in meters [0, 650]
+    double rhoLatLon { 0.0 }; ///< Correlation coefficient between Lat and Lon [-1, 1]
+    std::optional<double> sigmaElev {}; ///< Standard deviation for Elevation in meters [0, 1000]
+    std::optional<double> rhoLatElev {}; ///< Correlation coefficient between Lat and Elev [-1, 1]
+    std::optional<double> rhoLonElev {}; ///< Correlation coefficient between Lon and Elev [-1, 1]
 };
 
 /// @struct GeoRegistrationLocalSet
 /// @brief Complete MISB ST 1601.2 Geo-Registration Local Set representation.
 struct GeoRegistrationLocalSet {
-    std::uint8_t documentVersion { 2U };     ///< Tag 1: MISB ST 1601 version (default 2)
-    std::string algorithmName {};             ///< Tag 2: Algorithm name
-    std::string algorithmVersion {};          ///< Tag 3: Algorithm version
+    std::uint8_t documentVersion { 2U }; ///< Tag 1: MISB ST 1601 version (default 2)
+    std::string algorithmName {}; ///< Tag 2: Algorithm name
+    std::string algorithmVersion {}; ///< Tag 3: Algorithm version
     std::vector<TiePointPixel> pixelPoints {}; ///< Tag 4: Pixel correspondence points
-    std::vector<TiePointGeo> geoPoints {};   ///< Tag 5 & 8: Geographic correspondence points
+    std::vector<TiePointGeo> geoPoints {}; ///< Tag 5 & 8: Geographic correspondence points
     std::optional<std::string> secondImageName {}; ///< Tag 6: Second image name
     std::optional<std::array<std::uint8_t, 16>> configUuid {}; ///< Tag 7: UUID
     std::vector<TiePointPixelCovariance> pixelCovariances {}; ///< Tag 9: Pixel uncertainties
-    std::vector<TiePointGeoCovariance> geoCovariances {};     ///< Tag 10: Geo uncertainties
+    std::vector<TiePointGeoCovariance> geoCovariances {}; ///< Tag 10: Geo uncertainties
 
     /// @brief Gets the number of tie points represented in this local set.
     /// @return Number of tie points, or 0 if no correspondence points are present.
-    [[nodiscard]] std::size_t tiePointCount() const noexcept {
+    [[nodiscard]] std::size_t tiePointCount() const noexcept
+    {
         if (!pixelPoints.empty()) {
             return pixelPoints.size();
         }
@@ -106,7 +107,8 @@ struct GeoRegistrationLocalSet {
 
     /// @brief Validates the local set against MISB ST 1601 constraints (e.g. ST 1601.1-03).
     /// @return True if valid, false otherwise.
-    [[nodiscard]] bool validate() const noexcept {
+    [[nodiscard]] bool validate() const noexcept
+    {
         if (documentVersion == 0U) {
             return false;
         }
@@ -158,7 +160,11 @@ struct GeoRegistrationLocalSet {
                 if (pt.elevation.has_value() != hasElev) {
                     return false;
                 }
-                if (pt.lat < -90.0 || pt.lat > 90.0 || pt.lon < -180.0 || pt.lon > 180.0) {
+                if (pt.elevation.has_value() && !std::isfinite(*pt.elevation)) {
+                    return false;
+                }
+                if (!std::isfinite(pt.lat) || !std::isfinite(pt.lon) || pt.lat < -90.0 || pt.lat > 90.0
+                    || pt.lon < -180.0 || pt.lon > 180.0) {
                     return false;
                 }
             }
@@ -167,9 +173,8 @@ struct GeoRegistrationLocalSet {
         if (!pixelCovariances.empty()) {
             const bool hasImg2 = pixelCovariances[0].sigmaRow2.has_value();
             for (const auto& cov : pixelCovariances) {
-                if (cov.sigmaRow2.has_value() != hasImg2 ||
-                    cov.sigmaCol2.has_value() != hasImg2 ||
-                    cov.rho2.has_value() != hasImg2) {
+                if (cov.sigmaRow2.has_value() != hasImg2 || cov.sigmaCol2.has_value() != hasImg2
+                    || cov.rho2.has_value() != hasImg2) {
                     return false;
                 }
             }
@@ -178,9 +183,8 @@ struct GeoRegistrationLocalSet {
         if (!geoCovariances.empty()) {
             const bool hasElev = geoCovariances[0].sigmaElev.has_value();
             for (const auto& cov : geoCovariances) {
-                if (cov.sigmaElev.has_value() != hasElev ||
-                    cov.rhoLatElev.has_value() != hasElev ||
-                    cov.rhoLonElev.has_value() != hasElev) {
+                if (cov.sigmaElev.has_value() != hasElev || cov.rhoLatElev.has_value() != hasElev
+                    || cov.rhoLonElev.has_value() != hasElev) {
                     return false;
                 }
             }

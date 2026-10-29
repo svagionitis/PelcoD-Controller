@@ -80,7 +80,7 @@ namespace {
             }
             transform(m_buffer.data());
 
-            std::array<std::uint8_t, 20> digest { };
+            std::array<std::uint8_t, 20> digest {};
             for (std::size_t i = 0U; i < 5U; ++i) {
                 digest[i * 4U] = static_cast<std::uint8_t>((m_state[i] >> 24U) & 0xFFU);
                 digest[i * 4U + 1U] = static_cast<std::uint8_t>((m_state[i] >> 16U) & 0xFFU);
@@ -91,9 +91,9 @@ namespace {
         }
 
     private:
-        std::array<std::uint32_t, 5> m_state { };
+        std::array<std::uint32_t, 5> m_state {};
         std::uint64_t m_byteCount { 0U };
-        std::array<std::uint8_t, 64> m_buffer { };
+        std::array<std::uint8_t, 64> m_buffer {};
 
         [[nodiscard]] static std::uint32_t leftRotate(std::uint32_t val, std::uint32_t bits) noexcept
         {
@@ -102,7 +102,7 @@ namespace {
 
         void transform(const std::uint8_t* block) noexcept
         {
-            std::array<std::uint32_t, 80> w { };
+            std::array<std::uint32_t, 80> w {};
             for (std::size_t t = 0U; t < 16U; ++t) {
                 w[t] = (static_cast<std::uint32_t>(block[t * 4U]) << 24U)
                     | (static_cast<std::uint32_t>(block[t * 4U + 1U]) << 16U)
@@ -175,7 +175,7 @@ std::uint8_t Uuid::version() const noexcept
 
 std::string Uuid::toString(bool uppercase) const
 {
-    char buf[40] { };
+    char buf[40] {};
     if (uppercase) {
         std::snprintf(buf, sizeof(buf), "%02X%02X%02X%02X-%02X%02X-%02X%02X-%02X%02X-%02X%02X%02X%02X%02X%02X",
             bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8], bytes[9],
@@ -200,7 +200,7 @@ bool Uuid::fromString(std::string_view str, Uuid& out) noexcept
         s.remove_prefix(9U);
     }
 
-    std::array<std::uint8_t, 16> parsed { };
+    std::array<std::uint8_t, 16> parsed {};
     std::size_t byteIdx = 0U;
     int highNibble = -1;
 
@@ -234,14 +234,14 @@ bool Uuid::fromString(std::string_view str, Uuid& out) noexcept
 
 Uuid Uuid::generateV4()
 {
-    std::random_device rd { };
+    std::random_device rd {};
     std::mt19937_64 gen { rd() };
-    std::uniform_int_distribution<std::uint64_t> dist { };
+    std::uniform_int_distribution<std::uint64_t> dist {};
 
     const std::uint64_t part1 = dist(gen);
     const std::uint64_t part2 = dist(gen);
 
-    Uuid u { };
+    Uuid u {};
     for (std::size_t i = 0U; i < 8U; ++i) {
         u.bytes[i] = static_cast<std::uint8_t>((part1 >> ((7U - i) * 8U)) & 0xFFU);
         u.bytes[8U + i] = static_cast<std::uint8_t>((part2 >> ((7U - i) * 8U)) & 0xFFU);
@@ -257,12 +257,12 @@ Uuid Uuid::generateV4()
 
 Uuid Uuid::generateV5(const Uuid& ns, std::string_view name)
 {
-    Sha1Hasher hasher { };
+    Sha1Hasher hasher {};
     hasher.update(ns.bytes.data(), ns.bytes.size());
     hasher.update(reinterpret_cast<const std::uint8_t*>(name.data()), name.size());
     const auto digest = hasher.finalize();
 
-    Uuid u { };
+    Uuid u {};
     std::copy_n(digest.begin(), 16U, u.bytes.begin());
 
     // Version 5: bits 12..15 of octet 6 = 0101
@@ -276,7 +276,7 @@ Uuid Uuid::generateV5(const Uuid& ns, std::string_view name)
 Uuid Uuid::generateV1(
     const std::array<std::uint8_t, 6>& mac, std::uint64_t timestamp100ns, std::uint16_t clockSeq) noexcept
 {
-    Uuid u { };
+    Uuid u {};
 
     // time_low (bytes 0..3)
     u.bytes[0] = static_cast<std::uint8_t>((timestamp100ns >> 24U) & 0xFFU);
@@ -344,7 +344,7 @@ bool MiisCoreId::validate() const noexcept
 
 std::vector<std::uint8_t> MiisCoreId::encode(bool includeQuality) const
 {
-    std::vector<std::uint8_t> out { };
+    std::vector<std::uint8_t> out {};
 
     if (sensorId && platformId) {
         if (includeQuality) {
@@ -381,7 +381,7 @@ KlvStatus MiisCoreId::decode(const std::uint8_t* data, std::size_t length) noexc
 
     if (length == 16U) {
         // 16-byte raw UUID
-        Uuid u { };
+        Uuid u {};
         std::copy_n(data, 16U, u.bytes.begin());
         streamId = u;
         sensorId = MiisSubId { MiisIdType::Sensor, MiisIdQuality::Physical, u };
@@ -392,9 +392,9 @@ KlvStatus MiisCoreId::decode(const std::uint8_t* data, std::size_t length) noexc
     if (length == 32U) {
         // 32-byte Dual UUID: Sensor (16B) + Platform (16B)
         version = 1U;
-        Uuid sUuid { };
+        Uuid sUuid {};
         std::copy_n(data, 16U, sUuid.bytes.begin());
-        Uuid pUuid { };
+        Uuid pUuid {};
         std::copy_n(data + 16U, 16U, pUuid.bytes.begin());
         sensorId = MiisSubId { MiisIdType::Sensor, MiisIdQuality::Physical, sUuid };
         platformId = MiisSubId { MiisIdType::Platform, MiisIdQuality::Physical, pUuid };
@@ -405,9 +405,9 @@ KlvStatus MiisCoreId::decode(const std::uint8_t* data, std::size_t length) noexc
     if (length == 33U) {
         // 33-byte Versioned Composite: Version (1B) + Sensor (16B) + Platform (16B)
         version = data[0];
-        Uuid sUuid { };
+        Uuid sUuid {};
         std::copy_n(data + 1U, 16U, sUuid.bytes.begin());
-        Uuid pUuid { };
+        Uuid pUuid {};
         std::copy_n(data + 17U, 16U, pUuid.bytes.begin());
         sensorId = MiisSubId { MiisIdType::Sensor, MiisIdQuality::Physical, sUuid };
         platformId = MiisSubId { MiisIdType::Platform, MiisIdQuality::Physical, pUuid };
@@ -419,11 +419,11 @@ KlvStatus MiisCoreId::decode(const std::uint8_t* data, std::size_t length) noexc
         // 35-byte Versioned Quality Composite
         version = data[0];
         const auto sQual = static_cast<MiisIdQuality>(data[1]);
-        Uuid sUuid { };
+        Uuid sUuid {};
         std::copy_n(data + 2U, 16U, sUuid.bytes.begin());
 
         const auto pQual = static_cast<MiisIdQuality>(data[18]);
-        Uuid pUuid { };
+        Uuid pUuid {};
         std::copy_n(data + 19U, 16U, pUuid.bytes.begin());
 
         sensorId = MiisSubId { MiisIdType::Sensor, sQual, sUuid };
@@ -433,7 +433,7 @@ KlvStatus MiisCoreId::decode(const std::uint8_t* data, std::size_t length) noexc
     }
 
     // Fallback: try parsing text representation if length matches UUID / URN
-    std::string text(reinterpret_cast<const char*>(data), length);
+    const std::string_view text(reinterpret_cast<const char*>(data), length);
     if (fromString(text)) {
         return KlvStatus::Success;
     }
@@ -452,7 +452,7 @@ std::string MiisCoreId::toString() const
     if (streamId) {
         return streamId->toString();
     }
-    return { };
+    return {};
 }
 
 std::string MiisCoreId::toUrn() const
@@ -467,8 +467,8 @@ bool MiisCoreId::fromString(std::string_view str) noexcept
     if (colonPos != std::string_view::npos && str.rfind("urn:", 0U) != 0U && str.rfind("URN:", 0U) != 0U) {
         const auto sPart = str.substr(0U, colonPos);
         const auto pPart = str.substr(colonPos + 1U);
-        Uuid sUuid { };
-        Uuid pUuid { };
+        Uuid sUuid {};
+        Uuid pUuid {};
         if (Uuid::fromString(sPart, sUuid) && Uuid::fromString(pPart, pUuid)) {
             sensorId = MiisSubId { MiisIdType::Sensor, MiisIdQuality::Physical, sUuid };
             platformId = MiisSubId { MiisIdType::Platform, MiisIdQuality::Physical, pUuid };
@@ -477,7 +477,7 @@ bool MiisCoreId::fromString(std::string_view str) noexcept
         }
     }
 
-    Uuid u { };
+    Uuid u {};
     if (Uuid::fromString(str, u)) {
         streamId = u;
         sensorId = MiisSubId { MiisIdType::Sensor, MiisIdQuality::Physical, u };
@@ -494,7 +494,7 @@ Uuid MiisCoreId::primaryUuid() const noexcept
         return sensorId->uuid;
     if (streamId)
         return *streamId;
-    return Uuid { };
+    return Uuid {};
 }
 
 bool MiisCoreId::operator==(const MiisCoreId& other) const noexcept

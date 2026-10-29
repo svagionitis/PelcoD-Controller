@@ -28,14 +28,14 @@ public:
 
     /// @brief Attaches a video decoder instance for coordinated seeking.
     /// @param[in] decoder Video decoder instance pointer (optional, can be nullptr).
-    void attachDecoder(Video::IVideoDecoder* decoder) noexcept;
+    void attachDecoder(Video::IVideoDecoder* decoder);
 
     /// @brief Loads or sets the timeline index.
     /// @param[in] index Finalized TelemetryTimeIndex.
     void setTimeIndex(TelemetryTimeIndex index);
 
-    /// @brief Returns const reference to active TelemetryTimeIndex.
-    [[nodiscard]] const TelemetryTimeIndex& timeIndex() const noexcept;
+    /// @brief Returns a snapshot copy of the active TelemetryTimeIndex.
+    [[nodiscard]] TelemetryTimeIndex timeIndex() const;
 
     /// @brief Registers output callback for synchronized scrub events.
     /// @param[in] callback Consumer callback.
@@ -43,21 +43,21 @@ public:
 
     /// @brief Configures scrubbing seek strategy.
     /// @param[in] mode Seek mode (KeyframeOnly, Exact, or Adaptive).
-    void setSeekMode(ScrubSeekMode mode) noexcept;
+    void setSeekMode(ScrubSeekMode mode);
 
     /// @brief Gets active seek mode.
-    [[nodiscard]] ScrubSeekMode seekMode() const noexcept;
+    [[nodiscard]] ScrubSeekMode seekMode() const;
 
     /// @brief Enables or disables continuous telemetry interpolation between packets.
     /// @param[in] enable True to interpolate telemetry smoothly; false to snap to nearest packet.
-    void setInterpolate(bool enable) noexcept;
+    void setInterpolate(bool enable);
 
     /// @brief Checks whether telemetry interpolation is enabled.
-    [[nodiscard]] bool isInterpolateEnabled() const noexcept;
+    [[nodiscard]] bool isInterpolateEnabled() const;
 
     /// @brief Sets maximum allowable video-telemetry synchronization tolerance in ms.
     /// @param[in] toleranceMs Tolerance in milliseconds (default 50 ms per STANAG 4609).
-    void setSyncTolerance(std::uint32_t toleranceMs) noexcept;
+    void setSyncTolerance(std::uint32_t toleranceMs);
 
     /// @brief Performs an interactive scrub to an elapsed timeline position in seconds.
     /// @param[in] seconds Target position in seconds.

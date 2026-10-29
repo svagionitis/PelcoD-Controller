@@ -79,7 +79,7 @@ double RvtParser::unscaleAltitude(std::uint16_t rawVal) noexcept
     return (static_cast<double>(rawVal) * (kRange / kMaxVal)) + kOffset;
 }
 
-KlvStatus RvtParser::parse(const std::uint8_t* data, std::size_t size, RvtLocalSet& rvt, bool verifyChecksum) noexcept
+KlvStatus RvtParser::parse(const std::uint8_t* data, std::size_t size, RvtLocalSet& rvt, bool verifyChecksum)
 {
     if (data == nullptr || size == 0U) {
         return KlvStatus::BufferUnderflow;
@@ -188,21 +188,21 @@ KlvStatus RvtParser::parse(const std::uint8_t* data, std::size_t size, RvtLocalS
             rvt.digitalVideoFileFormat = std::string(reinterpret_cast<const char*>(valPtr), len);
             break;
         case RvtTag::PointOfInterestLs: {
-            PoiPack poi { };
+            PoiPack poi {};
             if (parsePoi(valPtr, len, poi)) {
                 rvt.pois.push_back(poi);
             }
             break;
         }
         case RvtTag::AreaOfInterestLs: {
-            AoiPack aoi { };
+            AoiPack aoi {};
             if (parseAoi(valPtr, len, aoi)) {
                 rvt.aois.push_back(aoi);
             }
             break;
         }
         case RvtTag::UserDefinedLs: {
-            UserDefinedPack userDef { };
+            UserDefinedPack userDef {};
             if (parseUserDefined(valPtr, len, userDef)) {
                 rvt.userDefined.push_back(userDef);
             }
@@ -273,7 +273,7 @@ KlvStatus RvtParser::parse(const std::uint8_t* data, std::size_t size, RvtLocalS
     return KlvStatus::Success;
 }
 
-bool RvtParser::parsePoi(const std::uint8_t* data, std::size_t size, PoiPack& poi) noexcept
+bool RvtParser::parsePoi(const std::uint8_t* data, std::size_t size, PoiPack& poi)
 {
     if (data == nullptr || size == 0U) {
         return false;
@@ -374,7 +374,7 @@ bool RvtParser::parsePoi(const std::uint8_t* data, std::size_t size, PoiPack& po
     return hasNumber && hasLat && hasLon;
 }
 
-bool RvtParser::parseAoi(const std::uint8_t* data, std::size_t size, AoiPack& aoi) noexcept
+bool RvtParser::parseAoi(const std::uint8_t* data, std::size_t size, AoiPack& aoi)
 {
     if (data == nullptr || size == 0U) {
         return false;
@@ -483,7 +483,7 @@ bool RvtParser::parseAoi(const std::uint8_t* data, std::size_t size, AoiPack& ao
     return hasNumber && hasLat1 && hasLon1 && hasLat3 && hasLon3 && hasType;
 }
 
-bool RvtParser::parseUserDefined(const std::uint8_t* data, std::size_t size, UserDefinedPack& userDef) noexcept
+bool RvtParser::parseUserDefined(const std::uint8_t* data, std::size_t size, UserDefinedPack& userDef)
 {
     if (data == nullptr || size == 0U) {
         return false;

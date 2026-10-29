@@ -1,12 +1,15 @@
 #include "St1607Encoder.h"
-#include "GeoRegistrationEncoder.h"
-#include "KlvBer.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstdint>
+
+#include <algorithm>
 #include <string>
 #include <vector>
+
+#include "GeoRegistrationEncoder.h"
+#include "KlvBer.h"
+#include "KlvScaling.h"
 
 namespace Klv {
 
@@ -65,80 +68,51 @@ namespace {
 
     inline std::uint16_t scaleAlt(double altM) noexcept
     {
-        const double clamped = std::clamp(altM, -900.0, 19000.0);
-        return static_cast<std::uint16_t>(std::round((clamped + 900.0) * (65535.0 / 19900.0)));
+        return KlvScaling::scaleAltitude(altM);
     }
-
     inline std::uint16_t scaleHeading(double deg) noexcept
     {
-        double wrapped = std::fmod(deg, 360.0);
-        if (wrapped < 0.0)
-            wrapped += 360.0;
-        return static_cast<std::uint16_t>(std::round(wrapped * (65535.0 / 360.0)));
+        return KlvScaling::scaleHeading(deg);
     }
-
     inline std::int16_t scalePitch(double deg) noexcept
     {
-        const double clamped = std::clamp(deg, -20.0, 20.0);
-        return static_cast<std::int16_t>(std::round(clamped * (32767.0 / 20.0)));
+        return KlvScaling::scalePitch(deg);
     }
-
     inline std::int16_t scaleRoll(double deg) noexcept
     {
-        const double clamped = std::clamp(deg, -50.0, 50.0);
-        return static_cast<std::int16_t>(std::round(clamped * (32767.0 / 50.0)));
+        return KlvScaling::scaleRoll(deg);
     }
-
     inline std::uint16_t scaleFov(double deg) noexcept
     {
-        const double clamped = std::clamp(deg, 0.0, 180.0);
-        return static_cast<std::uint16_t>(std::round(clamped * (65535.0 / 180.0)));
+        return KlvScaling::scaleFov(deg);
     }
-
     inline std::uint32_t scaleAzimuth(double deg) noexcept
     {
-        double wrapped = std::fmod(deg, 360.0);
-        if (wrapped < 0.0)
-            wrapped += 360.0;
-        return static_cast<std::uint32_t>(std::round(wrapped * (4294967295.0 / 360.0)));
+        return KlvScaling::scaleRelAzimuth(deg);
     }
-
     inline std::int32_t scaleElevation(double deg) noexcept
     {
-        const double clamped = std::clamp(deg, -180.0, 180.0);
-        return static_cast<std::int32_t>(std::round(clamped * (2147483647.0 / 180.0)));
+        return KlvScaling::scaleRelElevation(deg);
     }
-
     inline std::uint32_t scaleRelRoll(double deg) noexcept
     {
-        double wrapped = std::fmod(deg, 360.0);
-        if (wrapped < 0.0)
-            wrapped += 360.0;
-        return static_cast<std::uint32_t>(std::round(wrapped * (4294967295.0 / 360.0)));
+        return KlvScaling::scaleRelRoll(deg);
     }
-
     inline std::uint32_t scaleSlant(double m) noexcept
     {
-        const double clamped = std::clamp(m, 0.0, 5000000.0);
-        return static_cast<std::uint32_t>(std::round(clamped * (4294967295.0 / 5000000.0)));
+        return KlvScaling::scaleSlantRange(m);
     }
-
     inline std::uint16_t scaleWidth(double m) noexcept
     {
-        const double clamped = std::clamp(m, 0.0, 10000.0);
-        return static_cast<std::uint16_t>(std::round(clamped * (65535.0 / 10000.0)));
+        return KlvScaling::scaleTargetWidth(m);
     }
-
     inline std::int32_t scaleLat(double deg) noexcept
     {
-        const double clamped = std::clamp(deg, -90.0, 90.0);
-        return static_cast<std::int32_t>(std::round(clamped * (2147483647.0 / 90.0)));
+        return KlvScaling::scaleLatitude(deg);
     }
-
     inline std::int32_t scaleLon(double deg) noexcept
     {
-        const double clamped = std::clamp(deg, -180.0, 180.0);
-        return static_cast<std::int32_t>(std::round(clamped * (2147483647.0 / 180.0)));
+        return KlvScaling::scaleLongitude(deg);
     }
 
 } // namespace
@@ -164,7 +138,7 @@ bool St1607Encoder::encodeMsid(const MetadataSubstreamId& msid, std::vector<std:
 KlvStatus St1607Encoder::encodeAmend(const AmendLocalSet& set, std::vector<std::uint8_t>& out)
 {
     // Tag 143: MSID Pack (Mandatory per ST 0601.19-42)
-    std::vector<std::uint8_t> msidBytes { };
+    std::vector<std::uint8_t> msidBytes {};
     if (encodeMsid(set.msid, msidBytes)) {
         appendBytes(143U, msidBytes, out);
     }
@@ -218,12 +192,12 @@ KlvStatus St1607Encoder::encodeAmend(const AmendLocalSet& set, std::vector<std::
     }
 
     if (set.targetErrorCe90M)
-        appendU16(45U, static_cast<std::uint16_t>(*set.targetErrorCe90M), out);
+        appendU16(45U, KlvScaling::scaleErrorCe90(*set.targetErrorCe90M), out);
     if (set.targetErrorLe90M)
-        appendU16(46U, static_cast<std::uint16_t>(*set.targetErrorLe90M), out);
+        appendU16(46U, KlvScaling::scaleErrorCe90(*set.targetErrorLe90M), out);
 
     if (set.securityCountryCodingMethod || set.securityObjectCountryCodes) {
-        std::vector<std::uint8_t> secPayload { };
+        std::vector<std::uint8_t> secPayload {};
         if (set.securityCountryCodingMethod) {
             appendU8(12U, *set.securityCountryCodingMethod, secPayload);
         }
@@ -239,14 +213,14 @@ KlvStatus St1607Encoder::encodeAmend(const AmendLocalSet& set, std::vector<std::
         appendU16(78U, scaleAlt(*set.frameCenterElevHaeM), out);
 
     if (set.geoRegistration) {
-        std::vector<std::uint8_t> geoBytes { };
+        std::vector<std::uint8_t> geoBytes {};
         if (GeoRegistrationEncoder::encode(*set.geoRegistration, geoBytes) == KlvStatus::Success) {
             appendBytes(98U, geoBytes, out);
         }
     }
 
     for (const auto& child : set.childAmends) {
-        std::vector<std::uint8_t> childBytes { };
+        std::vector<std::uint8_t> childBytes {};
         if (encodeAmend(child, childBytes) == KlvStatus::Success) {
             appendBytes(101U, childBytes, out);
         }
@@ -261,7 +235,7 @@ KlvStatus St1607Encoder::encodeAmend(const AmendLocalSet& set, std::vector<std::
 KlvStatus St1607Encoder::encodeSegment(const SegmentLocalSet& set, std::vector<std::uint8_t>& out)
 {
     // Tag 143: MSID Pack (Mandatory per ST 0601.19-41)
-    std::vector<std::uint8_t> msidBytes { };
+    std::vector<std::uint8_t> msidBytes {};
     if (encodeMsid(set.msid, msidBytes)) {
         appendBytes(143U, msidBytes, out);
     }
@@ -309,7 +283,7 @@ KlvStatus St1607Encoder::encodeSegment(const SegmentLocalSet& set, std::vector<s
     }
 
     if (set.securityCountryCodingMethod || set.securityObjectCountryCodes) {
-        std::vector<std::uint8_t> secPayload { };
+        std::vector<std::uint8_t> secPayload {};
         if (set.securityCountryCodingMethod) {
             appendU8(12U, *set.securityCountryCodingMethod, secPayload);
         }
@@ -329,14 +303,14 @@ KlvStatus St1607Encoder::encodeSegment(const SegmentLocalSet& set, std::vector<s
     }
 
     for (const auto& child : set.childSegments) {
-        std::vector<std::uint8_t> childBytes { };
+        std::vector<std::uint8_t> childBytes {};
         if (encodeSegment(child, childBytes) == KlvStatus::Success) {
             appendBytes(100U, childBytes, out);
         }
     }
 
     for (const auto& child : set.childAmends) {
-        std::vector<std::uint8_t> childBytes { };
+        std::vector<std::uint8_t> childBytes {};
         if (encodeAmend(child, childBytes) == KlvStatus::Success) {
             appendBytes(101U, childBytes, out);
         }
@@ -350,7 +324,7 @@ KlvStatus St1607Encoder::encodeSegment(const SegmentLocalSet& set, std::vector<s
 
 KlvStatus St1607Encoder::encodePacket(const AmendLocalSet& set, std::vector<std::uint8_t>& out)
 {
-    std::vector<std::uint8_t> payload { };
+    std::vector<std::uint8_t> payload {};
     const auto status = encodeAmend(set, payload);
     if (status != KlvStatus::Success) {
         return status;
@@ -364,7 +338,7 @@ KlvStatus St1607Encoder::encodePacket(const AmendLocalSet& set, std::vector<std:
 
 KlvStatus St1607Encoder::encodePacket(const SegmentLocalSet& set, std::vector<std::uint8_t>& out)
 {
-    std::vector<std::uint8_t> payload { };
+    std::vector<std::uint8_t> payload {};
     const auto status = encodeSegment(set, payload);
     if (status != KlvStatus::Success) {
         return status;

@@ -1,109 +1,25 @@
 #include "KlvEncoder.h"
+
+#include <cmath>
+#include <cstdint>
+
+#include <algorithm>
+#include <chrono>
+#include <string>
+#include <vector>
+
 #include "KlvBer.h"
 #include "KlvCrc.h"
+#include "KlvScaling.h"
 #include "RvtEncoder.h"
 #include "St1607Encoder.h"
 #include "VmtiEncoder.h"
-#include <algorithm>
-#include <chrono>
-#include <cmath>
-#include <cstdint>
-#include <string>
-#include <vector>
 
 namespace Klv {
 
 namespace {
 
-    inline std::int32_t scaleLatitude(double deg) noexcept
-    {
-        constexpr double kMaxVal = 2147483647.0;
-        const double clamped = std::clamp(deg, -90.0, 90.0);
-        return static_cast<std::int32_t>(std::round(clamped * (kMaxVal / 90.0)));
-    }
-
-    inline std::int32_t scaleLongitude(double deg) noexcept
-    {
-        constexpr double kMaxVal = 2147483647.0;
-        const double clamped = std::clamp(deg, -180.0, 180.0);
-        return static_cast<std::int32_t>(std::round(clamped * (kMaxVal / 180.0)));
-    }
-
-    inline std::int16_t scaleCornerOffset(double offsetDeg) noexcept
-    {
-        const double clamped = std::clamp(offsetDeg, -0.075, 0.075);
-        return static_cast<std::int16_t>(std::round(clamped * (32767.0 / 0.075)));
-    }
-
-    inline std::uint16_t scaleAltitude(double altM) noexcept
-    {
-        // Range: [-900.0, +19000.0] meters -> [0, 65535]
-        const double clamped = std::clamp(altM, -900.0, 19000.0);
-        return static_cast<std::uint16_t>(std::round((clamped + 900.0) * (65535.0 / 19900.0)));
-    }
-
-    inline std::uint16_t scaleHeading(double deg) noexcept
-    {
-        double wrapped = std::fmod(deg, 360.0);
-        if (wrapped < 0.0) {
-            wrapped += 360.0;
-        }
-        return static_cast<std::uint16_t>(std::round(wrapped * (65535.0 / 360.0)));
-    }
-
-    inline std::int16_t scalePitch(double deg) noexcept
-    {
-        const double clamped = std::clamp(deg, -20.0, 20.0);
-        return static_cast<std::int16_t>(std::round(clamped * (32767.0 / 20.0)));
-    }
-
-    inline std::int16_t scaleRoll(double deg) noexcept
-    {
-        const double clamped = std::clamp(deg, -50.0, 50.0);
-        return static_cast<std::int16_t>(std::round(clamped * (32767.0 / 50.0)));
-    }
-
-    inline std::uint16_t scaleFov(double deg) noexcept
-    {
-        const double clamped = std::clamp(deg, 0.0, 180.0);
-        return static_cast<std::uint16_t>(std::round(clamped * (65535.0 / 180.0)));
-    }
-
-    inline std::uint32_t scaleRelAzimuth(double deg) noexcept
-    {
-        double wrapped = std::fmod(deg, 360.0);
-        if (wrapped < 0.0) {
-            wrapped += 360.0;
-        }
-        return static_cast<std::uint32_t>(std::round(wrapped * (4294967295.0 / 360.0)));
-    }
-
-    inline std::int32_t scaleRelElevation(double deg) noexcept
-    {
-        const double clamped = std::clamp(deg, -180.0, 180.0);
-        return static_cast<std::int32_t>(std::round(clamped * (2147483647.0 / 180.0)));
-    }
-
-    inline std::uint32_t scaleRelRoll(double deg) noexcept
-    {
-        double wrapped = std::fmod(deg, 360.0);
-        if (wrapped < 0.0) {
-            wrapped += 360.0;
-        }
-        return static_cast<std::uint32_t>(std::round(wrapped * (4294967295.0 / 360.0)));
-    }
-
-    inline std::uint32_t scaleSlantRange(double rangeM) noexcept
-    {
-        const double clamped = std::clamp(rangeM, 0.0, 5000000.0);
-        return static_cast<std::uint32_t>(std::round(clamped * (4294967295.0 / 5000000.0)));
-    }
-
-    inline std::uint16_t scaleTargetWidth(double widthM) noexcept
-    {
-        const double clamped = std::clamp(widthM, 0.0, 10000.0);
-        return static_cast<std::uint16_t>(std::round(clamped * (65535.0 / 10000.0)));
-    }
+    using namespace KlvScaling;
 
 } // namespace
 
@@ -380,20 +296,18 @@ std::vector<std::uint8_t> KlvEncoder::encode(const UasDatalinkMessage& msg)
 
     // Tag 45: Target Error CE90
     if (msg.targetErrorCe90M.has_value()) {
-        const double clamped = std::clamp(*msg.targetErrorCe90M, 0.0, 65535.0);
         appendTagUint16(
-            static_cast<std::uint32_t>(Tag::TargetErrorCe90), static_cast<std::uint16_t>(std::round(clamped)), payload);
+            static_cast<std::uint32_t>(Tag::TargetErrorCe90), scaleErrorCe90(*msg.targetErrorCe90M), payload);
     }
 
     // Tag 46: Target Error LE90
     if (msg.targetErrorLe90M.has_value()) {
-        const double clamped = std::clamp(*msg.targetErrorLe90M, 0.0, 65535.0);
         appendTagUint16(
-            static_cast<std::uint32_t>(Tag::TargetErrorLe90), static_cast<std::uint16_t>(std::round(clamped)), payload);
+            static_cast<std::uint32_t>(Tag::TargetErrorLe90), scaleErrorCe90(*msg.targetErrorLe90M), payload);
     }
 
     // Tag 48: Security Local Set (Mandatory in MISB ST 0601)
-    const SecurityMetadata sec = msg.security.value_or(SecurityMetadata { });
+    const SecurityMetadata sec = msg.security.value_or(SecurityMetadata {});
     const auto secBytes = encodeSecurityLocalSet(sec);
     appendTagBytes(static_cast<std::uint32_t>(Tag::SecurityLocalSet), secBytes, payload);
 
@@ -444,7 +358,7 @@ std::vector<std::uint8_t> KlvEncoder::encode(const UasDatalinkMessage& msg)
 
     // Tag 100: Segment Local Sets
     for (const auto& seg : msg.segments) {
-        std::vector<std::uint8_t> segBytes { };
+        std::vector<std::uint8_t> segBytes {};
         if (St1607Encoder::encodeSegment(seg, segBytes) == KlvStatus::Success) {
             appendTagBytes(static_cast<std::uint32_t>(Tag::SegmentLocalSet), segBytes, payload);
         }
@@ -452,7 +366,7 @@ std::vector<std::uint8_t> KlvEncoder::encode(const UasDatalinkMessage& msg)
 
     // Tag 101: Amend Local Sets
     for (const auto& amend : msg.amends) {
-        std::vector<std::uint8_t> amendBytes { };
+        std::vector<std::uint8_t> amendBytes {};
         if (St1607Encoder::encodeAmend(amend, amendBytes) == KlvStatus::Success) {
             appendTagBytes(static_cast<std::uint32_t>(Tag::AmendLocalSet), amendBytes, payload);
         }

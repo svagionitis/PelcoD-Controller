@@ -1,7 +1,8 @@
-#include <cstdint>
-
 #include "MasterTimeBase.h"
+
 #include <chrono>
+#include <cstdint>
+#include <mutex>
 
 namespace Klv {
 
@@ -14,10 +15,19 @@ SystemMasterTimeBase::SystemMasterTimeBase(TimeBaseMode mode) noexcept
 
 std::uint64_t SystemMasterTimeBase::nowUs() const noexcept
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (m_mode == TimeBaseMode::SystemEpoch) {
         const auto now = std::chrono::system_clock::now();
         const auto us = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
         return static_cast<std::uint64_t>(us > 0 ? us : 0);
+    }
+
+    if (m_mode == TimeBaseMode::ExternalClock) {
+        const auto elapsed
+            = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - m_steadyEpoch)
+                  .count();
+        const auto total = elapsed + m_monotonicOffsetUs;
+        return static_cast<std::uint64_t>(total > 0 ? total : 0);
     }
 
     // MonotonicOffset
@@ -40,11 +50,13 @@ std::uint64_t SystemMasterTimeBase::toUs(std::uint64_t pts) const noexcept
 
 void SystemMasterTimeBase::setMonotonicOffset(std::int64_t offsetUs) noexcept
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_monotonicOffsetUs = offsetUs;
 }
 
 void SystemMasterTimeBase::calibrateOffset() noexcept
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     const auto sysNow = std::chrono::system_clock::now();
     const auto sysUs = std::chrono::duration_cast<std::chrono::microseconds>(sysNow.time_since_epoch()).count();
     m_steadyEpoch = std::chrono::steady_clock::now();
@@ -53,6 +65,7 @@ void SystemMasterTimeBase::calibrateOffset() noexcept
 
 TimeBaseMode SystemMasterTimeBase::mode() const noexcept
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     return m_mode;
 }
 

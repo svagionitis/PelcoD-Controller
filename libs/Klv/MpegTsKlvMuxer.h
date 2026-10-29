@@ -3,16 +3,17 @@
 /// @file MpegTsKlvMuxer.h
 /// @brief STANAG 4609 / MISB ST 1402 compliant MPEG-2 Transport Stream KLV and Video multiplexer.
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <optional>
+#include <vector>
+
 #include "KlvTypes.h"
 #include "MpegTsMuxerTypes.h"
 #include "VideoPesPacketizer.h"
 #include "VideoTypes.h"
-#include <cstddef>
-#include <cstdint>
-#include <functional>
-#include <map>
-#include <optional>
-#include <vector>
 
 namespace Klv {
 
@@ -50,9 +51,8 @@ public:
     /// @param[in] size Size of KLV packet in bytes.
     /// @param[in] timestampUs Optional microsecond timestamp for PTS/PCR calculation.
     /// @return Number of 188-byte TS packets emitted.
-    [[nodiscard]] std::size_t muxKlvPacket(const std::uint8_t* klvData,
-                                           std::size_t size,
-                                           std::optional<std::uint64_t> timestampUs = std::nullopt);
+    [[nodiscard]] std::size_t muxKlvPacket(
+        const std::uint8_t* klvData, std::size_t size, std::optional<std::uint64_t> timestampUs = std::nullopt);
 
     /// @brief Encodes and multiplexes a UasDatalinkMessage into TS packets.
     /// @param[in] message High-level telemetry message.
@@ -71,27 +71,23 @@ public:
     /// @param[in] dtsUs Optional decode timestamp in microseconds.
     /// @param[in] isKeyframe True if frame is an IDR/keyframe.
     /// @return Number of 188-byte TS packets emitted.
-    [[nodiscard]] std::size_t muxVideoFrame(const std::uint8_t* data,
-                                            std::size_t size,
-                                            std::uint64_t ptsUs,
-                                            std::optional<std::uint64_t> dtsUs = std::nullopt,
-                                            bool isKeyframe = false);
+    [[nodiscard]] std::size_t muxVideoFrame(const std::uint8_t* data, std::size_t size, std::uint64_t ptsUs,
+        std::optional<std::uint64_t> dtsUs = std::nullopt, bool isKeyframe = false);
 
     /// @brief Multiplexes a synchronized video frame and telemetry packet.
     /// @param[in] au Assembled video access unit.
     /// @param[in] message Optional telemetry message (synchronized within <= 50 ms).
     /// @return Total number of 188-byte TS packets emitted.
-    [[nodiscard]] std::size_t muxSynchronizedFrame(const VideoAccessUnit& au,
-                                                   const std::optional<UasDatalinkMessage>& message);
+    [[nodiscard]] std::size_t muxSynchronizedFrame(
+        const VideoAccessUnit& au, const std::optional<UasDatalinkMessage>& message);
 
     /// @brief Multiplexes a KLV packet directly into an allocated byte buffer.
     /// @param[in] klvData Pointer to raw KLV bytes.
     /// @param[in] size Size of KLV packet in bytes.
     /// @param[in] timestampUs Optional microsecond timestamp.
     /// @return Vector of contiguous 188-byte TS packets.
-    [[nodiscard]] std::vector<std::uint8_t> muxToBuffer(const std::uint8_t* klvData,
-                                                        std::size_t size,
-                                                        std::optional<std::uint64_t> timestampUs = std::nullopt);
+    [[nodiscard]] std::vector<std::uint8_t> muxToBuffer(
+        const std::uint8_t* klvData, std::size_t size, std::optional<std::uint64_t> timestampUs = std::nullopt);
 
     /// @brief Multiplexes a UasDatalinkMessage directly into an allocated byte buffer.
     /// @param[in] message High-level telemetry message.
@@ -107,8 +103,8 @@ public:
     /// @param[in] au Video access unit.
     /// @param[in] message Optional telemetry message.
     /// @return Vector of contiguous 188-byte TS packets.
-    [[nodiscard]] std::vector<std::uint8_t> muxSynchronizedToBuffer(const VideoAccessUnit& au,
-                                                                    const std::optional<UasDatalinkMessage>& message);
+    [[nodiscard]] std::vector<std::uint8_t> muxSynchronizedToBuffer(
+        const VideoAccessUnit& au, const std::optional<UasDatalinkMessage>& message);
 
     /// @brief Forces immediate generation and emission of PAT and PMT packets.
     /// @return Number of TS packets emitted (normally 2: PAT + PMT).
@@ -122,9 +118,15 @@ public:
     [[nodiscard]] std::uint16_t effectivePcrPid() const noexcept;
 
 private:
+    struct PidCcEntry {
+        std::uint16_t pid { 0U };
+        std::uint8_t cc { 0U };
+        bool active { false };
+    };
+
     MpegTsMuxerConfig m_config;
     TsPacketCallback m_callback;
-    std::map<std::uint16_t, std::uint8_t> m_continuityCounters;
+    std::array<PidCcEntry, 16> m_continuityCounters {};
     std::size_t m_packetCounter { 0U };
     std::uint64_t m_lastPcrTimestampUs { 0U };
     VideoPesPacketizer m_videoPesPacketizer {};
@@ -132,19 +134,14 @@ private:
     [[nodiscard]] std::uint8_t nextCc(std::uint16_t pid) noexcept;
     [[nodiscard]] std::vector<std::uint8_t> buildPatPacket();
     [[nodiscard]] std::vector<std::uint8_t> buildPmtPacket();
-    [[nodiscard]] std::vector<std::uint8_t> buildPesPacket(const std::uint8_t* klvData,
-                                                           std::size_t size,
-                                                           std::optional<std::uint64_t> timestampUs);
+    [[nodiscard]] std::vector<std::uint8_t> buildPesPacket(
+        const std::uint8_t* klvData, std::size_t size, std::optional<std::uint64_t> timestampUs);
 
-    std::size_t emitTsPacket(std::uint16_t pid,
-                             bool pusi,
-                             const std::uint8_t* payload,
-                             std::size_t payloadSize,
-                             std::optional<std::uint64_t> pcrUs);
+    std::size_t emitTsPacket(std::uint16_t pid, bool pusi, const std::uint8_t* payload, std::size_t payloadSize,
+        std::optional<std::uint64_t> pcrUs);
 
-    std::size_t emitPesStream(std::uint16_t pid,
-                              const std::vector<std::uint8_t>& pesData,
-                              std::optional<std::uint64_t> pcrUs);
+    std::size_t emitPesStream(
+        std::uint16_t pid, const std::vector<std::uint8_t>& pesData, std::optional<std::uint64_t> pcrUs);
 
     void dispatchPacket(const std::vector<std::uint8_t>& packet);
 };

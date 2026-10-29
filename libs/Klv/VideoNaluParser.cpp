@@ -307,6 +307,11 @@ std::size_t VideoNaluParser::pushChunk(const std::uint8_t* data, std::size_t siz
         m_currentPtsUs = ptsUs;
     }
 
+    if (m_buffer.size() + size > kMaxBufferSize) {
+        m_buffer.clear();
+        m_currentPtsUs = ptsUs;
+    }
+
     m_buffer.insert(m_buffer.end(), data, data + size);
     std::size_t emittedCount = 0U;
 

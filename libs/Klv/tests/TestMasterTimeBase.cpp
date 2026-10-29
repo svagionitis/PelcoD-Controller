@@ -1,5 +1,10 @@
 #include "MasterTimeBase.h"
+
 #include <cstdint>
+
+#include <thread>
+#include <vector>
+
 #include <gtest/gtest.h>
 
 using namespace Klv;
@@ -46,4 +51,45 @@ TEST(TestMasterTimeBase, RolloverAt33Bits)
     // One more tick should wrap around to small value
     const std::uint64_t ptsWrapped = tb.toPts(kMaxUs + 20ULL);
     EXPECT_LE(ptsWrapped, 0x1FFFFFFFFULL);
+}
+
+TEST(TestMasterTimeBase, ConcurrentCalibrateAndNowUsNoRace)
+{
+    SystemMasterTimeBase tb(TimeBaseMode::MonotonicOffset);
+
+    std::vector<std::thread> workers;
+    workers.reserve(4U);
+
+    // Thread writing / calibrating
+    workers.emplace_back([&tb]() {
+        for (std::size_t i = 0U; i < 500U; ++i) {
+            tb.calibrateOffset();
+            tb.setMonotonicOffset(static_cast<std::int64_t>(i * 1000U));
+        }
+    });
+
+    // Reader threads
+    for (std::size_t r = 0U; r < 3U; ++r) {
+        workers.emplace_back([&tb]() {
+            for (std::size_t i = 0U; i < 500U; ++i) {
+                const auto t = tb.nowUs();
+                EXPECT_GT(t, 0ULL);
+                const auto pts = tb.toPts(t);
+                EXPECT_LE(pts, 0x1FFFFFFFFULL);
+                EXPECT_EQ(tb.mode(), TimeBaseMode::MonotonicOffset);
+            }
+        });
+    }
+
+    for (auto& w : workers) {
+        w.join();
+    }
+}
+
+TEST(TestMasterTimeBase, ExternalClockMode)
+{
+    SystemMasterTimeBase tb(TimeBaseMode::ExternalClock);
+    EXPECT_EQ(tb.mode(), TimeBaseMode::ExternalClock);
+    tb.setMonotonicOffset(12345678LL);
+    EXPECT_EQ(tb.nowUs(), 12345678ULL);
 }

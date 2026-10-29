@@ -1,10 +1,12 @@
 #include "Misb0805.h"
 
-#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <ctime>
+
+#include <algorithm>
+#include <chrono>
 #include <iomanip>
 #include <sstream>
 #include <string>
@@ -43,19 +45,19 @@ std::string CotEvent::toXml() const
     return oss.str();
 }
 
-std::string Misb0805::formatIso8601(std::uint64_t timestampUs) noexcept
+std::string Misb0805::formatIso8601(std::uint64_t timestampUs)
 {
     const auto sec = static_cast<std::time_t>(timestampUs / 1000000ULL);
     const auto ms = static_cast<unsigned int>((timestampUs % 1000000ULL) / 1000ULL);
 
-    std::tm tmBuf { };
+    std::tm tmBuf {};
 #if defined(_WIN32)
     gmtime_s(&tmBuf, &sec);
 #else
     gmtime_r(&sec, &tmBuf);
 #endif
 
-    char buf[64] { };
+    char buf[64] {};
     std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02d.%03uZ", tmBuf.tm_year + 1900, tmBuf.tm_mon + 1,
         tmBuf.tm_mday, tmBuf.tm_hour, tmBuf.tm_min, tmBuf.tm_sec, ms);
     return std::string(buf);
@@ -73,7 +75,7 @@ double Misb0805::le90ToSigma1(double le90M) noexcept
     return le90M / kLe90ToSigma;
 }
 
-std::string Misb0805::targetTypeToCot(RvtTargetType type) noexcept
+std::string Misb0805::targetTypeToCot(RvtTargetType type)
 {
     switch (type) {
     case RvtTargetType::Friendly:
@@ -90,7 +92,7 @@ std::string Misb0805::targetTypeToCot(RvtTargetType type) noexcept
 
 CotEvent Misb0805::toPlatformPosition(const UasDatalinkMessage& msg, double staleSec, const std::string& platformType)
 {
-    CotEvent event { };
+    CotEvent event {};
     event.version = "2.0";
 
     // ST 0805.1 Table 1: UID is concatenation of Tag 10 (Device Designation) and Tag 3 (Mission ID)
@@ -107,7 +109,9 @@ CotEvent Misb0805::toPlatformPosition(const UasDatalinkMessage& msg, double stal
     const std::uint64_t ts = msg.precisionTimeStampUs.value_or(getCurrentTimeUs());
     event.time = formatIso8601(ts);
     event.start = event.time;
-    event.stale = formatIso8601(ts + static_cast<std::uint64_t>(staleSec * 1000000.0));
+    const double validStale = (std::isfinite(staleSec) && staleSec > 0.0) ? staleSec : 10.0;
+    const auto staleDeltaUs = static_cast<std::uint64_t>(std::clamp(validStale * 1000000.0, 0.0, 86400.0 * 1000000.0));
+    event.stale = formatIso8601(ts + staleDeltaUs);
     event.how = "m-p";
 
     event.point.lat = msg.sensorLatitudeDeg.value_or(0.0);
@@ -149,7 +153,7 @@ CotEvent Misb0805::toPlatformPosition(const UasDatalinkMessage& msg, double stal
 CotEvent Misb0805::toSensorPointOfInterest(
     const UasDatalinkMessage& msg, double staleSec, const std::string& platformType)
 {
-    CotEvent event { };
+    CotEvent event {};
     event.version = "2.0";
 
     std::string platUid = "UAS_PLATFORM";
@@ -171,7 +175,9 @@ CotEvent Misb0805::toSensorPointOfInterest(
     const std::uint64_t ts = msg.precisionTimeStampUs.value_or(getCurrentTimeUs());
     event.time = formatIso8601(ts);
     event.start = event.time;
-    event.stale = formatIso8601(ts + static_cast<std::uint64_t>(staleSec * 1000000.0));
+    const double validStale = (std::isfinite(staleSec) && staleSec > 0.0) ? staleSec : 10.0;
+    const auto staleDeltaUs = static_cast<std::uint64_t>(std::clamp(validStale * 1000000.0, 0.0, 86400.0 * 1000000.0));
+    event.stale = formatIso8601(ts + staleDeltaUs);
     event.how = "m-p";
 
     event.point.lat = msg.frameCenterLatDeg.value_or(0.0);
@@ -200,7 +206,7 @@ CotEvent Misb0805::toSensorPointOfInterest(
 
 CotEvent Misb0805::toCot(const PoiPack& poi, const std::string& parentUid, std::uint64_t timestampUs, double staleSec)
 {
-    CotEvent event { };
+    CotEvent event {};
     event.version = "2.0";
 
     if (poi.sourceId.has_value() && !poi.sourceId->empty()) {
@@ -216,7 +222,9 @@ CotEvent Misb0805::toCot(const PoiPack& poi, const std::string& parentUid, std::
     const std::uint64_t ts = (timestampUs > 0U) ? timestampUs : getCurrentTimeUs();
     event.time = formatIso8601(ts);
     event.start = event.time;
-    event.stale = formatIso8601(ts + static_cast<std::uint64_t>(staleSec * 1000000.0));
+    const double validStale = (std::isfinite(staleSec) && staleSec > 0.0) ? staleSec : 30.0;
+    const auto staleDeltaUs = static_cast<std::uint64_t>(std::clamp(validStale * 1000000.0, 0.0, 86400.0 * 1000000.0));
+    event.stale = formatIso8601(ts + staleDeltaUs);
     event.how = "m-p";
 
     event.point.lat = poi.latitudeDeg;

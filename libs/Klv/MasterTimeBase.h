@@ -3,10 +3,12 @@
 /// @file MasterTimeBase.h
 /// @brief Master clock and timebase reference for STANAG 4609 PTS generation.
 
-#include "PtsSyncTypes.h"
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <mutex>
+
+#include "PtsSyncTypes.h"
 
 namespace Klv {
 
@@ -55,6 +57,7 @@ public:
     [[nodiscard]] TimeBaseMode mode() const noexcept;
 
 private:
+    mutable std::mutex m_mutex {};
     TimeBaseMode m_mode { TimeBaseMode::SystemEpoch };
     std::int64_t m_monotonicOffsetUs { 0 };
     std::chrono::steady_clock::time_point m_steadyEpoch {};

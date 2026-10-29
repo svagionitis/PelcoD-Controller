@@ -158,8 +158,7 @@ std::optional<VideoIndexEntry> TelemetryTimeIndex::findVideoFrame(std::uint64_t 
     return (delta1 <= delta2) ? *prev : *it;
 }
 
-std::optional<KlvIndexEntry> TelemetryTimeIndex::findTelemetry(
-    std::uint64_t pts, std::uint64_t maxDeltaUs) const noexcept
+std::optional<KlvIndexEntry> TelemetryTimeIndex::findTelemetry(std::uint64_t pts, std::uint64_t maxDeltaUs) const
 {
     if (m_klvEntries.empty()) {
         return std::nullopt;
@@ -188,8 +187,7 @@ std::optional<KlvIndexEntry> TelemetryTimeIndex::findTelemetry(
     return std::nullopt;
 }
 
-bool TelemetryTimeIndex::findTelemetryBounds(
-    std::uint64_t pts, KlvIndexEntry& before, KlvIndexEntry& after) const noexcept
+bool TelemetryTimeIndex::findTelemetryBounds(std::uint64_t pts, KlvIndexEntry& before, KlvIndexEntry& after) const
 {
     if (m_klvEntries.empty()) {
         return false;
@@ -223,7 +221,7 @@ bool TelemetryTimeIndex::findTelemetryBounds(
 
 std::vector<KlvIndexEntry> TelemetryTimeIndex::findWindow(std::uint64_t startPts, std::uint64_t endPts) const
 {
-    std::vector<KlvIndexEntry> result { };
+    std::vector<KlvIndexEntry> result {};
     if (m_klvEntries.empty() || startPts > endPts) {
         return result;
     }
@@ -251,10 +249,14 @@ double TelemetryTimeIndex::ptsToSeconds(std::uint64_t pts) const noexcept
 
 std::uint64_t TelemetryTimeIndex::secondsToPts(double seconds) const noexcept
 {
-    if (seconds <= 0.0) {
+    if (!std::isfinite(seconds) || seconds <= 0.0) {
         return m_basePts;
     }
-    return m_basePts + static_cast<std::uint64_t>(std::llround(seconds * 90000.0));
+    const double scaled = seconds * 90000.0;
+    if (scaled >= static_cast<double>(UINT64_MAX - m_basePts)) {
+        return UINT64_MAX;
+    }
+    return m_basePts + static_cast<std::uint64_t>(std::llround(scaled));
 }
 
 std::uint64_t TelemetryTimeIndex::ptsToUtc(std::uint64_t pts) const noexcept

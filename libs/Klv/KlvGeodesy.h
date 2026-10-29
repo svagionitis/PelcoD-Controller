@@ -14,16 +14,16 @@ namespace Klv {
 /// @brief Platform 3D orientation (Yaw, Pitch, Roll) per MISB ST 0601 Section 7.2.2.
 struct PlatformAttitude {
     double headingDeg { 0.0 }; ///< Tag 5: Platform Heading Angle [0, 360) deg
-    double pitchDeg { 0.0 };   ///< Tag 6 / 90: Platform Pitch Angle [-90, +90] deg (positive = nose up)
-    double rollDeg { 0.0 };    ///< Tag 7 / 91: Platform Roll Angle [-180, +180] deg (positive = starboard down)
+    double pitchDeg { 0.0 }; ///< Tag 6 / 90: Platform Pitch Angle [-90, +90] deg (positive = nose up)
+    double rollDeg { 0.0 }; ///< Tag 7 / 91: Platform Roll Angle [-180, +180] deg (positive = starboard down)
 };
 
 /// @struct CameraOrientation
 /// @brief Gimbal / camera 3D relative orientation per MISB ST 0601 Section 7.2.3.
 struct CameraOrientation {
-    double azimuthDeg { 0.0 };   ///< Tag 18: Sensor Relative Azimuth [0, 360) deg
+    double azimuthDeg { 0.0 }; ///< Tag 18: Sensor Relative Azimuth [0, 360) deg
     double elevationDeg { 0.0 }; ///< Tag 19: Sensor Relative Elevation [-180, +180] deg (negative = downwards)
-    double rollDeg { 0.0 };      ///< Tag 20 / Tag 118: Sensor Relative Roll / Optical Roll [0, 360) deg
+    double rollDeg { 0.0 }; ///< Tag 20 / Tag 118: Sensor Relative Roll / Optical Roll [0, 360) deg
 };
 
 /// @struct Vector3D
@@ -35,9 +35,20 @@ struct Vector3D {
 };
 
 /// @class KlvGeodesy
-/// @brief Provides WGS-84 / spherical Earth calculations to compute target coordinates and ATAK sensor footprint polygons.
+/// @brief Provides WGS-84 / spherical Earth calculations to compute target coordinates and ATAK sensor footprint
+/// polygons.
 class KlvGeodesy {
 public:
+    /// @brief Normalizes longitude into [-180.0, 180.0].
+    /// @param[in] lonDeg Input longitude in degrees.
+    /// @return Normalized longitude.
+    [[nodiscard]] static double normalizeLon(double lonDeg) noexcept;
+
+    /// @brief Normalizes angle into [0.0, 360.0).
+    /// @param[in] deg Input angle in degrees.
+    /// @return Normalized angle.
+    [[nodiscard]] static double normalizeAngle360(double deg) noexcept;
+
     /// @brief Mean Earth radius in meters (WGS-84 volumetric mean radius).
     static constexpr double kEarthRadiusMeters { 6371008.8 };
 
@@ -46,9 +57,8 @@ public:
     /// @param[in] bearingDeg Compass direction [0, 360) in degrees.
     /// @param[in] distanceMeters Ground travel distance in meters.
     /// @return Destination 2D geographic point (lat, lon).
-    [[nodiscard]] static GeoPoint2D directGeodetic(const GeoPoint2D& origin,
-                                                   double bearingDeg,
-                                                   double distanceMeters) noexcept;
+    [[nodiscard]] static GeoPoint2D directGeodetic(
+        const GeoPoint2D& origin, double bearingDeg, double distanceMeters) noexcept;
 
     /// @brief Computes great-circle surface distance between two coordinates in meters.
     /// @param[in] p1 First coordinate point.
@@ -66,8 +76,7 @@ public:
     /// @param[in] altitudeM Platform altitude above MSL or HAE in meters.
     /// @param[in] groundElevationM Ground elevation MSL in meters.
     /// @return Line-of-sight distance to horizon in meters.
-    [[nodiscard]] static double horizonDistance(double altitudeM,
-                                                double groundElevationM = 0.0) noexcept;
+    [[nodiscard]] static double horizonDistance(double altitudeM, double groundElevationM = 0.0) noexcept;
 
     /// @brief Computes the unit line-of-sight vector in local NED coordinates.
     /// @param[in] attitude Platform 3D attitude (heading, pitch, roll).
@@ -75,10 +84,8 @@ public:
     /// @param[in] opticalOffsetX Horizontal tangent angle offset (tan(hfov/2) * normalized_x).
     /// @param[in] opticalOffsetY Vertical tangent angle offset (tan(vfov/2) * normalized_y).
     /// @return Unit 3-vector in local North-East-Down (NED) frame.
-    [[nodiscard]] static Vector3D computeRayNed(const PlatformAttitude& attitude,
-                                                const CameraOrientation& sensor,
-                                                double opticalOffsetX = 0.0,
-                                                double opticalOffsetY = 0.0) noexcept;
+    [[nodiscard]] static Vector3D computeRayNed(const PlatformAttitude& attitude, const CameraOrientation& sensor,
+        double opticalOffsetX = 0.0, double opticalOffsetY = 0.0) noexcept;
 
     /// @brief Computes ray intersection with the spherical Earth taking into account horizon clipping.
     /// @param[in] platformPos Platform 3D location (latitude, longitude, altitude MSL in meters).
@@ -87,9 +94,7 @@ public:
     /// @param[in] clipToHorizon If true and ray points above horizon, clips ray to horizon limit.
     /// @return Projected ground coordinate, or std::nullopt if looking above horizon and clipToHorizon is false.
     [[nodiscard]] static std::optional<GeoPoint2D> intersectRayEarth(const GeoPoint3D& platformPos,
-                                                                     const Vector3D& rayNed,
-                                                                     double groundElevationM = 0.0,
-                                                                     bool clipToHorizon = false) noexcept;
+        const Vector3D& rayNed, double groundElevationM = 0.0, bool clipToHorizon = false) noexcept;
 
     /// @brief Computes ground intersection (Frame Center) using full 3D platform attitude and sensor orientation.
     /// @param[in] platformPos Platform 3D location (latitude, longitude, altitude MSL in meters).
@@ -98,9 +103,7 @@ public:
     /// @param[in] groundElevationM Ground elevation MSL in meters.
     /// @return Projected ground center point (lat, lon), or std::nullopt if pointing above the horizon.
     [[nodiscard]] static std::optional<GeoPoint2D> computeFrameCenter(const GeoPoint3D& platformPos,
-                                                                      const PlatformAttitude& attitude,
-                                                                      const CameraOrientation& sensor,
-                                                                      double groundElevationM = 0.0) noexcept;
+        const PlatformAttitude& attitude, const CameraOrientation& sensor, double groundElevationM = 0.0) noexcept;
 
     /// @brief Computes the ground intersection (Frame Center) of the camera's optical line-of-sight (legacy overload).
     /// @param[in] platformPos Platform 3D location (latitude, longitude, altitude MSL in meters).
@@ -110,21 +113,19 @@ public:
     /// @param[in] groundElevationM Ground elevation MSL in meters (default 0.0 m).
     /// @return Projected ground center point (lat, lon), or std::nullopt if looking above the horizon.
     [[nodiscard]] static std::optional<GeoPoint2D> computeFrameCenter(const GeoPoint3D& platformPos,
-                                                                      double platformHeadingDeg,
-                                                                      double sensorAzimuthDeg,
-                                                                      double sensorElevationDeg,
-                                                                      double groundElevationM = 0.0) noexcept;
+        double platformHeadingDeg, double sensorAzimuthDeg, double sensorElevationDeg,
+        double groundElevationM = 0.0) noexcept;
 
     /// @brief Computes the slant range from the camera platform to the ground target.
     /// @param[in] platformAltitudeM Platform altitude above MSL in meters.
     /// @param[in] sensorElevationDeg Sensor elevation [-90, +90] in degrees (negative = downwards).
     /// @param[in] groundElevationM Ground elevation MSL in meters (default 0.0 m).
     /// @return Slant range in meters, or std::nullopt if looking at or above horizontal.
-    [[nodiscard]] static std::optional<double> computeSlantRange(double platformAltitudeM,
-                                                                 double sensorElevationDeg,
-                                                                 double groundElevationM = 0.0) noexcept;
+    [[nodiscard]] static std::optional<double> computeSlantRange(
+        double platformAltitudeM, double sensorElevationDeg, double groundElevationM = 0.0) noexcept;
 
-    /// @brief Computes 4-corner ground footprint frustum using full 3D attitude, sensor orientation, and horizon clipping.
+    /// @brief Computes 4-corner ground footprint frustum using full 3D attitude, sensor orientation, and horizon
+    /// clipping.
     /// @param[in] platformPos Platform 3D location (latitude, longitude, altitude MSL in meters).
     /// @param[in] attitude Platform 3D attitude (heading, pitch, roll).
     /// @param[in] sensor Sensor 3D orientation (azimuth, elevation, roll).
@@ -133,11 +134,8 @@ public:
     /// @param[in] groundElevationM Ground elevation MSL in meters.
     /// @return FrustumCorners containing Top-Left, Top-Right, Bottom-Right, and Bottom-Left coordinates.
     [[nodiscard]] static std::optional<FrustumCorners> computeFrustum(const GeoPoint3D& platformPos,
-                                                                      const PlatformAttitude& attitude,
-                                                                      const CameraOrientation& sensor,
-                                                                      double hfovDeg,
-                                                                      double vfovDeg,
-                                                                      double groundElevationM = 0.0) noexcept;
+        const PlatformAttitude& attitude, const CameraOrientation& sensor, double hfovDeg, double vfovDeg,
+        double groundElevationM = 0.0) noexcept;
 
     /// @brief Computes the 4-corner ground footprint frustum (legacy overload).
     /// @param[in] platformPos Platform 3D location (latitude, longitude, altitude MSL in meters).
@@ -149,12 +147,8 @@ public:
     /// @param[in] groundElevationM Ground elevation MSL in meters.
     /// @return FrustumCorners containing Top-Left, Top-Right, Bottom-Right, and Bottom-Left coordinates.
     [[nodiscard]] static std::optional<FrustumCorners> computeFrustum(const GeoPoint3D& platformPos,
-                                                                      double platformHeadingDeg,
-                                                                      double sensorAzimuthDeg,
-                                                                      double sensorElevationDeg,
-                                                                      double hfovDeg,
-                                                                      double vfovDeg,
-                                                                      double groundElevationM = 0.0) noexcept;
+        double platformHeadingDeg, double sensorAzimuthDeg, double sensorElevationDeg, double hfovDeg, double vfovDeg,
+        double groundElevationM = 0.0) noexcept;
 };
 
 } // namespace Klv

@@ -6,7 +6,19 @@
 #include <cstddef>
 #include <optional>
 
+#include "KlvScaling.h"
+
 namespace Klv {
+
+double KlvGeodesy::normalizeLon(double lonDeg) noexcept
+{
+    return KlvScaling::wrapLon180(lonDeg);
+}
+
+double KlvGeodesy::normalizeAngle360(double deg) noexcept
+{
+    return KlvScaling::wrapAngle360(deg);
+}
 
 namespace {
 
@@ -22,30 +34,12 @@ namespace {
         return rad * (180.0 / kPi);
     }
 
-    inline double normalizeAngle360(double deg) noexcept
-    {
-        double wrapped = std::fmod(deg, 360.0);
-        if (wrapped < 0.0) {
-            wrapped += 360.0;
-        }
-        return wrapped;
-    }
-
-    inline double normalizeLon(double lonDeg) noexcept
-    {
-        while (lonDeg > 180.0)
-            lonDeg -= 360.0;
-        while (lonDeg < -180.0)
-            lonDeg += 360.0;
-        return lonDeg;
-    }
-
     struct Matrix3x3 {
-        std::array<std::array<double, 3>, 3> m { };
+        std::array<std::array<double, 3>, 3> m {};
 
         [[nodiscard]] static Matrix3x3 identity() noexcept
         {
-            Matrix3x3 r { };
+            Matrix3x3 r {};
             r.m[0][0] = 1.0;
             r.m[1][1] = 1.0;
             r.m[2][2] = 1.0;
@@ -56,7 +50,7 @@ namespace {
         {
             const double c = std::cos(rad);
             const double s = std::sin(rad);
-            Matrix3x3 r { };
+            Matrix3x3 r {};
             r.m[0][0] = 1.0;
             r.m[1][1] = c;
             r.m[1][2] = s;
@@ -69,7 +63,7 @@ namespace {
         {
             const double c = std::cos(rad);
             const double s = std::sin(rad);
-            Matrix3x3 r { };
+            Matrix3x3 r {};
             r.m[0][0] = c;
             r.m[0][2] = -s;
             r.m[1][1] = 1.0;
@@ -82,7 +76,7 @@ namespace {
         {
             const double c = std::cos(rad);
             const double s = std::sin(rad);
-            Matrix3x3 r { };
+            Matrix3x3 r {};
             r.m[0][0] = c;
             r.m[0][1] = s;
             r.m[1][0] = -s;
@@ -93,7 +87,7 @@ namespace {
 
         [[nodiscard]] Matrix3x3 transpose() const noexcept
         {
-            Matrix3x3 t { };
+            Matrix3x3 t {};
             for (std::size_t i = 0; i < 3; ++i) {
                 for (std::size_t j = 0; j < 3; ++j) {
                     t.m[i][j] = m[j][i];
@@ -104,7 +98,7 @@ namespace {
 
         [[nodiscard]] Matrix3x3 operator*(const Matrix3x3& o) const noexcept
         {
-            Matrix3x3 r { };
+            Matrix3x3 r {};
             for (std::size_t i = 0; i < 3; ++i) {
                 for (std::size_t j = 0; j < 3; ++j) {
                     double sum = 0.0;

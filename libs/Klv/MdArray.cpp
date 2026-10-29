@@ -1,11 +1,14 @@
 #include "MdArray.h"
-#include "KlvBer.h"
-#include "Misb1201.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <cstring>
+
+#include <algorithm>
+#include <limits>
 #include <vector>
+
+#include "KlvBer.h"
+#include "Misb1201.h"
 
 namespace Klv {
 
@@ -199,7 +202,13 @@ bool MdArray::decodeFloat2D(const std::uint8_t* data, std::size_t size, std::vec
 
     const auto numRows = static_cast<std::size_t>(dim1);
     const auto numCols = static_cast<std::size_t>(dim2);
+    if (numCols > 0U && numRows > std::numeric_limits<std::size_t>::max() / numCols) {
+        return false;
+    }
     const std::size_t totalElements = numRows * numCols;
+    if (ebytes > 0U && totalElements > std::numeric_limits<std::size_t>::max() / static_cast<std::size_t>(ebytes)) {
+        return false;
+    }
     const std::size_t elementDataLen = totalElements * static_cast<std::size_t>(ebytes);
 
     if (apa == static_cast<std::uint32_t>(MdArrayApa::ST1201)) {
@@ -294,6 +303,9 @@ bool MdArray::decodeFloat1D(const std::uint8_t* data, std::size_t size, std::vec
     offset += consumed;
 
     const auto numElements = static_cast<std::size_t>(dim1);
+    if (ebytes > 0U && numElements > std::numeric_limits<std::size_t>::max() / static_cast<std::size_t>(ebytes)) {
+        return false;
+    }
     const std::size_t elementDataLen = numElements * static_cast<std::size_t>(ebytes);
 
     if (apa == static_cast<std::uint32_t>(MdArrayApa::ST1201)) {
@@ -379,7 +391,7 @@ bool MdArray::decodeUInt2D(
     offset += consumed;
 
     std::uint32_t ebytes { 0U };
-    if (!KlvBer::decodeTag(data + offset, size - offset, ebytes, consumed) || ebytes == 0U) {
+    if (!KlvBer::decodeTag(data + offset, size - offset, ebytes, consumed) || ebytes == 0U || ebytes > 4U) {
         return false;
     }
     offset += consumed;
@@ -392,10 +404,13 @@ bool MdArray::decodeUInt2D(
 
     const auto numRows = static_cast<std::size_t>(dim1);
     const auto numCols = static_cast<std::size_t>(dim2);
+    if (numCols > 0U && numRows > std::numeric_limits<std::size_t>::max() / numCols) {
+        return false;
+    }
+    const std::size_t totalElements = numRows * numCols;
 
     if (apa == static_cast<std::uint32_t>(MdArrayApa::NaturalFormat)) {
-        const std::size_t elementDataLen = numRows * numCols * static_cast<std::size_t>(ebytes);
-        if (offset + elementDataLen > size) {
+        if (totalElements > (size - offset) / static_cast<std::size_t>(ebytes)) {
             return false;
         }
         outMatrix.assign(numRows, std::vector<std::uint32_t>(numCols, 0U));
@@ -414,6 +429,11 @@ bool MdArray::decodeUInt2D(
             return false;
         }
         offset += consumed;
+
+        // In BER-OID encoding, every element requires at least 1 byte
+        if (totalElements > (size - offset)) {
+            return false;
+        }
 
         outMatrix.assign(numRows, std::vector<std::uint32_t>(numCols, 0U));
         for (std::size_t r = 0U; r < numRows; ++r) {
@@ -454,7 +474,7 @@ bool MdArray::decodeUInt1D(const std::uint8_t* data, std::size_t size, std::vect
     offset += consumed;
 
     std::uint32_t ebytes { 0U };
-    if (!KlvBer::decodeTag(data + offset, size - offset, ebytes, consumed) || ebytes == 0U) {
+    if (!KlvBer::decodeTag(data + offset, size - offset, ebytes, consumed) || ebytes == 0U || ebytes > 4U) {
         return false;
     }
     offset += consumed;
@@ -468,8 +488,7 @@ bool MdArray::decodeUInt1D(const std::uint8_t* data, std::size_t size, std::vect
     const auto numElements = static_cast<std::size_t>(dim1);
 
     if (apa == static_cast<std::uint32_t>(MdArrayApa::NaturalFormat)) {
-        const std::size_t elementDataLen = numElements * static_cast<std::size_t>(ebytes);
-        if (offset + elementDataLen > size) {
+        if (numElements > (size - offset) / static_cast<std::size_t>(ebytes)) {
             return false;
         }
         outVec.resize(numElements, 0U);
@@ -486,6 +505,10 @@ bool MdArray::decodeUInt1D(const std::uint8_t* data, std::size_t size, std::vect
             return false;
         }
         offset += consumed;
+
+        if (numElements > (size - offset)) {
+            return false;
+        }
 
         outVec.resize(numElements, 0U);
         for (std::size_t i = 0U; i < numElements; ++i) {
