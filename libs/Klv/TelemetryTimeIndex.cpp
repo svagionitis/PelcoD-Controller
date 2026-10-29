@@ -1,8 +1,10 @@
 #include "TelemetryTimeIndex.h"
 
-#include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
+
+#include <algorithm>
 #include <optional>
 #include <utility>
 #include <vector>

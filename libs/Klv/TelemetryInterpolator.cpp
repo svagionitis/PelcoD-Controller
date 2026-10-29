@@ -1,8 +1,9 @@
 #include "TelemetryInterpolator.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstdint>
+
+#include <algorithm>
 
 namespace Klv {
 

@@ -3,9 +3,9 @@
 /// @file KlvParser.h
 /// @brief STANAG 4609 / MISB ST 0601 KLV metadata parser and deserializer.
 
-#include "KlvTypes.h"
-#include <cstddef>
 #include <cstdint>
+
+#include "KlvTypes.h"
 
 namespace Klv {
 
@@ -25,19 +25,16 @@ public:
     /// @param[out] message Output struct where parsed telemetry values will be stored.
     /// @param[in] verifyChecksum If true, verifies the Tag 1 CRC-16 checksum before parsing.
     /// @return KlvStatus::Success if parsed correctly, or an error status code.
-    [[nodiscard]] static KlvStatus parse(const std::uint8_t* data,
-                                         std::size_t size,
-                                         UasDatalinkMessage& message,
-                                         bool verifyChecksum = true);
+    [[nodiscard]] static KlvStatus parse(
+        const std::uint8_t* data, std::size_t size, UasDatalinkMessage& message, bool verifyChecksum = true);
 
     /// @brief Parses the nested MISB ST 0102 Security Classification Local Set (Tag 48).
     /// @param[in] data Pointer to the start of the inner Tag 48 payload.
     /// @param[in] size Length of the inner payload in bytes.
     /// @param[out] security Output security metadata struct.
     /// @return KlvStatus::Success if parsed successfully; error otherwise.
-    [[nodiscard]] static KlvStatus parseSecurityLocalSet(const std::uint8_t* data,
-                                                         std::size_t size,
-                                                         SecurityMetadata& security);
+    [[nodiscard]] static KlvStatus parseSecurityLocalSet(
+        const std::uint8_t* data, std::size_t size, SecurityMetadata& security);
 };
 
 } // namespace Klv

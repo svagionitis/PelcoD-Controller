@@ -3,11 +3,13 @@
 /// @file VmtiParser.h
 /// @brief MISB ST 0903 Video Moving Target Indicator (VMTI) metadata parser.
 
-#include "KlvTypes.h"
-#include "VmtiTypes.h"
 #include <cstddef>
 #include <cstdint>
+
 #include <vector>
+
+#include "KlvTypes.h"
+#include "VmtiTypes.h"
 
 namespace Klv {
 

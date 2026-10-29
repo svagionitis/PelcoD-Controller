@@ -3,9 +3,9 @@
 /// @file MasterTimeBase.h
 /// @brief Master clock and timebase reference for STANAG 4609 PTS generation.
 
-#include <chrono>
 #include <cstdint>
-#include <memory>
+
+#include <chrono>
 #include <mutex>
 
 #include "PtsSyncTypes.h"

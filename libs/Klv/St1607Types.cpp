@@ -1,4 +1,10 @@
 #include "St1607Types.h"
+
+#include <cstddef>
+#include <cstdint>
+
+#include <algorithm>
+
 #include "KlvTypes.h"
 
 namespace Klv {

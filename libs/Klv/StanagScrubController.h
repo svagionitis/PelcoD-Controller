@@ -3,12 +3,13 @@
 /// @file StanagScrubController.h
 /// @brief Master playback and timeline scrubbing controller linking video and telemetry.
 
-#include "StanagScrubTypes.h"
-#include "TelemetryTimeIndex.h"
-
 #include <cstdint>
+
 #include <functional>
 #include <mutex>
+
+#include "StanagScrubTypes.h"
+#include "TelemetryTimeIndex.h"
 
 namespace Klv {
 
@@ -95,7 +96,7 @@ private:
     ScrubStats m_stats {};
     std::uint32_t m_currentFrameIndex { 0U };
 
-    bool executeSeekLocked(std::uint64_t targetPts);
+    [[nodiscard]] bool executeSeekLocked(std::uint64_t targetPts);
 };
 
 } // namespace Klv

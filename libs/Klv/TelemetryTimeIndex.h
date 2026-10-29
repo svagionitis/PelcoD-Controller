@@ -3,11 +3,13 @@
 /// @file TelemetryTimeIndex.h
 /// @brief High-performance time index linking video timestamps with KLV telemetry.
 
-#include "StanagScrubTypes.h"
 #include <cstddef>
 #include <cstdint>
+
 #include <optional>
 #include <vector>
+
+#include "StanagScrubTypes.h"
 
 namespace Klv {
 

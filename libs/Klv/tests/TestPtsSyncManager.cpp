@@ -36,7 +36,7 @@ TEST(TestPtsSyncManager, NominalInSync)
         manager.pushVideoFrame(frameData.data(), frameData.size(), t);
     }
 
-    manager.flush();
+    EXPECT_EQ(manager.flush(), 0U);
 
     ASSERT_EQ(outputs.size(), 3U);
     for (std::size_t i = 0U; i < 3U; ++i) {
@@ -73,7 +73,7 @@ TEST(TestPtsSyncManager, TelemetrySkewWithinCompliantLimit)
     const std::vector<std::uint8_t> frameData = { 0x00U, 0x00U, 0x00U, 0x01U, 0x41U };
     manager.pushVideoFrame(frameData.data(), frameData.size(), kVideoPts);
 
-    manager.flush();
+    EXPECT_EQ(manager.flush(), 0U);
 
     ASSERT_EQ(outputs.size(), 1U);
     EXPECT_FALSE(outputs[0].wasClamped);
@@ -106,7 +106,7 @@ TEST(TestPtsSyncManager, StrictClampPolicy)
     const std::vector<std::uint8_t> frameData = { 0x00U, 0x00U, 0x00U, 0x01U, 0x65U };
     manager.pushVideoFrame(frameData.data(), frameData.size(), kVideoPts, std::nullopt, /*isKeyframe=*/true);
 
-    manager.flush();
+    EXPECT_EQ(manager.flush(), 0U);
 
     ASSERT_EQ(outputs.size(), 1U);
     EXPECT_TRUE(outputs[0].wasClamped);
@@ -141,7 +141,7 @@ TEST(TestPtsSyncManager, NearestFramePolicy)
     const std::vector<std::uint8_t> frameData = { 0x00U, 0x00U, 0x00U, 0x01U, 0x41U };
     manager.pushVideoFrame(frameData.data(), frameData.size(), kVideoPts);
 
-    manager.flush();
+    EXPECT_EQ(manager.flush(), 0U);
 
     ASSERT_EQ(outputs.size(), 1U);
     EXPECT_TRUE(outputs[0].wasClamped);
@@ -175,7 +175,7 @@ TEST(TestPtsSyncManager, DropStalePolicy)
     const std::vector<std::uint8_t> frameData = { 0x00U, 0x00U, 0x00U, 0x01U, 0x41U };
     manager.pushVideoFrame(frameData.data(), frameData.size(), kVideoPts);
 
-    manager.flush();
+    EXPECT_EQ(manager.flush(), 0U);
 
     ASSERT_EQ(outputs.size(), 1U);
     // Metadata should have been dropped due to stale policy
@@ -210,7 +210,7 @@ TEST(TestPtsSyncManager, MuxerBindingRoundTrip)
     const std::vector<std::uint8_t> frameData = { 0x00U, 0x00U, 0x00U, 0x01U, 0x65U, 0x88U };
     syncManager.pushVideoFrame(frameData.data(), frameData.size(), kTimestamp, std::nullopt, /*isKeyframe=*/true);
 
-    syncManager.flush();
+    EXPECT_EQ(syncManager.flush(), 0U);
 
     ASSERT_FALSE(tsPackets.empty());
 
@@ -247,7 +247,7 @@ TEST(TestPtsSyncManager, ReentrantCallbackDoesNotDeadlock)
 
     const std::vector<std::uint8_t> frameData = { 0x00U, 0x00U, 0x00U, 0x01U, 0x41U };
     manager.pushVideoFrame(frameData.data(), frameData.size(), 1000000ULL);
-    manager.flush();
+    EXPECT_EQ(manager.flush(), 0U);
 
     EXPECT_TRUE(callbackInvoked);
 }
@@ -269,7 +269,7 @@ TEST(TestPtsSyncManager, StrictClampUnderflowNearZeroPts)
 
     const std::vector<std::uint8_t> frameData = { 0x00U, 0x00U, 0x00U, 0x01U, 0x41U };
     manager.pushVideoFrame(frameData.data(), frameData.size(), 5ULL);
-    manager.flush();
+    EXPECT_EQ(manager.flush(), 0U);
 
     ASSERT_EQ(outputs.size(), 1U);
     EXPECT_TRUE(outputs[0].wasClamped);
@@ -292,4 +292,24 @@ TEST(TestPtsSyncManager, QueueCapacityEnforcement)
     const auto s = manager.stats();
     EXPECT_GT(s.droppedPackets, 0U);
     EXPECT_EQ(s.droppedPackets, 40U);
+}
+
+TEST(TestPtsSyncManager, FlushDispatchesBufferedVideoFrames)
+{
+    PtsSyncConfig config;
+    config.jitterBufferDepthMs = 100U;
+    PtsSyncManager manager(config);
+
+    std::vector<SynchronizedAccessUnit> outputs;
+    manager.setSyncCallback([&outputs](const SynchronizedAccessUnit& item) { outputs.push_back(item); });
+
+    const std::vector<std::uint8_t> frameData = { 0x00U, 0x00U, 0x00U, 0x01U, 0x41U };
+    manager.pushVideoFrame(frameData.data(), frameData.size(), 1000000ULL);
+
+    // Frame without telemetry held in jitter buffer
+    EXPECT_EQ(outputs.size(), 0U);
+
+    // Flush forces immediate dispatch of the buffered frame and returns 1
+    EXPECT_EQ(manager.flush(), 1U);
+    EXPECT_EQ(outputs.size(), 1U);
 }

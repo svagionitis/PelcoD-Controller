@@ -1,9 +1,6 @@
 #include "StanagStreamIndexer.h"
-#include "KlvCrc.h"
-#include "KlvEncoder.h"
-#include "KlvParser.h"
-#include "VideoNaluParser.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
@@ -13,6 +10,11 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+
+#include "KlvCrc.h"
+#include "KlvEncoder.h"
+#include "KlvParser.h"
+#include "VideoNaluParser.h"
 
 namespace Klv {
 

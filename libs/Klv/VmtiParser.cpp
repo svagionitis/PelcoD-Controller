@@ -1,5 +1,6 @@
 #include "VmtiParser.h"
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>

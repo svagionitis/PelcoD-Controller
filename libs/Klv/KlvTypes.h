@@ -3,19 +3,20 @@
 /// @file KlvTypes.h
 /// @brief Core data structures, enumerations, and constants for STANAG 4609 / MISB ST 0601 KLV metadata.
 
+#include <cstddef>
+#include <cstdint>
+
+#include <array>
+#include <optional>
+#include <string>
+#include <vector>
+
 #include "GeoRegistrationTypes.h"
 #include "GeoTypes.h"
 #include "MiisCoreId.h"
 #include "RvtTypes.h"
 #include "St1607Types.h"
 #include "VmtiTypes.h"
-
-#include <array>
-#include <cstddef>
-#include <cstdint>
-#include <optional>
-#include <string>
-#include <vector>
 
 namespace Klv {
 
@@ -81,18 +82,31 @@ enum class Tag : std::uint32_t {
     SensorAltitudeHae = 75U, ///< Tag 75: Sensor true altitude HAE [-900, +19000] m (2 bytes)
     FrameCenterElevHae = 78U, ///< Tag 78: Frame center elevation HAE [-900, +19000] m (2 bytes)
     CornerLat1Full = 82U, ///< Tag 82: Corner 1 Latitude Full [-90, +90] deg (4 bytes)
+    CornerLatHae1 = 82U, ///< Tag 82: Corner 1 latitude with HAE (4 bytes)
     CornerLon1Full = 83U, ///< Tag 83: Corner 1 Longitude Full [-180, +180] deg (4 bytes)
+    CornerLonHae1 = 83U, ///< Tag 83: Corner 1 longitude with HAE (4 bytes)
     CornerLat2Full = 84U, ///< Tag 84: Corner 2 Latitude Full [-90, +90] deg (4 bytes)
+    CornerLatHae2 = 84U, ///< Tag 84: Corner 2 latitude with HAE (4 bytes)
     CornerLon2Full = 85U, ///< Tag 85: Corner 2 Longitude Full [-180, +180] deg (4 bytes)
+    CornerLonHae2 = 85U, ///< Tag 85: Corner 2 longitude with HAE (4 bytes)
     CornerLat3Full = 86U, ///< Tag 86: Corner 3 Latitude Full [-90, +90] deg (4 bytes)
+    CornerLatHae3 = 86U, ///< Tag 86: Corner 3 latitude with HAE (4 bytes)
     CornerLon3Full = 87U, ///< Tag 87: Corner 3 Longitude Full [-180, +180] deg (4 bytes)
+    CornerLonHae3 = 87U, ///< Tag 87: Corner 3 longitude with HAE (4 bytes)
     CornerLat4Full = 88U, ///< Tag 88: Corner 4 Latitude Full [-90, +90] deg (4 bytes)
+    CornerLatHae4 = 88U, ///< Tag 88: Corner 4 latitude with HAE (4 bytes)
     CornerLon4Full = 89U, ///< Tag 89: Corner 4 Longitude Full [-180, +180] deg (4 bytes)
-    MiisCoreId = 94U, ///< Tag 94: MISB ST 1204 Core Identifier
-    WavelengthBands = 95U, ///< Tag 95: Wavelength band bitmask (1 byte)
-    GeoRegistration = 98U, ///< Tag 98: MISB ST 1601 Geo-Registration Local Set
-    SegmentLocalSet = 100U, ///< Tag 100: MISB ST 1607 Segment Local Set
-    AmendLocalSet = 101U, ///< Tag 101: MISB ST 1607 Amend Local Set
+    CornerLonHae4 = 89U, ///< Tag 89: Corner 4 longitude with HAE (4 bytes)
+    PlatformPitchAngleFull = 90U, ///< Tag 90: Platform Pitch Angle (Full) [-90, +90] deg (4 bytes)
+    PlatformRollAngleFull = 91U, ///< Tag 91: Platform Roll Angle (Full) [-180, +180] deg (4 bytes)
+    PlatformAngleOfAttack = 92U, ///< Tag 92: Platform Angle of Attack [-20, +20] deg (2 bytes)
+    PlatformSideslipAngle = 93U, ///< Tag 93: Platform Sideslip Angle [-20, +20] deg (2 bytes)
+    MiisCoreIdentifier = 94U, ///< Tag 94: MISB ST 1204 MIIS Core Identifier (variable)
+    MiisCoreId = 94U, ///< Tag 94 alias: MISB ST 1204 MIIS Core Identifier
+    WavelengthBands = 95U, ///< Tag 95: Wavelength band bitmask (2 bytes)
+    GeoRegistration = 98U, ///< Tag 98: MISB ST 1601 Geo-Registration Local Set (nested)
+    SegmentLocalSet = 100U, ///< Tag 100: MISB ST 1607 Segment Local Set (nested)
+    AmendLocalSet = 101U, ///< Tag 101: MISB ST 1607 Amend Local Set (nested)
     SensorRollAngle = 118U, ///< Tag 118: Sensor roll angle [0, 360) deg (4 bytes)
     Msid = 143U ///< Tag 143: MISB ST 0601 Metadata Substream ID Pack
 };
@@ -137,41 +151,41 @@ struct SecurityMetadata {
 /// @brief Strongly-typed representation of a MISB ST 0601 UAS Datalink Local Set message.
 /// @details Each field is wrapped in std::optional to support sparse telemetry updates.
 struct UasDatalinkMessage {
-    std::optional<std::uint64_t> precisionTimeStampUs; ///< Tag 2: Microseconds since epoch
-    std::optional<std::string> missionId; ///< Tag 3: Mission ID
-    std::optional<std::string> platformTailNumber; ///< Tag 4: Tail number / callsign
-    std::optional<double> platformHeadingDeg; ///< Tag 5: [0, 360) deg
-    std::optional<double> platformPitchDeg; ///< Tag 6: [-20, +20] deg
-    std::optional<double> platformRollDeg; ///< Tag 7: [-50, +50] deg
-    std::optional<std::string> platformDesignation; ///< Tag 10: Platform model
-    std::optional<std::string> imageSourceSensor; ///< Tag 11: Sensor payload model
-    std::optional<std::string> imageCoordinateSystem; ///< Tag 12: Coordinate system
-    std::optional<double> sensorLatitudeDeg; ///< Tag 13: [-90, +90] deg
-    std::optional<double> sensorLongitudeDeg; ///< Tag 14: [-180, +180] deg
-    std::optional<double> sensorTrueAltitudeM; ///< Tag 15: [-900, +19000] m
-    std::optional<double> sensorHfovDeg; ///< Tag 16: [0, 180] deg
-    std::optional<double> sensorVfovDeg; ///< Tag 17: [0, 180] deg
-    std::optional<double> sensorRelAzimuthDeg; ///< Tag 18: [0, 360) deg
-    std::optional<double> sensorRelElevationDeg; ///< Tag 19: [-180, +180] deg
-    std::optional<double> sensorRelRollDeg; ///< Tag 20: [0, 360) deg
-    std::optional<double> slantRangeM; ///< Tag 21: [0, 5000000] m
-    std::optional<double> targetWidthM; ///< Tag 22: [0, 10000] m
-    std::optional<double> frameCenterLatDeg; ///< Tag 23: [-90, +90] deg
-    std::optional<double> frameCenterLonDeg; ///< Tag 24: [-180, +180] deg
-    std::optional<double> frameCenterElevM; ///< Tag 25: [-900, +19000] m
-    std::optional<FrustumCorners> cornerCoordinates; ///< Decoded from Tags 26..33 or 82..89
-    std::optional<double> targetErrorCe90M; ///< Tag 45: CE90 in meters
-    std::optional<double> targetErrorLe90M; ///< Tag 46: LE90 in meters
-    std::optional<SecurityMetadata> security; ///< Tag 48: Security Local Set
-    std::optional<std::uint8_t> uasLsVersion; ///< Tag 65: Version number (e.g. 1..19)
-    std::optional<RvtLocalSet> rvt; ///< Tag 73: MISB ST 0806 RVT Local Set
-    std::optional<VmtiLocalSet> vmti; ///< Tag 74: MISB ST 0903 VMTI Local Set
-    std::optional<double> sensorAltitudeHaeM; ///< Tag 75: Sensor HAE altitude in meters
-    std::optional<double> frameCenterElevHaeM; ///< Tag 78: Frame center HAE elevation in meters
+    std::optional<std::uint64_t> precisionTimeStampUs {}; ///< Tag 2: Microseconds since epoch
+    std::optional<std::string> missionId {}; ///< Tag 3: Mission ID
+    std::optional<std::string> platformTailNumber {}; ///< Tag 4: Tail number / callsign
+    std::optional<double> platformHeadingDeg {}; ///< Tag 5: [0, 360) deg
+    std::optional<double> platformPitchDeg {}; ///< Tag 6: [-20, +20] deg
+    std::optional<double> platformRollDeg {}; ///< Tag 7: [-50, +50] deg
+    std::optional<std::string> platformDesignation {}; ///< Tag 10: Platform model
+    std::optional<std::string> imageSourceSensor {}; ///< Tag 11: Sensor payload model
+    std::optional<std::string> imageCoordinateSystem {}; ///< Tag 12: Coordinate system
+    std::optional<double> sensorLatitudeDeg {}; ///< Tag 13: [-90, +90] deg
+    std::optional<double> sensorLongitudeDeg {}; ///< Tag 14: [-180, +180] deg
+    std::optional<double> sensorTrueAltitudeM {}; ///< Tag 15: [-900, +19000] m
+    std::optional<double> sensorHfovDeg {}; ///< Tag 16: [0, 180] deg
+    std::optional<double> sensorVfovDeg {}; ///< Tag 17: [0, 180] deg
+    std::optional<double> sensorRelAzimuthDeg {}; ///< Tag 18: [0, 360) deg
+    std::optional<double> sensorRelElevationDeg {}; ///< Tag 19: [-180, +180] deg
+    std::optional<double> sensorRelRollDeg {}; ///< Tag 20: [0, 360) deg
+    std::optional<double> slantRangeM {}; ///< Tag 21: [0, 5000000] m
+    std::optional<double> targetWidthM {}; ///< Tag 22: [0, 10000] m
+    std::optional<double> frameCenterLatDeg {}; ///< Tag 23: [-90, +90] deg
+    std::optional<double> frameCenterLonDeg {}; ///< Tag 24: [-180, +180] deg
+    std::optional<double> frameCenterElevM {}; ///< Tag 25: [-900, +19000] m
+    std::optional<FrustumCorners> cornerCoordinates {}; ///< Decoded from Tags 26..33 or 82..89
+    std::optional<double> targetErrorCe90M {}; ///< Tag 45: CE90 in meters
+    std::optional<double> targetErrorLe90M {}; ///< Tag 46: LE90 in meters
+    std::optional<SecurityMetadata> security {}; ///< Tag 48: Security Local Set
+    std::optional<std::uint8_t> uasLsVersion {}; ///< Tag 65: Version number (e.g. 1..19)
+    std::optional<RvtLocalSet> rvt {}; ///< Tag 73: MISB ST 0806 RVT Local Set
+    std::optional<VmtiLocalSet> vmti {}; ///< Tag 74: MISB ST 0903 VMTI Local Set
+    std::optional<double> sensorAltitudeHaeM {}; ///< Tag 75: Sensor HAE altitude in meters
+    std::optional<double> frameCenterElevHaeM {}; ///< Tag 78: Frame center HAE elevation in meters
     std::optional<MiisCoreId> miisCoreId {}; ///< Tag 94: MISB ST 1204 MIIS Core Identifier
-    std::optional<std::uint8_t> wavelengthBands; ///< Tag 95: Wavelength band bitmask (MISB ST 0601)
+    std::optional<std::uint8_t> wavelengthBands {}; ///< Tag 95: Wavelength band bitmask (MISB ST 0601)
     std::optional<GeoRegistrationLocalSet> geoRegistration {}; ///< Tag 98: MISB ST 1601 Geo-Registration Local Set
-    std::optional<double> sensorRollAngleDeg; ///< Tag 118: Sensor roll angle [0, 360) deg
+    std::optional<double> sensorRollAngleDeg {}; ///< Tag 118: Sensor roll angle [0, 360) deg
     std::vector<SegmentLocalSet> segments {}; ///< Tag 100: MISB ST 1607 Segment Local Sets
     std::vector<AmendLocalSet> amends {}; ///< Tag 101: MISB ST 1607 Amend Local Sets
 };

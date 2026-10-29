@@ -3,11 +3,11 @@
 /// @file St1607Parser.h
 /// @brief MISB ST 1607.2 Amend and Segment Local Set parser.
 
-#include "KlvTypes.h"
-#include "St1607Types.h"
-
 #include <cstddef>
 #include <cstdint>
+
+#include "KlvTypes.h"
+#include "St1607Types.h"
 
 namespace Klv {
 

@@ -1,6 +1,8 @@
+#include "KlvBer.h"
+
+#include <cstddef>
 #include <cstdint>
 
-#include "KlvBer.h"
 #include <vector>
 
 namespace Klv {

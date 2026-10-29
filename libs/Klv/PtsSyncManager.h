@@ -3,8 +3,7 @@
 /// @file PtsSyncManager.h
 /// @brief STANAG 4609 PTS Synchronization Manager for live video and KLV metadata.
 
-#include "MasterTimeBase.h"
-#include "PtsSyncTypes.h"
+#include <cstddef>
 #include <cstdint>
 
 #include <deque>
@@ -13,6 +12,9 @@
 #include <mutex>
 #include <optional>
 #include <vector>
+
+#include "MasterTimeBase.h"
+#include "PtsSyncTypes.h"
 
 namespace Klv {
 
@@ -81,7 +83,7 @@ public:
 
     /// @brief Flushes all queued video frames and pairs them with available telemetry.
     /// @return Number of synchronized frames emitted.
-    std::size_t flush();
+    [[nodiscard]] std::size_t flush();
 
     /// @brief Clears all internal queues and resets clock state.
     void reset();

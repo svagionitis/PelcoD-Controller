@@ -1,6 +1,5 @@
 #pragma once
 
-/// @file libs/Klv/Misb1201.h
 /// @brief MISB ST 1201.5 Floating Point to Integer Mapping implementation.
 
 #include <cstddef>
@@ -31,7 +30,8 @@ struct Misb1201Result {
     double value { 0.0 };
     Misb1201SpecialValue status { Misb1201SpecialValue::Valid };
 
-    [[nodiscard]] constexpr bool isValid() const noexcept {
+    [[nodiscard]] constexpr bool isValid() const noexcept
+    {
         return status == Misb1201SpecialValue::Valid;
     }
 };
@@ -77,7 +77,8 @@ public:
     /// @param[in] maxVal Maximum float value (b).
     /// @param[in] lengthBytes Target field length in bytes (1 to 8).
     /// @return Unsigned integer bit representation.
-    [[nodiscard]] static std::uint64_t encode(double val, double minVal, double maxVal, std::size_t lengthBytes) noexcept;
+    [[nodiscard]] static std::uint64_t encode(
+        double val, double minVal, double maxVal, std::size_t lengthBytes) noexcept;
 
     /// @brief Forward maps using precomputed parameters.
     /// @param[in] val Value to map.
@@ -91,7 +92,8 @@ public:
     /// @param[in] maxVal Maximum float value (b).
     /// @param[in] lengthBytes Target field length in bytes (1 to 8).
     /// @param[out] out Destination byte vector.
-    static void encodeBytes(double val, double minVal, double maxVal, std::size_t lengthBytes, std::vector<std::uint8_t>& out);
+    static void encodeBytes(
+        double val, double minVal, double maxVal, std::size_t lengthBytes, std::vector<std::uint8_t>& out);
 
     /// @brief Reverse maps an integer value to floating-point (RIMAPB).
     /// @param[in] rawInt Unsigned integer value.
@@ -99,7 +101,8 @@ public:
     /// @param[in] maxVal Maximum float value (b).
     /// @param[in] lengthBytes Field length in bytes (1 to 8).
     /// @return Decoded floating-point result with status indicator.
-    [[nodiscard]] static Misb1201Result decode(std::uint64_t rawInt, double minVal, double maxVal, std::size_t lengthBytes) noexcept;
+    [[nodiscard]] static Misb1201Result decode(
+        std::uint64_t rawInt, double minVal, double maxVal, std::size_t lengthBytes) noexcept;
 
     /// @brief Reverse maps using precomputed parameters.
     /// @param[in] rawInt Unsigned integer value.
@@ -113,7 +116,8 @@ public:
     /// @param[in] minVal Minimum float value (a).
     /// @param[in] maxVal Maximum float value (b).
     /// @return Decoded floating-point result with status indicator.
-    [[nodiscard]] static Misb1201Result decodeBytes(const std::uint8_t* data, std::size_t lengthBytes, double minVal, double maxVal) noexcept;
+    [[nodiscard]] static Misb1201Result decodeBytes(
+        const std::uint8_t* data, std::size_t lengthBytes, double minVal, double maxVal) noexcept;
 };
 
 } // namespace Klv

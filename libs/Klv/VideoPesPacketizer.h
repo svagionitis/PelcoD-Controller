@@ -3,11 +3,12 @@
 /// @file VideoPesPacketizer.h
 /// @brief ISO/IEC 13818-1 and STANAG 4609 Video PES packetizer for H.264 and H.265.
 
-#include "VideoTypes.h"
-#include <cstddef>
 #include <cstdint>
+
 #include <optional>
 #include <vector>
+
+#include "VideoTypes.h"
 
 namespace Klv {
 
@@ -34,28 +35,23 @@ public:
     /// @param[in] dtsUs Optional decode timestamp in microseconds.
     /// @param[in] isKeyframe True if frame contains IDR / keyframe.
     /// @return Byte vector containing complete PES packet.
-    [[nodiscard]] std::vector<std::uint8_t> buildPesPacket(const std::uint8_t* data,
-                                                           std::size_t size,
-                                                           std::uint64_t ptsUs,
-                                                           std::optional<std::uint64_t> dtsUs = std::nullopt,
-                                                           bool isKeyframe = false) const;
+    [[nodiscard]] std::vector<std::uint8_t> buildPesPacket(const std::uint8_t* data, std::size_t size,
+        std::uint64_t ptsUs, std::optional<std::uint64_t> dtsUs = std::nullopt, bool isKeyframe = false) const;
 
     /// @brief Converts microsecond timestamp to 33-bit 90 kHz PES timestamp.
     /// @param[in] timestampUs Microseconds since epoch.
     /// @return 33-bit integer scaled to 90,000 ticks per second.
-    [[nodiscard]] static constexpr std::uint64_t toPts90kHz(std::uint64_t timestampUs) noexcept {
+    [[nodiscard]] static constexpr std::uint64_t toPts90kHz(std::uint64_t timestampUs) noexcept
+    {
         return ((timestampUs * 90ULL) / 1000ULL) & 0x1FFFFFFFFULL;
     }
 
 private:
     bool m_prependAud { true };
 
-    [[nodiscard]] static std::vector<std::uint8_t> generateAud(VideoCodec codec,
-                                                               VideoSliceType sliceType);
+    [[nodiscard]] static std::vector<std::uint8_t> generateAud(VideoCodec codec, VideoSliceType sliceType);
 
-    [[nodiscard]] static bool hasLeadingAud(const std::uint8_t* data,
-                                            std::size_t size,
-                                            VideoCodec codec) noexcept;
+    [[nodiscard]] static bool hasLeadingAud(const std::uint8_t* data, std::size_t size, VideoCodec codec) noexcept;
 };
 
 } // namespace Klv

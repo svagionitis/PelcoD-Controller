@@ -3,12 +3,14 @@
 /// @file VideoNaluParser.h
 /// @brief Zero-copy H.264 / H.265 Annex B NAL unit and Access Unit parser.
 
-#include "VideoTypes.h"
 #include <cstddef>
 #include <cstdint>
+
 #include <functional>
 #include <optional>
 #include <vector>
+
+#include "VideoTypes.h"
 
 namespace Klv {
 

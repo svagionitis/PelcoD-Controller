@@ -3,11 +3,11 @@
 /// @file RvtParser.h
 /// @brief MISB ST 0806 Remote Video Terminal (RVT) metadata parser.
 
-#include "KlvTypes.h"
-#include "RvtTypes.h"
-
 #include <cstddef>
 #include <cstdint>
+
+#include "KlvTypes.h"
+#include "RvtTypes.h"
 
 namespace Klv {
 

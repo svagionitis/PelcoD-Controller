@@ -1,13 +1,16 @@
 #include "St1607Parser.h"
-#include "GeoRegistrationParser.h"
-#include "KlvBer.h"
+
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
 #include <algorithm>
 #include <array>
-#include <cmath>
-#include <cstdint>
-#include <cstring>
 #include <string>
+
+#include "GeoRegistrationParser.h"
+#include "KlvBer.h"
 
 namespace Klv {
 

@@ -3,8 +3,9 @@
 /// @file TelemetryInterpolator.h
 /// @brief Geodetic, attitude, and sensor parameter interpolation between KLV packets.
 
-#include "KlvTypes.h"
 #include <cstdint>
+
+#include "KlvTypes.h"
 
 namespace Klv {
 

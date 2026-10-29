@@ -76,7 +76,6 @@ target_include_directories(Klv PUBLIC
 
 target_link_libraries(Klv PUBLIC
     Threads::Threads
-    glog::glog
 )
 
 apply_compiler_flags(Klv)

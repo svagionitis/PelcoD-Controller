@@ -2179,7 +2179,7 @@ TEST(VideoDecoderTest, FFmpegDecoderKlvTelemetryDecoding)
 
     decoder->setMetadataCallback([&](const std::uint8_t* data, std::size_t size) {
         if (data != nullptr && size > 0U) {
-            scanner.processBytes(data, size);
+            static_cast<void>(scanner.processBytes(data, size));
         }
     });
 

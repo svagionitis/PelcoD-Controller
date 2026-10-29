@@ -3,17 +3,20 @@
 /// @file KlvStreamScanner.h
 /// @brief Continuous bitstream scanner and sliding-window reassembler for STANAG 4609 KLV packets.
 
-#include "KlvParser.h"
-#include "KlvTypes.h"
 #include <cstddef>
 #include <cstdint>
+
 #include <functional>
 #include <vector>
+
+#include "KlvParser.h"
+#include "KlvTypes.h"
 
 namespace Klv {
 
 /// @class KlvStreamScanner
-/// @brief Ingests arbitrary chunked bitstream feeds, searches for Universal Labels, and dispatches validated KLV packets.
+/// @brief Ingests arbitrary chunked bitstream feeds, searches for Universal Labels, and dispatches validated KLV
+/// packets.
 class KlvStreamScanner {
 public:
     /// @brief Callback invoked when a complete, validated raw KLV packet is identified.
@@ -41,7 +44,7 @@ public:
     /// @param[in] data Pointer to the new byte buffer.
     /// @param[in] size Number of bytes in the chunk.
     /// @return Number of validated KLV packets successfully extracted and dispatched in this call.
-    std::size_t processBytes(const std::uint8_t* data, std::size_t size);
+    [[nodiscard]] std::size_t processBytes(const std::uint8_t* data, std::size_t size);
 
     /// @brief Clears internal buffers and resets scanner state.
     void reset();
@@ -50,12 +53,12 @@ public:
     [[nodiscard]] std::size_t bufferedBytes() const noexcept;
 
 private:
-    std::vector<std::uint8_t> m_buffer;
+    std::vector<std::uint8_t> m_buffer {};
     std::size_t m_maxBufferSize { 1024U * 1024U }; // 1 MB default
-    RawPacketCallback m_rawPacketCallback;
-    MessageCallback m_messageCallback;
+    RawPacketCallback m_rawPacketCallback {};
+    MessageCallback m_messageCallback {};
 
-    std::size_t scanAndDispatch();
+    [[nodiscard]] std::size_t scanAndDispatch();
 };
 
 } // namespace Klv

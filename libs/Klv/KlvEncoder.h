@@ -3,11 +3,12 @@
 /// @file KlvEncoder.h
 /// @brief MISB ST 0601 UAS Datalink Local Set serializer and packet generator.
 
-#include "KlvTypes.h"
 #include <cstdint>
 
 #include <string>
 #include <vector>
+
+#include "KlvTypes.h"
 
 namespace Klv {
 

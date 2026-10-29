@@ -5,8 +5,9 @@
 /// @details Supports MISB ST 0601, ST 0807, and ST 1206 full 3D platform attitude (yaw, pitch, roll),
 ///          sensor orientation (azimuth, elevation, optical roll), and Earth curvature horizon clipping.
 
-#include "KlvTypes.h"
 #include <optional>
+
+#include "KlvTypes.h"
 
 namespace Klv {
 

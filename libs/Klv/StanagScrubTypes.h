@@ -3,11 +3,13 @@
 /// @file StanagScrubTypes.h
 /// @brief Core types and structures for STANAG 4609 telemetry scrubbing and time indexing.
 
-#include "KlvTypes.h"
 #include <cstddef>
 #include <cstdint>
+
 #include <optional>
 #include <vector>
+
+#include "KlvTypes.h"
 
 namespace Klv {
 

@@ -3,13 +3,15 @@
 /// @file StanagStreamIndexer.h
 /// @brief Fast single-pass MPEG-TS indexer generating TelemetryTimeIndex tables.
 
-#include "TelemetryTimeIndex.h"
 #include <cstddef>
 #include <cstdint>
+
 #include <functional>
 #include <optional>
 #include <string_view>
 #include <vector>
+
+#include "TelemetryTimeIndex.h"
 
 namespace Klv {
 

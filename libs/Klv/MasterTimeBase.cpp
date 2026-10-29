@@ -1,7 +1,8 @@
 #include "MasterTimeBase.h"
 
-#include <chrono>
 #include <cstdint>
+
+#include <chrono>
 #include <mutex>
 
 namespace Klv {

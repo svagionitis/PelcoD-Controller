@@ -1,6 +1,7 @@
 #include "PtsSyncManager.h"
 
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 
 #include <algorithm>
@@ -8,6 +9,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "MpegTsKlvMuxer.h"

@@ -3,12 +3,12 @@
 /// @file GeoRegistrationEncoder.h
 /// @brief MISB ST 1601.2 Geo-Registration Local Set encoder.
 
+#include <cstdint>
+
+#include <vector>
+
 #include "GeoRegistrationTypes.h"
 #include "KlvTypes.h"
-
-#include <cstddef>
-#include <cstdint>
-#include <vector>
 
 namespace Klv {
 
@@ -21,15 +21,13 @@ public:
     /// @param[in] set GeoRegistrationLocalSet to serialize.
     /// @param[out] out Destination vector to append encoded TLV bytes.
     /// @return KlvStatus::Success on success, or error status code on validation failure.
-    [[nodiscard]] static KlvStatus encode(const GeoRegistrationLocalSet& set,
-                                          std::vector<std::uint8_t>& out);
+    [[nodiscard]] static KlvStatus encode(const GeoRegistrationLocalSet& set, std::vector<std::uint8_t>& out);
 
     /// @brief Encodes a standalone Geo-Registration Local Set packet (with 16-byte UL and length).
     /// @param[in] set GeoRegistrationLocalSet to serialize.
     /// @param[out] out Destination vector to append full KLV packet bytes.
     /// @return KlvStatus::Success on success, or error status code on validation failure.
-    [[nodiscard]] static KlvStatus encodePacket(const GeoRegistrationLocalSet& set,
-                                                std::vector<std::uint8_t>& out);
+    [[nodiscard]] static KlvStatus encodePacket(const GeoRegistrationLocalSet& set, std::vector<std::uint8_t>& out);
 };
 
 } // namespace Klv

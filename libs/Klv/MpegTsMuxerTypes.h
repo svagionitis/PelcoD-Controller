@@ -3,25 +3,26 @@
 /// @file MpegTsMuxerTypes.h
 /// @brief Configuration and enumerations for STANAG 4609 / MISB ST 1402 MPEG-TS KLV multiplexer.
 
-#include "VideoTypes.h"
-#include <cstddef>
 #include <cstdint>
+
 #include <string>
+
+#include "VideoTypes.h"
 
 namespace Klv {
 
 /// @enum KlvStreamType
 /// @brief MPEG-2 TS elementary stream type for metadata.
 enum class KlvStreamType : std::uint8_t {
-    PesPrivateData = 0x06U,  ///< Legacy / synchronous STANAG 4609 stream type
-    MetadataInPes  = 0x15U   ///< Standard STANAG 4609 Ed. 3/4 & MISB ST 1402 stream type
+    PesPrivateData = 0x06U, ///< Legacy / synchronous STANAG 4609 stream type
+    MetadataInPes = 0x15U ///< Standard STANAG 4609 Ed. 3/4 & MISB ST 1402 stream type
 };
 
 /// @enum KlvStreamId
 /// @brief PES packet stream identifier.
 enum class KlvStreamId : std::uint8_t {
-    PrivateStream1 = 0xBDU,  ///< Standard private_stream_1 (most common for KLV)
-    MetadataStream = 0xFCU   ///< ISO/IEC 13818-1 metadata_stream
+    PrivateStream1 = 0xBDU, ///< Standard private_stream_1 (most common for KLV)
+    MetadataStream = 0xFCU ///< ISO/IEC 13818-1 metadata_stream
 };
 
 /// @struct MpegTsMuxerConfig

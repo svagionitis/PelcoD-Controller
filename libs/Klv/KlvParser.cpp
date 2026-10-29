@@ -1,15 +1,19 @@
 #include "KlvParser.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+
+#include <algorithm>
+#include <optional>
+#include <string>
+
 #include "GeoRegistrationParser.h"
 #include "KlvBer.h"
 #include "KlvCrc.h"
 #include "RvtParser.h"
 #include "St1607Parser.h"
 #include "VmtiParser.h"
-#include <algorithm>
-#include <cstdint>
-#include <cstring>
-#include <optional>
-#include <string>
 
 namespace Klv {
 

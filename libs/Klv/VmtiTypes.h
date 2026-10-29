@@ -4,15 +4,16 @@
 /// @brief Core data structures, enumerations, and constants for MISB ST 0903 Video Moving Target Indicator (VMTI).
 /// @see MISB ST 0903.6 "Video Moving Target Indicator Metadata"
 
-#include "GeoTypes.h"
-#include "MiisCoreId.h"
-
-#include <array>
 #include <cstddef>
 #include <cstdint>
+
+#include <array>
 #include <optional>
 #include <string>
 #include <vector>
+
+#include "GeoTypes.h"
+#include "MiisCoreId.h"
 
 namespace Klv {
 
@@ -120,30 +121,30 @@ struct PixelBoundingBox {
 /// @brief Strongly-typed representation of an individual MISB ST 0903 VTarget Pack.
 struct VTargetPack {
     std::uint32_t targetId { 0U }; ///< Mandatory unique target ID (BER-OID)
-    std::optional<PixelCoord> centroid; ///< Target centroid image coordinate
-    std::optional<PixelBoundingBox> boundingBox; ///< Target image bounding box
-    std::optional<std::uint8_t> priority; ///< Target priority level
-    std::optional<std::uint8_t> confidence; ///< Target confidence level [0, 100]%
-    std::optional<std::uint16_t> history; ///< Target detection count (frames)
-    std::optional<std::uint8_t> percentagePixels; ///< Ratio of target pixels in bounding box [1, 100]%
-    std::optional<std::array<std::uint8_t, 3>> colorRgb; ///< Target RGB color
-    std::optional<float> targetIntensity; ///< Tag 9: Target intensity / radiometric measurement (MISB ST 0903)
-    std::optional<GeoPoint2D> locationOffsetDeg; ///< Target lat/lon offset from Frame Center
-    std::optional<double> heightAboveEllipsoidM; ///< Target HAE in meters
-    std::optional<GeoPoint3D> targetLocation; ///< Target geodetic position (lat, lon, HAE)
-    std::optional<double> targetCe90M; ///< Target horizontal error CE90 in meters
-    std::optional<double> targetLe90M; ///< Target vertical error LE90 in meters
-    std::optional<std::uint8_t> detectionStatus; ///< Detection status (1=Moving, 2=Stopped)
+    std::optional<PixelCoord> centroid {}; ///< Target centroid image coordinate
+    std::optional<PixelBoundingBox> boundingBox {}; ///< Target image bounding box
+    std::optional<std::uint8_t> priority {}; ///< Target priority level
+    std::optional<std::uint8_t> confidence {}; ///< Target confidence level [0, 100]%
+    std::optional<std::uint16_t> history {}; ///< Target detection count (frames)
+    std::optional<std::uint8_t> percentagePixels {}; ///< Ratio of target pixels in bounding box [1, 100]%
+    std::optional<std::array<std::uint8_t, 3>> colorRgb {}; ///< Target RGB color
+    std::optional<float> targetIntensity {}; ///< Tag 9: Target intensity / radiometric measurement (MISB ST 0903)
+    std::optional<GeoPoint2D> locationOffsetDeg {}; ///< Target lat/lon offset from Frame Center
+    std::optional<double> heightAboveEllipsoidM {}; ///< Target HAE in meters
+    std::optional<GeoPoint3D> targetLocation {}; ///< Target geodetic position (lat, lon, HAE)
+    std::optional<double> targetCe90M {}; ///< Target horizontal error CE90 in meters
+    std::optional<double> targetLe90M {}; ///< Target vertical error LE90 in meters
+    std::optional<std::uint8_t> detectionStatus {}; ///< Detection status (1=Moving, 2=Stopped)
 };
 
 /// @struct VmtiLocalSet
 /// @brief Strongly-typed representation of a MISB ST 0903 VMTI Local Set.
 struct VmtiLocalSet {
-    std::optional<std::uint64_t> precisionTimeStampUs; ///< Tag 2: Timestamp in microseconds
-    std::optional<std::string> systemName; ///< Tag 3: System identifier string
+    std::optional<std::uint64_t> precisionTimeStampUs {}; ///< Tag 2: Timestamp in microseconds
+    std::optional<std::string> systemName {}; ///< Tag 3: System identifier string
     std::uint8_t version { 6U }; ///< Tag 4: VMTI LS version (default 6)
-    std::optional<std::uint32_t> totalTargetsDetected; ///< Tag 5: Total targets detected
-    std::optional<std::uint32_t> numTargetsReported; ///< Tag 6: Number of reported targets
+    std::optional<std::uint32_t> totalTargetsDetected {}; ///< Tag 5: Total targets detected
+    std::optional<std::uint32_t> numTargetsReported {}; ///< Tag 6: Number of reported targets
     std::optional<std::string> sourceSensor {}; ///< Tag 10: Source sensor name
     std::optional<double> horizontalFovDeg {}; ///< Tag 11: Sensor horizontal FOV [0, 180] deg
     std::optional<double> verticalFovDeg {}; ///< Tag 12: Sensor vertical FOV [0, 180] deg

@@ -1,9 +1,10 @@
 #include "KlvGeodesy.h"
 
-#include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstddef>
+
+#include <algorithm>
+#include <array>
 #include <optional>
 
 #include "KlvScaling.h"

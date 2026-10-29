@@ -1,16 +1,18 @@
 #include "MiisCoreId.h"
-#include "KlvTypes.h"
 
-#include <algorithm>
-#include <array>
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+
+#include <algorithm>
+#include <array>
 #include <random>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include "KlvTypes.h"
 
 namespace Klv {
 

@@ -3,11 +3,11 @@
 /// @file GeoRegistrationParser.h
 /// @brief MISB ST 1601.2 Geo-Registration Local Set parser.
 
-#include "GeoRegistrationTypes.h"
-#include "KlvTypes.h"
-
 #include <cstddef>
 #include <cstdint>
+
+#include "GeoRegistrationTypes.h"
+#include "KlvTypes.h"
 
 namespace Klv {
 

@@ -3,10 +3,11 @@
 /// @file KlvBer.h
 /// @brief Basic Encoding Rules (BER) length and OID tag serialization and deserialization.
 
-#include "KlvTypes.h"
-#include <cstddef>
 #include <cstdint>
+
 #include <vector>
+
+#include "KlvTypes.h"
 
 namespace Klv {
 
@@ -30,10 +31,8 @@ public:
     /// @param[out] decodedLength Output parameter receiving the decoded length.
     /// @param[out] bytesConsumed Output parameter receiving the number of bytes read (1..5).
     /// @return True if decoding succeeded without overflow or underflow; false otherwise.
-    [[nodiscard]] static bool decodeLength(const std::uint8_t* data,
-                                           std::size_t size,
-                                           std::size_t& decodedLength,
-                                           std::size_t& bytesConsumed) noexcept;
+    [[nodiscard]] static bool decodeLength(
+        const std::uint8_t* data, std::size_t size, std::size_t& decodedLength, std::size_t& bytesConsumed) noexcept;
 
     /// @brief Computes the number of bytes required to encode a tag in BER-OID format.
     /// @param[in] tag Tag identifier.
@@ -51,10 +50,8 @@ public:
     /// @param[out] decodedTag Output parameter receiving the decoded tag ID.
     /// @param[out] bytesConsumed Output parameter receiving the number of bytes read.
     /// @return True if decoding succeeded; false otherwise.
-    [[nodiscard]] static bool decodeTag(const std::uint8_t* data,
-                                        std::size_t size,
-                                        std::uint32_t& decodedTag,
-                                        std::size_t& bytesConsumed) noexcept;
+    [[nodiscard]] static bool decodeTag(
+        const std::uint8_t* data, std::size_t size, std::uint32_t& decodedTag, std::size_t& bytesConsumed) noexcept;
 };
 
 } // namespace Klv

@@ -1,17 +1,17 @@
 #include "GeoRegistrationEncoder.h"
-#include "KlvBer.h"
-#include "MdArray.h"
-
 #include <cstdint>
 
 #include <algorithm>
 #include <vector>
 
+#include "KlvBer.h"
+#include "MdArray.h"
+
 namespace Klv {
 
 KlvStatus GeoRegistrationEncoder::encodePacket(const GeoRegistrationLocalSet& set, std::vector<std::uint8_t>& out)
 {
-    std::vector<std::uint8_t> payload { };
+    std::vector<std::uint8_t> payload {};
     const auto status = encode(set, payload);
     if (status != KlvStatus::Success) {
         return status;
@@ -73,7 +73,7 @@ KlvStatus GeoRegistrationEncoder::encode(const GeoRegistrationLocalSet& set, std
             }
         }
 
-        std::vector<std::uint8_t> tag4Buf { };
+        std::vector<std::uint8_t> tag4Buf {};
         if (MdArray::encodeUInt2D(matrix, ebytes, tag4Buf)) {
             KlvBer::encodeTag(static_cast<std::uint32_t>(GeoRegistrationTag::RowColPoints), out);
             KlvBer::encodeLength(tag4Buf.size(), out);
@@ -90,7 +90,7 @@ KlvStatus GeoRegistrationEncoder::encode(const GeoRegistrationLocalSet& set, std
             matrix[1][i] = set.geoPoints[i].lon;
         }
 
-        std::vector<std::uint8_t> tag5Buf { };
+        std::vector<std::uint8_t> tag5Buf {};
         if (MdArray::encodeFloat2D(matrix, -180.0, 180.0, 4U, tag5Buf)) {
             KlvBer::encodeTag(static_cast<std::uint32_t>(GeoRegistrationTag::LatLonPoints), out);
             KlvBer::encodeLength(tag5Buf.size(), out);
@@ -116,7 +116,7 @@ KlvStatus GeoRegistrationEncoder::encode(const GeoRegistrationLocalSet& set, std
 
     // Tag 8: Elevation Points (Optional)
     if (!set.geoPoints.empty() && set.geoPoints[0].elevation.has_value()) {
-        std::vector<double> elevVec { };
+        std::vector<double> elevVec {};
         elevVec.reserve(set.geoPoints.size());
         double minElev { -900.0 };
         double maxElev { 19000.0 };
@@ -131,7 +131,7 @@ KlvStatus GeoRegistrationEncoder::encode(const GeoRegistrationLocalSet& set, std
             }
         }
 
-        std::vector<std::uint8_t> tag8Buf { };
+        std::vector<std::uint8_t> tag8Buf {};
         if (MdArray::encodeFloat1D(elevVec, minElev, maxElev, 4U, tag8Buf)) {
             KlvBer::encodeTag(static_cast<std::uint32_t>(GeoRegistrationTag::ElevationPoints), out);
             KlvBer::encodeLength(tag8Buf.size(), out);
@@ -157,7 +157,7 @@ KlvStatus GeoRegistrationEncoder::encode(const GeoRegistrationLocalSet& set, std
             }
         }
 
-        std::vector<std::uint8_t> tag9Buf { };
+        std::vector<std::uint8_t> tag9Buf {};
         if (MdArray::encodeFloat2D(matrix, -1.0, 100.0, 2U, tag9Buf)) {
             KlvBer::encodeTag(static_cast<std::uint32_t>(GeoRegistrationTag::RowColCovariance), out);
             KlvBer::encodeLength(tag9Buf.size(), out);
@@ -184,7 +184,7 @@ KlvStatus GeoRegistrationEncoder::encode(const GeoRegistrationLocalSet& set, std
             }
         }
 
-        std::vector<std::uint8_t> tag10Buf { };
+        std::vector<std::uint8_t> tag10Buf {};
         if (MdArray::encodeFloat2D(matrix, -1.0, maxBound, 2U, tag10Buf)) {
             KlvBer::encodeTag(static_cast<std::uint32_t>(GeoRegistrationTag::LatLonElevCovariance), out);
             KlvBer::encodeLength(tag10Buf.size(), out);

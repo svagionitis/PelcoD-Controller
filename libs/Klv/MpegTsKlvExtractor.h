@@ -3,14 +3,15 @@
 /// @file MpegTsKlvExtractor.h
 /// @brief MPEG-2 Transport Stream (188-byte TS packet) demuxer and KLV PES packet extractor.
 
-#include "KlvStreamScanner.h"
-#include "KlvTypes.h"
 #include <cstddef>
 #include <cstdint>
+
 #include <functional>
-#include <map>
 #include <optional>
 #include <vector>
+
+#include "KlvStreamScanner.h"
+#include "KlvTypes.h"
 
 namespace Klv {
 
@@ -69,18 +70,18 @@ public:
     static constexpr std::size_t kMaxPesBufferSize { 2097152U }; // 2 MB
 
 private:
-    std::optional<std::uint16_t> m_metadataPid;
-    std::optional<std::uint16_t> m_pmtPid;
-    std::vector<std::uint8_t> m_streamBuffer;
-    std::vector<std::uint8_t> m_pesReassemblyBuffer;
+    std::optional<std::uint16_t> m_metadataPid {};
+    std::optional<std::uint16_t> m_pmtPid {};
+    std::vector<std::uint8_t> m_streamBuffer {};
+    std::vector<std::uint8_t> m_pesReassemblyBuffer {};
     int m_lastContinuityCounter { -1 };
 
-    KlvPayloadCallback m_payloadCallback;
-    KlvStreamScanner m_scanner;
+    KlvPayloadCallback m_payloadCallback {};
+    KlvStreamScanner m_scanner {};
 
     void parsePat(const std::uint8_t* payload, std::size_t size);
     void parsePmt(const std::uint8_t* payload, std::size_t size);
-    std::size_t handlePesPacket(const std::uint8_t* pesData, std::size_t pesSize);
+    [[nodiscard]] std::size_t handlePesPacket(const std::uint8_t* pesData, std::size_t pesSize);
 };
 
 } // namespace Klv

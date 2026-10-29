@@ -1,7 +1,11 @@
 #pragma once
 
-#include <array>
+/// @file MiisCoreId.h
+/// @brief MISB ST 1204 MIIS Core Identifier and RFC 4122 UUID codec.
+
 #include <cstdint>
+
+#include <array>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -16,17 +20,17 @@ enum class KlvStatus;
 /// @brief Identification type categories defined in MISB ST 1204 Section 6.
 enum class MiisIdType : std::uint8_t {
     Undetermined = 0U, ///< Undetermined identification type
-    Sensor = 1U,       ///< Sensor / Device Sub-Identifier
-    Platform = 2U,     ///< Platform / System Sub-Identifier
-    Window = 3U        ///< Window / Sub-frame Sub-Identifier
+    Sensor = 1U, ///< Sensor / Device Sub-Identifier
+    Platform = 2U, ///< Platform / System Sub-Identifier
+    Window = 3U ///< Window / Sub-frame Sub-Identifier
 };
 
 /// @enum MiisIdQuality
 /// @brief Identification quality defined in MISB ST 1204 Section 7.
 enum class MiisIdQuality : std::uint8_t {
-    Unknown = 0U,  ///< Unknown quality
+    Unknown = 0U, ///< Unknown quality
     Physical = 1U, ///< Physical device / real hardware asset
-    Virtual = 2U   ///< Virtual / synthetic / simulated asset
+    Virtual = 2U ///< Virtual / synthetic / simulated asset
 };
 
 /// @struct Uuid
@@ -34,8 +38,8 @@ enum class MiisIdQuality : std::uint8_t {
 struct Uuid {
     std::array<std::uint8_t, 16> bytes {}; ///< 16-byte binary payload
 
-    /// @brief Checks if this UUID is non-zero.
-    /// @return True if any byte is non-zero.
+    /// @brief Checks if this UUID is all zeros (nil UUID).
+    /// @return True if all bytes are zero.
     [[nodiscard]] bool isNull() const noexcept;
 
     /// @brief Checks if this UUID has a valid RFC 4122 variant (bits 10xx).
@@ -76,17 +80,18 @@ struct Uuid {
     /// @param[in] timestamp100ns 100-nanosecond intervals since Oct 15 1582.
     /// @param[in] clockSeq Clock sequence counter.
     /// @return Version 1 UUID.
-    [[nodiscard]] static Uuid generateV1(const std::array<std::uint8_t, 6>& mac,
-                                         std::uint64_t timestamp100ns,
-                                         std::uint16_t clockSeq) noexcept;
+    [[nodiscard]] static Uuid generateV1(
+        const std::array<std::uint8_t, 6>& mac, std::uint64_t timestamp100ns, std::uint16_t clockSeq) noexcept;
 
     /// @brief Equality comparison operator.
-    [[nodiscard]] bool operator==(const Uuid& other) const noexcept {
+    [[nodiscard]] bool operator==(const Uuid& other) const noexcept
+    {
         return bytes == other.bytes;
     }
 
     /// @brief Inequality comparison operator.
-    [[nodiscard]] bool operator!=(const Uuid& other) const noexcept {
+    [[nodiscard]] bool operator!=(const Uuid& other) const noexcept
+    {
         return bytes != other.bytes;
     }
 };
@@ -94,9 +99,9 @@ struct Uuid {
 /// @struct MiisSubId
 /// @brief Represents a typed Sub-Identifier in MISB ST 1204.
 struct MiisSubId {
-    MiisIdType type { MiisIdType::Sensor };       ///< Sub-identifier type category
+    MiisIdType type { MiisIdType::Sensor }; ///< Sub-identifier type category
     MiisIdQuality quality { MiisIdQuality::Physical }; ///< Asset quality
-    Uuid uuid {};                                ///< 16-byte UUID
+    Uuid uuid {}; ///< 16-byte UUID
 };
 
 /// @class MiisCoreId
@@ -109,11 +114,11 @@ struct MiisSubId {
 ///          - RFC 4122 canonical text and URN formats.
 class MiisCoreId {
 public:
-    std::uint8_t version { 1U };                 ///< MISB ST 1204 version (default 1)
-    std::optional<MiisSubId> sensorId {};       ///< Sensor Sub-Identifier
-    std::optional<MiisSubId> platformId {};     ///< Platform Sub-Identifier
-    std::optional<MiisSubId> windowId {};       ///< Optional Window Sub-Identifier
-    std::optional<Uuid> streamId {};             ///< Direct single stream UUID
+    std::uint8_t version { 1U }; ///< MISB ST 1204 version (default 1)
+    std::optional<MiisSubId> sensorId {}; ///< Sensor Sub-Identifier
+    std::optional<MiisSubId> platformId {}; ///< Platform Sub-Identifier
+    std::optional<MiisSubId> windowId {}; ///< Optional Window Sub-Identifier
+    std::optional<Uuid> streamId {}; ///< Direct single stream UUID
 
     /// @brief Default constructor.
     MiisCoreId() noexcept = default;
@@ -127,9 +132,8 @@ public:
     /// @param[in] platform Platform UUID.
     /// @param[in] sensorQuality Sensor quality (Physical or Virtual).
     /// @param[in] platformQuality Platform quality (Physical or Virtual).
-    MiisCoreId(const Uuid& sensor, const Uuid& platform,
-               MiisIdQuality sensorQuality = MiisIdQuality::Physical,
-               MiisIdQuality platformQuality = MiisIdQuality::Physical) noexcept;
+    MiisCoreId(const Uuid& sensor, const Uuid& platform, MiisIdQuality sensorQuality = MiisIdQuality::Physical,
+        MiisIdQuality platformQuality = MiisIdQuality::Physical) noexcept;
 
     /// @brief Validates conformance with MISB ST 1204 requirements.
     /// @return True if valid, false if non-conforming.
@@ -167,7 +171,8 @@ public:
     [[nodiscard]] bool operator==(const MiisCoreId& other) const noexcept;
 
     /// @brief Inequality comparison operator.
-    [[nodiscard]] bool operator!=(const MiisCoreId& other) const noexcept {
+    [[nodiscard]] bool operator!=(const MiisCoreId& other) const noexcept
+    {
         return !(*this == other);
     }
 };

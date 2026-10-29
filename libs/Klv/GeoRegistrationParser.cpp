@@ -1,13 +1,17 @@
 #include "GeoRegistrationParser.h"
-#include "KlvBer.h"
-#include "MdArray.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
 #include <algorithm>
 #include <array>
-#include <cstdint>
-#include <cstring>
+#include <limits>
 #include <string>
 #include <vector>
+
+#include "KlvBer.h"
+#include "MdArray.h"
 
 namespace Klv {
 

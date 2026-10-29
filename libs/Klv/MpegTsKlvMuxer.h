@@ -3,9 +3,10 @@
 /// @file MpegTsKlvMuxer.h
 /// @brief STANAG 4609 / MISB ST 1402 compliant MPEG-2 Transport Stream KLV and Video multiplexer.
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
+
+#include <array>
 #include <functional>
 #include <optional>
 #include <vector>
@@ -124,8 +125,8 @@ private:
         bool active { false };
     };
 
-    MpegTsMuxerConfig m_config;
-    TsPacketCallback m_callback;
+    MpegTsMuxerConfig m_config {};
+    TsPacketCallback m_callback {};
     std::array<PidCcEntry, 16> m_continuityCounters {};
     std::size_t m_packetCounter { 0U };
     std::uint64_t m_lastPcrTimestampUs { 0U };
@@ -137,10 +138,10 @@ private:
     [[nodiscard]] std::vector<std::uint8_t> buildPesPacket(
         const std::uint8_t* klvData, std::size_t size, std::optional<std::uint64_t> timestampUs);
 
-    std::size_t emitTsPacket(std::uint16_t pid, bool pusi, const std::uint8_t* payload, std::size_t payloadSize,
-        std::optional<std::uint64_t> pcrUs, bool isRandomAccess = false);
+    [[nodiscard]] std::size_t emitTsPacket(std::uint16_t pid, bool pusi, const std::uint8_t* payload,
+        std::size_t payloadSize, std::optional<std::uint64_t> pcrUs, bool isRandomAccess = false);
 
-    std::size_t emitPesStream(std::uint16_t pid, const std::vector<std::uint8_t>& pesData,
+    [[nodiscard]] std::size_t emitPesStream(std::uint16_t pid, const std::vector<std::uint8_t>& pesData,
         std::optional<std::uint64_t> pcrUs, bool isRandomAccess = false);
 
     void dispatchPacket(const std::vector<std::uint8_t>& packet);

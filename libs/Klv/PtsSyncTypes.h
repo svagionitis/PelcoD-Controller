@@ -3,12 +3,14 @@
 /// @file PtsSyncTypes.h
 /// @brief Configuration, enumerations, and statistics for STANAG 4609 PTS synchronization.
 
-#include "KlvTypes.h"
-#include "VideoTypes.h"
 #include <cstddef>
 #include <cstdint>
+
 #include <optional>
 #include <vector>
+
+#include "KlvTypes.h"
+#include "VideoTypes.h"
 
 namespace Klv {
 

@@ -3,16 +3,17 @@
 /// @file St1607Types.h
 /// @brief MISB ST 1607.2 Constructs to Amend/Segment KLV Metadata data structures.
 
-#include "GeoRegistrationTypes.h"
-#include "GeoTypes.h"
-#include "MiisCoreId.h"
-
-#include <array>
 #include <cstddef>
 #include <cstdint>
+
+#include <array>
 #include <optional>
 #include <string>
 #include <vector>
+
+#include "GeoRegistrationTypes.h"
+#include "GeoTypes.h"
+#include "MiisCoreId.h"
 
 namespace Klv {
 
@@ -21,12 +22,12 @@ struct UasDatalinkMessage;
 
 /// @brief 16-byte Universal Label for MISB ST 1607 Amend Local Set.
 /// @details 06.0E.2B.34.02.0B.01.01.0E.01.03.03.03.01.00.00 (CRC 17182).
-inline constexpr std::array<std::uint8_t, 16> AmendLocalSetUl = { 0x06U, 0x0EU, 0x2BU, 0x34U, 0x02U, 0x0BU, 0x01U,
-    0x01U, 0x0EU, 0x01U, 0x03U, 0x03U, 0x03U, 0x01U, 0x00U, 0x00U };
+inline constexpr std::array<std::uint8_t, 16> AmendLocalSetUl { 0x06U, 0x0EU, 0x2BU, 0x34U, 0x02U, 0x0BU, 0x01U, 0x01U,
+    0x0EU, 0x01U, 0x03U, 0x03U, 0x03U, 0x01U, 0x00U, 0x00U };
 
 /// @brief 16-byte Universal Label for MISB ST 1607 Segment Local Set.
 /// @details 06.0E.2B.34.02.0B.01.01.0E.01.03.03.03.00.00.00 (CRC 29742).
-inline constexpr std::array<std::uint8_t, 16> SegmentLocalSetUl = { 0x06U, 0x0EU, 0x2BU, 0x34U, 0x02U, 0x0BU, 0x01U,
+inline constexpr std::array<std::uint8_t, 16> SegmentLocalSetUl { 0x06U, 0x0EU, 0x2BU, 0x34U, 0x02U, 0x0BU, 0x01U,
     0x01U, 0x0EU, 0x01U, 0x03U, 0x03U, 0x03U, 0x00U, 0x00U, 0x00U };
 
 /// @struct MetadataSubstreamId

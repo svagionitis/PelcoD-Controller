@@ -1,10 +1,12 @@
 #pragma once
 
+/// @file KlvScaling.h
+/// @brief Centralized numerical scaling and bounds validation helpers.
+
+#include <cmath>
 #include <cstdint>
 
 #include <algorithm>
-#include <cmath>
-
 namespace Klv {
 
 /// @brief Utility namespace providing deterministic, range-bounded, and NaN-safe scaling helpers.
