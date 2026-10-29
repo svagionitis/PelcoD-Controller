@@ -29,26 +29,26 @@ class MockNetworkTileProvider : public ITileProvider {
 public:
     std::atomic<int> fetchCount { 0 };
 
-        const TileCoord& coord) override
-        {
-            (void)coord;
-            ++fetchCount;
-            TileData d { };
-            d.bytes = { 0x01U, 0x02U };
-            d.valid = true;
-            return d;
-        }
+    [[nodiscard]] std::optional<TileData> getTile(const TileCoord& coord) override
+    {
+        (void)coord;
+        ++fetchCount;
+        TileData d {};
+        d.bytes = { 0x01U, 0x02U };
+        d.valid = true;
+        return d;
+    }
 
-        bool hasTile(const TileCoord& coord) const noexcept override
-        {
-            (void)coord;
-            return true;
-        }
+    bool hasTile(const TileCoord& coord) const noexcept override
+    {
+        (void)coord;
+        return true;
+    }
 
-        std::string providerName() const override
-        {
-            return "MockNetworkTileProvider";
-        }
+    std::string providerName() const override
+    {
+        return "MockNetworkTileProvider";
+    }
 };
 } // namespace
 
@@ -60,7 +60,7 @@ TEST(TestOfflineTileStore, DiskTileCacheStoreAndRetrieve)
     DiskTileCache diskCache(tempDir);
     const TileCoord coord { 42, 88, 7 };
 
-    TileData original { };
+    TileData original {};
     original.bytes = { 0x89U, 'P', 'N', 'G', '\r', '\n', 0x1AU, '\n', 0x00U, 0x01U, 0x02U };
     original.mimeType = "image/png";
     original.valid = true;
@@ -160,7 +160,7 @@ TEST(TestOfflineTileStore, DiskTileCacheRejectsInvalidCoords)
     std::filesystem::remove_all(tempDir);
 
     DiskTileCache diskCache(tempDir);
-    TileData sample { };
+    TileData sample {};
     sample.bytes = { 0x89U, 0x50U };
     sample.valid = true;
 
@@ -198,7 +198,7 @@ TEST(TestOfflineTileStore, CompositeProviderConcurrentAccessAndOnlineWriteThroug
     EXPECT_TRUE(composite.memoryCache().contains(netCoord));
 
     // Concurrent stress test toggling offlineOnly and proceduralFallback while querying tiles
-    std::vector<std::thread> threads { };
+    std::vector<std::thread> threads {};
     threads.reserve(4U);
     for (int t { 0 }; t < 4; ++t) {
         threads.emplace_back([&composite, t]() {
@@ -228,14 +228,14 @@ TEST(TestOfflineTileStore, DiskTileCacheAtomicOverwriteAndSizeCap)
     DiskTileCache diskCache(tempDir);
     const TileCoord coord { 1, 2, 3 };
 
-    TileData initial { };
+    TileData initial {};
     initial.bytes = { 0x89U, 0x50U, 0x4EU, 0x47U };
     initial.mimeType = "image/png";
     initial.valid = true;
     EXPECT_TRUE(diskCache.storeTile(coord, initial));
 
     // Overwrite existing tile atomically and verify no leftover .tmp file remains
-    TileData updated { };
+    TileData updated {};
     updated.bytes = { 0x89U, 0x50U, 0x4EU, 0x47U, 0x0DU, 0x0AU };
     updated.mimeType = "image/png";
     updated.valid = true;
@@ -249,7 +249,7 @@ TEST(TestOfflineTileStore, DiskTileCacheAtomicOverwriteAndSizeCap)
     EXPECT_FALSE(std::filesystem::exists(tmpFile));
 
     // Outbound storeTile must reject payloads exceeding 16 MB (kMaxTileFileBytes)
-    TileData oversized { };
+    TileData oversized {};
     oversized.bytes.resize((16U * 1024U * 1024U) + 1U, 0xAAU);
     oversized.mimeType = "image/png";
     oversized.valid = true;
@@ -267,7 +267,7 @@ TEST(TestOfflineTileStore, DiskTileCacheJpegMimeAndEmptyFileRejection)
     DiskTileCache diskCache(tempDir);
     const TileCoord jpgCoord { 3, 5, 4 };
 
-    TileData jpgTile { };
+    TileData jpgTile {};
     jpgTile.bytes = { 0xFFU, 0xD8U, 0xFFU, 0xE0U };
     jpgTile.mimeType = "image/jpeg";
     jpgTile.valid = true;
