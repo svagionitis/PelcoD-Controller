@@ -2,15 +2,19 @@
 /// @brief Implementation of in-memory simulated Pelco-D device.
 
 #include "MockPelcoDDevice.h"
-#include "PelcoDFrame.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <cstdint>
-#include <cstring>
+#include <mutex>
 #include <string>
 #include <vector>
+
+#include "PelcoDFrame.h"
 
 namespace PelcoD {
 

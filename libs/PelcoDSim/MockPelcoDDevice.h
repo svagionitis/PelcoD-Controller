@@ -3,11 +3,6 @@
 /// @file MockPelcoDDevice.h
 /// @brief In-memory Pelco-D device emulator implementing ITransport for offline simulation.
 
-#include "ITransport.h"
-#include "KinematicsSimulator.h"
-#include "LatencyPipeline.h"
-#include "PelcoDTypes.h"
-
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -16,7 +11,15 @@
 #include <string>
 #include <vector>
 
+#include "KinematicsSimulator.h"
+#include "LatencyPipeline.h"
+#include "PelcoDTypes.h"
+#include "Transport/ITransport.h"
+
 namespace PelcoD {
+
+using ::Transport::ITransport;
+using ::Transport::TransportState;
 
 /// @struct PresetPosition
 /// @brief Saved coordinates for a preset.
@@ -78,7 +81,7 @@ struct MockDeviceState {
 
 /// @class MockPelcoDDevice
 /// @brief Simulated Pelco-D device executing the protocol state machine in memory.
-class MockPelcoDDevice : public ITransport {
+class MockPelcoDDevice : public ::Transport::ITransport {
 public:
     explicit MockPelcoDDevice(std::uint8_t address = 1U) noexcept;
     ~MockPelcoDDevice() override = default;
