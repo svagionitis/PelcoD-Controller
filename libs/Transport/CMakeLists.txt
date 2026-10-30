@@ -15,6 +15,9 @@ add_library(Transport STATIC
     SocketUtils.h
     SocketUtils.cpp
     TsNetworkTypes.h
+    RtspServerTypes.h
+    RtspServerPublisher.h
+    RtspServerPublisher.cpp
     MpegTsNetworkPublisher.h
     MpegTsNetworkPublisher.cpp
     SdpGenerator.h

@@ -20,6 +20,7 @@
 #include "MpegTsKlvMuxer.h"
 #include "MpegTsNetworkPublisher.h"
 #include "PtsSyncManager.h"
+#include "RtspServerPublisher.h"
 #include "VideoNaluParser.h"
 #include "VideoTypes.h"
 
@@ -32,11 +33,11 @@ public:
     explicit Impl(const StanagBroadcastConfig& config)
         : m_config(config)
         , m_muxer(config.muxerConfig)
-        , m_syncManager(PtsSyncConfig { })
+        , m_syncManager(PtsSyncConfig {})
         , m_naluParser(config.muxerConfig.videoCodec)
     {
         // Configure PTS sync manager to clamp within <= 50 ms
-        PtsSyncConfig syncCfg { };
+        PtsSyncConfig syncCfg {};
         syncCfg.maxSyncDeltaMs = config.muxerConfig.maxSyncDeltaMs;
         syncCfg.syncPolicy = PtsSyncPolicy::NearestFrame;
         m_syncManager.setConfig(syncCfg);
@@ -76,6 +77,18 @@ public:
             }
         }
 
+        if (m_config.enableRtspServer) {
+            m_rtspServer = std::make_unique<Transport::RtspServerPublisher>(m_config.rtspConfig);
+            if (!m_rtspServer->start()) {
+                m_rtspServer.reset();
+                if (m_publisher) {
+                    m_publisher->close();
+                    m_publisher.reset();
+                }
+                return false;
+            }
+        }
+
         if (m_config.enableCbrPacing) {
             Transport::CbrPacerConfig pacerCfg = m_config.cbrConfig;
             pacerCfg.autoStartWorker = true;
@@ -106,6 +119,11 @@ public:
         if (m_pacer) {
             m_pacer->stopWorker();
             m_pacer.reset();
+        }
+
+        if (m_rtspServer) {
+            m_rtspServer->stop();
+            m_rtspServer.reset();
         }
 
         if (m_publisher) {
@@ -156,7 +174,7 @@ public:
             m_stats.telemetryIngested++;
         }
 
-        QueuedTelemetryItem item { };
+        QueuedTelemetryItem item {};
         item.pid = pid;
         item.timestampUs = message.precisionTimeStampUs.value_or(0U);
         item.message = std::move(message);
@@ -184,7 +202,7 @@ public:
             m_stats.telemetryIngested++;
         }
 
-        QueuedTelemetryItem item { };
+        QueuedTelemetryItem item {};
         item.pid = pid;
         item.timestampUs = timestampUs;
         item.rawBytes.assign(data, data + size);
@@ -211,6 +229,14 @@ public:
         processQueues();
         static_cast<void>(m_syncManager.flush());
 
+        if (m_publisher && m_publisher->isOpen()) {
+            static_cast<void>(m_publisher->flush());
+        }
+
+        if (m_rtspServer && m_rtspServer->isRunning()) {
+            m_rtspServer->flush();
+        }
+
         if (m_pacer) {
             m_pacer->flush();
         }
@@ -230,6 +256,14 @@ public:
             currentStats.isCbrActive = true;
         }
 
+        if (m_config.enableRtspServer && m_rtspServer) {
+            const auto rstats = m_rtspServer->stats();
+            currentStats.activeRtspClients = rstats.activeClients;
+            currentStats.streamingRtspClients = rstats.streamingClients;
+            currentStats.rtspPacketsDispatched = rstats.rtpPacketsDispatched;
+            currentStats.isRtspServerActive = m_rtspServer->isRunning();
+        }
+
         return currentStats;
     }
 
@@ -237,26 +271,26 @@ private:
     struct QueuedTelemetryItem {
         std::uint16_t pid { 0U };
         std::uint64_t timestampUs { 0U };
-        std::optional<UasDatalinkMessage> message { };
-        std::vector<std::uint8_t> rawBytes { };
+        std::optional<UasDatalinkMessage> message {};
+        std::vector<std::uint8_t> rawBytes {};
     };
 
-    StanagBroadcastConfig m_config { };
+    StanagBroadcastConfig m_config {};
     std::atomic<bool> m_running { false };
-    std::thread m_workerThread { };
+    std::thread m_workerThread {};
 
-    std::mutex m_queueMutex { };
-    std::mutex m_processMutex { };
-    std::condition_variable m_cv { };
-    std::deque<VideoAccessUnit> m_videoQueue { };
-    std::deque<QueuedTelemetryItem> m_telemetryQueue { };
+    std::mutex m_queueMutex {};
+    std::mutex m_processMutex {};
+    std::condition_variable m_cv {};
+    std::deque<VideoAccessUnit> m_videoQueue {};
+    std::deque<QueuedTelemetryItem> m_telemetryQueue {};
 
-    mutable std::mutex m_callbackMutex { };
-    TsPacketCallback m_packetCallback { };
+    mutable std::mutex m_callbackMutex {};
+    TsPacketCallback m_packetCallback {};
 
-    mutable std::mutex m_statsMutex { };
-    StanagBroadcastStats m_stats { };
-    std::chrono::steady_clock::time_point m_lastBitrateCalcTime { };
+    mutable std::mutex m_statsMutex {};
+    StanagBroadcastStats m_stats {};
+    std::chrono::steady_clock::time_point m_lastBitrateCalcTime {};
     std::size_t m_bytesSinceLastCalc { 0U };
 
     MpegTsKlvMuxer m_muxer;
@@ -264,6 +298,7 @@ private:
     VideoNaluParser m_naluParser;
     std::unique_ptr<Transport::MpegTsNetworkPublisher> m_publisher { nullptr };
     std::unique_ptr<Transport::CbrRatePacer> m_pacer { nullptr };
+    std::unique_ptr<Transport::RtspServerPublisher> m_rtspServer { nullptr };
 
     bool enqueueVideoUnit(VideoAccessUnit au)
     {
@@ -407,6 +442,10 @@ private:
 
         if (m_publisher && m_publisher->isOpen()) {
             static_cast<void>(m_publisher->pushPacket(packet, size));
+        }
+
+        if (m_rtspServer && m_rtspServer->isRunning()) {
+            static_cast<void>(m_rtspServer->pushPacket(packet, size));
         }
 
         {

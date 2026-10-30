@@ -23,10 +23,10 @@ namespace Klv {
 /// @brief Master configuration settings for StanagBroadcastEngine.
 struct StanagBroadcastConfig {
     /// @brief MPEG-TS multiplexer configuration.
-    MpegTsMuxerConfig muxerConfig { };
+    MpegTsMuxerConfig muxerConfig {};
 
     /// @brief Network socket and multicast configuration.
-    Transport::TsNetworkConfig networkConfig { };
+    Transport::TsNetworkConfig networkConfig {};
 
     /// @brief Whether to transmit TS packets via network publisher socket.
     bool enableNetworkPublishing { true };
@@ -41,7 +41,13 @@ struct StanagBroadcastConfig {
     bool enableCbrPacing { false };
 
     /// @brief Configuration for CBR rate pacing when enabled.
-    Transport::CbrPacerConfig cbrConfig { };
+    Transport::CbrPacerConfig cbrConfig {};
+
+    /// @brief Whether to activate the embedded RTSP server for client pull streaming.
+    bool enableRtspServer { false };
+
+    /// @brief Configuration settings for embedded RTSP server when enabled.
+    Transport::RtspServerConfig rtspConfig {};
 };
 
 /// @struct StanagBroadcastStats
@@ -82,6 +88,18 @@ struct StanagBroadcastStats {
 
     /// @brief Whether CBR rate pacing is currently active.
     bool isCbrActive { false };
+
+    /// @brief Active RTSP clients connected to embedded RTSP server.
+    std::size_t activeRtspClients { 0U };
+
+    /// @brief Streaming RTSP clients actively receiving RTP MP2T data.
+    std::size_t streamingRtspClients { 0U };
+
+    /// @brief Total RTP packets dispatched by the embedded RTSP server.
+    std::uint64_t rtspPacketsDispatched { 0U };
+
+    /// @brief Whether embedded RTSP server is currently active.
+    bool isRtspServerActive { false };
 };
 
 /// @class StanagBroadcastEngine
@@ -93,7 +111,7 @@ public:
 
     /// @brief Constructs engine with specified configuration.
     /// @param[in] config Broadcaster configuration settings.
-    explicit StanagBroadcastEngine(const StanagBroadcastConfig& config = { });
+    explicit StanagBroadcastEngine(const StanagBroadcastConfig& config = {});
 
     /// @brief Destructor. Ensures worker thread is stopped and network sockets are closed.
     ~StanagBroadcastEngine();

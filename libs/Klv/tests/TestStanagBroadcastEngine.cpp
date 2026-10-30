@@ -1,5 +1,7 @@
 #include "StanagBroadcastEngine.h"
 
+#include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -13,13 +15,14 @@
 
 #include "KlvTypes.h"
 #include "MpegTsKlvMuxer.h"
+#include "SocketUtils.h"
 #include "VideoTypes.h"
 
 using namespace Klv;
 
 TEST(TestStanagBroadcastEngine, LifecycleStartStop)
 {
-    StanagBroadcastConfig config { };
+    StanagBroadcastConfig config {};
     config.enableNetworkPublishing = false;
     StanagBroadcastEngine engine(config);
 
@@ -42,7 +45,7 @@ TEST(TestStanagBroadcastEngine, LifecycleStartStop)
 
 TEST(TestStanagBroadcastEngine, InProcessCallbackEmission)
 {
-    StanagBroadcastConfig config { };
+    StanagBroadcastConfig config {};
     config.enableNetworkPublishing = false;
     StanagBroadcastEngine engine(config);
 
@@ -56,7 +59,7 @@ TEST(TestStanagBroadcastEngine, InProcessCallbackEmission)
 
     // Push a video frame
     const std::vector<std::uint8_t> frameData = { 0x00U, 0x00U, 0x00U, 0x01U, 0x65U, 0x88U, 0x84U };
-    VideoAccessUnit au { };
+    VideoAccessUnit au {};
     au.codec = VideoCodec::H264;
     au.ptsUs = 1000000ULL;
     au.isKeyframe = true;
@@ -81,7 +84,7 @@ TEST(TestStanagBroadcastEngine, InProcessCallbackEmission)
 
 TEST(TestStanagBroadcastEngine, SynchronizedVideoAndTelemetry)
 {
-    StanagBroadcastConfig config { };
+    StanagBroadcastConfig config {};
     config.enableNetworkPublishing = false;
     StanagBroadcastEngine engine(config);
 
@@ -96,12 +99,12 @@ TEST(TestStanagBroadcastEngine, SynchronizedVideoAndTelemetry)
     for (std::size_t i = 0U; i < 3U; ++i) {
         const std::uint64_t t = kBaseTimeUs + static_cast<std::uint64_t>(i) * 33333ULL;
 
-        UasDatalinkMessage msg { };
+        UasDatalinkMessage msg {};
         msg.missionId = "BROADCAST_TEST_" + std::to_string(i);
         msg.precisionTimeStampUs = t;
         EXPECT_TRUE(engine.pushTelemetry(msg));
 
-        VideoAccessUnit au { };
+        VideoAccessUnit au {};
         au.codec = VideoCodec::H264;
         au.ptsUs = t;
         au.isKeyframe = (i == 0U);
@@ -124,7 +127,7 @@ TEST(TestStanagBroadcastEngine, SynchronizedVideoAndTelemetry)
 
 TEST(TestStanagBroadcastEngine, VideoChunkParsing)
 {
-    StanagBroadcastConfig config { };
+    StanagBroadcastConfig config {};
     config.enableNetworkPublishing = false;
     StanagBroadcastEngine engine(config);
 
@@ -150,14 +153,14 @@ TEST(TestStanagBroadcastEngine, VideoChunkParsing)
 
 TEST(TestStanagBroadcastEngine, QueueBackpressureAndDrop)
 {
-    StanagBroadcastConfig config { };
+    StanagBroadcastConfig config {};
     config.enableNetworkPublishing = false;
     config.maxVideoQueueSize = 2U;
     config.maxTelemetryQueueSize = 2U;
     StanagBroadcastEngine engine(config);
 
     // Engine is NOT started, so queues will not be drained
-    VideoAccessUnit au { };
+    VideoAccessUnit au {};
     au.codec = VideoCodec::H264;
     au.ptsUs = 1000ULL;
     au.data = { 0x00U, 0x00U, 0x00U, 0x01U, 0x41U };
@@ -167,7 +170,7 @@ TEST(TestStanagBroadcastEngine, QueueBackpressureAndDrop)
     // 3rd push must overflow and drop
     EXPECT_FALSE(engine.pushVideoAccessUnit(au));
 
-    UasDatalinkMessage msg { };
+    UasDatalinkMessage msg {};
     msg.precisionTimeStampUs = 1000ULL;
     EXPECT_TRUE(engine.pushTelemetry(msg));
     EXPECT_TRUE(engine.pushTelemetry(msg));
@@ -181,7 +184,7 @@ TEST(TestStanagBroadcastEngine, QueueBackpressureAndDrop)
 
 TEST(TestStanagBroadcastEngine, RawKlvIngest)
 {
-    StanagBroadcastConfig config { };
+    StanagBroadcastConfig config {};
     config.enableNetworkPublishing = false;
     StanagBroadcastEngine engine(config);
 
@@ -196,7 +199,7 @@ TEST(TestStanagBroadcastEngine, RawKlvIngest)
 
     EXPECT_TRUE(engine.pushRawKlv(rawKlv.data(), rawKlv.size(), 4000000ULL));
 
-    VideoAccessUnit au { };
+    VideoAccessUnit au {};
     au.codec = VideoCodec::H264;
     au.ptsUs = 4000000ULL;
     au.data = { 0x00U, 0x00U, 0x00U, 0x01U, 0x41U };
@@ -214,7 +217,7 @@ TEST(TestStanagBroadcastEngine, RawKlvIngest)
 
 TEST(TestStanagBroadcastEngine, NetworkPublisherLoopback)
 {
-    StanagBroadcastConfig config { };
+    StanagBroadcastConfig config {};
     config.enableNetworkPublishing = true;
     config.networkConfig.destinationIp = "127.0.0.1";
     config.networkConfig.destinationPort = 59876U;
@@ -225,7 +228,7 @@ TEST(TestStanagBroadcastEngine, NetworkPublisherLoopback)
     EXPECT_TRUE(engine.start());
     EXPECT_TRUE(engine.stats().isNetworkOpen);
 
-    VideoAccessUnit au { };
+    VideoAccessUnit au {};
     au.codec = VideoCodec::H264;
     au.ptsUs = 5000000ULL;
     au.data = { 0x00U, 0x00U, 0x00U, 0x01U, 0x65U, 0x01U };
@@ -242,7 +245,7 @@ TEST(TestStanagBroadcastEngine, NetworkPublisherLoopback)
 
 TEST(TestStanagBroadcastEngine, CbrPacingIntegration)
 {
-    StanagBroadcastConfig config { };
+    StanagBroadcastConfig config {};
     config.enableNetworkPublishing = false;
     config.enableCbrPacing = true;
     config.cbrConfig.targetBitrateBps = 2000000U; // 2.0 Mbps
@@ -258,7 +261,7 @@ TEST(TestStanagBroadcastEngine, CbrPacingIntegration)
     EXPECT_TRUE(engine.isRunning());
 
     // Push 1 video frame
-    VideoAccessUnit au { };
+    VideoAccessUnit au {};
     au.codec = VideoCodec::H264;
     au.ptsUs = 1000000ULL;
     au.data = { 0x00U, 0x00U, 0x00U, 0x01U, 0x65U, 0x01U, 0x02U };
@@ -279,7 +282,7 @@ TEST(TestStanagBroadcastEngine, CbrPacingIntegration)
 
 TEST(TestStanagBroadcastEngine, MultiPidTelemetryIngest)
 {
-    StanagBroadcastConfig config { };
+    StanagBroadcastConfig config {};
     config.enableNetworkPublishing = false;
     MetadataStreamConfig s1;
     s1.pid = 0x01E0U;
@@ -326,4 +329,104 @@ TEST(TestStanagBroadcastEngine, MultiPidTelemetryIngest)
     }
     EXPECT_TRUE(foundE0);
     EXPECT_TRUE(foundE1);
+}
+
+TEST(TestStanagBroadcastEngine, RtspServerEgressIntegration)
+{
+    StanagBroadcastConfig config {};
+    config.enableNetworkPublishing = false;
+    config.enableRtspServer = true;
+    config.rtspConfig.listenAddress = "127.0.0.1";
+    config.rtspConfig.listenPort = Transport::RtspPort(19554U);
+    config.rtspConfig.packetsPerDatagram = 1U;
+    config.rtspConfig.streamPath = "/live";
+
+    StanagBroadcastEngine engine(config);
+    ASSERT_TRUE(engine.start());
+
+    auto stats = engine.stats();
+    EXPECT_TRUE(stats.isRtspServerActive);
+    EXPECT_EQ(stats.activeRtspClients, 0U);
+
+    Transport::Net::ensureWinsockInitialized();
+    const Transport::Net::SocketHandle clientSock = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_NE(clientSock, Transport::Net::InvalidSocket);
+
+    sockaddr_in srvAddr {};
+    srvAddr.sin_family = AF_INET;
+    srvAddr.sin_port = htons(19554U);
+    srvAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+
+    ASSERT_EQ(::connect(clientSock, reinterpret_cast<struct sockaddr*>(&srvAddr), sizeof(srvAddr)), 0);
+
+    // 1. SETUP
+    const std::string setupReq = "SETUP rtsp://127.0.0.1:19554/live RTSP/1.0\r\n"
+                                 "CSeq: 1\r\n"
+                                 "Transport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n"
+                                 "\r\n";
+    EXPECT_EQ(::send(clientSock, setupReq.data(), static_cast<Transport::Net::SockBufLenType>(setupReq.size()), 0),
+        static_cast<decltype(::send(0, nullptr, 0, 0))>(setupReq.size()));
+
+    std::array<char, 1024> recvBuf {};
+    auto r = ::recv(clientSock, recvBuf.data(), static_cast<Transport::Net::SockBufLenType>(recvBuf.size()), 0);
+    ASSERT_GT(r, 0);
+    const std::string setupResp(recvBuf.data(), static_cast<std::size_t>(r));
+    const std::size_t sessPos = setupResp.find("Session: ");
+    ASSERT_NE(sessPos, std::string::npos);
+    const std::string sessId = setupResp.substr(sessPos + 9U, 8U);
+
+    // 2. PLAY
+    const std::string playReq = "PLAY rtsp://127.0.0.1:19554/live RTSP/1.0\r\n"
+                                "CSeq: 2\r\n"
+                                "Session: "
+        + sessId
+        + "\r\n"
+          "\r\n";
+    EXPECT_EQ(::send(clientSock, playReq.data(), static_cast<Transport::Net::SockBufLenType>(playReq.size()), 0),
+        static_cast<decltype(::send(0, nullptr, 0, 0))>(playReq.size()));
+
+    r = ::recv(clientSock, recvBuf.data(), static_cast<Transport::Net::SockBufLenType>(recvBuf.size()), 0);
+    ASSERT_GT(r, 0);
+
+    // 3. Push video access unit and telemetry
+    UasDatalinkMessage msg;
+    msg.platformHeadingDeg = 145.0;
+    msg.precisionTimeStampUs = 5000000ULL;
+    EXPECT_TRUE(engine.pushTelemetry(msg));
+
+    VideoAccessUnit au {};
+    au.codec = VideoCodec::H264;
+    au.ptsUs = 5000000ULL;
+    au.isKeyframe = true;
+    au.data = { 0x00U, 0x00U, 0x00U, 0x01U, 0x65U, 0x88U, 0x84U };
+    EXPECT_TRUE(engine.pushVideoAccessUnit(std::move(au)));
+
+    engine.flush();
+
+    // 4. Client receives interleaved TS stream
+    std::vector<std::uint8_t> streamed;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000);
+    while (streamed.size() < 204U && std::chrono::steady_clock::now() < deadline) {
+        Transport::Net::PollFd pfd {};
+        pfd.fd = clientSock;
+        pfd.events = POLLIN;
+        if (Transport::Net::pollSockets(&pfd, 1U, 50) > 0 && (pfd.revents & POLLIN) != 0) {
+            std::array<std::uint8_t, 1024> b {};
+            const auto bytes = ::recv(clientSock, reinterpret_cast<char*>(b.data()),
+                static_cast<Transport::Net::SockBufLenType>(b.size()), 0);
+            if (bytes > 0) {
+                streamed.insert(streamed.end(), b.begin(), b.begin() + bytes);
+            }
+        }
+    }
+
+    ASSERT_GE(streamed.size(), 204U);
+    EXPECT_EQ(streamed[0], 0x24U); // '$'
+    EXPECT_EQ(streamed[1], 0x00U); // Channel 0
+    EXPECT_EQ(streamed[4], 0x80U); // RTP V=2
+    EXPECT_EQ(streamed[5], 33U); // PT=33 MP2T
+    EXPECT_EQ(streamed[16], 0x47U); // TS Sync
+
+    Transport::Net::closeSocket(clientSock);
+    engine.stop();
 }

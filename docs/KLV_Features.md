@@ -32,7 +32,7 @@ The `libs/Klv`, `libs/Transport`, `libs/Mapping`, and `libs/DjiTelemetry` librar
 | **Broadcast Orchestration** | High-Level Unified Broadcast Pipeline (`StanagBroadcastEngine`) | **Fully Implemented** | [StanagBroadcastEngine.h](../libs/Klv/StanagBroadcastEngine.h), [StanagBroadcastEngine.cpp](../libs/Klv/StanagBroadcastEngine.cpp) |
 | **ISO/IEC 13818-1 Clause 2.4.2** | Constant Bitrate (CBR) Rate Pacer & Null Stuffing (PID `0x1FFF`) | **Fully Implemented** | [CbrRatePacer.h](../libs/Transport/CbrRatePacer.h), [CbrRatePacer.cpp](../libs/Transport/CbrRatePacer.cpp) |
 | **RFC 6184 / RFC 7798** | RTSP Direct Ingest & Zero-Transcode NALU Depacketizer | **Fully Implemented** | [RtspPassthroughBridge.h](../libs/Video/RtspPassthroughBridge.h), [RtspPassthroughBridge.cpp](../libs/Video/RtspPassthroughBridge.cpp), [RtpDepacketizer.h](../libs/Video/RtpDepacketizer.h) |
-| **RFC 2326 / RFC 7826** | Embedded RTSP Server Egress (`RtspServerPublisher`) | ⏳ **Pending** | Target: `libs/Transport/RtspServerPublisher.h`, `libs/Transport/RtspServerPublisher.cpp` |
+| **RFC 2326 / RFC 7826** | Embedded RTSP Server Egress (`RtspServerPublisher`) | **Fully Implemented** | [RtspServerPublisher.h](../libs/Transport/RtspServerPublisher.h), [RtspServerPublisher.cpp](../libs/Transport/RtspServerPublisher.cpp), [RtspServerTypes.h](../libs/Transport/RtspServerTypes.h) |
 
 ---
 
@@ -95,7 +95,7 @@ The `libs/Klv`, `libs/Transport`, `libs/Mapping`, and `libs/DjiTelemetry` librar
 |         v                     v                                       |                                   |             |
 |    CoT XML Feed        Google Earth/QGIS                              v                                   v             |
 |   (ATAK/WinTAK)       (4D Flight/Frustum)             +-------------------------------+   +---------------------------+ |
-|                                                       |    MpegTsNetworkPublisher     |   | [PENDING] RtspServerPub.  | |
+|                                                       |    MpegTsNetworkPublisher     |   |    RtspServerPublisher    | |
 |                                                       | - Raw UDP Multicast (1316 B)  |   | - Embedded RTSP server    | |
 |                                                       | - RFC 3550 RTP MP2T (1328 B)  |   | - TCP Interleave/UDP Pull | |
 |                                                       | - RFC 4566 SdpGenerator (.sdp)|   +---------------------------+ |
@@ -142,7 +142,7 @@ flowchart TD
         SYNC --> MUX["MpegTsKlvMuxer<br/>[PENDING Phase 5: Multi-PID]"]
         MUX --> PACER["[PENDING Phase 3]<br/>CbrRatePacer (PID 0x1FFF)"]
         PACER --> PUB["MpegTsNetworkPublisher<br/>(UDP/RTP Multicast)"]
-        PACER -.-> RTSP_SRV["[PENDING Phase 6]<br/>RtspServerPublisher"]
+        PACER -.-> RTSP_SRV["RtspServerPublisher<br/>(RFC 2326 / RFC 7826)"]
         PUB -.-> SDP["SdpGenerator<br/>(RFC 4566 .sdp)"]
     end
 
@@ -281,6 +281,16 @@ flowchart TD
   - 32-bit RTP timestamp unwrap to continuous 64-bit microsecond presentation timestamps (PTS).
   - TCP interleaved framing (RFC 2326 §10.1 `$`) and UDP streaming, automatic keep-alive (`GET_PARAMETER`/`OPTIONS`), and reconnection with exponential backoff.
 
+### 3.17 Embedded RTSP Server Egress (`RtspServerPublisher` - Phase 6 Implemented)
+- **Files**: [RtspServerPublisher.h](../libs/Transport/RtspServerPublisher.h)/[.cpp](../libs/Transport/RtspServerPublisher.cpp), [RtspServerTypes.h](../libs/Transport/RtspServerTypes.h)
+- **Features**:
+  - Lightweight, embedded, zero-Qt RTSP 1.0 (RFC 2326) and RTSP 2.0 (RFC 7826) streaming server allowing clients to pull live STANAG 4609 streams over TCP or UDP.
+  - Full handshake support for standard RTSP methods: `OPTIONS`, `DESCRIBE`, `SETUP`, `PLAY`, `TEARDOWN`, `GET_PARAMETER`, and `SET_PARAMETER`.
+  - Dynamic RFC 4566 SDP generation via `SdpGenerator` advertising static Payload Type 33 (`MP2T/90000`).
+  - Supports RFC 2326 §10.1 TCP interleaved binary data streaming (`$`) across firewall/VPN boundaries and RFC 3550 RTP/AVP over UDP unicast.
+  - High-performance non-blocking polling loop (`Net::pollSockets`), multi-client fanout, and slow-client drop backpressure protection.
+  - Native integration with `StanagBroadcastEngine` via `enableRtspServer` and `rtspConfig`.
+
 ---
 
 ## 4. Phased Roadmap: Implemented vs. Pending Capabilities
@@ -294,7 +304,7 @@ The table below summarizes the phased development roadmap, identifying which pha
 | **Phase 3** | **CBR Rate Pacer & Null Packet Stuffing (PID `0x1FFF`)**<br>Converts VBR streams to Constant Bitrate broadcasts for tactical satellite modems and fixed-rate pipes, maintaining PCR jitter $\le 500\text{ ns}$. | **Medium** | ✅ **IMPLEMENTED** | [CbrRatePacer.h](../libs/Transport/CbrRatePacer.h), [CbrRatePacer.cpp](../libs/Transport/CbrRatePacer.cpp)<br>Test: [TestCbrRatePacer.cpp](../libs/Transport/tests/TestCbrRatePacer.cpp) |
 | **Phase 4** | **RTSP Direct Ingest Bridge (`RtspPassthroughBridge`)**<br>Directly depacketizes RFC 6184 H.264 and RFC 7798 H.265 Access Units from IP cameras without video transcoding. | **Medium** | ✅ **IMPLEMENTED** | [RtspPassthroughBridge.h](../libs/Video/RtspPassthroughBridge.h), [RtspPassthroughBridge.cpp](../libs/Video/RtspPassthroughBridge.cpp), [RtpDepacketizer.h](../libs/Video/RtpDepacketizer.h)<br>Test: [TestRtspPassthroughBridge.cpp](../libs/Video/tests/TestRtspPassthroughBridge.cpp) |
 | **Phase 5** | **Multi-PID Metadata Substream Multiplexing**<br>Simultaneous multiplexing of multiple independent telemetry streams (EO/IR PID `0x01E0`, Radar PID `0x01E1`, VMTI PID `0x01E2`) per MISB ST 1607 MSID. | **Medium** | ✅ **IMPLEMENTED** | [MpegTsKlvMuxer.h](../libs/Klv/MpegTsKlvMuxer.h), [MpegTsKlvMuxer.cpp](../libs/Klv/MpegTsKlvMuxer.cpp)<br>Test: [TestMpegTsKlvMuxer.cpp](../libs/Klv/tests/TestMpegTsKlvMuxer.cpp) |
-| **Phase 6** | **Embedded RTSP Server Egress (`RtspServerPublisher`)**<br>Lightweight embedded RTSP 1.0/2.0 server allowing clients to pull STANAG 4609 streams over TCP or UDP without an external multicast router. | **Low** | ⏳ **PENDING** | `libs/Transport/RtspServerPublisher.h`, `.cpp`<br>Deps: [SocketUtils](../libs/Transport/SocketUtils.h), [BaseTransport](../libs/Transport/BaseTransport.h) |
+| **Phase 6** | **Embedded RTSP Server Egress (`RtspServerPublisher`)**<br>Lightweight embedded RTSP 1.0/2.0 server allowing clients to pull STANAG 4609 streams over TCP or UDP without an external multicast router. | **Low** | ✅ **IMPLEMENTED** | [RtspServerPublisher.h](../libs/Transport/RtspServerPublisher.h), [RtspServerPublisher.cpp](../libs/Transport/RtspServerPublisher.cpp), [RtspServerTypes.h](../libs/Transport/RtspServerTypes.h)<br>Test: [TestRtspServerPublisher.cpp](../libs/Transport/tests/TestRtspServerPublisher.cpp) |
 | **Phase 7** | **KML & GeoJSON Spatial Exporter**<br>Exports 4D flight tracks, 3D volumetric sensor frustums, and ground footprints to Google Earth Pro/Web and QGIS. | **Medium** | ✅ **IMPLEMENTED** | [KmlExporter.h](../libs/Mapping/KmlExporter.h), [GeoJsonExporter.h](../libs/Mapping/GeoJsonExporter.h), [SpatialDataRecorder.h](../libs/Mapping/SpatialDataRecorder.h)<br>Tests: [TestKmlExporter.cpp](../libs/Mapping/tests/TestKmlExporter.cpp), [TestGeoJsonExporter.cpp](../libs/Mapping/tests/TestGeoJsonExporter.cpp) |
 
 ---
@@ -445,13 +455,14 @@ The table below summarizes the phased development roadmap, identifying which pha
 
 ---
 
-### 5.5 Phase 6: Embedded RTSP Server Egress (`RtspServerPublisher`)
-- **Target Files**: `libs/Transport/RtspServerPublisher.h`, `libs/Transport/RtspServerPublisher.cpp`, `libs/Transport/tests/TestRtspServerPublisher.cpp`
+### 5.5 Phase 6: Embedded RTSP Server Egress (`RtspServerPublisher` - Implemented)
+- **Target Files**: [RtspServerPublisher.h](../libs/Transport/RtspServerPublisher.h), [RtspServerPublisher.cpp](../libs/Transport/RtspServerPublisher.cpp), [TestRtspServerPublisher.cpp](../libs/Transport/tests/TestRtspServerPublisher.cpp)
 - **Objective**: Provide an embedded, lightweight RTSP 1.0 (RFC 2326) and RTSP 2.0 (RFC 7826) streaming server allowing clients to pull STANAG 4609 streams over TCP or UDP without requiring an external multicast network.
 - **Key Features**:
   - Pure C++17 implementation built directly on `libs/Transport` socket primitives.
-  - Supports standard RTSP methods: `OPTIONS`, `DESCRIBE`, `SETUP`, `PLAY`, `TEARDOWN`.
-  - Stream delivery modes: Interleaved TCP transport and RTP/AVP over UDP unicast.
+  - Supports standard RTSP methods: `OPTIONS`, `DESCRIBE`, `SETUP`, `PLAY`, `TEARDOWN`, `GET_PARAMETER`, `SET_PARAMETER`.
+  - Stream delivery modes: Interleaved TCP transport (`$`) and RTP/AVP over UDP unicast.
+  - Native integration with `StanagBroadcastEngine` (`enableRtspServer`, `rtspConfig`).
 
 ---
 
@@ -494,7 +505,8 @@ All modules across `libs/Klv`, `libs/Transport`, `libs/Mapping`, and `libs/DjiTe
 | **TestMp4TextTrackReader** | [TestMp4TextTrackReader.cpp](../libs/DjiTelemetry/tests/TestMp4TextTrackReader.cpp) | 13 | moov at end/start, co64 + 64-bit mdat, multi-entry stsc/stts, fixed stsz, edit lists |
 | **TestDjiSt0601Mapper** | [TestDjiSt0601Mapper.cpp](../libs/DjiTelemetry/tests/TestDjiSt0601Mapper.cpp) | 9 | Range checks, 0/0 no-fix, yaw wrapping, local to UTC, FOV from 35 mm focal length |
 | **TestDjiTelemetrySource** | [TestDjiTelemetrySource.cpp](../libs/DjiTelemetry/tests/TestDjiTelemetrySource.cpp) | 5 | End-to-end synthetic MP4 to timed ST 0601, offset override, skipped samples |
-| **TestStanagBroadcastEngine** | [TestStanagBroadcastEngine.cpp](../libs/Klv/tests/TestStanagBroadcastEngine.cpp) | 8 | Lifecycle start/stop, callback packet emission, synchronized video + telemetry, chunk parsing, backpressure drops, raw KLV, UDP network loopback, CBR pacing integration |
+| **TestStanagBroadcastEngine** | [TestStanagBroadcastEngine.cpp](../libs/Klv/tests/TestStanagBroadcastEngine.cpp) | 10 | Lifecycle start/stop, callback packet emission, synchronized video + telemetry, chunk parsing, backpressure drops, raw KLV, UDP network loopback, CBR pacing integration, multi-PID telemetry, embedded RTSP server pull integration |
 | **TestCbrRatePacer** | [TestCbrRatePacer.cpp](../libs/Transport/tests/TestCbrRatePacer.cpp) | 9 | ISO/IEC 13818-1 null packet format, 4Mbps rate calculation, null stuffing on starvation, burst absorption, PCR restamping, deterministic step pacing, dynamic rate reconfiguration, queue overflow drops, worker thread lifecycle |
 | **TestRtspPassthroughBridge** | [TestRtspPassthroughBridge.cpp](../libs/Video/tests/TestRtspPassthroughBridge.cpp) | 11 | RFC 6184 Single/STAP-A/FU-A H.264, RFC 7798 Single/AP/FU H.265, packet loss detection, 32-bit rollover, SDP sprop decoding/injection, mock RTSP handshake, StanagBroadcastEngine integration |
-| **Total** | | **231** | **100% Pass Rate** |
+| **TestRtspServerPublisher** | [TestRtspServerPublisher.cpp](../libs/Transport/tests/TestRtspServerPublisher.cpp) | 12 | Socket bind lifecycle, OPTIONS public methods, DESCRIBE SDP payload 33, SETUP TCP interleaved, SETUP UDP unicast, PLAY/TEARDOWN transitions, TCP interleaved streaming ($), UDP unicast streaming, multi-client concurrency, GET_PARAMETER keepalive, slow client backpressure, stream URL |
+| **Total** | | **245** | **100% Pass Rate** |
