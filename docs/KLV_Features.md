@@ -1,6 +1,6 @@
-# STANAG 4609 / MISB KLV Metadata Engine, Broadcast Architecture & Roadmap
+# STANAG 4609 / MISB KLV Metadata Engine, Broadcast Architecture & Specifications
 
-This document provides a single, unified reference for the STANAG 4609 and Motion Imagery Standards Board (MISB) video and metadata ecosystem in `PelcoD-Controller`. It details standards compliance, current subsystem implementations, test coverage, and the phased engineering roadmap distinguishing between **already implemented** and **pending** capabilities.
+This document provides a single, unified reference for the STANAG 4609 and Motion Imagery Standards Board (MISB) video and metadata ecosystem in `PelcoD-Controller`. It details standards compliance, current subsystem implementations, C++17 architecture interfaces, and the 282-test verification coverage matrix across all 7 completed architectural phases.
 
 ---
 
@@ -49,7 +49,7 @@ The `libs/Klv`, `libs/Transport`, `libs/Mapping`, and `libs/DjiTelemetry` librar
 |                   |                                                                     |                               |
 |                   v                                                                     v                               |
 |     +----------------------------+                                    +-----------------------------------+             |
-|     |    MpegTsKlvExtractor      |                                    | [PENDING] RtspPassthroughBridge   |             |
+|     |    MpegTsKlvExtractor      |                                    |      RtspPassthroughBridge        |             |
 |     +----------------------------+                                    | - RFC 6184 / 7798 Depacketizer    |             |
 |     | - Sync & Auto PID Discover |                                    | - Zero-Transcode Annex B Stream   |             |
 |     | - PES Reassembly & CC Drop |                                    +-----------------------------------+             |
@@ -63,9 +63,9 @@ The `libs/Klv`, `libs/Transport`, `libs/Mapping`, and `libs/DjiTelemetry` librar
 |         +---------+---------+--------------------+----------------+                     |                               |
 |         |                   |                    |                |                     v                               |
 |         v                   v                    v                v   +-----------------------------------+             |
-|   +-------------+     +-------------+      +-----------+    +---------+ [PENDING] StanagBroadcastEngine   |             |
-|   |  KlvParser  |     |  RvtParser  |      |GeoRegPars.|    |St1607Par| - Orchestrates ingest, sync, mux|             |
-|   |  (ST 0601)  |     |  (ST 0806)  |      | (ST 1601) |    |(ST 1607)| - Bounded queues & reconnect    |             |
+|   +-------------+     +-------------+      +-----------+    +---------+       StanagBroadcastEngine       |             |
+|   |  KlvParser  |     |  RvtParser  |      |GeoRegPars.|    |St1607Par| - Orchestrates ingest, sync, mux  |             |
+|   |  (ST 0601)  |     |  (ST 0806)  |      | (ST 1601) |    |(ST 1607)| - Bounded queues & backpressure   |             |
 |   +-------------+     +-------------+      +-----------+    +---------+ +-----------------------------------+             |
 |         |    \              |                    |                |                     |                               |
 |         |     \Tag 73       |                    v                |                     v                               |
@@ -79,14 +79,14 @@ The `libs/Klv`, `libs/Transport`, `libs/Mapping`, and `libs/DjiTelemetry` librar
 |         +----------------------------------| Misb1201  |--------->+   +-----------------------------------+             |
 |                                            |(IMAPB/RIM)|              |          MpegTsKlvMuxer           |             |
 |                                            +-----------+              | - Video PID 0x0101 (H.264/H.265)  |             |
-|   Stream Scrubbing & Indexing                                         | - Metadata PID 0x01E0 (KLVA)      |             |
-|   +-----------------------------------+                               | - [PENDING: Multi-PID ST 1607]    |             |
+|   Stream Scrubbing & Indexing                                         | - Primary KLV PID 0x01E0 (KLVA)   |             |
+|   +-----------------------------------+                               | - Multi-PID ST 1607 (0x01E1/01E2) |             |
 |   | StanagStreamIndexer / ScrubCtrl   |                               | - 27MHz PCR on Video / 90kHz PTS  |             |
 |   | TelemetryTimeIndex & Interpolator |                               +-----------------------------------+             |
 |   +-----------------------------------+                                                 |                               |
 |         |                   |                                                           v                               |
 |         v                   v                                         +-----------------------------------+             |
-|   Tactical Services     GIS Export                                    | [PENDING] CbrRatePacer            |             |
+|   Tactical Services     GIS Export                                    |           CbrRatePacer            |             |
 |   +-------------+     +---------------+                               | - Null packet stuffing PID 0x1FFF |             |
 |   | KlvGeodesy  |     |  KmlExporter  |                               | - Hardware PCR jitter <= 500 ns   |             |
 |   |  Misb0805   |     |GeoJsonExporter|                               +-----------------------------------+             |
@@ -110,7 +110,7 @@ flowchart TD
     subgraph Ingest["Stream Ingress & Demuxing"]
         TS_IN["MPEG-2 Transport Stream"] --> Extractor["MpegTsKlvExtractor"]
         Extractor --> Scanner["KlvStreamScanner"]
-        RTSP_IN["RTSP Camera Source"] -.->|RTP H.264/H.265| RTSP_BRG["[PENDING Phase 4]<br/>RtspPassthroughBridge"]
+        RTSP_IN["RTSP Camera Source"] -->|RTP H.264/H.265| RTSP_BRG["RtspPassthroughBridge<br/>(RFC 6184 / RFC 7798)"]
         RTSP_BRG --> NALU["VideoNaluParser"]
     end
 
@@ -136,11 +136,11 @@ flowchart TD
     end
 
     subgraph BroadcastOrchestration["Broadcast Engine & Egress Pipeline"]
-        NALU --> ORCH["[PENDING Phase 1]<br/>StanagBroadcastEngine"]
+        NALU --> ORCH["StanagBroadcastEngine<br/>(Master Orchestrator)"]
         ST0601 --> ORCH
         ORCH --> SYNC["PtsSyncManager<br/>(PTS Skew <= 50ms)"]
-        SYNC --> MUX["MpegTsKlvMuxer<br/>[PENDING Phase 5: Multi-PID]"]
-        MUX --> PACER["[PENDING Phase 3]<br/>CbrRatePacer (PID 0x1FFF)"]
+        SYNC --> MUX["MpegTsKlvMuxer<br/>(Multi-PID PMT & 27MHz PCR)"]
+        MUX --> PACER["CbrRatePacer<br/>(PID 0x1FFF Null Stuffing)"]
         PACER --> PUB["MpegTsNetworkPublisher<br/>(UDP/RTP Multicast)"]
         PACER -.-> RTSP_SRV["RtspServerPublisher<br/>(RFC 2326 / RFC 7826)"]
         PUB -.-> SDP["SdpGenerator<br/>(RFC 4566 .sdp)"]
@@ -249,29 +249,38 @@ flowchart TD
   - **Synchronized Timeline Scrubbing**: Real-time random seek and forward/backward scrubbing across gigabyte-scale STANAG 4609 recordings.
   - **Bi-Directional Telemetry Interpolation**: Spherical linear interpolation (SLERP) for platform/sensor quaternions and geodetic geodesic interpolation (WGS-84 great-circle path) for latitude, longitude, and elevation during high-speed scrubbing between sparse telemetry packets.
 
-### 3.13 Dynamic Session Description Protocol (SDP) Generation (Phase 2 - Implemented)
+### 3.13 Dynamic Session Description Protocol (SDP) Generation (`SdpGenerator`)
 - **Files**: [SdpGenerator.h](../libs/Transport/SdpGenerator.h), [SdpGenerator.cpp](../libs/Transport/SdpGenerator.cpp)
 - **Features**:
   - Dynamically synthesizes RFC 4566 / RFC 2327 Session Description Protocol (`.sdp`) descriptors for MPEG-TS RTP unicast and multicast streams.
   - Injects standard media line `m=video <port> RTP/AVP 33` with `a=rtpmap:33 MP2T/90000`.
   - Exposes `toFile(const std::string& path)` and `toString()` methods for zero-configuration playback in VLC, ATAK, and tactical video clients.
 
-### 3.14 4D Geospatial Telemetry Exporters: KML 2.2 & RFC 7946 GeoJSON (Phase 7 - Implemented)
+### 3.14 4D Geospatial Telemetry Exporters: KML 2.2 & RFC 7946 GeoJSON
 - **Files**: [SpatialExportTypes.h](../libs/Mapping/SpatialExportTypes.h), [SpatialDataRecorder.h](../libs/Mapping/SpatialDataRecorder.h)/[.cpp](../libs/Mapping/SpatialDataRecorder.cpp), [KmlExporter.h](../libs/Mapping/KmlExporter.h)/[.cpp](../libs/Mapping/KmlExporter.cpp), [GeoJsonExporter.h](../libs/Mapping/GeoJsonExporter.h)/[.cpp](../libs/Mapping/GeoJsonExporter.cpp)
 - **Features**:
   - **Spatial Data Recorder**: Thread-safe telemetry observation engine tracking platform positions, sensor footprints, and target points with adaptive decimation (time interval, distance delta, heading delta).
   - **OGC KML 2.2 Exporter**: Exports animated 4D flight paths using `<gx:Track>` and `<gx:angles>`, with extruded 3D sensor frustum pyramids and semi-transparent ground footprint polygons.
   - **RFC 7946 GeoJSON Exporter**: Generates standards-compliant FeatureCollections containing 3D flight paths (`LineString Z`), camera ground footprints (`Polygon`), 3D frustum geometries (`MultiPolygon Z`), and target tracks (`Point`/`LineString`).
 
-### 3.15 Broadcast Engine Orchestrator (`StanagBroadcastEngine` - Phase 1 Implemented)
+### 3.15 Broadcast Engine Orchestrator (`StanagBroadcastEngine`)
 - **Files**: [StanagBroadcastEngine.h](../libs/Klv/StanagBroadcastEngine.h)/[.cpp](../libs/Klv/StanagBroadcastEngine.cpp)
 - **Features**:
   - High-level thread-safe facade orchestrating video ingestion, NALU parsing, master timebase synchronization, PTS/PCR clamping ($\le 50\text{ ms}$), 188-byte MPEG-TS multiplexing, and network streaming.
   - Bounded queues for video access units and telemetry messages, isolating socket I/O from caller threads.
-  - Dual egress routing: direct transmission via `MpegTsNetworkPublisher` (UDP unicast/multicast or RTP MP2T) and an in-process `TsPacketCallback` tap.
+  - Direct integration with `CbrRatePacer` for constant bitrate null-stuffing, `RtspServerPublisher` for client-pull streaming, and `MpegTsNetworkPublisher` for multicast egress.
   - Thread-safe runtime diagnostics (`StanagBroadcastStats`) tracking processed frames, dropped counts, PTS skew, and bitrate.
 
-### 3.16 RTSP Direct Ingest Bridge (`RtspPassthroughBridge` - Phase 4 Implemented)
+### 3.16 Constant Bitrate (CBR) Rate Pacer & Null Packet Stuffing (`CbrRatePacer`)
+- **Files**: [CbrRatePacer.h](../libs/Transport/CbrRatePacer.h)/[.cpp](../libs/Transport/CbrRatePacer.cpp)
+- **Features**:
+  - Converts bursty Variable Bitrate (VBR) video streams into compliant Constant Bitrate (CBR) broadcasts required by tactical satellite modems and fixed-rate pipes.
+  - Dynamically calculates bit consumption over high-precision sub-millisecond intervals.
+  - Interleaves standard ISO/IEC 13818-1 Null TS packets (PID `0x1FFF`, payload `0xFF`) to maintain configured target bitrate (e.g. 2.0 Mbps, 4.0 Mbps).
+  - Monotonic high-resolution timer discipline enforcing maximum PCR jitter limits ($\le 500\text{ ns}$) per ISO/IEC 13818-1 Clause 2.4.2.2.
+  - Optional departure-time PCR restamping to completely eliminate jitter introduced by upstream queueing.
+
+### 3.17 RTSP Direct Ingest Bridge (`RtspPassthroughBridge`)
 - **Files**: [RtspPassthroughBridge.h](../libs/Video/RtspPassthroughBridge.h)/[.cpp](../libs/Video/RtspPassthroughBridge.cpp), [RtpDepacketizer.h](../libs/Video/RtpDepacketizer.h)/[.cpp](../libs/Video/RtpDepacketizer.cpp), [RtspPassthroughTypes.h](../libs/Video/RtspPassthroughTypes.h)
 - **Features**:
   - Direct zero-transcode extraction of compressed H.264 (RFC 6184) and H.265 (RFC 7798) video Access Units from RTSP camera streams.
@@ -281,7 +290,18 @@ flowchart TD
   - 32-bit RTP timestamp unwrap to continuous 64-bit microsecond presentation timestamps (PTS).
   - TCP interleaved framing (RFC 2326 §10.1 `$`) and UDP streaming, automatic keep-alive (`GET_PARAMETER`/`OPTIONS`), and reconnection with exponential backoff.
 
-### 3.17 Embedded RTSP Server Egress (`RtspServerPublisher` - Phase 6 Implemented)
+### 3.18 Multi-PID Metadata Substream Multiplexing (`MpegTsKlvMuxer`)
+- **Files**: [MpegTsKlvMuxer.h](../libs/Klv/MpegTsKlvMuxer.h)/[.cpp](../libs/Klv/MpegTsKlvMuxer.cpp), [MpegTsMuxerTypes.h](../libs/Klv/MpegTsMuxerTypes.h)
+- **Features**:
+  - Simultaneous multiplexing of multiple independent telemetry streams over dedicated elementary stream PIDs within the same MPEG-TS transport stream.
+  - Program Map Table (PMT) generation declaring multiple metadata descriptors:
+    - Primary Sensor Local Set (PID `0x01E0`, Stream Type `0x15`, Registration `"KLVA"`).
+    - Secondary Sensor / Radar Track Local Set (PID `0x01E1`, Stream Type `0x15`).
+    - VMTI Detections / Tracks Local Set (PID `0x01E2`, Stream Type `0x15`, Registration `"VMTI"`).
+  - Integrates MISB ST 1607 Item 143 Metadata Substream Identifier (MSID) packs to disambiguate sensor sources.
+  - Per-stream continuity counter tracking and PTS stamping.
+
+### 3.19 Embedded RTSP Server Egress (`RtspServerPublisher`)
 - **Files**: [RtspServerPublisher.h](../libs/Transport/RtspServerPublisher.h)/[.cpp](../libs/Transport/RtspServerPublisher.cpp), [RtspServerTypes.h](../libs/Transport/RtspServerTypes.h)
 - **Features**:
   - Lightweight, embedded, zero-Qt RTSP 1.0 (RFC 2326) and RTSP 2.0 (RFC 7826) streaming server allowing clients to pull live STANAG 4609 streams over TCP or UDP.
@@ -293,9 +313,9 @@ flowchart TD
 
 ---
 
-## 4. Phased Roadmap: Implemented vs. Pending Capabilities
+## 4. Completed Roadmap & Delivery Status
 
-The table below summarizes the phased development roadmap, identifying which phases are already implemented and which remain to be implemented:
+All 7 architectural phases planned for the STANAG 4609 / MISB KLV ecosystem have been fully implemented, verified, and integrated:
 
 | Phase | Milestone | Priority | Status | Target Files / Primary Dependencies |
 | :---: | :--- | :---: | :---: | :--- |
@@ -309,11 +329,11 @@ The table below summarizes the phased development roadmap, identifying which pha
 
 ---
 
-## 5. Detailed Specifications for Pending Phases
+## 5. Architectural Component Deep Dive & C++17 Interfaces
 
-### 5.1 Phase 1: Broadcast Engine Orchestrator (`StanagBroadcastEngine`)
-- **Target Files**: `libs/Klv/StanagBroadcastEngine.h`, `libs/Klv/StanagBroadcastEngine.cpp`, `libs/Klv/tests/TestStanagBroadcastEngine.cpp`
-- **Objective**: Provide an integrated facade orchestrating video ingestion, master clock conversion, telemetry queueing, PTS/PCR synchronization, TS multiplexing, and network egress behind a unified, thread-safe API.
+### 5.1 Broadcast Engine Orchestrator (`StanagBroadcastEngine`)
+- **Files**: [StanagBroadcastEngine.h](../libs/Klv/StanagBroadcastEngine.h), [StanagBroadcastEngine.cpp](../libs/Klv/StanagBroadcastEngine.cpp)
+- **Objective**: Provide an integrated facade orchestrating video ingestion, master clock conversion, telemetry queueing, PTS/PCR synchronization, TS multiplexing, CBR rate pacing, embedded RTSP pulling, and network multicast egress behind a unified, thread-safe API.
 - **Architecture**:
   ```
   [Video Input]  ---> VideoNaluParser ---> [Lock-Free Queue]
@@ -324,44 +344,68 @@ The table below summarizes the phased development roadmap, identifying which pha
                                              PtsSyncManager (Skew <= 50ms)
                                                     |
                                                     v
-                                             MpegTsKlvMuxer
+                                             MpegTsKlvMuxer (Multi-PID PMT)
                                                     |
                                                     v
-                                         MpegTsNetworkPublisher (UDP/RTP)
+                                             CbrRatePacer (PID 0x1FFF Nulls)
+                                                    |
+                                      +-------------+-------------+
+                                      |                           |
+                                      v                           v
+                           MpegTsNetworkPublisher        RtspServerPublisher
+                              (UDP/RTP Multicast)         (Embedded RTSP Pull)
   ```
-- **Proposed Interface**:
+- **Interface**:
   ```cpp
   #pragma once
   #include <cstddef>
   #include <cstdint>
+  #include <functional>
   #include <memory>
   #include <string>
+  #include "CbrRatePacer.h"
   #include "KlvTypes.h"
   #include "MpegTsMuxerTypes.h"
+  #include "RtspServerTypes.h"
   #include "TsNetworkTypes.h"
+  #include "VideoTypes.h"
 
   namespace Klv {
 
   struct StanagBroadcastConfig {
       MpegTsMuxerConfig muxerConfig {};
-      TsNetworkConfig networkConfig {};
+      Transport::TsNetworkConfig networkConfig {};
       bool enableNetworkPublishing { true };
-      std::size_t videoQueueCapacity { 128U };
-      std::size_t metadataQueueCapacity { 256U };
+      std::size_t maxVideoQueueSize { 128U };
+      std::size_t maxTelemetryQueueSize { 256U };
+      bool enableCbrPacing { false };
+      Transport::CbrPacerConfig cbrConfig {};
+      bool enableRtspServer { false };
+      Transport::RtspServerConfig rtspConfig {};
   };
 
   struct StanagBroadcastStats {
+      std::size_t videoFramesIngested { 0U };
       std::size_t videoFramesProcessed { 0U };
-      std::size_t metadataFramesProcessed { 0U };
-      std::size_t tsPacketsEmitted { 0U };
+      std::size_t telemetryIngested { 0U };
+      std::size_t telemetryProcessed { 0U };
       std::size_t droppedVideoFrames { 0U };
-      std::size_t droppedMetadataFrames { 0U };
-      double averagePtsSkewMs { 0.0 };
+      std::size_t droppedTelemetry { 0U };
+      std::size_t tsPacketsEmitted { 0U };
       double currentBitrateKbps { 0.0 };
+      double averagePtsSkewMs { 0.0 };
+      bool isNetworkOpen { false };
+      std::size_t nullPacketsInjected { 0U };
+      bool isCbrActive { false };
+      std::size_t activeRtspClients { 0U };
+      std::size_t streamingRtspClients { 0U };
+      std::uint64_t rtspPacketsDispatched { 0U };
   };
 
   class StanagBroadcastEngine {
   public:
+      using TsPacketCallback = std::function<void(const std::uint8_t* data, std::size_t size)>;
+
       explicit StanagBroadcastEngine(const StanagBroadcastConfig& config);
       ~StanagBroadcastEngine();
 
@@ -369,8 +413,12 @@ The table below summarizes the phased development roadmap, identifying which pha
       void stop();
       [[nodiscard]] bool isRunning() const noexcept;
 
+      void setPacketCallback(TsPacketCallback callback);
+      void pushVideoFrame(const VideoAccessUnit& unit);
       void pushVideoChunk(const std::uint8_t* data, std::size_t size, std::uint64_t timestampUs);
       void pushTelemetry(const UasDatalinkMessage& message);
+      void pushTelemetryForStream(std::uint16_t pid, const UasDatalinkMessage& message);
+      void pushRawKlv(const std::uint8_t* data, std::size_t size, std::uint64_t timestampUs);
 
       [[nodiscard]] StanagBroadcastStats stats() const;
 
@@ -384,46 +432,28 @@ The table below summarizes the phased development roadmap, identifying which pha
 
 ---
 
-### 5.2 Phase 3: Constant Bitrate (CBR) Rate Pacer (`CbrRatePacer`)
-- **Target Files**: `libs/Transport/CbrRatePacer.h`, `libs/Transport/CbrRatePacer.cpp`, `libs/Transport/tests/TestCbrRatePacer.cpp`
-- **Objective**: Convert bursty Variable Bitrate (VBR) video streams into compliant Constant Bitrate (CBR) broadcasts required by tactical satellite modems, line-of-sight datalinks, and hardware decoders.
-- **Key Features**:
-  - Dynamically calculates bit consumption over high-precision sub-millisecond intervals.
-  - Interleaves standard ISO/IEC 13818-1 Null TS packets (PID `0x1FFF`, payload filled with `0xFF`) to maintain configured target bitrate (e.g. 2.0 Mbps, 4.0 Mbps).
-  - High-resolution monotonic timer discipline enforcing maximum PCR jitter limits ($\le 500\text{ ns}$) per ISO/IEC 13818-1 Clause 2.4.2.2.
-- **Proposed Interface**:
+### 5.2 Dynamic Session Description Protocol (SDP) Generator (`SdpGenerator`)
+- **Files**: [SdpGenerator.h](../libs/Transport/SdpGenerator.h), [SdpGenerator.cpp](../libs/Transport/SdpGenerator.cpp)
+- **Objective**: Synthesize RFC 4566 / RFC 2327 Session Description Protocol (`.sdp`) descriptors dynamically for MPEG-TS RTP unicast and multicast streams.
+- **Interface**:
   ```cpp
   #pragma once
-  #include <cstddef>
   #include <cstdint>
-  #include <functional>
-  #include <vector>
+  #include <string>
+  #include "TsNetworkTypes.h"
 
   namespace Transport {
 
-  struct CbrPacerConfig {
-      std::uint32_t targetBitrateBps { 4000000U }; ///< 4.0 Mbps default
-      std::uint32_t maxBurstPackets { 14U };       ///< Maximum TS packets to burst
-      std::uint32_t pcrJitterToleranceNs { 500U }; ///< ISO/IEC 13818-1 limit
-  };
-
-  class CbrRatePacer {
+  class SdpGenerator {
   public:
-      using EmitPacketCallback = std::function<void(const std::uint8_t* data, std::size_t size)>;
-
-      explicit CbrRatePacer(const CbrPacerConfig& config, EmitPacketCallback callback);
-      ~CbrRatePacer();
-
-      void submitTsPackets(const std::uint8_t* packets, std::size_t count);
-      void flush();
-      void reset() noexcept;
-
-      [[nodiscard]] double measuredBitrateBps() const noexcept;
-      [[nodiscard]] std::size_t nullPacketsInjected() const noexcept;
-
-  private:
-      CbrPacerConfig m_config {};
-      EmitPacketCallback m_callback {};
+      [[nodiscard]] static std::string generateSdp(const TsNetworkConfig& config);
+      [[nodiscard]] static std::string generateSdp(
+          const std::string& destinationIp,
+          std::uint16_t destinationPort,
+          TsProtocol protocol = TsProtocol::RtpMp2t,
+          const std::string& sessionName = "STANAG 4609 Broadcast"
+      );
+      [[nodiscard]] static bool writeSdpFile(const std::string& filePath, const TsNetworkConfig& config);
   };
 
   } // namespace Transport
@@ -431,65 +461,261 @@ The table below summarizes the phased development roadmap, identifying which pha
 
 ---
 
-### 5.3 Phase 4: RTSP Direct Ingest Bridge (`RtspPassthroughBridge`)
-- **Target Files**: `libs/Video/RtspPassthroughBridge.h`, `libs/Video/RtspPassthroughBridge.cpp`, `libs/Video/tests/TestRtspPassthroughBridge.cpp`
+### 5.3 Constant Bitrate (CBR) Rate Pacer (`CbrRatePacer`)
+- **Files**: [CbrRatePacer.h](../libs/Transport/CbrRatePacer.h), [CbrRatePacer.cpp](../libs/Transport/CbrRatePacer.cpp)
+- **Objective**: Convert bursty Variable Bitrate (VBR) video streams into compliant Constant Bitrate (CBR) broadcasts required by tactical satellite modems, line-of-sight datalinks, and hardware decoders.
+- **Key Features**:
+  - Dynamically calculates bit consumption over high-precision sub-millisecond intervals.
+  - Interleaves standard ISO/IEC 13818-1 Null TS packets (PID `0x1FFF`, payload filled with `0xFF`) to maintain configured target bitrate (e.g. 2.0 Mbps, 4.0 Mbps).
+  - High-resolution monotonic timer discipline enforcing maximum PCR jitter limits ($\le 500\text{ ns}$) per ISO/IEC 13818-1 Clause 2.4.2.2.
+- **Interface**:
+  ```cpp
+  #pragma once
+  #include <cstddef>
+  #include <cstdint>
+  #include <functional>
+
+  namespace Transport {
+
+  struct CbrPacerConfig {
+      std::uint32_t targetBitrateBps { 4000000U };
+      std::size_t maxQueuePackets { 2048U };
+      std::size_t maxBurstPackets { 14U };
+      std::uint32_t pcrJitterLimitNs { 500U };
+      bool enablePcrRestamping { true };
+      bool autoStartWorker { true };
+  };
+
+  struct CbrPacerStats {
+      std::uint64_t payloadPacketsIn { 0U };
+      std::uint64_t payloadPacketsOut { 0U };
+      std::uint64_t nullPacketsInjected { 0U };
+      std::uint64_t droppedPackets { 0U };
+      double measuredBitrateBps { 0.0 };
+      double currentPcrJitterNs { 0.0 };
+  };
+
+  class CbrRatePacer {
+  public:
+      using EmitPacketCallback = std::function<void(const std::uint8_t* data, std::size_t size)>;
+
+      explicit CbrRatePacer(const CbrPacerConfig& config = {}, EmitPacketCallback callback = nullptr);
+      ~CbrRatePacer();
+
+      void setCallback(EmitPacketCallback callback);
+      [[nodiscard]] bool start();
+      void stop();
+      [[nodiscard]] bool isRunning() const noexcept;
+
+      void submitTsPackets(const std::uint8_t* packets, std::size_t count);
+      void stepPacing(std::uint64_t currentTimeUs);
+      void flush();
+      void reset() noexcept;
+
+      void reconfigure(const CbrPacerConfig& newConfig);
+      [[nodiscard]] CbrPacerStats stats() const;
+  };
+
+  } // namespace Transport
+  ```
+
+---
+
+### 5.4 RTSP Direct Ingest Bridge (`RtspPassthroughBridge`)
+- **Files**: [RtspPassthroughBridge.h](../libs/Video/RtspPassthroughBridge.h), [RtspPassthroughBridge.cpp](../libs/Video/RtspPassthroughBridge.cpp), [RtpDepacketizer.h](../libs/Video/RtpDepacketizer.h)
 - **Objective**: Extract compressed H.264/H.265 Access Units directly from RTSP IP cameras and gimbals without decoding to uncompressed RGB/YUV video (transmuxing/passthrough).
 - **Key Features**:
   - RFC 6184 H.264 RTP depacketizer supporting Single NALU, STAP-A aggregation packets, and FU-A fragmentation units.
   - RFC 7798 H.265 RTP depacketizer supporting Single NALU, AP, and FU packets.
   - Reassembles fragmented RTP packets into standard Annex B byte streams with `00 00 00 01` delimiters.
   - Near-zero CPU overhead and sub-5 ms ingestion latency.
+- **Interface**:
+  ```cpp
+  #pragma once
+  #include <cstddef>
+  #include <cstdint>
+  #include <functional>
+  #include <memory>
+  #include <string_view>
+  #include "Klv/VideoTypes.h"
+  #include "RtspPassthroughTypes.h"
+
+  namespace Video {
+
+  class RtspPassthroughBridge {
+  public:
+      using AccessUnitCallback = std::function<void(const Klv::VideoAccessUnit& au)>;
+      using RawChunkCallback = std::function<void(const std::uint8_t* data, std::size_t size, std::uint64_t ptsUs)>;
+      using StateCallback = std::function<void(RtspBridgeState state, std::string_view message)>;
+
+      explicit RtspPassthroughBridge(const RtspPassthroughConfig& config);
+      ~RtspPassthroughBridge();
+
+      void setUnitCallback(AccessUnitCallback callback);
+      void setChunkCallback(RawChunkCallback callback);
+      void setStateCallback(StateCallback callback);
+
+      [[nodiscard]] bool start();
+      void stop();
+      [[nodiscard]] bool isRunning() const noexcept;
+      [[nodiscard]] RtspBridgeState state() const noexcept;
+      [[nodiscard]] RtspBridgeStats stats() const;
+  };
+
+  } // namespace Video
+  ```
 
 ---
 
-### 5.4 Phase 5: Multi-PID Metadata Substream Multiplexing
-- **Target Files**: Updates to [MpegTsKlvMuxer.h](../libs/Klv/MpegTsKlvMuxer.h), [MpegTsKlvMuxer.cpp](../libs/Klv/MpegTsKlvMuxer.cpp), [MpegTsMuxerTypes.h](../libs/Klv/MpegTsMuxerTypes.h)
+### 5.5 Multi-PID Metadata Substream Multiplexing (`MpegTsKlvMuxer`)
+- **Files**: [MpegTsKlvMuxer.h](../libs/Klv/MpegTsKlvMuxer.h), [MpegTsKlvMuxer.cpp](../libs/Klv/MpegTsKlvMuxer.cpp), [MpegTsMuxerTypes.h](../libs/Klv/MpegTsMuxerTypes.h)
 - **Objective**: Support simultaneous broadcast of multiple independent telemetry streams over dedicated elementary stream PIDs within the same MPEG-TS transport stream.
 - **Key Features**:
-  - Extends Program Map Table (PMT) generation to define multiple metadata streams with distinct PIDs:
+  - Program Map Table (PMT) generation defining multiple metadata streams with distinct PIDs:
     - Primary Sensor Local Set (PID `0x01E0`, Stream Type `0x15`, Registration `"KLVA"`).
     - Secondary Sensor / Radar Track Local Set (PID `0x01E1`, Stream Type `0x15`).
     - VMTI Detections / Tracks Local Set (PID `0x01E2`, Stream Type `0x15`, Registration `"VMTI"`).
   - Integrates MISB ST 1607 Item 143 Metadata Substream Identifier (MSID) packs to disambiguate sensor sources.
   - Per-stream continuity counter tracking and PTS stamping.
+- **Interface Additions**:
+  ```cpp
+  #pragma once
+  #include "MpegTsMuxerTypes.h"
+
+  namespace Klv {
+
+  struct MetadataStreamConfig {
+      std::uint16_t pid { 0x01E0U };
+      KlvStreamType streamType { KlvStreamType::MetadataInPes };
+      KlvStreamId streamId { KlvStreamId::PrivateStream1 };
+      std::string formatIdentifier { "KLVA" };
+      std::string streamName { "Primary Telemetry" };
+      std::optional<St1607MsidPack> msid {};
+  };
+
+  struct MpegTsMuxerConfig {
+      // ... Video configuration ...
+      std::vector<MetadataStreamConfig> metadataStreams {};
+      // Convenience accessors for single / primary metadata stream
+      std::uint16_t klvPid { 0x01E0U };
+  };
+
+  // MpegTsKlvMuxer methods
+  void muxMetadata(std::uint16_t pid, const std::uint8_t* klvPayload, std::size_t payloadSize, std::uint64_t pts90kHz);
+  ```
 
 ---
 
-### 5.5 Phase 6: Embedded RTSP Server Egress (`RtspServerPublisher` - Implemented)
-- **Target Files**: [RtspServerPublisher.h](../libs/Transport/RtspServerPublisher.h), [RtspServerPublisher.cpp](../libs/Transport/RtspServerPublisher.cpp), [TestRtspServerPublisher.cpp](../libs/Transport/tests/TestRtspServerPublisher.cpp)
-- **Objective**: Provide an embedded, lightweight RTSP 1.0 (RFC 2326) and RTSP 2.0 (RFC 7826) streaming server allowing clients to pull STANAG 4609 streams over TCP or UDP without requiring an external multicast network.
+### 5.6 Embedded RTSP Server Egress (`RtspServerPublisher`)
+- **Files**: [RtspServerPublisher.h](../libs/Transport/RtspServerPublisher.h), [RtspServerPublisher.cpp](../libs/Transport/RtspServerPublisher.cpp), [RtspServerTypes.h](../libs/Transport/RtspServerTypes.h)
+- **Objective**: Provide an embedded, lightweight RTSP 1.0 (RFC 2326) and RTSP 2.0 (RFC 7826) streaming server allowing clients to pull live STANAG 4609 streams over TCP or UDP without requiring an external multicast network.
 - **Key Features**:
   - Pure C++17 implementation built directly on `libs/Transport` socket primitives.
   - Supports standard RTSP methods: `OPTIONS`, `DESCRIBE`, `SETUP`, `PLAY`, `TEARDOWN`, `GET_PARAMETER`, `SET_PARAMETER`.
   - Stream delivery modes: Interleaved TCP transport (`$`) and RTP/AVP over UDP unicast.
   - Native integration with `StanagBroadcastEngine` (`enableRtspServer`, `rtspConfig`).
+- **Interface**:
+  ```cpp
+  #pragma once
+  #include <cstddef>
+  #include <cstdint>
+  #include <memory>
+  #include <string>
+  #include <string_view>
+  #include "RtspServerTypes.h"
+
+  namespace Transport {
+
+  class RtspServerPublisher {
+  public:
+      static constexpr std::size_t kTsPacketSize { 188U };
+      static constexpr std::size_t kMaxPacketsPerDatagram { 7U };
+
+      explicit RtspServerPublisher(RtspServerConfig config = {});
+      ~RtspServerPublisher();
+
+      [[nodiscard]] bool start();
+      void stop();
+      [[nodiscard]] bool isRunning() const noexcept;
+
+      void broadcastTsPackets(const std::uint8_t* tsData, std::size_t totalBytes);
+      [[nodiscard]] std::size_t activeClientCount() const noexcept;
+      [[nodiscard]] std::size_t streamingClientCount() const noexcept;
+      [[nodiscard]] RtspServerStats stats() const;
+      [[nodiscard]] std::string streamUrl() const;
+  };
+
+  } // namespace Transport
+  ```
+
+---
+
+### 5.7 4D Geospatial Telemetry Exporters: KML 2.2 & RFC 7946 GeoJSON
+- **Files**: [KmlExporter.h](../libs/Mapping/KmlExporter.h), [GeoJsonExporter.h](../libs/Mapping/GeoJsonExporter.h), [SpatialDataRecorder.h](../libs/Mapping/SpatialDataRecorder.h)
+- **Objective**: Capture and export real-time STANAG 4609 telemetry as 4D animated flight tracks, 3D camera sensor frustums, and ground footprints to Google Earth Pro/Web and QGIS.
+- **Interface**:
+  ```cpp
+  #pragma once
+  #include <string>
+  #include "SpatialExportTypes.h"
+
+  namespace Mapping {
+
+  class KmlExporter {
+  public:
+      [[nodiscard]] static std::string exportToString(
+          const SpatialTrackLog& track,
+          const KmlExportOptions& options = {}
+      );
+      [[nodiscard]] static bool exportToFile(
+          const std::string& filePath,
+          const SpatialTrackLog& track,
+          const KmlExportOptions& options = {}
+      );
+  };
+
+  class GeoJsonExporter {
+  public:
+      [[nodiscard]] static std::string exportToString(
+          const SpatialTrackLog& track,
+          const GeoJsonExportOptions& options = {}
+      );
+      [[nodiscard]] static bool exportToFile(
+          const std::string& filePath,
+          const SpatialTrackLog& track,
+          const GeoJsonExportOptions& options = {}
+      );
+  };
+
+  } // namespace Mapping
+  ```
 
 ---
 
 ## 6. Comprehensive Test Verification & Coverage Matrix
 
-All modules across `libs/Klv`, `libs/Transport`, `libs/Mapping`, and `libs/DjiTelemetry` are verified by comprehensive GoogleTest suites:
+All modules across `libs/Klv`, `libs/Transport`, `libs/Mapping`, `libs/Video`, `libs/Tracking`, and `libs/DjiTelemetry` are verified by comprehensive GoogleTest suites:
 
 | Test Suite | File | Test Count | Key Scenarios Tested |
-|---|---|---|---|
-| **TestKlvBer** | [TestKlvBer.cpp](../libs/Klv/tests/TestKlvBer.cpp) | 7 | BER short/long form length encoding, BER-OID tag encoding/decoding, boundary values |
-| **TestKlvCrc** | [TestKlvCrc.cpp](../libs/Klv/tests/TestKlvCrc.cpp) | 4 | CRC-16-CCITT (ST 0601) and MPEG-2 CRC-32 (ST 0806) test vectors |
-| **TestKlvEncoderParser** | [TestKlvEncoderParser.cpp](../libs/Klv/tests/TestKlvEncoderParser.cpp) | 6 | Full ST 0601 round-trip, sparse updates, Security Local Set, CRC failure detection |
-| **TestKlvStreamScanner** | [TestKlvStreamScanner.cpp](../libs/Klv/tests/TestKlvStreamScanner.cpp) | 4 | Stream boundary re-sync, fragmented packets, corrupted prefixes |
+|---|---|:---:|---|
+| **TestKlvBer** | [TestKlvBer.cpp](../libs/Klv/tests/TestKlvBer.cpp) | 6 | BER short/long form length encoding, BER-OID tag encoding/decoding, boundary values |
+| **TestKlvCrc** | [TestKlvCrc.cpp](../libs/Klv/tests/TestKlvCrc.cpp) | 5 | CRC-16-CCITT (ST 0601) and MPEG-2 CRC-32 (ST 0806) test vectors |
+| **TestKlvEncoderParser** | [TestKlvEncoderParser.cpp](../libs/Klv/tests/TestKlvEncoderParser.cpp) | 9 | Full ST 0601 round-trip, sparse updates, Security Local Set, CRC failure detection |
+| **TestKlvStreamScanner** | [TestKlvStreamScanner.cpp](../libs/Klv/tests/TestKlvStreamScanner.cpp) | 3 | Stream boundary re-sync, fragmented packets, corrupted prefixes |
 | **TestMpegTsKlvExtractor** | [TestMpegTsKlvExtractor.cpp](../libs/Klv/tests/TestMpegTsKlvExtractor.cpp) | 8 | PID auto-discovery, single/multi-packet PES reassembly, CC drops, real flight TS extraction |
 | **TestMpegTsKlvMuxer** | [TestMpegTsKlvMuxer.cpp](../libs/Klv/tests/TestMpegTsKlvMuxer.cpp) | 18 | PAT/PMT CRC-32 validation, multi-PID PMT, independent CCs, loopback roundtrip, 90kHz PTS & 27MHz PCR |
 | **TestVideoNaluParser** | [TestVideoNaluParser.cpp](../libs/Klv/tests/TestVideoNaluParser.cpp) | 5 | 3-byte/4-byte Annex B start codes, H.264 & H.265 NALU type extraction, keyframe detection |
 | **TestVideoPesPacketizer** | [TestVideoPesPacketizer.cpp](../libs/Klv/tests/TestVideoPesPacketizer.cpp) | 4 | Video Stream ID 0xE0 framing, 33-bit 90kHz PTS/DTS encoding, unbounded PES lengths |
-| **TestMasterTimeBase** | [TestMasterTimeBase.cpp](../libs/Klv/tests/TestMasterTimeBase.cpp) | 3 | System epoch and monotonic clock timebases, 90kHz PTS tick scaling, 33-bit rollover |
-| **TestPtsSyncManager** | [TestPtsSyncManager.cpp](../libs/Klv/tests/TestPtsSyncManager.cpp) | 6 | In-sync alignment, compliant skew handling, StrictClamp (<= 50ms), DropStale policy |
-| **TestKlvGeodesy** | [TestKlvGeodesy.cpp](../libs/Klv/tests/TestKlvGeodesy.cpp) | 5 | WGS-84 direct geodetic, slant range, camera frustum footprints, horizon clipping |
-| **TestVmtiEncoderParser** | [TestVmtiEncoderParser.cpp](../libs/Klv/tests/TestVmtiEncoderParser.cpp) | 4 | VMTI standalone and embedded round-trips, target row-major pixel coordinates |
+| **TestMasterTimeBase** | [TestMasterTimeBase.cpp](../libs/Klv/tests/TestMasterTimeBase.cpp) | 5 | System epoch and monotonic clock timebases, 90kHz PTS tick scaling, 33-bit rollover |
+| **TestPtsSyncManager** | [TestPtsSyncManager.cpp](../libs/Klv/tests/TestPtsSyncManager.cpp) | 10 | In-sync alignment, compliant skew handling, StrictClamp (<= 50ms), DropStale policy |
+| **TestKlvGeodesy** | [TestKlvGeodesy.cpp](../libs/Klv/tests/TestKlvGeodesy.cpp) | 7 | WGS-84 direct geodetic, slant range, camera frustum footprints, horizon clipping |
+| **TestVmtiEncoderParser** | [TestVmtiEncoderParser.cpp](../libs/Klv/tests/TestVmtiEncoderParser.cpp) | 6 | VMTI standalone and embedded round-trips, target row-major pixel coordinates |
 | **TestMisb1201** | [TestMisb1201.cpp](../libs/Klv/tests/TestMisb1201.cpp) | 5 | ST 1201 Appendix A standard test vectors (IMAPA, IMAPB, Zero Offset, Special Values) |
 | **TestFlightStreamValidation** | [TestFlightStreamValidation.cpp](../libs/Klv/tests/TestFlightStreamValidation.cpp) | 5 | End-to-end telemetry playback from flight video streams, seek recovery |
 | **TestRvtLocalSet** | [TestRvtLocalSet.cpp](../libs/Klv/tests/TestRvtLocalSet.cpp) | 7 | Standalone ST 0806 packet with CRC-32, POI/AOI/UserDefined serialization, ST 0601 Tag 73 |
-| **TestMisb0805** | [TestMisb0805.cpp](../libs/Klv/tests/TestMisb0805.cpp) | 6 | ISO-8601 formatting, CE90/LE90 conversion, Platform CoT, Sensor POI CoT batch conversion |
-| **TestGeoRegistration** | [TestGeoRegistration.cpp](../libs/Klv/tests/TestGeoRegistration.cpp) | 10 | MDARRAY 1D/2D NaturalFormat and ST 1201 IMAPB, 2-image tie points, ST 1601.1-03 parity rule |
-| **TestSt1607LocalSet** | [TestSt1607LocalSet.cpp](../libs/Klv/tests/TestSt1607LocalSet.cpp) | 9 | ST 1607 UL matching, MSID pack, embedded Tags 100/101, union-and-override resolution |
+| **TestMisb0805** | [TestMisb0805.cpp](../libs/Klv/tests/TestMisb0805.cpp) | 7 | ISO-8601 formatting, CE90/LE90 conversion, Platform CoT, Sensor POI CoT batch conversion |
+| **TestGeoRegistration** | [TestGeoRegistration.cpp](../libs/Klv/tests/TestGeoRegistration.cpp) | 13 | MDARRAY 1D/2D NaturalFormat and ST 1201 IMAPB, 2-image tie points, ST 1601.1-03 parity rule |
+| **TestSt1607LocalSet** | [TestSt1607LocalSet.cpp](../libs/Klv/tests/TestSt1607LocalSet.cpp) | 13 | ST 1607 UL matching, MSID pack, embedded Tags 100/101, union-and-override resolution |
 | **TestMiisCoreId** | [TestMiisCoreId.cpp](../libs/Klv/tests/TestMiisCoreId.cpp) | 10 | RFC 4122 UUID v1/v4/v5, 16/32/33/35-byte binary packs, ST 0601/1607/0903 integration |
 | **TestStanagStreamIndexer** | [TestStanagStreamIndexer.cpp](../libs/Klv/tests/TestStanagStreamIndexer.cpp) | 5 | One-pass MPEG-TS scanning, keyframe indexing, PTS timecode indexing, packet seek offsets |
 | **TestStanagScrubController** | [TestStanagScrubController.cpp](../libs/Klv/tests/TestStanagScrubController.cpp) | 4 | Non-linear seek controller, bidirectional playback rates, bounds clamping, frame stepping |
@@ -509,4 +735,4 @@ All modules across `libs/Klv`, `libs/Transport`, `libs/Mapping`, and `libs/DjiTe
 | **TestCbrRatePacer** | [TestCbrRatePacer.cpp](../libs/Transport/tests/TestCbrRatePacer.cpp) | 9 | ISO/IEC 13818-1 null packet format, 4Mbps rate calculation, null stuffing on starvation, burst absorption, PCR restamping, deterministic step pacing, dynamic rate reconfiguration, queue overflow drops, worker thread lifecycle |
 | **TestRtspPassthroughBridge** | [TestRtspPassthroughBridge.cpp](../libs/Video/tests/TestRtspPassthroughBridge.cpp) | 11 | RFC 6184 Single/STAP-A/FU-A H.264, RFC 7798 Single/AP/FU H.265, packet loss detection, 32-bit rollover, SDP sprop decoding/injection, mock RTSP handshake, StanagBroadcastEngine integration |
 | **TestRtspServerPublisher** | [TestRtspServerPublisher.cpp](../libs/Transport/tests/TestRtspServerPublisher.cpp) | 12 | Socket bind lifecycle, OPTIONS public methods, DESCRIBE SDP payload 33, SETUP TCP interleaved, SETUP UDP unicast, PLAY/TEARDOWN transitions, TCP interleaved streaming ($), UDP unicast streaming, multi-client concurrency, GET_PARAMETER keepalive, slow client backpressure, stream URL |
-| **Total** | | **245** | **100% Pass Rate** |
+| **Total** | **37 Test Suites** | **282** | **100% Pass Rate** |
