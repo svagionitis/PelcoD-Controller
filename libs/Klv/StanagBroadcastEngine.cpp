@@ -16,6 +16,8 @@
 #include <vector>
 
 #include "CbrRatePacer.h"
+#include "KlvEncoder.h"
+#include "KlvRtpPublisher.h"
 #include "KlvTypes.h"
 #include "MpegTsKlvMuxer.h"
 #include "MpegTsNetworkPublisher.h"
@@ -89,6 +91,22 @@ public:
             }
         }
 
+        if (m_config.enableKlvRtpPublishing) {
+            m_klvRtpPublisher = std::make_unique<Transport::KlvRtpPublisher>(m_config.klvRtpConfig);
+            if (!m_klvRtpPublisher->start()) {
+                m_klvRtpPublisher.reset();
+                if (m_rtspServer) {
+                    m_rtspServer->stop();
+                    m_rtspServer.reset();
+                }
+                if (m_publisher) {
+                    m_publisher->close();
+                    m_publisher.reset();
+                }
+                return false;
+            }
+        }
+
         if (m_config.enableCbrPacing) {
             Transport::CbrPacerConfig pacerCfg = m_config.cbrConfig;
             pacerCfg.autoStartWorker = true;
@@ -124,6 +142,11 @@ public:
         if (m_rtspServer) {
             m_rtspServer->stop();
             m_rtspServer.reset();
+        }
+
+        if (m_klvRtpPublisher) {
+            m_klvRtpPublisher->stop();
+            m_klvRtpPublisher.reset();
         }
 
         if (m_publisher) {
@@ -264,6 +287,11 @@ public:
             currentStats.isRtspServerActive = m_rtspServer->isRunning();
         }
 
+        if (m_config.enableKlvRtpPublishing && m_klvRtpPublisher) {
+            currentStats.klvRtpStats = m_klvRtpPublisher->stats();
+            currentStats.isKlvRtpActive = m_klvRtpPublisher->isRunning();
+        }
+
         return currentStats;
     }
 
@@ -299,6 +327,7 @@ private:
     std::unique_ptr<Transport::MpegTsNetworkPublisher> m_publisher { nullptr };
     std::unique_ptr<Transport::CbrRatePacer> m_pacer { nullptr };
     std::unique_ptr<Transport::RtspServerPublisher> m_rtspServer { nullptr };
+    std::unique_ptr<Transport::KlvRtpPublisher> m_klvRtpPublisher { nullptr };
 
     bool enqueueVideoUnit(VideoAccessUnit au)
     {
@@ -351,6 +380,19 @@ private:
         }
 
         for (auto& telem : localTelem) {
+            if (m_klvRtpPublisher && m_klvRtpPublisher->isRunning()) {
+                if (telem.message.has_value()) {
+                    const std::vector<std::uint8_t> encoded = KlvEncoder::encode(*telem.message);
+                    if (!encoded.empty()) {
+                        static_cast<void>(
+                            m_klvRtpPublisher->sendKlvPacket(encoded.data(), encoded.size(), telem.timestampUs));
+                    }
+                } else if (!telem.rawBytes.empty()) {
+                    static_cast<void>(m_klvRtpPublisher->sendKlvPacket(
+                        telem.rawBytes.data(), telem.rawBytes.size(), telem.timestampUs));
+                }
+            }
+
             if (telem.pid != 0U) {
                 // Secondary / multi-PID metadata stream multiplexing
                 if (telem.message.has_value()) {

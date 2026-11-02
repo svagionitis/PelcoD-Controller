@@ -101,7 +101,7 @@ public:
             return false;
         }
         const auto sent = ::send(m_sock, msg.data(), static_cast<Net::SockBufLenType>(msg.size()), 0);
-        return sent == static_cast<decltype(sent)>(msg.size());
+        return (sent >= 0) && (static_cast<std::size_t>(sent) == msg.size());
     }
 
     [[nodiscard]] std::string receiveResponse(int timeoutMs = 2000)

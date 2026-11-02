@@ -50,6 +50,8 @@ struct SdpSessionParams {
 /// @brief Type alias for session stream parameters.
 using SdpStreamParams = SdpSessionParams;
 
+struct KlvRtpConfig;
+
 /// @class SdpGenerator
 /// @brief Generates and parses RFC 4566 Session Description Protocol (.sdp) descriptors.
 class SdpGenerator {
@@ -58,6 +60,11 @@ public:
     /// @param[in] params Session configuration parameters.
     /// @return Formatted SDP text string with CRLF line terminators.
     [[nodiscard]] static std::string generate(const SdpSessionParams& params);
+
+    /// @brief Generates RFC 4566 SDP descriptor for RFC 6597 Standalone KLV over RTP.
+    /// @param[in] config KLV RTP publisher configuration parameters.
+    /// @return Formatted SDP text string with CRLF line terminators.
+    [[nodiscard]] static std::string generateKlvRtpSdp(const KlvRtpConfig& config);
 
     /// @brief Writes formatted SDP text directly to a file on disk.
     /// @param[in] path Target file path.

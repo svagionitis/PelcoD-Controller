@@ -8,6 +8,8 @@
 #include <string>
 #include <string_view>
 
+#include "KlvRtpTypes.h"
+
 namespace Transport {
 
 namespace {
@@ -33,7 +35,7 @@ bool SdpGenerator::isMulticast(std::string_view ip) noexcept
 
 std::string SdpGenerator::generate(const SdpSessionParams& params)
 {
-    std::ostringstream ss { };
+    std::ostringstream ss {};
 
     // 1. Protocol Version (v=)
     ss << "v=0" << kCrLf;
@@ -42,8 +44,8 @@ std::string SdpGenerator::generate(const SdpSessionParams& params)
     const std::uint64_t sessId = (params.sessionId > 0U)
         ? params.sessionId
         : static_cast<std::uint64_t>(
-              std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch())
-                  .count());
+            std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch())
+                .count());
     const std::string origin = params.originAddress.empty() ? "127.0.0.1" : params.originAddress;
     ss << "o=- " << sessId << " 1 IN IP4 " << origin << kCrLf;
 
@@ -136,7 +138,7 @@ bool SdpGenerator::saveToFile(std::string_view path, const SdpSessionParams& par
 
 SdpSessionParams SdpGenerator::parse(std::string_view sdpContent)
 {
-    SdpSessionParams params { };
+    SdpSessionParams params {};
     std::size_t startPos { 0U };
 
     while (startPos < sdpContent.size()) {
@@ -160,12 +162,12 @@ SdpSessionParams SdpGenerator::parse(std::string_view sdpContent)
                 break;
             case 'o': {
                 std::istringstream oss { std::string(val) };
-                std::string dash { };
-                std::string sessIdStr { };
-                std::string ver { };
-                std::string inStr { };
-                std::string ip4Str { };
-                std::string originStr { };
+                std::string dash {};
+                std::string sessIdStr {};
+                std::string ver {};
+                std::string inStr {};
+                std::string ip4Str {};
+                std::string originStr {};
                 if (oss >> dash >> sessIdStr >> ver >> inStr >> ip4Str >> originStr) {
                     try {
                         params.sessionId = std::stoull(sessIdStr);
@@ -207,9 +209,9 @@ SdpSessionParams SdpGenerator::parse(std::string_view sdpContent)
             }
             case 'm': {
                 std::istringstream mss { std::string(val) };
-                std::string med { };
+                std::string med {};
                 int port { 0 };
-                std::string proto { };
+                std::string proto {};
                 int pt { 0 };
                 if (mss >> med >> port >> proto >> pt) {
                     params.destinationPort = static_cast<std::uint16_t>(port);
@@ -272,6 +274,38 @@ SdpSessionParams SdpGenerator::parse(std::string_view sdpContent)
     }
 
     return params;
+}
+
+std::string SdpGenerator::generateKlvRtpSdp(const KlvRtpConfig& config)
+{
+    std::ostringstream ss {};
+    ss << "v=0" << kCrLf;
+
+    const std::uint64_t sessId = static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count());
+    ss << "o=- " << sessId << " 1 IN IP4 127.0.0.1" << kCrLf;
+
+    const std::string name = config.sessionName.empty() ? "STANAG 4609 Standalone KLV Stream" : config.sessionName;
+    ss << "s=" << name << kCrLf;
+
+    const std::string dest = config.destinationIp.empty() ? "127.0.0.1" : config.destinationIp;
+    const bool mcast = isMulticast(dest);
+    ss << "c=IN IP4 " << dest;
+    if (mcast) {
+        ss << "/" << static_cast<int>(config.timeToLive > 0U ? config.timeToLive : 64U);
+    }
+    ss << kCrLf;
+
+    ss << "t=0 0" << kCrLf;
+
+    const std::uint16_t port = config.destinationPort > 0U ? config.destinationPort : 5004U;
+    const std::uint8_t pt = config.payloadType.value();
+
+    ss << "m=video " << port << " RTP/AVP " << static_cast<int>(pt) << kCrLf;
+    ss << "a=rtpmap:" << static_cast<int>(pt) << " smpte336m/90000" << kCrLf;
+    ss << "a=recvonly" << kCrLf;
+
+    return ss.str();
 }
 
 } // namespace Transport

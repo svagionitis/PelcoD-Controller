@@ -33,6 +33,14 @@ The `libs/Klv`, `libs/Transport`, `libs/Mapping`, and `libs/DjiTelemetry` librar
 | **ISO/IEC 13818-1 Clause 2.4.2** | Constant Bitrate (CBR) Rate Pacer & Null Stuffing (PID `0x1FFF`) | **Fully Implemented** | [CbrRatePacer.h](../libs/Transport/CbrRatePacer.h), [CbrRatePacer.cpp](../libs/Transport/CbrRatePacer.cpp) |
 | **RFC 6184 / RFC 7798** | RTSP Direct Ingest & Zero-Transcode NALU Depacketizer | **Fully Implemented** | [RtspPassthroughBridge.h](../libs/Video/RtspPassthroughBridge.h), [RtspPassthroughBridge.cpp](../libs/Video/RtspPassthroughBridge.cpp), [RtpDepacketizer.h](../libs/Video/RtpDepacketizer.h) |
 | **RFC 2326 / RFC 7826** | Embedded RTSP Server Egress (`RtspServerPublisher`) | **Fully Implemented** | [RtspServerPublisher.h](../libs/Transport/RtspServerPublisher.h), [RtspServerPublisher.cpp](../libs/Transport/RtspServerPublisher.cpp), [RtspServerTypes.h](../libs/Transport/RtspServerTypes.h) |
+| **RFC 6597 / SMPTE ST 336** | Standalone KLV Metadata over RTP/UDP (Unmuxed Stream) | **Fully Implemented** | [KlvRtpPublisher.h](../libs/Transport/KlvRtpPublisher.h), [KlvRtpPacketizer.h](../libs/Transport/KlvRtpPacketizer.h), [KlvRtpTypes.h](../libs/Transport/KlvRtpTypes.h) |
+| **MISB ST 0902.11 / MISP** | Minimum Metadata Set (MMS) & Conformance Validation Engine | **Planned (Phase 9)** | `libs/Klv/KlvConformanceValidator.h`, `libs/Klv/KlvValidationTypes.h` |
+| **MISB ST 1909.1** | Metadata Overlay for Visualization (Non-Destructive Tactical HUD) | **Planned (Phase 10)** | `libs/Klv/Misb1909Types.h`, `libs/Klv/Misb1909OverlayRenderer.h` |
+| **MISB ST 0903.6 / RP 0904** | VMTI Multi-Frame Target Tracking & Ontology Series (Tags 102/103) | **Planned (Phase 11)** | `libs/Klv/VmtiTypes.h`, `libs/Tracking/TrackingEngine.h` |
+| **MISB ST 1108.3** | Motion Imagery Quality Metadata (MIQM / GSD / NIIRS / ISM) | **Planned (Phase 12)** | `libs/Klv/Misb1108Types.h`, `libs/Klv/Misb1108Encoder.h` |
+| **SMPTE ST 2022-1 / ST 2022-2** | 1D/2D Matrix Forward Error Correction (FEC) for MPEG-TS | **Planned (Phase 13)** | `libs/Transport/FecMpegTsPublisher.h`, `libs/Transport/FecTypes.h` |
+| **MISB ST 1910 / ISO 14496-12** | Timed KLV Track Container Recording (`klva` Box in MP4) | **Planned (Phase 14)** | `libs/Klv/Mp4KlvWriter.h`, `libs/Klv/Mp4KlvTypes.h` |
+| **MISB ST 1206.1** | Synthetic Aperture Radar (SAR) Motion Imagery Metadata | **Planned (Phase 15)** | `libs/Klv/SarTypes.h`, `libs/Klv/SarMetadataEncoder.h` |
 
 ---
 
@@ -75,31 +83,39 @@ The `libs/Klv`, `libs/Transport`, `libs/Mapping`, and `libs/DjiTelemetry` librar
 |         +------------>| VmtiParser  |      +-----------+          |   | - Clamps skew <= 50 ms            |             |
 |         |             |  (ST 0903)  |            |                |   +-----------------------------------+             |
 |         |             +-------------+            v                |                     |                               |
-|         | Tag 100/101                      +-----------+          |                     v                               |
-|         +----------------------------------| Misb1201  |--------->+   +-----------------------------------+             |
-|                                            |(IMAPB/RIM)|              |          MpegTsKlvMuxer           |             |
-|                                            +-----------+              | - Video PID 0x0101 (H.264/H.265)  |             |
-|   Stream Scrubbing & Indexing                                         | - Primary KLV PID 0x01E0 (KLVA)   |             |
-|   +-----------------------------------+                               | - Multi-PID ST 1607 (0x01E1/01E2) |             |
-|   | StanagStreamIndexer / ScrubCtrl   |                               | - 27MHz PCR on Video / 90kHz PTS  |             |
+|         | Tag 100/101 | Tag 102/103        +-----------+          |                     v                               |
+|         +-------------+--[VTrack/Ontology]-| Misb1201  |--------->+   +-----------------------------------+             |
+|         |                                  |(IMAPB/RIM)|              |          MpegTsKlvMuxer           |             |
+|         |                                  +-----------+              | - Video PID 0x0101 (H.264/H.265)  |             |
+|         v                                                             | - Primary KLV PID 0x01E0 (KLVA)   |             |
+|   +-------------------------------+                                   | - Multi-PID ST 1607 (0x01E1/01E2) |             |
+|   |    KlvConformanceValidator    |                                   | - 27MHz PCR on Video / 90kHz PTS  |             |
+|   | - MISB ST 0902 MMS Validation |                                   +-----------------------------------+             |
+|   | - Rates, Ranges & Health Check|                                                     |                               |
+|   +-------------------------------+                                                     v                               |
+|         |                                                             +-----------------------------------+             |
+|   Stream Scrubbing & Indexing                                         |           CbrRatePacer            |             |
+|   +-----------------------------------+                               | - Null packet stuffing PID 0x1FFF |             |
+|   | StanagStreamIndexer / ScrubCtrl   |                               | - Hardware PCR jitter <= 500 ns   |             |
 |   | TelemetryTimeIndex & Interpolator |                               +-----------------------------------+             |
 |   +-----------------------------------+                                                 |                               |
-|         |                   |                                                           v                               |
-|         v                   v                                         +-----------------------------------+             |
-|   Tactical Services     GIS Export                                    |           CbrRatePacer            |             |
-|   +-------------+     +---------------+                               | - Null packet stuffing PID 0x1FFF |             |
-|   | KlvGeodesy  |     |  KmlExporter  |                               | - Hardware PCR jitter <= 500 ns   |             |
-|   |  Misb0805   |     |GeoJsonExporter|                               +-----------------------------------+             |
-|   +-------------+     +---------------+                                                 |                               |
-|         |                     |                                       +-----------------+-----------------+             |
-|         v                     v                                       |                                   |             |
-|    CoT XML Feed        Google Earth/QGIS                              v                                   v             |
-|   (ATAK/WinTAK)       (4D Flight/Frustum)             +-------------------------------+   +---------------------------+ |
-|                                                       |    MpegTsNetworkPublisher     |   |    RtspServerPublisher    | |
-|                                                       | - Raw UDP Multicast (1316 B)  |   | - Embedded RTSP server    | |
-|                                                       | - RFC 3550 RTP MP2T (1328 B)  |   | - TCP Interleave/UDP Pull | |
-|                                                       | - RFC 4566 SdpGenerator (.sdp)|   +---------------------------+ |
-|                                                       +-------------------------------+                                 |
+|         |                   |                                         +-----------------+-----------------+             |
+|         v                   v                                         |                 |                 |             |
+|   Tactical Services     GIS Export                                    v                 v                 v             |
+|   +-------------+     +---------------+                     +-------------------+ +-----------+ +---------------------+ |
+|   | KlvGeodesy  |     |  KmlExporter  |                     |  MpegTsNetworkPub | |RtspServer | | FecMpegTsPublisher  | |
+|   |  Misb0805   |     |GeoJsonExporter|                     | - Raw UDP (1316 B)| |(RFC 2326) | | (SMPTE ST 2022-1/2) | |
+|   |  Misb1108   |     | Misb1909 HUD  |                     | - RTP MP2T (1328B)| | TCP/UDP   | | 1D/2D Matrix Parity | |
+|   +-------------+     +---------------+                     +-------------------+ +-----------+ +---------------------+ |
+|         |                     |                                       |                                                 |
+|         v                     v                                       v                                                 |
+|    CoT XML Feed        Google Earth/QGIS                    Tactical IP Downlinks                                       |
+|   (ATAK/WinTAK)       (4D Flight/Frustum)                                                                               |
+|                                                                                                                         |
+|   Standalone Low-Bandwidth Telemetry Transport (Unmuxed)                                                                |
+|   +-------------------------------------------------------------------------------------------------------------------+ |
+|   | KlvRtpPublisher (RFC 6597 / SMPTE ST 336) ---> Bare KLV over RTP/UDP (Payload 96 'video/smpte336m')               | |
+|   +-------------------------------------------------------------------------------------------------------------------+ |
 +-------------------------------------------------------------------------------------------------------------------------+
 ```
 
@@ -118,21 +134,28 @@ flowchart TD
         Scanner --> ST0601["KlvParser<br/>(MISB ST 0601)"]
         ST0601 -->|Tag 73| RVT["RvtParser<br/>(MISB ST 0806)"]
         ST0601 -->|Tag 74| VMTI["VmtiParser<br/>(MISB ST 0903)"]
+        VMTI -->|Tag 102/103| VTRACK["VTrack & Ontology Series<br/>(Target Tracking & Labels)"]
         ST0601 -->|Tag 100/101| ST1607["St1607Parser<br/>(MISB ST 1607)"]
         ST1607 -->|Tag 98| GEOR["GeoRegistrationParser<br/>(MISB ST 1601)"]
         GEOR --> MDARRAY["MdArray (ST 1303)"]
         MDARRAY --> MISB1201["Misb1201 (IMAPB)"]
 
         ST0601 --> GEODESY["KlvGeodesy<br/>(Footprints & Range)"]
+        ST0601 --> MIQM["Misb1108<br/>(Quality / GSD / NIIRS)"]
         ST0601 --> COT["Misb0805<br/>(Cursor-on-Target)"]
         RVT --> COT
     end
 
-    subgraph ScrubbingAndGis["Scrubbing, GIS & Slew-to-Cue"]
+    subgraph ValidationEngine["Conformance & Quality Auditing"]
+        ST0601 --> VALIDATOR["KlvConformanceValidator<br/>(MISB ST 0902 / MISP-2025.1 MMS)"]
+    end
+
+    subgraph ScrubbingAndGis["Scrubbing, GIS, OSD & Slew-to-Cue"]
         ST0601 --> INDEXER["StanagStreamIndexer & ScrubController"]
         INDEXER --> INTERP["TelemetryInterpolator"]
         GEODESY --> SLEW["PtzSlewToCueBridge"]
         GEODESY --> GIS["KmlExporter & GeoJsonExporter<br/>(OGC KML 2.2 / RFC 7946)"]
+        ST0601 --> HUD["Misb1909OverlayRenderer<br/>(Non-Destructive HUD OSD)"]
     end
 
     subgraph BroadcastOrchestration["Broadcast Engine & Egress Pipeline"]
@@ -143,7 +166,14 @@ flowchart TD
         MUX --> PACER["CbrRatePacer<br/>(PID 0x1FFF Null Stuffing)"]
         PACER --> PUB["MpegTsNetworkPublisher<br/>(UDP/RTP Multicast)"]
         PACER -.-> RTSP_SRV["RtspServerPublisher<br/>(RFC 2326 / RFC 7826)"]
+        PACER -.-> FEC["FecMpegTsPublisher<br/>(SMPTE ST 2022-1/2 1D/2D FEC)"]
         PUB -.-> SDP["SdpGenerator<br/>(RFC 4566 .sdp)"]
+        ORCH -.-> MP4["Mp4KlvWriter<br/>(MISB ST 1910 'klva' Box)"]
+    end
+
+    subgraph BareKlvTransport["Standalone Low-Bandwidth Streaming"]
+        ST0601 --> KLVRTP["KlvRtpPublisher<br/>(RFC 6597 / SMPTE ST 336)"]
+        KLVRTP -.-> KLVRTP_NET["Bare KLV RTP / Tactical Radios"]
     end
 
     COT --> TAK["WinTAK / ATAK / CoT Server"]
@@ -311,11 +341,74 @@ flowchart TD
   - High-performance non-blocking polling loop (`Net::pollSockets`), multi-client fanout, and slow-client drop backpressure protection.
   - Native integration with `StanagBroadcastEngine` via `enableRtspServer` and `rtspConfig`.
 
+### 3.20 Standalone KLV over RTP Network Streaming (`KlvRtpPublisher`)
+- **Files**: [KlvRtpPublisher.h](../libs/Transport/KlvRtpPublisher.h)/[.cpp](../libs/Transport/KlvRtpPublisher.cpp), [KlvRtpPacketizer.h](../libs/Transport/KlvRtpPacketizer.h)/[.cpp](../libs/Transport/KlvRtpPacketizer.cpp), [KlvRtpTypes.h](../libs/Transport/KlvRtpTypes.h)
+- **Features**:
+  - Direct transmission of SMPTE ST 336 KLV frames over UDP/RTP per RFC 6597 (`video/smpte336m` dynamic Payload Type 96, 90 kHz clock) without MPEG-2 TS encapsulation.
+  - STANAG 4609 Edition 3/4 Profile 2 compliance for low-bandwidth tactical radios (Silvus, TrellisWare, PRC-117G) and metadata-only streams to ATAK/WinTAK.
+  - Automatic segmentation / fragmentation for KLV packets exceeding the network MTU, setting RTP Marker bit ($M=1$) only on final segment and maintaining identical 90 kHz timestamps across fragments.
+  - Dynamic RFC 4566 SDP media line synthesis (`m=video <port> RTP/AVP 96`, `a=rtpmap:96 smpte336m/90000`).
+
+### 3.21 Automated MISB ST 0902 / MISP Conformance & Validation Engine (`KlvConformanceValidator`)
+- **Target Files**: `libs/Klv/KlvConformanceValidator.h`/`.cpp`, `libs/Klv/KlvValidationTypes.h`
+- **Features**:
+  - Real-time and offline stream verification against MISB ST 0902.11 Minimum Metadata Set (MMS) and DoD/NATO MISP-2025.1 compliance criteria.
+  - Verification of mandatory tags per profile (Tag 1 Checksum, Tag 2 Timestamp, Tag 48 Security, Tag 13/14 Lat/Lon, Tag 15 Altitude, Tag 65 Version).
+  - Rate cadence enforcement checking minimum $1\text{ Hz}$ platform state and $\ge 10\text{ Hz}$ sensor attitude, alerting on frame drop or PTS jitter exceeding $50\text{ ms}$.
+  - Physical boundary and kinematics validation (filtering unrealistic accelerations, velocity $>$ Mach 3, out-of-order timestamps, corrupted coordinates).
+  - Machine-readable audit reports (JSON and CLI summaries) for mission debriefing and certification testing.
+
+### 3.22 Non-Destructive Tactical HUD Metadata Overlay (MISB ST 1909.1)
+- **Target Files**: `libs/Klv/Misb1909Types.h`, `libs/Klv/Misb1909OverlayRenderer.h`
+- **Features**:
+  - Standardized graphical metadata overlay specification per MISB ST 1909.1 for client-side rendering over live video.
+  - Prevents degradation of video compression efficiency and permanent target occlusion caused by burned-in OSD pixels.
+  - Scalable normalized coordinate anchoring (0.0 to 1.0) adapting dynamically to display resolutions.
+  - Tactical flight instrument rendering: pitch ladder, artificial horizon bar, platform heading tape, sensor field of view reticle, laser designator status, and MGRS / geodetic coordinates.
+
+### 3.23 VMTI Multi-Frame Target Tracking & Ontology Series (MISB ST 0903 Tag 102/103)
+- **Target Files**: `libs/Klv/VmtiTypes.h`, `libs/Tracking/TrackingEngine.h`
+- **Features**:
+  - Extends VMTI encoder/parser beyond Tag 101 single-frame bounding boxes to full multi-frame tracking series (Tag 102 `VTrack Pack`) and semantic classification (Tag 103 `Ontology Local Set`).
+  - Persistent Target Tracking: Track IDs, target kinematics (ground velocity vector, course, acceleration), track lifecycle state (Active, Coasting, Lost, Handoff), and historical track point trail.
+  - Classification Ontology: Standard NATO STANAG 1241 / 4676 object taxonomy (Dismount, Wheeled Vehicle, Tracked Armor, Vessel, Aircraft) coupled with detector model confidence scores.
+
+### 3.24 Motion Imagery Quality Metadata (MISB ST 1108.3 MIQM)
+- **Target Files**: `libs/Klv/Misb1108Types.h`, `libs/Klv/Misb1108Encoder.h`/`.cpp`
+- **Features**:
+  - Ingests and serializes sensor quality metrics defined by MISB ST 1108.3.
+  - Ground Sample Distance (GSD) in centimeters/pixel calculated geometrically via `KlvGeodesy` from slant range and instantaneous sensor FOV.
+  - Predicted and measured National Imagery Interpretability Rating Scale (NIIRS 0 to 9) levels for automated intelligence exploitation.
+  - Image Sharpness Metric (ISM), blur detection, and edge gradient quality parameters aiding autonomous target cueing and ATR confidence calibration.
+
+### 3.25 1D/2D Matrix Forward Error Correction (SMPTE ST 2022-1 / ST 2022-2)
+- **Target Files**: `libs/Transport/FecMpegTsPublisher.h`/`.cpp`, `libs/Transport/FecTypes.h`
+- **Features**:
+  - Pro-MPEG Code of Practice #3 (CoP #3) / SMPTE ST 2022-1 1D/2D XOR parity matrix generation for MPEG-TS broadcasts.
+  - Protects live STANAG 4609 streams over lossy tactical Wi-Fi, mesh networks, or SATCOM channels without TCP latency or ARQ round-trips.
+  - Configurable $L \times D$ column and row FEC matrix, emitting parity packets on secondary ephemeral/multicast UDP ports (Base Port + 2, Base Port + 4).
+
+### 3.26 Timed KLV Track MP4 Container Storage (MISB ST 1910 / MP4 `klva`)
+- **Target Files**: `libs/Klv/Mp4KlvWriter.h`/`.cpp`, `libs/Klv/Mp4KlvTypes.h`
+- **Features**:
+  - Native multiplexing of synchronized H.264/H.265 video and synchronous/asynchronous KLV metadata inside ISO/IEC 14496-12 MP4 containers.
+  - Injects standard `klva` / `smpte336m` fourcc sample description boxes and sync sample tables (`stss`) for seamless desktop playback in VLC, web browsers, and media players.
+  - Complements the existing `DjiTelemetry` reader by providing full write capability for mission archiving and field debriefing.
+
+### 3.27 Synthetic Aperture Radar (SAR) Motion Imagery Metadata (MISB ST 1206.1)
+- **Target Files**: `libs/Klv/SarTypes.h`, `libs/Klv/SarMetadataEncoder.h`/`.cpp`
+- **Features**:
+  - Implements MISB ST 1206.1 metadata representation for sequential SAR motion imagery and coherent change detection (CCD) products.
+  - Encodes radar grazing angle, depression angle, radar slant range, Doppler bandwidth, pulse duration, and polarization modes.
+  - Multiplexed on dedicated secondary elementary stream PIDs (`0x01E1`) within the STANAG 4609 PMT via `MpegTsKlvMuxer`.
+
 ---
 
-## 4. Completed Roadmap & Delivery Status
+## 4. Completed & Future Architectural Roadmap
 
-All 7 architectural phases planned for the STANAG 4609 / MISB KLV ecosystem have been fully implemented, verified, and integrated:
+### 4.1 Completed Architectural Phases (Phases 1–8)
+
+All 8 foundational architectural phases for the STANAG 4609 / MISB KLV ecosystem have been fully implemented, verified, and integrated with 100% test pass rate across 38 test suites:
 
 | Phase | Milestone | Priority | Status | Target Files / Primary Dependencies |
 | :---: | :--- | :---: | :---: | :--- |
@@ -326,6 +419,23 @@ All 7 architectural phases planned for the STANAG 4609 / MISB KLV ecosystem have
 | **Phase 5** | **Multi-PID Metadata Substream Multiplexing**<br>Simultaneous multiplexing of multiple independent telemetry streams (EO/IR PID `0x01E0`, Radar PID `0x01E1`, VMTI PID `0x01E2`) per MISB ST 1607 MSID. | **Medium** | ✅ **IMPLEMENTED** | [MpegTsKlvMuxer.h](../libs/Klv/MpegTsKlvMuxer.h), [MpegTsKlvMuxer.cpp](../libs/Klv/MpegTsKlvMuxer.cpp)<br>Test: [TestMpegTsKlvMuxer.cpp](../libs/Klv/tests/TestMpegTsKlvMuxer.cpp) |
 | **Phase 6** | **Embedded RTSP Server Egress (`RtspServerPublisher`)**<br>Lightweight embedded RTSP 1.0/2.0 server allowing clients to pull STANAG 4609 streams over TCP or UDP without an external multicast router. | **Low** | ✅ **IMPLEMENTED** | [RtspServerPublisher.h](../libs/Transport/RtspServerPublisher.h), [RtspServerPublisher.cpp](../libs/Transport/RtspServerPublisher.cpp), [RtspServerTypes.h](../libs/Transport/RtspServerTypes.h)<br>Test: [TestRtspServerPublisher.cpp](../libs/Transport/tests/TestRtspServerPublisher.cpp) |
 | **Phase 7** | **KML & GeoJSON Spatial Exporter**<br>Exports 4D flight tracks, 3D volumetric sensor frustums, and ground footprints to Google Earth Pro/Web and QGIS. | **Medium** | ✅ **IMPLEMENTED** | [KmlExporter.h](../libs/Mapping/KmlExporter.h), [GeoJsonExporter.h](../libs/Mapping/GeoJsonExporter.h), [SpatialDataRecorder.h](../libs/Mapping/SpatialDataRecorder.h)<br>Tests: [TestKmlExporter.cpp](../libs/Mapping/tests/TestKmlExporter.cpp), [TestGeoJsonExporter.cpp](../libs/Mapping/tests/TestGeoJsonExporter.cpp) |
+| **Phase 8** | **Standalone KLV over RTP (`KlvRtpPublisher`)**<br>Direct transmission of SMPTE ST 336 KLV over RTP/UDP per RFC 6597 (Profile 2, `video/smpte336m`), eliminating MPEG-TS overhead for low-bandwidth tactical SDR radios and ATAK/WinTAK. | **High** | ✅ **IMPLEMENTED** | [KlvRtpPublisher.h](../libs/Transport/KlvRtpPublisher.h), [KlvRtpPublisher.cpp](../libs/Transport/KlvRtpPublisher.cpp)<br>Test: [TestKlvRtpPublisher.cpp](../libs/Transport/tests/TestKlvRtpPublisher.cpp) |
+
+---
+
+### 4.2 Future Architectural Phases & Implementation Roadmap (Phases 9–15)
+
+The next sequence of architectural milestones extends the system across low-bandwidth tactical datalinks, standards verification, target tracking ontologies, and resilient network streaming:
+
+| Phase | Milestone | Priority | Status | Target Files / Primary Dependencies |
+| :---: | :--- | :---: | :---: | :--- |
+| **Phase 9** | **Automated Conformance Engine (`KlvConformanceValidator`)**<br>Real-time / offline validation against MISB ST 0902.11 Minimum Metadata Set (MMS) and MISP-2025.1, enforcing mandatory tags, rates, ranges, and timing jitter bounds. | **High** | 📋 **PLANNED** | `libs/Klv/KlvConformanceValidator.h`, `libs/Klv/KlvConformanceValidator.cpp`<br>`libs/Klv/KlvValidationTypes.h` |
+| **Phase 10** | **Tactical HUD Metadata Overlay (MISB ST 1909.1)**<br>Standardized, non-destructive tactical HUD layout generator rendering pitch ladders, heading tapes, FOV reticles, and coordinates on client viewports without burning into video pixels. | **Medium** | 📋 **PLANNED** | `libs/Klv/Misb1909Types.h`, `libs/Klv/Misb1909OverlayRenderer.h`<br>`app-pelcod-qt/widgets/` |
+| **Phase 11** | **VMTI Multi-Frame Target Tracking & Ontology (ST 0903 Tag 102/103)**<br>Multi-frame persistent target tracking series (Tag 102 VTrack Pack), kinematics, and STANAG 1241 / 4676 object taxonomy (Tag 103 Ontology Local Set) integrated with `TrackingEngine`. | **Medium** | 📋 **PLANNED** | `libs/Klv/VmtiTypes.h`, `libs/Klv/VmtiParser.h`, `libs/Klv/VmtiEncoder.h`<br>`libs/Tracking/TrackingEngine.h` |
+| **Phase 12** | **Motion Imagery Quality Metadata (MISB ST 1108.3 MIQM)**<br>Ground Sample Distance (GSD), NIIRS rating estimation, and Image Sharpness Metric (ISM) computation for automated target recognition (ATR) confidence scoring. | **Medium** | 📋 **PLANNED** | `libs/Klv/Misb1108Types.h`, `libs/Klv/Misb1108Encoder.h`<br>`libs/Klv/KlvGeodesy.h` |
+| **Phase 13** | **1D/2D Matrix Forward Error Correction (SMPTE ST 2022-1/2 FEC)**<br>Pro-MPEG CoP #3 XOR parity matrix protection for STANAG 4609 MPEG-TS broadcasts over lossy tactical Wi-Fi, mesh networks, or SATCOM links. | **Medium** | 📋 **PLANNED** | `libs/Transport/FecMpegTsPublisher.h`, `libs/Transport/FecTypes.h`<br>`libs/Transport/MpegTsNetworkPublisher.h` |
+| **Phase 14** | **Timed KLV Track MP4 Container Storage (MISB ST 1910)**<br>Muxes synchronized H.264/H.265 video with synchronous/asynchronous KLV metadata inside ISO/IEC 14496-12 MP4 files (`klva` sample description box) for desktop playback. | **Low** | 📋 **PLANNED** | `libs/Klv/Mp4KlvWriter.h`, `libs/Klv/Mp4KlvTypes.h`<br>`libs/DjiTelemetry/Mp4TextTrackReader.h` |
+| **Phase 15** | **Synthetic Aperture Radar (SAR) Metadata (MISB ST 1206.1)**<br>Encodes radar grazing angle, depression angle, slant range, Doppler bandwidth, and polarization for sequential SAR motion imagery and coherent change detection. | **Low** | 📋 **PLANNED** | `libs/Klv/SarTypes.h`, `libs/Klv/SarMetadataEncoder.h`<br>`libs/Klv/MpegTsKlvMuxer.h` |
 
 ---
 
@@ -692,6 +802,194 @@ All 7 architectural phases planned for the STANAG 4609 / MISB KLV ecosystem have
 
 ---
 
+### 5.8 Standalone KLV over RTP Network Streaming (`KlvRtpPublisher`)
+- **Target Files**: `libs/Transport/KlvRtpPublisher.h`, `libs/Transport/KlvRtpPublisher.cpp`, `libs/Transport/KlvRtpTypes.h`
+- **Objective**: Transmit SMPTE ST 336 KLV packets directly over UDP/RTP per RFC 6597 (STANAG 4609 Profile 2) using dynamic payload type 96 (`video/smpte336m`), bypassing MPEG-2 TS encapsulation overhead for low-bandwidth tactical SDR links.
+- **Interface**:
+  ```cpp
+  #pragma once
+  #include <cstddef>
+  #include <cstdint>
+  #include <memory>
+  #include <string>
+  #include <string_view>
+
+  namespace Transport {
+
+  struct KlvRtpConfig {
+      std::string destinationIp { "127.0.0.1" };
+      std::uint16_t destinationPort { 5004U };
+      std::uint8_t payloadType { 96U };
+      std::uint32_t ssrc { 0x12345678U };
+      std::size_t maxPayloadSize { 1400U };
+      bool enableMulticastLoopback { false };
+      std::uint8_t timeToLive { 64U };
+  };
+
+  struct KlvRtpStats {
+      std::uint64_t packetsSent { 0U };
+      std::uint64_t bytesSent { 0U };
+      std::uint64_t fragmentsSent { 0U };
+      std::uint64_t messagesSent { 0U };
+  };
+
+  class KlvRtpPublisher {
+  public:
+      explicit KlvRtpPublisher(KlvRtpConfig config = {});
+      ~KlvRtpPublisher();
+
+      [[nodiscard]] bool start();
+      void stop();
+      [[nodiscard]] bool isRunning() const noexcept;
+
+      [[nodiscard]] bool sendKlvPacket(const std::uint8_t* klvData, std::size_t size, std::uint64_t timestampUs);
+      [[nodiscard]] KlvRtpStats stats() const noexcept;
+      [[nodiscard]] std::string generateSdp() const;
+  };
+
+  } // namespace Transport
+  ```
+
+---
+
+### 5.9 Automated Stream Conformance & Validation Engine (`KlvConformanceValidator`)
+- **Target Files**: `libs/Klv/KlvConformanceValidator.h`, `libs/Klv/KlvConformanceValidator.cpp`, `libs/Klv/KlvValidationTypes.h`
+- **Objective**: Enforce real-time and offline compliance auditing against MISB ST 0902.11 Minimum Metadata Set (MMS) and DoD/NATO MISP-2025.1 standards.
+- **Interface**:
+  ```cpp
+  #pragma once
+  #include <cstddef>
+  #include <cstdint>
+  #include <string>
+  #include <vector>
+  #include "KlvTypes.h"
+
+  namespace Klv {
+
+  enum class ValidationSeverity : std::uint8_t {
+      Info = 0U,
+      Warning = 1U,
+      Error = 2U,
+      Fatal = 3U
+  };
+
+  struct ValidationIssue {
+      ValidationSeverity severity;
+      std::uint32_t tag;
+      std::string message;
+      std::uint64_t timestampUs;
+  };
+
+  struct ConformanceReport {
+      bool isCompliant { true };
+      std::size_t totalMessagesEvaluated { 0U };
+      std::size_t totalViolations { 0U };
+      std::vector<ValidationIssue> issues {};
+      [[nodiscard]] std::string toJson() const;
+  };
+
+  class KlvConformanceValidator {
+  public:
+      explicit KlvConformanceValidator() = default;
+      void reset();
+      void validateMessage(const UasDatalinkMessage& message, std::uint64_t arrivalTimeUs);
+      [[nodiscard]] ConformanceReport report() const;
+  };
+
+  } // namespace Klv
+  ```
+
+---
+
+### 5.10 Non-Destructive Tactical HUD Metadata Overlay (MISB ST 1909.1)
+- **Target Files**: `libs/Klv/Misb1909Types.h`, `libs/Klv/Misb1909OverlayRenderer.h`
+- **Objective**: Standardized tactical HUD/OSD visualization overlay generator calculating normalized element anchors for client-side rendering over live video without pixel burn-in.
+- **Interface**:
+  ```cpp
+  #pragma once
+  #include <cstdint>
+  #include <string>
+  #include <vector>
+  #include "KlvTypes.h"
+
+  namespace Klv {
+
+  struct NormalizedAnchor {
+      float x { 0.5F }; ///< Normalized horizontal [0.0, 1.0]
+      float y { 0.5F }; ///< Normalized vertical [0.0, 1.0]
+  };
+
+  struct TacticalOverlayLayout {
+      NormalizedAnchor boresightCenter { 0.5F, 0.5F };
+      float platformHeadingDeg { 0.0F };
+      float platformPitchDeg { 0.0F };
+      float platformRollDeg { 0.0F };
+      std::string classificationBanner { "UNCLASSIFIED" };
+      std::string sensorCoordinatesMGRS {};
+      std::string targetCoordinatesMGRS {};
+      float slantRangeMeters { 0.0F };
+  };
+
+  class Misb1909OverlayRenderer {
+  public:
+      [[nodiscard]] static TacticalOverlayLayout buildLayout(const UasDatalinkMessage& msg);
+  };
+
+  } // namespace Klv
+  ```
+
+---
+
+### 5.11 VMTI Multi-Frame Target Tracking & Ontology Series (MISB ST 0903 Tag 102/103)
+- **Target Files**: `libs/Klv/VmtiTypes.h`, `libs/Klv/VmtiParser.h`, `libs/Klv/VmtiEncoder.h`
+- **Objective**: Standardized representation of persistent multi-frame target tracks (Tag 102 `VTrack Pack`) and NATO STANAG 1241/4676 semantic object taxonomy (Tag 103 `Ontology Local Set`).
+- **Interface**:
+  ```cpp
+  #pragma once
+  #include <cstdint>
+  #include <optional>
+  #include <string>
+  #include <vector>
+  #include "GeoTypes.h"
+  #include "MiisCoreId.h"
+
+  namespace Klv {
+
+  enum class TrackStatus : std::uint8_t {
+      Active = 1U,
+      Coasting = 2U,
+      Lost = 3U,
+      Handoff = 4U
+  };
+
+  struct VTrackPoint {
+      std::uint64_t timestampUs { 0U };
+      GeodeticCoord2d location {};
+      float pixelCol { 0.0F };
+      float pixelRow { 0.0F };
+  };
+
+  struct VTrackPack {
+      std::uint32_t trackId { 0U };
+      TrackStatus status { TrackStatus::Active };
+      std::optional<float> groundSpeedMps {};
+      std::optional<float> courseDeg {};
+      std::vector<VTrackPoint> trackHistory {};
+      std::optional<MiisCoreId> targetId {};
+  };
+
+  struct OntologyLocalSet {
+      std::uint32_t ontologyId { 1U };
+      std::string classLabel {}; // e.g. "Dismount", "Vehicle", "Vessel"
+      float confidenceScore { 1.0F }; // [0.0, 1.0]
+      std::string modelIdentifier {};
+  };
+
+  } // namespace Klv
+  ```
+
+---
+
 ## 6. Comprehensive Test Verification & Coverage Matrix
 
 All modules across `libs/Klv`, `libs/Transport`, `libs/Mapping`, `libs/Video`, `libs/Tracking`, and `libs/DjiTelemetry` are verified by comprehensive GoogleTest suites:
@@ -731,8 +1029,9 @@ All modules across `libs/Klv`, `libs/Transport`, `libs/Mapping`, `libs/Video`, `
 | **TestMp4TextTrackReader** | [TestMp4TextTrackReader.cpp](../libs/DjiTelemetry/tests/TestMp4TextTrackReader.cpp) | 13 | moov at end/start, co64 + 64-bit mdat, multi-entry stsc/stts, fixed stsz, edit lists |
 | **TestDjiSt0601Mapper** | [TestDjiSt0601Mapper.cpp](../libs/DjiTelemetry/tests/TestDjiSt0601Mapper.cpp) | 9 | Range checks, 0/0 no-fix, yaw wrapping, local to UTC, FOV from 35 mm focal length |
 | **TestDjiTelemetrySource** | [TestDjiTelemetrySource.cpp](../libs/DjiTelemetry/tests/TestDjiTelemetrySource.cpp) | 5 | End-to-end synthetic MP4 to timed ST 0601, offset override, skipped samples |
-| **TestStanagBroadcastEngine** | [TestStanagBroadcastEngine.cpp](../libs/Klv/tests/TestStanagBroadcastEngine.cpp) | 10 | Lifecycle start/stop, callback packet emission, synchronized video + telemetry, chunk parsing, backpressure drops, raw KLV, UDP network loopback, CBR pacing integration, multi-PID telemetry, embedded RTSP server pull integration |
+| **TestStanagBroadcastEngine** | [TestStanagBroadcastEngine.cpp](../libs/Klv/tests/TestStanagBroadcastEngine.cpp) | 11 | Lifecycle start/stop, callback packet emission, synchronized video + telemetry, chunk parsing, backpressure drops, raw KLV, UDP network loopback, CBR pacing integration, multi-PID telemetry, embedded RTSP server pull integration, RFC 6597 bare KLV RTP integration |
 | **TestCbrRatePacer** | [TestCbrRatePacer.cpp](../libs/Transport/tests/TestCbrRatePacer.cpp) | 9 | ISO/IEC 13818-1 null packet format, 4Mbps rate calculation, null stuffing on starvation, burst absorption, PCR restamping, deterministic step pacing, dynamic rate reconfiguration, queue overflow drops, worker thread lifecycle |
 | **TestRtspPassthroughBridge** | [TestRtspPassthroughBridge.cpp](../libs/Video/tests/TestRtspPassthroughBridge.cpp) | 11 | RFC 6184 Single/STAP-A/FU-A H.264, RFC 7798 Single/AP/FU H.265, packet loss detection, 32-bit rollover, SDP sprop decoding/injection, mock RTSP handshake, StanagBroadcastEngine integration |
 | **TestRtspServerPublisher** | [TestRtspServerPublisher.cpp](../libs/Transport/tests/TestRtspServerPublisher.cpp) | 12 | Socket bind lifecycle, OPTIONS public methods, DESCRIBE SDP payload 33, SETUP TCP interleaved, SETUP UDP unicast, PLAY/TEARDOWN transitions, TCP interleaved streaming ($), UDP unicast streaming, multi-client concurrency, GET_PARAMETER keepalive, slow client backpressure, stream URL |
-| **Total** | **37 Test Suites** | **282** | **100% Pass Rate** |
+| **TestKlvRtpPublisher** | [TestKlvRtpPublisher.cpp](../libs/Transport/tests/TestKlvRtpPublisher.cpp) | 7 | RFC 6597 12-byte RTP headers, 90kHz timestamp conversion, unfragmented items (M=1), MTU fragmentation across multiple packets (M=0..1), bit-for-bit reassembly, RFC 4566 SDP generation, local UDP loopback transmission |
+| **Total** | **38 Test Suites** | **290** | **100% Pass Rate** |

@@ -430,3 +430,78 @@ TEST(TestStanagBroadcastEngine, RtspServerEgressIntegration)
     Transport::Net::closeSocket(clientSock);
     engine.stop();
 }
+
+TEST(TestStanagBroadcastEngine, StandaloneKlvRtpPublishingIntegration)
+{
+    Transport::Net::ensureWinsockInitialized();
+
+    const Transport::Net::SocketHandle rxSock = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    ASSERT_NE(rxSock, Transport::Net::InvalidSocket);
+
+    struct sockaddr_in bindAddr { };
+    bindAddr.sin_family = AF_INET;
+    bindAddr.sin_port = htons(15986U);
+    bindAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+
+    const int bindRes = ::bind(rxSock, reinterpret_cast<const struct sockaddr*>(&bindAddr), sizeof(bindAddr));
+    ASSERT_EQ(bindRes, 0);
+
+#ifdef _WIN32
+    const DWORD timeoutMs = 1000UL;
+    (void)::setsockopt(rxSock, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeoutMs), sizeof(timeoutMs));
+#else
+    struct timeval tv { };
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+    (void)::setsockopt(rxSock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+#endif
+
+    StanagBroadcastConfig config {};
+    config.enableNetworkPublishing = false;
+    config.enableKlvRtpPublishing = true;
+    config.klvRtpConfig.destinationIp = "127.0.0.1";
+    config.klvRtpConfig.destinationPort = 15986U;
+
+    StanagBroadcastEngine engine(config);
+    EXPECT_TRUE(engine.start());
+    EXPECT_TRUE(engine.stats().isKlvRtpActive);
+
+    // Push ST 0601 telemetry
+    UasDatalinkMessage msg;
+    msg.platformHeadingDeg = 210.0;
+    msg.precisionTimeStampUs = 12345678ULL;
+    EXPECT_TRUE(engine.pushTelemetry(msg));
+
+    // Push raw KLV bytes
+    const std::vector<std::uint8_t> raw = { 0x06, 0x0E, 0x2B, 0x34, 0x02, 0x0B, 0x01, 0x01, 0x0E, 0x01, 0x03, 0x01,
+        0x01, 0x00, 0x00, 0x00, 0x02, 0x01, 0x02 };
+    EXPECT_TRUE(engine.pushRawKlv(raw.data(), raw.size(), 12345680ULL));
+
+    engine.flush();
+
+    // Verify receiver captured datagrams
+    std::array<std::uint8_t, 2048> buf {};
+    int receivedPackets { 0 };
+
+    for (int i = 0; i < 2; ++i) {
+#ifdef _WIN32
+        const int bytes = ::recv(rxSock, reinterpret_cast<char*>(buf.data()), static_cast<int>(buf.size()), 0);
+#else
+        const ssize_t bytes = ::recv(rxSock, buf.data(), buf.size(), 0);
+#endif
+        if (bytes >= 12) {
+            EXPECT_EQ(buf[0], 0x80U); // RTP V=2
+            EXPECT_EQ(buf[1] & 0x7FU, 96U); // PT=96
+            EXPECT_TRUE((buf[1] & 0x80U) != 0U); // Marker bit set for unfragmented item
+            receivedPackets++;
+        }
+    }
+
+    EXPECT_EQ(receivedPackets, 2);
+    const auto stats = engine.stats();
+    EXPECT_GE(stats.klvRtpStats.packetsSent, 2U);
+    EXPECT_GE(stats.klvRtpStats.messagesSent, 2U);
+
+    engine.stop();
+    Transport::Net::closeSocket(rxSock);
+}

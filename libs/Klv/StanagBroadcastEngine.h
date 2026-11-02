@@ -12,8 +12,10 @@
 #include <string>
 
 #include "CbrRatePacer.h"
+#include "KlvRtpTypes.h"
 #include "KlvTypes.h"
 #include "MpegTsMuxerTypes.h"
+#include "RtspServerTypes.h"
 #include "TsNetworkTypes.h"
 #include "VideoTypes.h"
 
@@ -48,6 +50,12 @@ struct StanagBroadcastConfig {
 
     /// @brief Configuration settings for embedded RTSP server when enabled.
     Transport::RtspServerConfig rtspConfig {};
+
+    /// @brief Whether to transmit bare KLV over RTP per RFC 6597 (Profile 2).
+    bool enableKlvRtpPublishing { false };
+
+    /// @brief Configuration settings for RFC 6597 Standalone KLV RTP publisher.
+    Transport::KlvRtpConfig klvRtpConfig {};
 };
 
 /// @struct StanagBroadcastStats
@@ -100,6 +108,12 @@ struct StanagBroadcastStats {
 
     /// @brief Whether embedded RTSP server is currently active.
     bool isRtspServerActive { false };
+
+    /// @brief Operational statistics for RFC 6597 Standalone KLV RTP publisher.
+    Transport::KlvRtpStats klvRtpStats {};
+
+    /// @brief Whether RFC 6597 Standalone KLV RTP publisher is currently active.
+    bool isKlvRtpActive { false };
 };
 
 /// @class StanagBroadcastEngine
