@@ -61,7 +61,7 @@ flowchart TD
 10. **Concise Naming:** Are all function names concise (strictly fewer than 30 characters)?
 11. **Cross-Platform Portability:** Does transport and operating system code support both **Linux** (POSIX termios/sockets) and **Windows** (Win32 Comm API/Winsock2)?
 12. **Compiler Warning Cleanliness:** Does the code compile with zero warnings under `-Wall -Wextra -pedantic` (`-Werror`) on GCC/Clang and `/W4` on MSVC?
-13. **Documentation Paths:** Are all file paths mentioned in documentation and comments relative?
+13. **Documentation Paths:** Are all file paths mentioned in documentation and comments relative (per [`.agents/skills/relative-paths-docs`](../relative-paths-docs/SKILL.md))?
 14. **Dual Diagrams:** If diagrams are involved in documentation, are both **ASCII** and **Mermaid** diagrams included?
 15. **Fixed-Width Integers & `<cstdint>`:** Did I explicitly `#include <cstdint>` in every file referencing fixed-width integers, and are all integer types strictly qualified with `std::` (e.g. `std::uint8_t`, `std::int32_t`)? Did I use `<cstddef>` for `std::size_t`?
 16. **IWYU (Include-What-You-Use):** Does every file directly include all headers it depends on without assuming transitive includes, using forward declarations in headers where pointer/reference usage suffices?
@@ -80,4 +80,7 @@ python3 scripts/verify_iwyu_cstdint.py --files libs/Tracking/TrackingEngine.h li
 
 # Run across an entire library
 python3 scripts/verify_iwyu_cstdint.py libs/Onvif
+
+# Verify relative paths in documentation and comments
+python3 scripts/verify_relative_doc_paths.py
 ```
