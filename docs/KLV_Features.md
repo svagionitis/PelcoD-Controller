@@ -34,7 +34,7 @@ The `libs/Klv`, `libs/Transport`, `libs/Mapping`, and `libs/DjiTelemetry` librar
 | **RFC 6184 / RFC 7798** | RTSP Direct Ingest & Zero-Transcode NALU Depacketizer | **Fully Implemented** | [RtspPassthroughBridge.h](../libs/Video/RtspPassthroughBridge.h), [RtspPassthroughBridge.cpp](../libs/Video/RtspPassthroughBridge.cpp), [RtpDepacketizer.h](../libs/Video/RtpDepacketizer.h) |
 | **RFC 2326 / RFC 7826** | Embedded RTSP Server Egress (`RtspServerPublisher`) | **Fully Implemented** | [RtspServerPublisher.h](../libs/Transport/RtspServerPublisher.h), [RtspServerPublisher.cpp](../libs/Transport/RtspServerPublisher.cpp), [RtspServerTypes.h](../libs/Transport/RtspServerTypes.h) |
 | **RFC 6597 / SMPTE ST 336** | Standalone KLV Metadata over RTP/UDP (Unmuxed Stream) | **Fully Implemented** | [KlvRtpPublisher.h](../libs/Transport/KlvRtpPublisher.h), [KlvRtpPacketizer.h](../libs/Transport/KlvRtpPacketizer.h), [KlvRtpTypes.h](../libs/Transport/KlvRtpTypes.h) |
-| **MISB ST 0902.11 / MISP** | Minimum Metadata Set (MMS) & Conformance Validation Engine | **Planned (Phase 9)** | `libs/Klv/KlvConformanceValidator.h`, `libs/Klv/KlvValidationTypes.h` |
+| **MISB ST 0902.11 / MISP** | Minimum Metadata Set (MMS) & Conformance Validation Engine | **Fully Implemented** | [KlvConformanceValidator.h](../libs/Klv/KlvConformanceValidator.h), [KlvValidationTypes.h](../libs/Klv/KlvValidationTypes.h) |
 | **MISB ST 1909.1** | Metadata Overlay for Visualization (Non-Destructive Tactical HUD) | **Planned (Phase 10)** | `libs/Klv/Misb1909Types.h`, `libs/Klv/Misb1909OverlayRenderer.h` |
 | **MISB ST 0903.6 / RP 0904** | VMTI Multi-Frame Target Tracking & Ontology Series (Tags 102/103) | **Planned (Phase 11)** | `libs/Klv/VmtiTypes.h`, `libs/Tracking/TrackingEngine.h` |
 | **MISB ST 1108.3** | Motion Imagery Quality Metadata (MIQM / GSD / NIIRS / ISM) | **Planned (Phase 12)** | `libs/Klv/Misb1108Types.h`, `libs/Klv/Misb1108Encoder.h` |
@@ -406,9 +406,9 @@ flowchart TD
 
 ## 4. Completed & Future Architectural Roadmap
 
-### 4.1 Completed Architectural Phases (Phases 1–8)
+### 4.1 Completed Architectural Phases (Phases 1–9)
 
-All 8 foundational architectural phases for the STANAG 4609 / MISB KLV ecosystem have been fully implemented, verified, and integrated with 100% test pass rate across 38 test suites:
+All 9 foundational architectural phases for the STANAG 4609 / MISB KLV ecosystem have been fully implemented, verified, and integrated with 100% test pass rate across 39 test suites:
 
 | Phase | Milestone | Priority | Status | Target Files / Primary Dependencies |
 | :---: | :--- | :---: | :---: | :--- |
@@ -420,16 +420,16 @@ All 8 foundational architectural phases for the STANAG 4609 / MISB KLV ecosystem
 | **Phase 6** | **Embedded RTSP Server Egress (`RtspServerPublisher`)**<br>Lightweight embedded RTSP 1.0/2.0 server allowing clients to pull STANAG 4609 streams over TCP or UDP without an external multicast router. | **Low** | ✅ **IMPLEMENTED** | [RtspServerPublisher.h](../libs/Transport/RtspServerPublisher.h), [RtspServerPublisher.cpp](../libs/Transport/RtspServerPublisher.cpp), [RtspServerTypes.h](../libs/Transport/RtspServerTypes.h)<br>Test: [TestRtspServerPublisher.cpp](../libs/Transport/tests/TestRtspServerPublisher.cpp) |
 | **Phase 7** | **KML & GeoJSON Spatial Exporter**<br>Exports 4D flight tracks, 3D volumetric sensor frustums, and ground footprints to Google Earth Pro/Web and QGIS. | **Medium** | ✅ **IMPLEMENTED** | [KmlExporter.h](../libs/Mapping/KmlExporter.h), [GeoJsonExporter.h](../libs/Mapping/GeoJsonExporter.h), [SpatialDataRecorder.h](../libs/Mapping/SpatialDataRecorder.h)<br>Tests: [TestKmlExporter.cpp](../libs/Mapping/tests/TestKmlExporter.cpp), [TestGeoJsonExporter.cpp](../libs/Mapping/tests/TestGeoJsonExporter.cpp) |
 | **Phase 8** | **Standalone KLV over RTP (`KlvRtpPublisher`)**<br>Direct transmission of SMPTE ST 336 KLV over RTP/UDP per RFC 6597 (Profile 2, `video/smpte336m`), eliminating MPEG-TS overhead for low-bandwidth tactical SDR radios and ATAK/WinTAK. | **High** | ✅ **IMPLEMENTED** | [KlvRtpPublisher.h](../libs/Transport/KlvRtpPublisher.h), [KlvRtpPublisher.cpp](../libs/Transport/KlvRtpPublisher.cpp)<br>Test: [TestKlvRtpPublisher.cpp](../libs/Transport/tests/TestKlvRtpPublisher.cpp) |
+| **Phase 9** | **Automated Conformance Engine (`KlvConformanceValidator`)**<br>Real-time / offline validation against MISB ST 0902.11 Minimum Metadata Set (MMS) and MISP-2025.1, enforcing mandatory tags, rates, ranges, and timing jitter bounds. | **High** | ✅ **IMPLEMENTED** | [KlvConformanceValidator.h](../libs/Klv/KlvConformanceValidator.h), [KlvConformanceValidator.cpp](../libs/Klv/KlvConformanceValidator.cpp), [KlvValidationTypes.h](../libs/Klv/KlvValidationTypes.h)<br>Test: [TestKlvConformanceValidator.cpp](../libs/Klv/tests/TestKlvConformanceValidator.cpp) |
 
 ---
 
-### 4.2 Future Architectural Phases & Implementation Roadmap (Phases 9–15)
+### 4.2 Future Architectural Phases & Implementation Roadmap (Phases 10–15)
 
 The next sequence of architectural milestones extends the system across low-bandwidth tactical datalinks, standards verification, target tracking ontologies, and resilient network streaming:
 
 | Phase | Milestone | Priority | Status | Target Files / Primary Dependencies |
 | :---: | :--- | :---: | :---: | :--- |
-| **Phase 9** | **Automated Conformance Engine (`KlvConformanceValidator`)**<br>Real-time / offline validation against MISB ST 0902.11 Minimum Metadata Set (MMS) and MISP-2025.1, enforcing mandatory tags, rates, ranges, and timing jitter bounds. | **High** | 📋 **PLANNED** | `libs/Klv/KlvConformanceValidator.h`, `libs/Klv/KlvConformanceValidator.cpp`<br>`libs/Klv/KlvValidationTypes.h` |
 | **Phase 10** | **Tactical HUD Metadata Overlay (MISB ST 1909.1)**<br>Standardized, non-destructive tactical HUD layout generator rendering pitch ladders, heading tapes, FOV reticles, and coordinates on client viewports without burning into video pixels. | **Medium** | 📋 **PLANNED** | `libs/Klv/Misb1909Types.h`, `libs/Klv/Misb1909OverlayRenderer.h`<br>`app-pelcod-qt/widgets/` |
 | **Phase 11** | **VMTI Multi-Frame Target Tracking & Ontology (ST 0903 Tag 102/103)**<br>Multi-frame persistent target tracking series (Tag 102 VTrack Pack), kinematics, and STANAG 1241 / 4676 object taxonomy (Tag 103 Ontology Local Set) integrated with `TrackingEngine`. | **Medium** | 📋 **PLANNED** | `libs/Klv/VmtiTypes.h`, `libs/Klv/VmtiParser.h`, `libs/Klv/VmtiEncoder.h`<br>`libs/Tracking/TrackingEngine.h` |
 | **Phase 12** | **Motion Imagery Quality Metadata (MISB ST 1108.3 MIQM)**<br>Ground Sample Distance (GSD), NIIRS rating estimation, and Image Sharpness Metric (ISM) computation for automated target recognition (ATR) confidence scoring. | **Medium** | 📋 **PLANNED** | `libs/Klv/Misb1108Types.h`, `libs/Klv/Misb1108Encoder.h`<br>`libs/Klv/KlvGeodesy.h` |
@@ -853,47 +853,38 @@ The next sequence of architectural milestones extends the system across low-band
 ---
 
 ### 5.9 Automated Stream Conformance & Validation Engine (`KlvConformanceValidator`)
-- **Target Files**: `libs/Klv/KlvConformanceValidator.h`, `libs/Klv/KlvConformanceValidator.cpp`, `libs/Klv/KlvValidationTypes.h`
+- **Files**: [KlvConformanceValidator.h](../libs/Klv/KlvConformanceValidator.h), [KlvConformanceValidator.cpp](../libs/Klv/KlvConformanceValidator.cpp), [KlvValidationTypes.h](../libs/Klv/KlvValidationTypes.h)
+- **Unit Test**: [TestKlvConformanceValidator.cpp](../libs/Klv/tests/TestKlvConformanceValidator.cpp)
+- **Implementation Plan**: [klv_phase9_conformance_validator_plan.md](klv_phase9_conformance_validator_plan.md)
 - **Objective**: Enforce real-time and offline compliance auditing against MISB ST 0902.11 Minimum Metadata Set (MMS) and DoD/NATO MISP-2025.1 standards.
 - **Interface**:
   ```cpp
   #pragma once
   #include <cstddef>
   #include <cstdint>
+  #include <functional>
   #include <string>
   #include <vector>
   #include "KlvTypes.h"
+  #include "KlvValidationTypes.h"
 
   namespace Klv {
 
-  enum class ValidationSeverity : std::uint8_t {
-      Info = 0U,
-      Warning = 1U,
-      Error = 2U,
-      Fatal = 3U
-  };
-
-  struct ValidationIssue {
-      ValidationSeverity severity;
-      std::uint32_t tag;
-      std::string message;
-      std::uint64_t timestampUs;
-  };
-
-  struct ConformanceReport {
-      bool isCompliant { true };
-      std::size_t totalMessagesEvaluated { 0U };
-      std::size_t totalViolations { 0U };
-      std::vector<ValidationIssue> issues {};
-      [[nodiscard]] std::string toJson() const;
-  };
-
   class KlvConformanceValidator {
   public:
-      explicit KlvConformanceValidator() = default;
-      void reset();
+      using OnIssueCallback = std::function<void(const ValidationIssue&)>;
+
+      explicit KlvConformanceValidator(const ValidationConfig& config = ValidationConfig{});
+      void reset() noexcept;
+      void setCallback(OnIssueCallback callback) noexcept;
+      void setConfig(const ValidationConfig& config) noexcept;
+
+      [[nodiscard]] KlvStatus validatePacket(
+          const std::uint8_t* data, std::size_t size, std::uint64_t arrivalTimeUs);
       void validateMessage(const UasDatalinkMessage& message, std::uint64_t arrivalTimeUs);
+
       [[nodiscard]] ConformanceReport report() const;
+      [[nodiscard]] bool isCompliant() const noexcept;
   };
 
   } // namespace Klv

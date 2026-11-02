@@ -69,6 +69,9 @@ add_library(Klv STATIC
     StanagScrubController.cpp
     StanagBroadcastEngine.h
     StanagBroadcastEngine.cpp
+    KlvValidationTypes.h
+    KlvConformanceValidator.h
+    KlvConformanceValidator.cpp
 )
 
 target_include_directories(Klv PUBLIC
