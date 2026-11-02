@@ -73,6 +73,30 @@ void VideoOverlayWidget::setShowDiagnostics(bool show)
     update();
 }
 
+void VideoOverlayWidget::setShowMisb1909Hud(bool show)
+{
+    m_showMisb1909Hud = show;
+    update();
+}
+
+bool VideoOverlayWidget::isMisb1909HudVisible() const
+{
+    return m_showMisb1909Hud;
+}
+
+void VideoOverlayWidget::setTacticalOverlayLayout(const Klv::TacticalOverlayLayout& layout)
+{
+    m_misb1909Layout = layout;
+    m_hasMisb1909Layout = true;
+    update();
+}
+
+void VideoOverlayWidget::clearTacticalOverlayLayout()
+{
+    m_hasMisb1909Layout = false;
+    update();
+}
+
 void VideoOverlayWidget::setInteractivePtzEnabled(bool enabled)
 {
     m_interactivePtzEnabled = enabled;
@@ -231,6 +255,9 @@ void VideoOverlayWidget::paintEvent(QPaintEvent* /*event*/)
     }
     if (m_showDiagnostics) {
         drawDiagnosticsLayer(painter, targetRect);
+    }
+    if (m_showMisb1909Hud && m_hasMisb1909Layout) {
+        drawMisb1909Layer(painter, targetRect);
     }
     if (m_isDragging && m_interactivePtzEnabled) {
         drawVirtualJoystickLayer(painter);
@@ -604,7 +631,7 @@ QImage VideoOverlayWidget::captureSnapshot(bool includeOverlay) const
 {
     QMutexLocker locker(&m_frameMutex);
     if (m_currentFrame.isNull()) {
-        return { };
+        return {};
     }
 
     if (!includeOverlay) {
@@ -630,8 +657,154 @@ QImage VideoOverlayWidget::captureSnapshot(bool includeOverlay) const
         drawOpticsHudLayer(painter, fullRect);
     if (m_showDiagnostics)
         drawDiagnosticsLayer(painter, fullRect);
+    if (m_showMisb1909Hud && m_hasMisb1909Layout)
+        drawMisb1909Layer(painter, fullRect);
 
     return result;
+}
+
+void VideoOverlayWidget::drawMisb1909Layer(QPainter& painter, const QRect& targetRect) const
+{
+    const auto toPx = [&targetRect](const Klv::NormalizedPoint& pt) -> QPointF {
+        const auto rw = static_cast<qreal>(targetRect.width());
+        const auto rh = static_cast<qreal>(targetRect.height());
+        const auto rx = static_cast<qreal>(targetRect.x());
+        const auto ry = static_cast<qreal>(targetRect.y());
+        return QPointF(rx + static_cast<qreal>(pt.x.value()) * rw, ry + static_cast<qreal>(pt.y.value()) * rh);
+    };
+
+    const QColor themeColor = QColor::fromRgbF(static_cast<float>(m_misb1909Layout.activeThemeColor.r),
+        static_cast<float>(m_misb1909Layout.activeThemeColor.g),
+        static_cast<float>(m_misb1909Layout.activeThemeColor.b),
+        static_cast<float>(m_misb1909Layout.activeThemeColor.a));
+
+    const auto renderGroup = [&](const Klv::Misb1909GroupData& grp) {
+        if (!grp.visible || grp.lines.empty()) {
+            return;
+        }
+        const QPointF basePos = toPx(grp.anchor);
+        QFont font("Consolas", 10, QFont::Bold);
+        painter.setFont(font);
+        const QFontMetrics fm(font);
+        const int lineH = fm.height() + 2;
+
+        const int totalH = static_cast<int>(grp.lines.size() - 1U) * lineH;
+        int curY = (grp.stackDirection == Klv::StackDirection::Upwards) ? static_cast<int>(basePos.y()) - totalH
+                                                                        : static_cast<int>(basePos.y()) + fm.ascent();
+
+        for (const auto& line : grp.lines) {
+            const QString qstr = QString::fromStdString(line);
+            const int strW = fm.horizontalAdvance(qstr);
+            int curX = static_cast<int>(basePos.x());
+            if (grp.alignment == Klv::TextAlignment::Center) {
+                curX -= strW / 2;
+            } else if (grp.alignment == Klv::TextAlignment::Right) {
+                curX -= strW;
+            }
+
+            // Outline for readability over bright video
+            painter.setPen(QColor(0, 0, 0, 220));
+            painter.drawText(curX - 1, curY, qstr);
+            painter.drawText(curX + 1, curY, qstr);
+            painter.drawText(curX, curY - 1, qstr);
+            painter.drawText(curX, curY + 1, qstr);
+
+            painter.setPen(themeColor);
+            painter.drawText(curX, curY, qstr);
+
+            curY += lineH;
+        }
+    };
+
+    // 1-7. Standard Text Groups
+    renderGroup(m_misb1909Layout.mainSensorGroup);
+    renderGroup(m_misb1909Layout.securityGroup);
+    renderGroup(m_misb1909Layout.platformGroup);
+    renderGroup(m_misb1909Layout.northArrowGroup);
+    renderGroup(m_misb1909Layout.laserSensorGroup);
+    renderGroup(m_misb1909Layout.dateTimeGroup);
+    renderGroup(m_misb1909Layout.targetGroup);
+
+    // 8. Targeting Reticle Crosshair
+    if (m_misb1909Layout.reticle.visible) {
+        painter.setPen(QPen(themeColor, 1.5));
+        for (const auto& line : m_misb1909Layout.reticle.crosshairLines) {
+            painter.drawLine(toPx(line.start), toPx(line.end));
+        }
+    }
+
+    // 9. Flight Symbology: Artificial Horizon & Pitch Ladder
+    if (m_misb1909Layout.pitchLadder.visible) {
+        painter.save();
+        const QPointF center(static_cast<qreal>(targetRect.x()) + static_cast<qreal>(targetRect.width()) * 0.5,
+            static_cast<qreal>(targetRect.y()) + static_cast<qreal>(targetRect.height()) * 0.5);
+        painter.translate(center);
+        painter.rotate(static_cast<qreal>(m_misb1909Layout.pitchLadder.rollAngleDeg));
+        painter.translate(-center);
+
+        // Horizon bar
+        painter.setPen(QPen(themeColor, 2.0));
+        painter.drawLine(
+            toPx(m_misb1909Layout.pitchLadder.horizonLeft), toPx(m_misb1909Layout.pitchLadder.horizonRight));
+
+        // Pitch rungs
+        for (const auto& rung : m_misb1909Layout.pitchLadder.rungs) {
+            QPen rungPen(themeColor, 1.5);
+            if (rung.isDashed) {
+                rungPen.setStyle(Qt::DashLine);
+            }
+            painter.setPen(rungPen);
+
+            painter.drawLine(toPx(rung.leftStart), toPx(rung.leftEnd));
+            painter.drawLine(toPx(rung.leftStart), toPx(rung.leftTabEnd));
+
+            painter.drawLine(toPx(rung.rightStart), toPx(rung.rightEnd));
+            painter.drawLine(toPx(rung.rightEnd), toPx(rung.rightTabEnd));
+        }
+        painter.restore();
+    }
+
+    // 10. Flight Symbology: Compass Heading Tape
+    if (m_misb1909Layout.headingTape.visible) {
+        painter.setPen(QPen(themeColor, 1.5));
+        painter.drawLine(toPx(m_misb1909Layout.headingTape.tapeStart), toPx(m_misb1909Layout.headingTape.tapeEnd));
+
+        QFont tickFont("Consolas", 8, QFont::Bold);
+        painter.setFont(tickFont);
+        const QFontMetrics tfm(tickFont);
+
+        for (const auto& tick : m_misb1909Layout.headingTape.ticks) {
+            painter.setPen(QPen(themeColor, tick.isMajor ? 1.5 : 1.0));
+            painter.drawLine(toPx(tick.bottom), toPx(tick.top));
+
+            if (tick.isMajor && !tick.label.empty()) {
+                const QString lbl = QString::fromStdString(tick.label);
+                const int tw = tfm.horizontalAdvance(lbl);
+                const QPointF pTop = toPx(tick.top);
+                painter.drawText(static_cast<int>(pTop.x()) - tw / 2, static_cast<int>(pTop.y()) - 2, lbl);
+            }
+        }
+
+        // Caret pointer triangle
+        const QPointF caret = toPx(m_misb1909Layout.headingTape.caretTip);
+        QPolygonF caretPoly;
+        caretPoly << caret << QPointF(caret.x() - 5.0, caret.y() + 8.0) << QPointF(caret.x() + 5.0, caret.y() + 8.0);
+        painter.setBrush(themeColor);
+        painter.setPen(Qt::NoPen);
+        painter.drawPolygon(caretPoly);
+        painter.setBrush(Qt::NoBrush);
+
+        // Digital heading readout
+        if (!m_misb1909Layout.headingTape.digitalReadout.empty()) {
+            const QString roStr = QString::fromStdString(m_misb1909Layout.headingTape.digitalReadout);
+            QFont roFont("Consolas", 9, QFont::Bold);
+            painter.setFont(roFont);
+            const QFontMetrics rfm(roFont);
+            const int rw = rfm.horizontalAdvance(roStr);
+            painter.setPen(themeColor);
+            painter.drawText(static_cast<int>(caret.x()) - rw / 2, static_cast<int>(caret.y()) + 20, roStr);
+        }
+    }
 }
 
 } // namespace PelcoDApp

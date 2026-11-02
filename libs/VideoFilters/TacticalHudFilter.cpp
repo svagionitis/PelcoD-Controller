@@ -4,6 +4,8 @@
  */
 
 #include "TacticalHudFilter.h"
+#include "Misb1909OverlayRenderer.h"
+#include "Misb1909Types.h"
 
 #if defined(PELCOD_HAS_FILTERS)
 
@@ -107,7 +109,7 @@ namespace {
         }
         const std::time_t sec = static_cast<std::time_t>(epochUs / 1000000ULL);
         const auto ms = static_cast<int>((epochUs % 1000000ULL) / 1000ULL);
-        std::tm tmBuf { };
+        std::tm tmBuf {};
 #if defined(_WIN32)
         gmtime_s(&tmBuf, &sec);
 #else
@@ -236,66 +238,17 @@ TacticalHudFilter::LaserData TacticalHudFilter::getLaserData() const
 
 std::string TacticalHudFilter::formatSt1909Angle(std::optional<double> deg, int digitsBefore, int digitsAfter)
 {
-    if (!deg.has_value()) {
-        return "N/A";
-    }
-
-    std::ostringstream oss;
-    oss << std::fixed << std::setprecision(digitsAfter) << *deg;
-    const std::string str = oss.str();
-
-    const auto dotPos = str.find('.');
-    const std::string before = (dotPos != std::string::npos) ? str.substr(0, dotPos) : str;
-    const std::string after = (dotPos != std::string::npos) ? str.substr(dotPos) : "";
-
-    std::string padded;
-    if (static_cast<int>(before.length()) < digitsBefore) {
-        padded = std::string(static_cast<std::size_t>(digitsBefore - static_cast<int>(before.length())), ' ') + before;
-    } else {
-        padded = before;
-    }
-
-    return padded + after + "*";
+    return Klv::Misb1909OverlayRenderer::formatSt1909Angle(deg, digitsBefore, digitsAfter);
 }
 
 std::string TacticalHudFilter::formatSt1909Meters(std::optional<double> meters, int digits)
 {
-    if (!meters.has_value()) {
-        return "N/A";
-    }
-
-    const auto intVal = static_cast<long long>(std::round(*meters));
-    const std::string str = std::to_string(intVal);
-
-    std::string padded;
-    if (static_cast<int>(str.length()) < digits) {
-        padded = std::string(static_cast<std::size_t>(digits - static_cast<int>(str.length())), ' ') + str;
-    } else {
-        padded = str;
-    }
-
-    return padded + "m";
+    return Klv::Misb1909OverlayRenderer::formatSt1909Meters(meters, digits);
 }
 
 std::string TacticalHudFilter::formatSt1909IsoTime(std::optional<std::uint64_t> epochUs)
 {
-    if (!epochUs.has_value() || *epochUs == 0U) {
-        return "N/A";
-    }
-
-    const std::time_t sec = static_cast<std::time_t>(*epochUs / 1000000ULL);
-    const auto frac10 = static_cast<int>((*epochUs % 1000000ULL) / 100000ULL);
-    std::tm tmBuf { };
-#if defined(_WIN32)
-    gmtime_s(&tmBuf, &sec);
-#else
-    gmtime_r(&sec, &tmBuf);
-#endif
-    char buf[64];
-    std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmBuf);
-    char fullBuf[80];
-    std::snprintf(fullBuf, sizeof(fullBuf), "%s.%dZ", buf, frac10);
-    return std::string(fullBuf);
+    return Klv::Misb1909OverlayRenderer::formatSt1909IsoTime(epochUs);
 }
 
 void TacticalHudFilter::setPlatformData(const PlatformData& platform)
@@ -546,7 +499,7 @@ void TacticalHudFilter::process(std::uint8_t* data, int width, int height, Pixel
                 else if (wrapped == 315)
                     label = "NW";
                 else {
-                    char buf[16] { };
+                    char buf[16] {};
                     std::snprintf(buf, sizeof(buf), "%02d", wrapped / 10);
                     label = buf;
                 }
@@ -612,7 +565,7 @@ void TacticalHudFilter::process(std::uint8_t* data, int width, int height, Pixel
             drawOutlinedLine(mat, pR2, rotateAndTranslate(+rungLen, yOffset + tickDir), theme, 1);
 
             // Angle text
-            char pStr[16] { };
+            char pStr[16] {};
             std::snprintf(pStr, sizeof(pStr), "%d", std::abs(pDeg));
             drawOutlinedText(
                 mat, pStr, rotateAndTranslate(-rungLen - 16, yOffset + 4), cv::FONT_HERSHEY_SIMPLEX, 0.32, theme, 1);
@@ -782,99 +735,96 @@ namespace {
         const cv::Size sampleSz = cv::getTextSize("A", fontFace, fontScale, thickness, &bLine);
         const int lineH = static_cast<int>(std::round(sampleSz.height * 1.6));
 
-        // 1. Main Sensor Group (Top-Left: 3.70% row, 2.00% col, left-aligned, downwards)
-        {
-            const int col = static_cast<int>(std::round(width * 0.0200));
-            const int row = static_cast<int>(std::round(height * 0.0370));
-            int curY = row + sampleSz.height;
-
-            const std::string name = plat.sensorPayload.empty() ? "N/A" : plat.sensorPayload;
-            drawOutlinedText(mat, name, cv::Point(col, curY), fontFace, fontScale, theme, thickness);
-            curY += lineH;
-
-            const std::string azStr = "REL AZ " + TacticalHudFilter::formatSt1909Angle(plat.sensorAzimuthDeg, 5, 4);
-            drawOutlinedText(mat, azStr, cv::Point(col, curY), fontFace, fontScale, theme, thickness);
-            curY += lineH;
-
-            const std::string elStr = "REL EL " + TacticalHudFilter::formatSt1909Angle(plat.sensorElevationDeg, 5, 4);
-            drawOutlinedText(mat, elStr, cv::Point(col, curY), fontFace, fontScale, theme, thickness);
+        Klv::UasDatalinkMessage msg {};
+        if (!plat.designation.empty())
+            msg.platformDesignation = plat.designation;
+        if (!plat.tailNumber.empty())
+            msg.platformTailNumber = plat.tailNumber;
+        if (plat.latitudeDeg.has_value())
+            msg.sensorLatitudeDeg = *plat.latitudeDeg;
+        if (plat.longitudeDeg.has_value())
+            msg.sensorLongitudeDeg = *plat.longitudeDeg;
+        if (plat.altitudeM.has_value()) {
+            if (plat.altitudeIsHae)
+                msg.sensorAltitudeHaeM = *plat.altitudeM;
+            else
+                msg.sensorTrueAltitudeM = *plat.altitudeM;
         }
+        msg.platformHeadingDeg = plat.headingDeg;
+        msg.platformPitchDeg = plat.pitchDeg;
+        msg.platformRollDeg = plat.rollDeg;
+        msg.sensorRelAzimuthDeg = plat.sensorAzimuthDeg;
+        msg.sensorRelElevationDeg = plat.sensorElevationDeg;
+        msg.sensorHfovDeg = plat.hfovDeg;
+        msg.sensorVfovDeg = plat.vfovDeg;
+        if (!plat.sensorPayload.empty())
+            msg.imageSourceSensor = plat.sensorPayload;
+        if (plat.timestampUs > 0)
+            msg.precisionTimeStampUs = plat.timestampUs;
 
-        // 2. Classification & Releasability Group (Top-Center: 3.70% row, 50.00% col, centered, downwards)
-        if (showSecBanners) {
-            const int col = width / 2;
-            const int row = static_cast<int>(std::round(height * 0.0370));
-            const int curY = row + sampleSz.height;
+        if (tgt.latitudeDeg.has_value())
+            msg.frameCenterLatDeg = *tgt.latitudeDeg;
+        if (tgt.longitudeDeg.has_value())
+            msg.frameCenterLonDeg = *tgt.longitudeDeg;
+        if (tgt.elevationM.has_value()) {
+            if (tgt.elevationIsHae)
+                msg.frameCenterElevHaeM = *tgt.elevationM;
+            else
+                msg.frameCenterElevM = *tgt.elevationM;
+        }
+        if (tgt.slantRangeM.has_value())
+            msg.slantRangeM = *tgt.slantRangeM;
+        if (tgt.widthM.has_value())
+            msg.targetWidthM = *tgt.widthM;
 
-            std::string classText = "UNCLASSIFIED";
-            if (sec.has_value()) {
-                switch (sec->classification) {
-                case Klv::SecurityClassification::Unclassified:
-                    classText = "UNCLASSIFIED";
-                    break;
-                case Klv::SecurityClassification::Restricted:
-                    classText = "RESTRICTED";
-                    break;
-                case Klv::SecurityClassification::Confidential:
-                    classText = "CONFIDENTIAL";
-                    break;
-                case Klv::SecurityClassification::Secret:
-                    classText = "SECRET";
-                    break;
-                case Klv::SecurityClassification::TopSecret:
-                    classText = "TOP SECRET";
-                    break;
+        if (sec.has_value())
+            msg.security = *sec;
+
+        Klv::Misb1909Config config {};
+        config.density = Klv::SymbologyDensity::Misb1909Standard;
+        config.showSecurityBanners = showSecBanners;
+        const Klv::TacticalOverlayLayout layout = Klv::Misb1909OverlayRenderer::buildLayout(msg, config);
+
+        const double w = static_cast<double>(width);
+        const double h = static_cast<double>(height);
+
+        auto drawLayoutGroup = [&](const Klv::Misb1909GroupData& grp) {
+            if (!grp.visible || grp.lines.empty())
+                return;
+            const int col = static_cast<int>(std::round(w * static_cast<double>(grp.anchor.x.value())));
+            const int row = static_cast<int>(std::round(h * static_cast<double>(grp.anchor.y.value())));
+
+            const int totalH = static_cast<int>(grp.lines.size() - 1U) * lineH;
+            int curY = (grp.stackDirection == Klv::StackDirection::Upwards) ? (row - totalH) : (row + sampleSz.height);
+
+            for (const auto& line : grp.lines) {
+                const cv::Size sz = cv::getTextSize(line, fontFace, fontScale, thickness, &bLine);
+                int curX = col;
+                if (grp.alignment == Klv::TextAlignment::Center) {
+                    curX -= sz.width / 2;
+                } else if (grp.alignment == Klv::TextAlignment::Right) {
+                    curX -= sz.width;
                 }
-                if (!sec->caveats.empty()) {
-                    classText += "//" + sec->caveats;
-                }
+                drawOutlinedText(mat, line, cv::Point(curX, curY), fontFace, fontScale, theme, thickness);
+                curY += lineH;
             }
+        };
 
-            const cv::Size sz = cv::getTextSize(classText, fontFace, fontScale, thickness, &bLine);
-            drawOutlinedText(
-                mat, classText, cv::Point(col - sz.width / 2, curY), fontFace, fontScale, theme, thickness);
-        }
+        // 1. Main Sensor Group
+        drawLayoutGroup(layout.mainSensorGroup);
 
-        // 3. Platform Information Group (Top-Right: 3.70% row, 98.00% col, right-aligned, downwards)
-        {
-            const int col = static_cast<int>(std::round(width * 0.9800));
-            const int row = static_cast<int>(std::round(height * 0.0370));
-            int curY = row + sampleSz.height;
+        // 2. Classification Group
+        drawLayoutGroup(layout.securityGroup);
 
-            std::string platName;
-            if (!plat.designation.empty()) {
-                platName = plat.designation;
-                if (!plat.tailNumber.empty())
-                    platName += " " + plat.tailNumber;
-            } else if (!plat.tailNumber.empty()) {
-                platName = plat.tailNumber;
-            } else {
-                platName = "N/A";
-            }
-            cv::Size sz = cv::getTextSize(platName, fontFace, fontScale, thickness, &bLine);
-            drawOutlinedText(mat, platName, cv::Point(col - sz.width, curY), fontFace, fontScale, theme, thickness);
-            curY += lineH;
-
-            const std::string latStr = TacticalHudFilter::formatSt1909Angle(plat.latitudeDeg, 3, 4) + " LAT";
-            sz = cv::getTextSize(latStr, fontFace, fontScale, thickness, &bLine);
-            drawOutlinedText(mat, latStr, cv::Point(col - sz.width, curY), fontFace, fontScale, theme, thickness);
-            curY += lineH;
-
-            const std::string lonStr = TacticalHudFilter::formatSt1909Angle(plat.longitudeDeg, 4, 4) + " LON";
-            sz = cv::getTextSize(lonStr, fontFace, fontScale, thickness, &bLine);
-            drawOutlinedText(mat, lonStr, cv::Point(col - sz.width, curY), fontFace, fontScale, theme, thickness);
-            curY += lineH;
-
-            const std::string qual = plat.altitudeIsHae ? "HAE" : "MSL";
-            const std::string altStr = TacticalHudFilter::formatSt1909Meters(plat.altitudeM, 5) + " " + qual + " ALT";
-            sz = cv::getTextSize(altStr, fontFace, fontScale, thickness, &bLine);
-            drawOutlinedText(mat, altStr, cv::Point(col - sz.width, curY), fontFace, fontScale, theme, thickness);
-        }
+        // 3. Platform Information Group
+        drawLayoutGroup(layout.platformGroup);
 
         // 4. True North Arrow Group (Mid-Left: 50.00% row, 2.00% col)
         {
-            const int col = static_cast<int>(std::round(width * 0.0200));
-            const int row = height / 2;
+            const int col
+                = static_cast<int>(std::round(w * static_cast<double>(layout.northArrowGroup.anchor.x.value())));
+            const int row
+                = static_cast<int>(std::round(h * static_cast<double>(layout.northArrowGroup.anchor.y.value())));
             const int radius = std::max(14, height / 45);
             const cv::Point center(col + radius + 2, row);
 
@@ -901,83 +851,53 @@ namespace {
                 fontScale, theme, thickness);
         }
 
-        // 5. Laser Sensor Group (Bottom-Left: 96.30% row, 2.00% col, left-aligned, upwards)
+        // 5. Laser Sensor Group (With active/PRF status)
         {
-            const int col = static_cast<int>(std::round(width * 0.0200));
-            const int row = static_cast<int>(std::round(height * 0.9630));
-            std::vector<std::string> lines;
-            lines.push_back(laser.name.empty() ? "Laser" : laser.name);
-            lines.push_back(laser.active ? "Laser ON" : "Laser OFF");
+            Klv::Misb1909GroupData laserGrp = layout.laserSensorGroup;
+            laserGrp.lines.clear();
+            laserGrp.lines.push_back(laser.name.empty() ? "Laser" : laser.name);
+            laserGrp.lines.push_back(laser.active ? "Laser ON" : "Laser OFF");
             if (laser.prfCode.has_value()) {
                 char prfBuf[32];
                 std::snprintf(prfBuf, sizeof(prfBuf), "Laser PRF Code %06u", *laser.prfCode);
-                lines.push_back(prfBuf);
+                laserGrp.lines.push_back(prfBuf);
             }
-
-            const int totalH = static_cast<int>(lines.size() - 1U) * lineH;
-            int curY = row - totalH;
-            for (const auto& line : lines) {
-                drawOutlinedText(mat, line, cv::Point(col, curY), fontFace, fontScale, theme, thickness);
-                curY += lineH;
-            }
+            drawLayoutGroup(laserGrp);
         }
 
-        // 6. Date/Time Group (Bottom-Center: 96.30% row, 50.00% col, centered, upwards)
+        // 6. Date/Time Group (With optional FT frame timestamp)
         {
-            const int col = width / 2;
-            const int row = static_cast<int>(std::round(height * 0.9630));
-            std::vector<std::string> lines;
+            Klv::Misb1909GroupData dtGrp = layout.dateTimeGroup;
             if (plat.frameTimestampUs.has_value()) {
-                lines.push_back("FT " + TacticalHudFilter::formatSt1909IsoTime(plat.frameTimestampUs));
+                dtGrp.lines.insert(dtGrp.lines.begin(),
+                    "FT " + Klv::Misb1909OverlayRenderer::formatSt1909IsoTime(plat.frameTimestampUs));
             }
-            lines.push_back("MT " + TacticalHudFilter::formatSt1909IsoTime(plat.timestampUs));
-
-            const int totalH = static_cast<int>(lines.size() - 1U) * lineH;
-            int curY = row - totalH;
-            for (const auto& line : lines) {
-                const cv::Size sz = cv::getTextSize(line, fontFace, fontScale, thickness, &bLine);
-                drawOutlinedText(mat, line, cv::Point(col - sz.width / 2, curY), fontFace, fontScale, theme, thickness);
-                curY += lineH;
-            }
+            drawLayoutGroup(dtGrp);
         }
 
-        // 7. Target Group (Bottom-Right: 96.30% row, 98.00% col, right-aligned, upwards)
+        // 7. Target Group (With TL vs FC distinction)
         {
-            const int col = static_cast<int>(std::round(width * 0.9800));
-            const int row = static_cast<int>(std::round(height * 0.9630));
-            std::vector<std::string> lines;
-            lines.push_back(TacticalHudFilter::formatSt1909Meters(tgt.slantRangeM, 7) + " SR");
-            lines.push_back(TacticalHudFilter::formatSt1909Meters(tgt.widthM, 7) + " TW");
-            lines.push_back(TacticalHudFilter::formatSt1909Angle(plat.hfovDeg, 3, 4) + " HFOV");
-            lines.push_back(TacticalHudFilter::formatSt1909Angle(plat.vfovDeg, 3, 4) + " VFOV");
-            const std::string latTag = tgt.isTrueLocation ? " TL LAT" : " FC LAT";
-            lines.push_back(TacticalHudFilter::formatSt1909Angle(tgt.latitudeDeg, 3, 4) + latTag);
-            const std::string lonTag = tgt.isTrueLocation ? " TL LON" : " FC LON";
-            lines.push_back(TacticalHudFilter::formatSt1909Angle(tgt.longitudeDeg, 4, 4) + lonTag);
-            const std::string elQual = tgt.elevationIsHae ? "HAE" : "MSL";
-            const std::string elTag = tgt.isTrueLocation ? " TL EL" : " FC EL";
-            lines.push_back(TacticalHudFilter::formatSt1909Meters(tgt.elevationM, 5) + " " + elQual + elTag);
-
-            const int totalH = static_cast<int>(lines.size() - 1U) * lineH;
-            int curY = row - totalH;
-            for (const auto& line : lines) {
-                const cv::Size sz = cv::getTextSize(line, fontFace, fontScale, thickness, &bLine);
-                drawOutlinedText(mat, line, cv::Point(col - sz.width, curY), fontFace, fontScale, theme, thickness);
-                curY += lineH;
+            Klv::Misb1909GroupData tgtGrp = layout.targetGroup;
+            if (tgt.isTrueLocation) {
+                for (auto& line : tgtGrp.lines) {
+                    const auto pos = line.find(" FC ");
+                    if (pos != std::string::npos) {
+                        line.replace(pos, 4U, " TL ");
+                    }
+                }
             }
+            drawLayoutGroup(tgtGrp);
         }
 
-        // 8. Target Reticle (Center: 50.00% col, 50.00% row, open crosshair)
-        {
-            const int cx = width / 2;
-            const int cy = height / 2;
-            const int arm = std::max(18, height / 30);
-            const int gap = std::max(6, height / 80);
-
-            drawOutlinedLine(mat, cv::Point(cx - arm, cy), cv::Point(cx - gap, cy), theme, thickness);
-            drawOutlinedLine(mat, cv::Point(cx + gap, cy), cv::Point(cx + arm, cy), theme, thickness);
-            drawOutlinedLine(mat, cv::Point(cx, cy - arm), cv::Point(cx, cy - gap), theme, thickness);
-            drawOutlinedLine(mat, cv::Point(cx, cy + gap), cv::Point(cx, cy + arm), theme, thickness);
+        // 8. Target Reticle Crosshair
+        if (layout.reticle.visible) {
+            for (const auto& line : layout.reticle.crosshairLines) {
+                const cv::Point p1(static_cast<int>(std::round(w * static_cast<double>(line.start.x.value()))),
+                    static_cast<int>(std::round(h * static_cast<double>(line.start.y.value()))));
+                const cv::Point p2(static_cast<int>(std::round(w * static_cast<double>(line.end.x.value()))),
+                    static_cast<int>(std::round(h * static_cast<double>(line.end.y.value()))));
+                drawOutlinedLine(mat, p1, p2, theme, thickness);
+            }
         }
     }
 

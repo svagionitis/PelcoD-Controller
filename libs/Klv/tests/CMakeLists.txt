@@ -39,4 +39,5 @@ add_klv_test(TestStanagStreamIndexer  TestStanagStreamIndexer.cpp)
 add_klv_test(TestStanagScrubController TestStanagScrubController.cpp)
 add_klv_test(TestStanagBroadcastEngine TestStanagBroadcastEngine.cpp)
 add_klv_test(TestKlvConformanceValidator TestKlvConformanceValidator.cpp)
+add_klv_test(TestMisb1909OverlayRenderer TestMisb1909OverlayRenderer.cpp)
 

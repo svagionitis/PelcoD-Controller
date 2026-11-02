@@ -35,7 +35,7 @@ The `libs/Klv`, `libs/Transport`, `libs/Mapping`, and `libs/DjiTelemetry` librar
 | **RFC 2326 / RFC 7826** | Embedded RTSP Server Egress (`RtspServerPublisher`) | **Fully Implemented** | [RtspServerPublisher.h](../libs/Transport/RtspServerPublisher.h), [RtspServerPublisher.cpp](../libs/Transport/RtspServerPublisher.cpp), [RtspServerTypes.h](../libs/Transport/RtspServerTypes.h) |
 | **RFC 6597 / SMPTE ST 336** | Standalone KLV Metadata over RTP/UDP (Unmuxed Stream) | **Fully Implemented** | [KlvRtpPublisher.h](../libs/Transport/KlvRtpPublisher.h), [KlvRtpPacketizer.h](../libs/Transport/KlvRtpPacketizer.h), [KlvRtpTypes.h](../libs/Transport/KlvRtpTypes.h) |
 | **MISB ST 0902.11 / MISP** | Minimum Metadata Set (MMS) & Conformance Validation Engine | **Fully Implemented** | [KlvConformanceValidator.h](../libs/Klv/KlvConformanceValidator.h), [KlvValidationTypes.h](../libs/Klv/KlvValidationTypes.h) |
-| **MISB ST 1909.1** | Metadata Overlay for Visualization (Non-Destructive Tactical HUD) | **Planned (Phase 10)** | `libs/Klv/Misb1909Types.h`, `libs/Klv/Misb1909OverlayRenderer.h` |
+| **MISB ST 1909.1** | Metadata Overlay for Visualization (Non-Destructive Tactical HUD) | **Fully Implemented** | [Misb1909Types.h](../libs/Klv/Misb1909Types.h), [Misb1909OverlayRenderer.h](../libs/Klv/Misb1909OverlayRenderer.h) |
 | **MISB ST 0903.6 / RP 0904** | VMTI Multi-Frame Target Tracking & Ontology Series (Tags 102/103) | **Planned (Phase 11)** | `libs/Klv/VmtiTypes.h`, `libs/Tracking/TrackingEngine.h` |
 | **MISB ST 1108.3** | Motion Imagery Quality Metadata (MIQM / GSD / NIIRS / ISM) | **Planned (Phase 12)** | `libs/Klv/Misb1108Types.h`, `libs/Klv/Misb1108Encoder.h` |
 | **SMPTE ST 2022-1 / ST 2022-2** | 1D/2D Matrix Forward Error Correction (FEC) for MPEG-TS | **Planned (Phase 13)** | `libs/Transport/FecMpegTsPublisher.h`, `libs/Transport/FecTypes.h` |
@@ -406,12 +406,12 @@ flowchart TD
 
 ## 4. Completed & Future Architectural Roadmap
 
-### 4.1 Completed Architectural Phases (Phases 1–9)
+### 4.1 Completed Architectural Phases (Phases 1–10)
 
-All 9 foundational architectural phases for the STANAG 4609 / MISB KLV ecosystem have been fully implemented, verified, and integrated with 100% test pass rate across 39 test suites:
+All 10 foundational architectural phases for the STANAG 4609 / MISB KLV ecosystem have been fully implemented, verified, and integrated with 100% test pass rate across 40 test suites:
 
 | Phase | Milestone | Priority | Status | Target Files / Primary Dependencies |
-| :---: | :--- | :---: | :---: | :--- |
+| :---: | :--- | :--- | :---: | :--- |
 | **Phase 1** | **Broadcast Engine Orchestrator (`StanagBroadcastEngine`)**<br>Master facade coordinating video ingestion, timing, queueing, multiplexing, and network streaming behind a unified API. | **High** | ✅ **IMPLEMENTED** | [StanagBroadcastEngine.h](../libs/Klv/StanagBroadcastEngine.h), [StanagBroadcastEngine.cpp](../libs/Klv/StanagBroadcastEngine.cpp)<br>Test: [TestStanagBroadcastEngine.cpp](../libs/Klv/tests/TestStanagBroadcastEngine.cpp) |
 | **Phase 2** | **Dynamic SDP Generator (`SdpGenerator`)**<br>Generates RFC 4566 `.sdp` files for RTP MPEG-TS unicast/multicast stream client ingestion. | **High** | ✅ **IMPLEMENTED** | [SdpGenerator.h](../libs/Transport/SdpGenerator.h), [SdpGenerator.cpp](../libs/Transport/SdpGenerator.cpp)<br>Test: [TestSdpGenerator.cpp](../libs/Transport/tests/TestSdpGenerator.cpp) |
 | **Phase 3** | **CBR Rate Pacer & Null Packet Stuffing (PID `0x1FFF`)**<br>Converts VBR streams to Constant Bitrate broadcasts for tactical satellite modems and fixed-rate pipes, maintaining PCR jitter $\le 500\text{ ns}$. | **Medium** | ✅ **IMPLEMENTED** | [CbrRatePacer.h](../libs/Transport/CbrRatePacer.h), [CbrRatePacer.cpp](../libs/Transport/CbrRatePacer.cpp)<br>Test: [TestCbrRatePacer.cpp](../libs/Transport/tests/TestCbrRatePacer.cpp) |
@@ -421,16 +421,16 @@ All 9 foundational architectural phases for the STANAG 4609 / MISB KLV ecosystem
 | **Phase 7** | **KML & GeoJSON Spatial Exporter**<br>Exports 4D flight tracks, 3D volumetric sensor frustums, and ground footprints to Google Earth Pro/Web and QGIS. | **Medium** | ✅ **IMPLEMENTED** | [KmlExporter.h](../libs/Mapping/KmlExporter.h), [GeoJsonExporter.h](../libs/Mapping/GeoJsonExporter.h), [SpatialDataRecorder.h](../libs/Mapping/SpatialDataRecorder.h)<br>Tests: [TestKmlExporter.cpp](../libs/Mapping/tests/TestKmlExporter.cpp), [TestGeoJsonExporter.cpp](../libs/Mapping/tests/TestGeoJsonExporter.cpp) |
 | **Phase 8** | **Standalone KLV over RTP (`KlvRtpPublisher`)**<br>Direct transmission of SMPTE ST 336 KLV over RTP/UDP per RFC 6597 (Profile 2, `video/smpte336m`), eliminating MPEG-TS overhead for low-bandwidth tactical SDR radios and ATAK/WinTAK. | **High** | ✅ **IMPLEMENTED** | [KlvRtpPublisher.h](../libs/Transport/KlvRtpPublisher.h), [KlvRtpPublisher.cpp](../libs/Transport/KlvRtpPublisher.cpp)<br>Test: [TestKlvRtpPublisher.cpp](../libs/Transport/tests/TestKlvRtpPublisher.cpp) |
 | **Phase 9** | **Automated Conformance Engine (`KlvConformanceValidator`)**<br>Real-time / offline validation against MISB ST 0902.11 Minimum Metadata Set (MMS) and MISP-2025.1, enforcing mandatory tags, rates, ranges, and timing jitter bounds. | **High** | ✅ **IMPLEMENTED** | [KlvConformanceValidator.h](../libs/Klv/KlvConformanceValidator.h), [KlvConformanceValidator.cpp](../libs/Klv/KlvConformanceValidator.cpp), [KlvValidationTypes.h](../libs/Klv/KlvValidationTypes.h)<br>Test: [TestKlvConformanceValidator.cpp](../libs/Klv/tests/TestKlvConformanceValidator.cpp) |
+| **Phase 10** | **Tactical HUD Metadata Overlay (MISB ST 1909.1)**<br>Standardized, non-destructive tactical HUD layout generator rendering pitch ladders, heading tapes, FOV reticles, and coordinates on client viewports without burning into video pixels. | **Medium** | ✅ **IMPLEMENTED** | [Misb1909Types.h](../libs/Klv/Misb1909Types.h), [Misb1909OverlayRenderer.h](../libs/Klv/Misb1909OverlayRenderer.h)<br>[VideoOverlayWidget.h](../app-pelcod-qt/widgets/VideoOverlayWidget.h)<br>[TacticalHudFilter.h](../libs/VideoFilters/TacticalHudFilter.h)<br>Test: [TestMisb1909OverlayRenderer.cpp](../libs/Klv/tests/TestMisb1909OverlayRenderer.cpp) |
 
 ---
 
-### 4.2 Future Architectural Phases & Implementation Roadmap (Phases 10–15)
+### 4.2 Future Architectural Phases & Implementation Roadmap (Phases 11–15)
 
 The next sequence of architectural milestones extends the system across low-bandwidth tactical datalinks, standards verification, target tracking ontologies, and resilient network streaming:
 
 | Phase | Milestone | Priority | Status | Target Files / Primary Dependencies |
 | :---: | :--- | :---: | :---: | :--- |
-| **Phase 10** | **Tactical HUD Metadata Overlay (MISB ST 1909.1)**<br>Standardized, non-destructive tactical HUD layout generator rendering pitch ladders, heading tapes, FOV reticles, and coordinates on client viewports without burning into video pixels. | **Medium** | 📋 **PLANNED** | `libs/Klv/Misb1909Types.h`, `libs/Klv/Misb1909OverlayRenderer.h`<br>`app-pelcod-qt/widgets/` |
 | **Phase 11** | **VMTI Multi-Frame Target Tracking & Ontology (ST 0903 Tag 102/103)**<br>Multi-frame persistent target tracking series (Tag 102 VTrack Pack), kinematics, and STANAG 1241 / 4676 object taxonomy (Tag 103 Ontology Local Set) integrated with `TrackingEngine`. | **Medium** | 📋 **PLANNED** | `libs/Klv/VmtiTypes.h`, `libs/Klv/VmtiParser.h`, `libs/Klv/VmtiEncoder.h`<br>`libs/Tracking/TrackingEngine.h` |
 | **Phase 12** | **Motion Imagery Quality Metadata (MISB ST 1108.3 MIQM)**<br>Ground Sample Distance (GSD), NIIRS rating estimation, and Image Sharpness Metric (ISM) computation for automated target recognition (ATR) confidence scoring. | **Medium** | 📋 **PLANNED** | `libs/Klv/Misb1108Types.h`, `libs/Klv/Misb1108Encoder.h`<br>`libs/Klv/KlvGeodesy.h` |
 | **Phase 13** | **1D/2D Matrix Forward Error Correction (SMPTE ST 2022-1/2 FEC)**<br>Pro-MPEG CoP #3 XOR parity matrix protection for STANAG 4609 MPEG-TS broadcasts over lossy tactical Wi-Fi, mesh networks, or SATCOM links. | **Medium** | 📋 **PLANNED** | `libs/Transport/FecMpegTsPublisher.h`, `libs/Transport/FecTypes.h`<br>`libs/Transport/MpegTsNetworkPublisher.h` |
@@ -893,37 +893,45 @@ The next sequence of architectural milestones extends the system across low-band
 ---
 
 ### 5.10 Non-Destructive Tactical HUD Metadata Overlay (MISB ST 1909.1)
-- **Target Files**: `libs/Klv/Misb1909Types.h`, `libs/Klv/Misb1909OverlayRenderer.h`
-- **Objective**: Standardized tactical HUD/OSD visualization overlay generator calculating normalized element anchors for client-side rendering over live video without pixel burn-in.
+- **Files**: [Misb1909Types.h](../libs/Klv/Misb1909Types.h), [Misb1909OverlayRenderer.h](../libs/Klv/Misb1909OverlayRenderer.h), [Misb1909OverlayRenderer.cpp](../libs/Klv/Misb1909OverlayRenderer.cpp)
+- **Unit Test**: [TestMisb1909OverlayRenderer.cpp](../libs/Klv/tests/TestMisb1909OverlayRenderer.cpp) (14 test cases, 100% pass)
+- **Implementation Plan**: [klv_phase10_tactical_hud_overlay_plan.md](klv_phase10_tactical_hud_overlay_plan.md)
+- **Client Vector Overlay**: [VideoOverlayWidget.h](../app-pelcod-qt/widgets/VideoOverlayWidget.h), [VideoOverlayWidget.cpp](../app-pelcod-qt/widgets/VideoOverlayWidget.cpp)
+- **Burn-in Video Filter Integration**: [TacticalHudFilter.h](../libs/VideoFilters/TacticalHudFilter.h), [TacticalHudFilter.cpp](../libs/VideoFilters/TacticalHudFilter.cpp) (Test: [TestTacticalHudFilter.cpp](../libs/Video/tests/TestTacticalHudFilter.cpp))
+- **Objective**: Standardized tactical HUD/OSD visualization overlay generator calculating normalized element anchors for client-side non-destructive rendering over live video without pixel burn-in, while providing a single source of truth for downstream video rasterization filters.
 - **Interface**:
   ```cpp
   #pragma once
+
+  #include <cstddef>
   #include <cstdint>
+  #include <optional>
   #include <string>
+  #include <string_view>
   #include <vector>
+
   #include "KlvTypes.h"
+  #include "Misb1909Types.h"
 
   namespace Klv {
 
-  struct NormalizedAnchor {
-      float x { 0.5F }; ///< Normalized horizontal [0.0, 1.0]
-      float y { 0.5F }; ///< Normalized vertical [0.0, 1.0]
-  };
-
-  struct TacticalOverlayLayout {
-      NormalizedAnchor boresightCenter { 0.5F, 0.5F };
-      float platformHeadingDeg { 0.0F };
-      float platformPitchDeg { 0.0F };
-      float platformRollDeg { 0.0F };
-      std::string classificationBanner { "UNCLASSIFIED" };
-      std::string sensorCoordinatesMGRS {};
-      std::string targetCoordinatesMGRS {};
-      float slantRangeMeters { 0.0F };
-  };
-
   class Misb1909OverlayRenderer {
   public:
-      [[nodiscard]] static TacticalOverlayLayout buildLayout(const UasDatalinkMessage& msg);
+      [[nodiscard]] static TacticalOverlayLayout buildLayout(
+          const UasDatalinkMessage& msg,
+          const Misb1909Config& config = {}) noexcept;
+
+      [[nodiscard]] static std::string formatSt1909Angle(
+          std::optional<double> deg, int digitsBefore, int digitsAfter);
+
+      [[nodiscard]] static std::string formatSt1909Meters(
+          std::optional<double> meters, int digits);
+
+      [[nodiscard]] static std::string formatSt1909IsoTime(
+          std::optional<std::uint64_t> epochUs);
+
+      [[nodiscard]] static std::string toMgrsString(
+          std::optional<double> latDeg, std::optional<double> lonDeg);
   };
 
   } // namespace Klv
@@ -1025,4 +1033,6 @@ All modules across `libs/Klv`, `libs/Transport`, `libs/Mapping`, `libs/Video`, `
 | **TestRtspPassthroughBridge** | [TestRtspPassthroughBridge.cpp](../libs/Video/tests/TestRtspPassthroughBridge.cpp) | 11 | RFC 6184 Single/STAP-A/FU-A H.264, RFC 7798 Single/AP/FU H.265, packet loss detection, 32-bit rollover, SDP sprop decoding/injection, mock RTSP handshake, StanagBroadcastEngine integration |
 | **TestRtspServerPublisher** | [TestRtspServerPublisher.cpp](../libs/Transport/tests/TestRtspServerPublisher.cpp) | 12 | Socket bind lifecycle, OPTIONS public methods, DESCRIBE SDP payload 33, SETUP TCP interleaved, SETUP UDP unicast, PLAY/TEARDOWN transitions, TCP interleaved streaming ($), UDP unicast streaming, multi-client concurrency, GET_PARAMETER keepalive, slow client backpressure, stream URL |
 | **TestKlvRtpPublisher** | [TestKlvRtpPublisher.cpp](../libs/Transport/tests/TestKlvRtpPublisher.cpp) | 7 | RFC 6597 12-byte RTP headers, 90kHz timestamp conversion, unfragmented items (M=1), MTU fragmentation across multiple packets (M=0..1), bit-for-bit reassembly, RFC 4566 SDP generation, local UDP loopback transmission |
-| **Total** | **38 Test Suites** | **290** | **100% Pass Rate** |
+| **TestKlvConformanceValidator** | [TestKlvConformanceValidator.cpp](../libs/Klv/tests/TestKlvConformanceValidator.cpp) | 11 | MISB ST 0902 MMS and MISP-2025.1 conformance, mandatory tags, 1Hz/10Hz rate cadence, timing jitter skew bounds, kinematics filtering, JSON/CLI report export |
+| **TestMisb1909OverlayRenderer** | [TestMisb1909OverlayRenderer.cpp](../libs/Klv/tests/TestMisb1909OverlayRenderer.cpp) | 14 | MISB ST 1909.1 angle/meter/ISO-8601 formatting, 8 standard layout groups, pitch ladder climb/dive rungs, roll derotation, heading tape wrapping and cardinals, MGRS coordinates, declutter levels, ERR55 zero-allocation safety |
+| **Total** | **40 Test Suites** | **315** | **100% Pass Rate** |

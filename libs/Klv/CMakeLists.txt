@@ -72,6 +72,9 @@ add_library(Klv STATIC
     KlvValidationTypes.h
     KlvConformanceValidator.h
     KlvConformanceValidator.cpp
+    Misb1909Types.h
+    Misb1909OverlayRenderer.h
+    Misb1909OverlayRenderer.cpp
 )
 
 target_include_directories(Klv PUBLIC

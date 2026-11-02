@@ -10,10 +10,13 @@
 #include <QWidget>
 #include <cstdint>
 
+#include "Misb1909Types.h"
+
 namespace PelcoDApp {
 
 /// @class VideoOverlayWidget
-/// @brief Custom QWidget rendering decoded video frames alongside tactical compass, pitch, optics, and PTZ joystick HUD layers.
+/// @brief Custom QWidget rendering decoded video frames alongside tactical compass, pitch, optics, and PTZ joystick HUD
+/// layers.
 class VideoOverlayWidget : public QWidget {
     Q_OBJECT
 
@@ -41,6 +44,7 @@ public:
     void setShowPitchLadder(bool show);
     void setShowOpticsHud(bool show);
     void setShowDiagnostics(bool show);
+    void setShowMisb1909Hud(bool show);
     void setInteractivePtzEnabled(bool enabled);
 
     [[nodiscard]] bool isCrosshairVisible() const;
@@ -48,7 +52,15 @@ public:
     [[nodiscard]] bool isPitchLadderVisible() const;
     [[nodiscard]] bool isOpticsHudVisible() const;
     [[nodiscard]] bool isDiagnosticsVisible() const;
+    [[nodiscard]] bool isMisb1909HudVisible() const;
     [[nodiscard]] bool isInteractivePtzEnabled() const;
+
+    /// @brief Updates the MISB ST 1909.1 tactical HUD layout.
+    /// @param[in] layout Non-destructive normalized HUD presentation model.
+    void setTacticalOverlayLayout(const Klv::TacticalOverlayLayout& layout);
+
+    /// @brief Clears the active MISB ST 1909.1 HUD layout.
+    void clearTacticalOverlayLayout();
 
     /// @brief Renders the current frame to a QImage for snapshot capture.
     /// @param[in] includeOverlay True to bake HUD vector overlays into the exported image.
@@ -75,20 +87,12 @@ public slots:
     void setZoomInfo(int rawZoom, double magnification, double focalLengthMm);
 
     /// @brief Updates optical camera parameters.
-    void setOpticalStatus(const QString& focusMode,
-                          const QString& irisMode,
-                          const QString& oisMode,
-                          const QString& defogMode,
-                          const QString& dayNightMode);
+    void setOpticalStatus(const QString& focusMode, const QString& irisMode, const QString& oisMode,
+        const QString& defogMode, const QString& dayNightMode);
 
     /// @brief Updates stream diagnostics.
-    void setStreamDiagnostics(const QString& backend,
-                              int width,
-                              int height,
-                              double fps,
-                              double decodeMs,
-                              double rttMs,
-                              double jitterMs);
+    void setStreamDiagnostics(
+        const QString& backend, int width, int height, double fps, double decodeMs, double rttMs, double jitterMs);
 
 signals:
     /// @brief Emitted when the user interacts with the video canvas to command pan/tilt motion.
@@ -115,6 +119,7 @@ private:
     void drawPitchLadderLayer(QPainter& painter, const QRect& targetRect) const;
     void drawOpticsHudLayer(QPainter& painter, const QRect& targetRect) const;
     void drawDiagnosticsLayer(QPainter& painter, const QRect& targetRect) const;
+    void drawMisb1909Layer(QPainter& painter, const QRect& targetRect) const;
     void drawVirtualJoystickLayer(QPainter& painter) const;
 
     [[nodiscard]] QRect calculateAspectFitRect() const;
@@ -133,6 +138,9 @@ private:
     bool m_showPitchLadder { true };
     bool m_showOpticsHud { true };
     bool m_showDiagnostics { true };
+    bool m_showMisb1909Hud { true };
+    bool m_hasMisb1909Layout { false };
+    Klv::TacticalOverlayLayout m_misb1909Layout {};
     bool m_interactivePtzEnabled { true };
 
     // Device & PTZ state

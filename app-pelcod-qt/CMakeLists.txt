@@ -43,6 +43,7 @@ target_include_directories(PelcoDAppQt PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_SOURCE_DIR}/libs
+    ${CMAKE_SOURCE_DIR}/libs/Klv
     ${CMAKE_SOURCE_DIR}/libs/Video
     ${CMAKE_SOURCE_DIR}/libs/VideoFilters
     ${CMAKE_SOURCE_DIR}/libs/Tracking
@@ -54,6 +55,7 @@ target_link_libraries(PelcoDAppQt PRIVATE
     PelcoDSim
     Tracking
     Video
+    Klv
     Qt6::Widgets
 )
 
