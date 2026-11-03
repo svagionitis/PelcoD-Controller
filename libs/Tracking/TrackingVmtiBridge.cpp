@@ -1,9 +1,13 @@
 #include "TrackingVmtiBridge.h"
 
+#include <cstdint>
+
 #include <algorithm>
 #include <cmath>
-#include <cstdint>
 #include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace Tracking {
 
@@ -94,6 +98,59 @@ bool TrackingVmtiBridge::extractPixelDetection(const Klv::VTargetPack& pack, dou
     }
 
     return false;
+}
+
+Klv::VTrackPack TrackingVmtiBridge::buildTrackPack(const SphericalTargetState& state, std::uint32_t trackId,
+    Klv::TrackStatus status, double slantRangeMeters, const std::vector<Klv::TrackHistoryPoint>& history,
+    std::optional<std::uint64_t> startTimeUs, std::optional<std::uint32_t> durationUs) noexcept
+{
+    Klv::VTrackPack pack;
+    pack.trackId = trackId;
+    pack.status = status;
+
+    if (state.locked) {
+        const double conf = std::clamp(100.0 - (state.mahalanobisDistance * 10.0), 10.0, 99.0);
+        pack.confidence = static_cast<std::uint8_t>(std::lround(conf));
+    } else {
+        pack.confidence = static_cast<std::uint8_t>(0U);
+    }
+
+    if (slantRangeMeters > 0.0) {
+        const double vHoriz = slantRangeMeters * std::abs(state.azimuthVelocityRadPerSec);
+        const double vUp = slantRangeMeters * state.elevationVelocityRadPerSec;
+        pack.groundSpeedMps = vHoriz;
+        pack.velocityUpMps = vUp;
+
+        // Heading / course in [0, 360) deg
+        double course = std::fmod(state.azimuthRad * kRadToDeg, 360.0);
+        if (course < 0.0) {
+            course += 360.0;
+        }
+        pack.groundCourseDeg = course;
+
+        // Velocity East & North
+        pack.velocityEastMps = vHoriz * std::sin(state.azimuthRad);
+        pack.velocityNorthMps = vHoriz * std::cos(state.azimuthRad);
+    }
+
+    pack.historyTrail = history;
+    pack.trackStartTimeUs = startTimeUs;
+    pack.trackDurationUs = durationUs;
+
+    return pack;
+}
+
+Klv::OntologyLocalSet TrackingVmtiBridge::buildOntology(std::uint32_t trackId, Klv::StanagCategory category,
+    std::string_view label, std::uint8_t confidence, std::string_view sidc, std::string_view uri) noexcept
+{
+    Klv::OntologyLocalSet ontology;
+    ontology.ontologyId = trackId;
+    ontology.ontologyUri = std::string(uri);
+    ontology.category = category;
+    ontology.classLabel = std::string(label);
+    ontology.confidence = confidence;
+    ontology.sidcCode = std::string(sidc);
+    return ontology;
 }
 
 } // namespace Tracking

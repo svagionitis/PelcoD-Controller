@@ -36,7 +36,7 @@ The `libs/Klv`, `libs/Transport`, `libs/Mapping`, and `libs/DjiTelemetry` librar
 | **RFC 6597 / SMPTE ST 336** | Standalone KLV Metadata over RTP/UDP (Unmuxed Stream) | **Fully Implemented** | [KlvRtpPublisher.h](../libs/Transport/KlvRtpPublisher.h), [KlvRtpPacketizer.h](../libs/Transport/KlvRtpPacketizer.h), [KlvRtpTypes.h](../libs/Transport/KlvRtpTypes.h) |
 | **MISB ST 0902.11 / MISP** | Minimum Metadata Set (MMS) & Conformance Validation Engine | **Fully Implemented** | [KlvConformanceValidator.h](../libs/Klv/KlvConformanceValidator.h), [KlvValidationTypes.h](../libs/Klv/KlvValidationTypes.h) |
 | **MISB ST 1909.1** | Metadata Overlay for Visualization (Non-Destructive Tactical HUD) | **Fully Implemented** | [Misb1909Types.h](../libs/Klv/Misb1909Types.h), [Misb1909OverlayRenderer.h](../libs/Klv/Misb1909OverlayRenderer.h) |
-| **MISB ST 0903.6 / RP 0904** | VMTI Multi-Frame Target Tracking & Ontology Series (Tags 102/103) | **Planned (Phase 11)** | `libs/Klv/VmtiTypes.h`, `libs/Tracking/TrackingEngine.h` |
+| **MISB ST 0903.6 / RP 0904** | VMTI Multi-Frame Target Tracking & Ontology Series (Tags 102/103) | **Fully Implemented** | [VmtiTypes.h](../libs/Klv/VmtiTypes.h), [VmtiEncoder.h](../libs/Klv/VmtiEncoder.h), [VmtiParser.h](../libs/Klv/VmtiParser.h), [TrackingEngine.h](../libs/Tracking/TrackingEngine.h) |
 | **MISB ST 1108.3** | Motion Imagery Quality Metadata (MIQM / GSD / NIIRS / ISM) | **Planned (Phase 12)** | `libs/Klv/Misb1108Types.h`, `libs/Klv/Misb1108Encoder.h` |
 | **SMPTE ST 2022-1 / ST 2022-2** | 1D/2D Matrix Forward Error Correction (FEC) for MPEG-TS | **Planned (Phase 13)** | `libs/Transport/FecMpegTsPublisher.h`, `libs/Transport/FecTypes.h` |
 | **MISB ST 1910 / ISO 14496-12** | Timed KLV Track Container Recording (`klva` Box in MP4) | **Planned (Phase 14)** | `libs/Klv/Mp4KlvWriter.h`, `libs/Klv/Mp4KlvTypes.h` |
@@ -367,11 +367,12 @@ flowchart TD
   - Tactical flight instrument rendering: pitch ladder, artificial horizon bar, platform heading tape, sensor field of view reticle, laser designator status, and MGRS / geodetic coordinates.
 
 ### 3.23 VMTI Multi-Frame Target Tracking & Ontology Series (MISB ST 0903 Tag 102/103)
-- **Target Files**: `libs/Klv/VmtiTypes.h`, `libs/Tracking/TrackingEngine.h`
+- **Files**: [VmtiTypes.h](../libs/Klv/VmtiTypes.h), [VmtiEncoder.h](../libs/Klv/VmtiEncoder.h)/[.cpp](../libs/Klv/VmtiEncoder.cpp), [VmtiParser.h](../libs/Klv/VmtiParser.h)/[.cpp](../libs/Klv/VmtiParser.cpp), [TrackingEngine.h](../libs/Tracking/TrackingEngine.h)/[.cpp](../libs/Tracking/TrackingEngine.cpp), [TrackingVmtiBridge.h](../libs/Tracking/TrackingVmtiBridge.h)/[.cpp](../libs/Tracking/TrackingVmtiBridge.cpp)
 - **Features**:
   - Extends VMTI encoder/parser beyond Tag 101 single-frame bounding boxes to full multi-frame tracking series (Tag 102 `VTrack Pack`) and semantic classification (Tag 103 `Ontology Local Set`).
-  - Persistent Target Tracking: Track IDs, target kinematics (ground velocity vector, course, acceleration), track lifecycle state (Active, Coasting, Lost, Handoff), and historical track point trail.
-  - Classification Ontology: Standard NATO STANAG 1241 / 4676 object taxonomy (Dismount, Wheeled Vehicle, Tracked Armor, Vessel, Aircraft) coupled with detector model confidence scores.
+  - Persistent Target Tracking: Track IDs, target kinematics (ground velocity vector $V_E, V_N, V_U$, ground speed, course $[0^\circ, 360^\circ)$, acceleration), track lifecycle state (New, Active, Coasting, Dropped, Handoff), and historical track point trail.
+  - Classification Ontology: Standard NATO STANAG 1241 / 4676 object taxonomy (Dismount, Wheeled Vehicle, Tracked Armor, Vessel, Aircraft) coupled with detector model confidence scores and MIL-STD-2525 / APP-6 SIDC symbology.
+  - Multi-Target Tracking Engine (`TrackingEngine`): Coordinates data association (IoU and gating distances), Kalman state estimation, track persistence, and auto-framing handoff to `PtzAutoTracker`.
 
 ### 3.24 Motion Imagery Quality Metadata (MISB ST 1108.3 MIQM)
 - **Target Files**: `libs/Klv/Misb1108Types.h`, `libs/Klv/Misb1108Encoder.h`/`.cpp`
@@ -406,9 +407,9 @@ flowchart TD
 
 ## 4. Completed & Future Architectural Roadmap
 
-### 4.1 Completed Architectural Phases (Phases 1–10)
+### 4.1 Completed Architectural Phases (Phases 1–11)
 
-All 10 foundational architectural phases for the STANAG 4609 / MISB KLV ecosystem have been fully implemented, verified, and integrated with 100% test pass rate across 40 test suites:
+All 11 foundational architectural phases for the STANAG 4609 / MISB KLV ecosystem have been fully implemented, verified, and integrated with 100% test pass rate across 41 test suites:
 
 | Phase | Milestone | Priority | Status | Target Files / Primary Dependencies |
 | :---: | :--- | :--- | :---: | :--- |
@@ -422,16 +423,16 @@ All 10 foundational architectural phases for the STANAG 4609 / MISB KLV ecosyste
 | **Phase 8** | **Standalone KLV over RTP (`KlvRtpPublisher`)**<br>Direct transmission of SMPTE ST 336 KLV over RTP/UDP per RFC 6597 (Profile 2, `video/smpte336m`), eliminating MPEG-TS overhead for low-bandwidth tactical SDR radios and ATAK/WinTAK. | **High** | ✅ **IMPLEMENTED** | [KlvRtpPublisher.h](../libs/Transport/KlvRtpPublisher.h), [KlvRtpPublisher.cpp](../libs/Transport/KlvRtpPublisher.cpp)<br>Test: [TestKlvRtpPublisher.cpp](../libs/Transport/tests/TestKlvRtpPublisher.cpp) |
 | **Phase 9** | **Automated Conformance Engine (`KlvConformanceValidator`)**<br>Real-time / offline validation against MISB ST 0902.11 Minimum Metadata Set (MMS) and MISP-2025.1, enforcing mandatory tags, rates, ranges, and timing jitter bounds. | **High** | ✅ **IMPLEMENTED** | [KlvConformanceValidator.h](../libs/Klv/KlvConformanceValidator.h), [KlvConformanceValidator.cpp](../libs/Klv/KlvConformanceValidator.cpp), [KlvValidationTypes.h](../libs/Klv/KlvValidationTypes.h)<br>Test: [TestKlvConformanceValidator.cpp](../libs/Klv/tests/TestKlvConformanceValidator.cpp) |
 | **Phase 10** | **Tactical HUD Metadata Overlay (MISB ST 1909.1)**<br>Standardized, non-destructive tactical HUD layout generator rendering pitch ladders, heading tapes, FOV reticles, and coordinates on client viewports without burning into video pixels. | **Medium** | ✅ **IMPLEMENTED** | [Misb1909Types.h](../libs/Klv/Misb1909Types.h), [Misb1909OverlayRenderer.h](../libs/Klv/Misb1909OverlayRenderer.h)<br>[VideoOverlayWidget.h](../app-pelcod-qt/widgets/VideoOverlayWidget.h)<br>[TacticalHudFilter.h](../libs/VideoFilters/TacticalHudFilter.h)<br>Test: [TestMisb1909OverlayRenderer.cpp](../libs/Klv/tests/TestMisb1909OverlayRenderer.cpp) |
+| **Phase 11** | **VMTI Multi-Frame Target Tracking & Ontology (ST 0903 Tag 102/103)**<br>Multi-frame persistent target tracking series (Tag 102 VTrack Pack), kinematics, and STANAG 1241 / 4676 object taxonomy (Tag 103 Ontology Local Set) integrated with `TrackingEngine`. | **Medium** | ✅ **IMPLEMENTED** | [VmtiTypes.h](../libs/Klv/VmtiTypes.h), [VmtiParser.h](../libs/Klv/VmtiParser.h), [VmtiEncoder.h](../libs/Klv/VmtiEncoder.h), [TrackingEngine.h](../libs/Tracking/TrackingEngine.h), [TrackingVmtiBridge.h](../libs/Tracking/TrackingVmtiBridge.h)<br>Tests: [TestVmtiEncoderParser.cpp](../libs/Klv/tests/TestVmtiEncoderParser.cpp), [TestTrackingEngine.cpp](../libs/Tracking/tests/TestTrackingEngine.cpp) |
 
 ---
 
-### 4.2 Future Architectural Phases & Implementation Roadmap (Phases 11–15)
+### 4.2 Future Architectural Phases & Implementation Roadmap (Phases 12–15)
 
 The next sequence of architectural milestones extends the system across low-bandwidth tactical datalinks, standards verification, target tracking ontologies, and resilient network streaming:
 
 | Phase | Milestone | Priority | Status | Target Files / Primary Dependencies |
 | :---: | :--- | :---: | :---: | :--- |
-| **Phase 11** | **VMTI Multi-Frame Target Tracking & Ontology (ST 0903 Tag 102/103)**<br>Multi-frame persistent target tracking series (Tag 102 VTrack Pack), kinematics, and STANAG 1241 / 4676 object taxonomy (Tag 103 Ontology Local Set) integrated with `TrackingEngine`. | **Medium** | 📋 **PLANNED** | `libs/Klv/VmtiTypes.h`, `libs/Klv/VmtiParser.h`, `libs/Klv/VmtiEncoder.h`<br>`libs/Tracking/TrackingEngine.h` |
 | **Phase 12** | **Motion Imagery Quality Metadata (MISB ST 1108.3 MIQM)**<br>Ground Sample Distance (GSD), NIIRS rating estimation, and Image Sharpness Metric (ISM) computation for automated target recognition (ATR) confidence scoring. | **Medium** | 📋 **PLANNED** | `libs/Klv/Misb1108Types.h`, `libs/Klv/Misb1108Encoder.h`<br>`libs/Klv/KlvGeodesy.h` |
 | **Phase 13** | **1D/2D Matrix Forward Error Correction (SMPTE ST 2022-1/2 FEC)**<br>Pro-MPEG CoP #3 XOR parity matrix protection for STANAG 4609 MPEG-TS broadcasts over lossy tactical Wi-Fi, mesh networks, or SATCOM links. | **Medium** | 📋 **PLANNED** | `libs/Transport/FecMpegTsPublisher.h`, `libs/Transport/FecTypes.h`<br>`libs/Transport/MpegTsNetworkPublisher.h` |
 | **Phase 14** | **Timed KLV Track MP4 Container Storage (MISB ST 1910)**<br>Muxes synchronized H.264/H.265 video with synchronous/asynchronous KLV metadata inside ISO/IEC 14496-12 MP4 files (`klva` sample description box) for desktop playback. | **Low** | 📋 **PLANNED** | `libs/Klv/Mp4KlvWriter.h`, `libs/Klv/Mp4KlvTypes.h`<br>`libs/DjiTelemetry/Mp4TextTrackReader.h` |
@@ -940,8 +941,65 @@ The next sequence of architectural milestones extends the system across low-band
 ---
 
 ### 5.11 VMTI Multi-Frame Target Tracking & Ontology Series (MISB ST 0903 Tag 102/103)
-- **Target Files**: `libs/Klv/VmtiTypes.h`, `libs/Klv/VmtiParser.h`, `libs/Klv/VmtiEncoder.h`
-- **Objective**: Standardized representation of persistent multi-frame target tracks (Tag 102 `VTrack Pack`) and NATO STANAG 1241/4676 semantic object taxonomy (Tag 103 `Ontology Local Set`).
+- **Files**: [VmtiTypes.h](../libs/Klv/VmtiTypes.h), [VmtiEncoder.h](../libs/Klv/VmtiEncoder.h)/[.cpp](../libs/Klv/VmtiEncoder.cpp), [VmtiParser.h](../libs/Klv/VmtiParser.h)/[.cpp](../libs/Klv/VmtiParser.cpp), [TrackingEngine.h](../libs/Tracking/TrackingEngine.h)/[.cpp](../libs/Tracking/TrackingEngine.cpp), [TrackingVmtiBridge.h](../libs/Tracking/TrackingVmtiBridge.h)/[.cpp](../libs/Tracking/TrackingVmtiBridge.cpp)
+- **Unit Tests**: [TestVmtiEncoderParser.cpp](../libs/Klv/tests/TestVmtiEncoderParser.cpp) (9 test cases, 100% pass), [TestTrackingEngine.cpp](../libs/Tracking/tests/TestTrackingEngine.cpp) (5 test cases, 100% pass)
+- **Implementation Plan**: [klv_phase11_vmti_tracking_ontology_plan.md](klv_phase11_vmti_tracking_ontology_plan.md)
+- **Objective**: Standardized representation of persistent multi-frame target tracks (Tag 102 `VTrack Pack`) with 3D local-tangent kinematics ($V_E, V_N, V_U$, ground course, ground speed, acceleration), lifecycle status (`New`, `Active`, `Coasting`, `Dropped`, `Handoff`), trajectory point trail, and NATO STANAG 1241 / 4676 object taxonomy & MIL-STD-2525 SIDC classification (Tag 103 `Ontology Local Set`), coupled with the multi-target `TrackingEngine` coordinating data association (IoU and gating distances), Kalman state estimation, track persistence, and auto-framing handoff to `PtzAutoTracker`.
+- **Architecture**:
+  ```
+  +-----------------------------------------------------------------------------+
+  |               MULTI-FRAME TRACKING & ONTOLOGY ARCHITECTURE                  |
+  |                                                                             |
+  |   [Target Detections]                                                       |
+  |            │                                                                |
+  |            ▼                                                                |
+  |   +───────────────────+       IoU Gating                                    |
+  |   │   TrackingEngine  │ ◄────────────────────── [Kalman State Estimator]    |
+  |   +─────────┬─────────+                                                     |
+  |             │                                                               |
+  |             ├─► Lifecycle Management (New -> Active -> Coasting -> Dropped) |
+  |             ├─► Trajectory History Trail Buffer                             |
+  |             ├─► PTZ Auto-Framing Controller (Boresight Error & Zoom)        |
+  |             │                                                               |
+  |             ▼                                                               |
+  |   +───────────────────+                                                     |
+  |   │ TrackingVmtiBridge│                                                     |
+  |   +─────────┬─────────+                                                     |
+  |             │                                                               |
+  |             ├─► ST 0903 Tag 102 (VTrack Pack: Kinematics, Course, History)  |
+  |             └─► ST 0903 Tag 103 (Ontology Local Set: STANAG 1241 / 4676)    |
+  |                                                                             |
+  |                                     │                                       |
+  |                                     ▼                                       |
+  |                            [Composite VMTI Set]                             |
+  +-----------------------------------------------------------------------------+
+  ```
+
+  ```mermaid
+  flowchart TD
+      DET["Raw Detections / BBoxes"] --> ASSOC["Data Association (IoU & Gating)"]
+      ASSOC -->|Matched| UPD["Kalman Filter Update"]
+      ASSOC -->|Unmatched Det| NEW["New Track Initialization"]
+      ASSOC -->|Unmatched Track| COAST["Coasting State (TTL Frames)"]
+      
+      COAST -->|Timeout Exceeded| DROP["Dropped / Pruned"]
+      UPD --> ACTIVE["Active Track Persistence"]
+      ACTIVE --> HIST["Trajectory History Buffer (N points)"]
+      
+      HIST --> BRIDGE["TrackingVmtiBridge"]
+      ACTIVE --> BRIDGE
+      
+      BRIDGE --> VTRACK["ST 0903 Tag 102 (VTrack Pack)"]
+      TAXONOMY["STANAG 1241 / 4676 Taxonomy"] --> BRIDGE
+      BRIDGE --> ONTOLOGY["ST 0903 Tag 103 (Ontology Set)"]
+      
+      VTRACK --> VMTI["Composite VMTI Packet"]
+      ONTOLOGY --> VMTI
+      
+      ACTIVE --> AUTO["Primary Target PTZ Auto-Framing"]
+      AUTO --> PTZ["PtzAutoTracker Command Dispatch"]
+  ```
+
 - **Interface**:
   ```cpp
   #pragma once
@@ -957,34 +1015,127 @@ The next sequence of architectural milestones extends the system across low-band
   enum class TrackStatus : std::uint8_t {
       Active = 1U,
       Coasting = 2U,
-      Lost = 3U,
-      Handoff = 4U
+      Dropped = 3U,
+      New = 4U,
+      Handoff = 5U
   };
 
-  struct VTrackPoint {
+  enum class StanagCategory : std::uint8_t {
+      Unknown = 0U,
+      Dismount = 1U,
+      WheeledVehicle = 2U,
+      TrackedArmor = 3U,
+      Vessel = 4U,
+      Aircraft = 5U
+  };
+
+  struct TrackHistoryPoint {
       std::uint64_t timestampUs { 0U };
-      GeodeticCoord2d location {};
-      float pixelCol { 0.0F };
-      float pixelRow { 0.0F };
+      PixelCoord coordinates {};
+      std::optional<GeodeticCoord2d> position {};
   };
 
   struct VTrackPack {
       std::uint32_t trackId { 0U };
       TrackStatus status { TrackStatus::Active };
-      std::optional<float> groundSpeedMps {};
+      std::optional<float> velocityEastMps {};
+      std::optional<float> velocityNorthMps {};
+      std::optional<float> velocityUpMps {};
+      std::optional<float> accelerationMps2 {};
       std::optional<float> courseDeg {};
-      std::vector<VTrackPoint> trackHistory {};
+      std::optional<float> groundSpeedMps {};
+      std::vector<TrackHistoryPoint> history {};
       std::optional<MiisCoreId> targetId {};
   };
 
   struct OntologyLocalSet {
       std::uint32_t ontologyId { 1U };
-      std::string classLabel {}; // e.g. "Dismount", "Vehicle", "Vessel"
-      float confidenceScore { 1.0F }; // [0.0, 1.0]
+      StanagCategory category { StanagCategory::Unknown };
+      std::string classLabel {};
+      float confidenceScore { 1.0F };
       std::string modelIdentifier {};
+      std::string sidc2525 {};
   };
 
   } // namespace Klv
+  ```
+
+  ```cpp
+  #pragma once
+  #include <cstddef>
+  #include <cstdint>
+  #include <functional>
+  #include <memory>
+  #include <optional>
+  #include <vector>
+  #include "CameraIntrinsics.h"
+  #include "PtzAutoTracker.h"
+  #include "VmtiTypes.h"
+
+  namespace Tracking {
+
+  struct TrackingEngineConfig {
+      float iouGatingThreshold { 0.25F };
+      std::size_t maxCoastFrames { 10U };
+      std::size_t minHitsToActive { 3U };
+      std::size_t maxHistoryPoints { 16U };
+      CameraIntrinsics intrinsics {};
+      AutoZoomFramingConfig framingConfig {};
+      PidGains panGains { 0.05F, 0.001F, 0.01F };
+      PidGains tiltGains { 0.05F, 0.001F, 0.01F };
+      float deadbandDegrees { 0.2F };
+  };
+
+  struct TrackingEngineStats {
+      std::size_t totalTracksCreated { 0U };
+      std::size_t activeTrackCount { 0U };
+      std::size_t coastingTrackCount { 0U };
+      std::size_t droppedTrackCount { 0U };
+      std::uint64_t framesProcessed { 0U };
+  };
+
+  class TrackingEngine {
+  public:
+      using FramingCommandCallback =
+          std::function<void(const PtzAutoTracker::TrackingCommand&)>;
+
+      explicit TrackingEngine(const TrackingEngineConfig& config);
+      ~TrackingEngine();
+
+      void update(
+          const std::vector<Klv::PixelBoundingBox>& detections,
+          float panAngleDeg,
+          float tiltAngleDeg,
+          float zoomFactor,
+          float dt,
+          std::uint64_t timestampUs);
+
+      void setFramingCallback(FramingCommandCallback callback) noexcept;
+      void setPrimaryTrack(std::uint32_t trackId) noexcept;
+      [[nodiscard]] std::optional<std::uint32_t> primaryTrackId() const noexcept;
+
+      void setStanagTaxonomy(
+          std::uint32_t trackId,
+          Klv::StanagCategory category,
+          std::string_view label,
+          float confidence,
+          std::string_view sidc2525);
+
+      [[nodiscard]] Klv::VmtiLocalSet generateVmtiReport(
+          std::uint64_t timestampUs) const;
+
+      [[nodiscard]] TrackingEngineStats stats() const noexcept;
+      void reset() noexcept;
+
+  private:
+      struct TrackedEntity;
+      TrackingEngineConfig config_;
+      FramingCommandCallback framingCb_ {};
+      std::vector<std::unique_ptr<TrackedEntity>> tracks_ {};
+      // ...
+  };
+
+  } // namespace Tracking
   ```
 
 ---
@@ -1006,7 +1157,7 @@ All modules across `libs/Klv`, `libs/Transport`, `libs/Mapping`, `libs/Video`, `
 | **TestMasterTimeBase** | [TestMasterTimeBase.cpp](../libs/Klv/tests/TestMasterTimeBase.cpp) | 5 | System epoch and monotonic clock timebases, 90kHz PTS tick scaling, 33-bit rollover |
 | **TestPtsSyncManager** | [TestPtsSyncManager.cpp](../libs/Klv/tests/TestPtsSyncManager.cpp) | 10 | In-sync alignment, compliant skew handling, StrictClamp (<= 50ms), DropStale policy |
 | **TestKlvGeodesy** | [TestKlvGeodesy.cpp](../libs/Klv/tests/TestKlvGeodesy.cpp) | 7 | WGS-84 direct geodetic, slant range, camera frustum footprints, horizon clipping |
-| **TestVmtiEncoderParser** | [TestVmtiEncoderParser.cpp](../libs/Klv/tests/TestVmtiEncoderParser.cpp) | 6 | VMTI standalone and embedded round-trips, target row-major pixel coordinates |
+| **TestVmtiEncoderParser** | [TestVmtiEncoderParser.cpp](../libs/Klv/tests/TestVmtiEncoderParser.cpp) | 9 | VMTI standalone and embedded round-trips, target row-major pixel coordinates, Tag 102 VTrack Pack kinematics/history, Tag 103 Ontology taxonomy, composite multi-frame serialization |
 | **TestMisb1201** | [TestMisb1201.cpp](../libs/Klv/tests/TestMisb1201.cpp) | 5 | ST 1201 Appendix A standard test vectors (IMAPA, IMAPB, Zero Offset, Special Values) |
 | **TestFlightStreamValidation** | [TestFlightStreamValidation.cpp](../libs/Klv/tests/TestFlightStreamValidation.cpp) | 5 | End-to-end telemetry playback from flight video streams, seek recovery |
 | **TestRvtLocalSet** | [TestRvtLocalSet.cpp](../libs/Klv/tests/TestRvtLocalSet.cpp) | 7 | Standalone ST 0806 packet with CRC-32, POI/AOI/UserDefined serialization, ST 0601 Tag 73 |
@@ -1019,6 +1170,7 @@ All modules across `libs/Klv`, `libs/Transport`, `libs/Mapping`, `libs/Video`, `
 | **TestTelemetryInterpolator** | [TestTelemetryInterpolator.cpp](../libs/Klv/tests/TestTelemetryInterpolator.cpp) | 6 | Quaternion SLERP attitude interpolation, WGS-84 geodesic coordinate interpolation, extrapolation |
 | **TestTelemetryTimeIndex** | [TestTelemetryTimeIndex.cpp](../libs/Klv/tests/TestTelemetryTimeIndex.cpp) | 4 | Monotonic telemetry timestamp lookup, binary search nearest packet, time window slicing |
 | **TestPtzSlewToCueBridge** | [TestPtzSlewToCueBridge.cpp](../libs/Tracking/tests/TestPtzSlewToCueBridge.cpp) | 8 | Stationary mast target bearing, platform attitude derotation, coarse-to-fine transitions |
+| **TestTrackingEngine** | [TestTrackingEngine.cpp](../libs/Tracking/tests/TestTrackingEngine.cpp) | 5 | Track lifecycle (New->Active->Coasting->Dropped), multi-target IoU association, 3D kinematics & history trail buffer, STANAG taxonomy assignment, primary target PTZ auto-framing dispatch |
 | **TestMpegTsNetworkPublisher** | [TestMpegTsNetworkPublisher.cpp](../libs/Transport/tests/TestMpegTsNetworkPublisher.cpp) | 8 | Raw UDP streaming (1316 B), RFC 3550 RTP encapsulation (1328 B), multicast TTL/loopback |
 | **TestSdpGenerator** | [TestSdpGenerator.cpp](../libs/Transport/tests/TestSdpGenerator.cpp) | 5 | RFC 4566 SDP generation, unicast/multicast IP handling, RTP MP2T mapping, file write |
 | **TestKmlExporter** | [TestKmlExporter.cpp](../libs/Mapping/tests/TestKmlExporter.cpp) | 5 | OGC KML 2.2 `<gx:Track>` formatting, 3D frustum polyhedron extrusion, footprint styling |
@@ -1035,4 +1187,4 @@ All modules across `libs/Klv`, `libs/Transport`, `libs/Mapping`, `libs/Video`, `
 | **TestKlvRtpPublisher** | [TestKlvRtpPublisher.cpp](../libs/Transport/tests/TestKlvRtpPublisher.cpp) | 7 | RFC 6597 12-byte RTP headers, 90kHz timestamp conversion, unfragmented items (M=1), MTU fragmentation across multiple packets (M=0..1), bit-for-bit reassembly, RFC 4566 SDP generation, local UDP loopback transmission |
 | **TestKlvConformanceValidator** | [TestKlvConformanceValidator.cpp](../libs/Klv/tests/TestKlvConformanceValidator.cpp) | 11 | MISB ST 0902 MMS and MISP-2025.1 conformance, mandatory tags, 1Hz/10Hz rate cadence, timing jitter skew bounds, kinematics filtering, JSON/CLI report export |
 | **TestMisb1909OverlayRenderer** | [TestMisb1909OverlayRenderer.cpp](../libs/Klv/tests/TestMisb1909OverlayRenderer.cpp) | 14 | MISB ST 1909.1 angle/meter/ISO-8601 formatting, 8 standard layout groups, pitch ladder climb/dive rungs, roll derotation, heading tape wrapping and cardinals, MGRS coordinates, declutter levels, ERR55 zero-allocation safety |
-| **Total** | **40 Test Suites** | **315** | **100% Pass Rate** |
+| **Total** | **41 Test Suites** | **323** | **100% Pass Rate** |

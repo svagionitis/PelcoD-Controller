@@ -51,6 +51,34 @@ double VmtiParser::unscaleHae(std::uint16_t rawVal) noexcept
     return static_cast<double>(rawVal) - 900.0;
 }
 
+double VmtiParser::unscaleVelocity(std::uint32_t rawVal) noexcept
+{
+    const double norm = static_cast<double>(rawVal & 0x00FFFFFFU) * (655.35 / 16777215.0);
+    return norm - 327.68;
+}
+
+double VmtiParser::unscaleVelocityUp(std::uint16_t rawVal) noexcept
+{
+    const double norm = static_cast<double>(rawVal) * (200.0 / 65535.0);
+    return norm - 100.0;
+}
+
+double VmtiParser::unscaleAcceleration(std::uint16_t rawVal) noexcept
+{
+    const double norm = static_cast<double>(rawVal) * (100.0 / 65535.0);
+    return norm - 50.0;
+}
+
+double VmtiParser::unscaleCourse(std::uint16_t rawVal) noexcept
+{
+    return static_cast<double>(rawVal) * (360.0 / 65535.0);
+}
+
+double VmtiParser::unscaleSpeed(std::uint16_t rawVal) noexcept
+{
+    return static_cast<double>(rawVal) * (200.0 / 65535.0);
+}
+
 bool VmtiParser::parseTarget(const std::uint8_t* data, std::size_t size, VTargetPack& target, std::uint32_t frameWidth,
     std::uint32_t frameHeight)
 {
@@ -282,6 +310,312 @@ bool VmtiParser::parseSeries(const std::uint8_t* data, std::size_t size, std::ve
     return true;
 }
 
+bool VmtiParser::parseTrackPack(
+    const std::uint8_t* data, std::size_t size, VTrackPack& track, std::uint32_t frameWidth, std::uint32_t frameHeight)
+{
+    (void)frameHeight;
+    if (data == nullptr || size == 0U) {
+        return false;
+    }
+
+    std::size_t oidConsumed { 0U };
+    if (!KlvBer::decodeTag(data, size, track.trackId, oidConsumed)) {
+        return false;
+    }
+
+    std::size_t offset = oidConsumed;
+    while (offset < size) {
+        std::uint32_t tagId { 0U };
+        std::size_t tagConsumed { 0U };
+        if (!KlvBer::decodeTag(data + offset, size - offset, tagId, tagConsumed)) {
+            return false;
+        }
+        offset += tagConsumed;
+
+        std::size_t itemLen { 0U };
+        std::size_t lenConsumed { 0U };
+        if (!KlvBer::decodeLength(data + offset, size - offset, itemLen, lenConsumed)) {
+            return false;
+        }
+        offset += lenConsumed;
+
+        if (offset + itemLen > size) {
+            return false;
+        }
+
+        const std::uint8_t* val = data + offset;
+        switch (static_cast<VTrackTag>(tagId)) {
+        case VTrackTag::TrackStatus:
+            if (itemLen >= 1U) {
+                track.status = static_cast<TrackStatus>(val[0]);
+            }
+            break;
+        case VTrackTag::TrackConfidence:
+            if (itemLen >= 1U) {
+                track.confidence = val[0];
+            }
+            break;
+        case VTrackTag::VelocityEast:
+            if (itemLen >= 3U) {
+                const std::uint32_t raw = (static_cast<std::uint32_t>(val[0]) << 16U)
+                    | (static_cast<std::uint32_t>(val[1]) << 8U) | static_cast<std::uint32_t>(val[2]);
+                track.velocityEastMps = unscaleVelocity(raw);
+            }
+            break;
+        case VTrackTag::VelocityNorth:
+            if (itemLen >= 3U) {
+                const std::uint32_t raw = (static_cast<std::uint32_t>(val[0]) << 16U)
+                    | (static_cast<std::uint32_t>(val[1]) << 8U) | static_cast<std::uint32_t>(val[2]);
+                track.velocityNorthMps = unscaleVelocity(raw);
+            }
+            break;
+        case VTrackTag::VelocityUp:
+            if (itemLen >= 2U) {
+                const std::uint16_t raw = static_cast<std::uint16_t>(
+                    (static_cast<std::uint16_t>(val[0]) << 8U) | static_cast<std::uint16_t>(val[1]));
+                track.velocityUpMps = unscaleVelocityUp(raw);
+            }
+            break;
+        case VTrackTag::GroundCourse:
+            if (itemLen >= 2U) {
+                const std::uint16_t raw = static_cast<std::uint16_t>(
+                    (static_cast<std::uint16_t>(val[0]) << 8U) | static_cast<std::uint16_t>(val[1]));
+                track.groundCourseDeg = unscaleCourse(raw);
+            }
+            break;
+        case VTrackTag::GroundSpeed:
+            if (itemLen >= 2U) {
+                const std::uint16_t raw = static_cast<std::uint16_t>(
+                    (static_cast<std::uint16_t>(val[0]) << 8U) | static_cast<std::uint16_t>(val[1]));
+                track.groundSpeedMps = unscaleSpeed(raw);
+            }
+            break;
+        case VTrackTag::AccelerationEast:
+            if (itemLen >= 2U) {
+                const std::uint16_t raw = static_cast<std::uint16_t>(
+                    (static_cast<std::uint16_t>(val[0]) << 8U) | static_cast<std::uint16_t>(val[1]));
+                track.accelerationEastMps2 = unscaleAcceleration(raw);
+            }
+            break;
+        case VTrackTag::AccelerationNorth:
+            if (itemLen >= 2U) {
+                const std::uint16_t raw = static_cast<std::uint16_t>(
+                    (static_cast<std::uint16_t>(val[0]) << 8U) | static_cast<std::uint16_t>(val[1]));
+                track.accelerationNorthMps2 = unscaleAcceleration(raw);
+            }
+            break;
+        case VTrackTag::TrackHistory: {
+            std::size_t hOffset = 0U;
+            while (hOffset + 13U <= itemLen) {
+                std::uint64_t ts = 0U;
+                for (std::size_t i = 0U; i < 8U; ++i) {
+                    ts = (ts << 8U) | static_cast<std::uint64_t>(val[hOffset + i]);
+                }
+                hOffset += 8U;
+                std::uint32_t pixNum = 0U;
+                for (std::size_t i = 0U; i < 4U; ++i) {
+                    pixNum = (pixNum << 8U) | static_cast<std::uint32_t>(val[hOffset + i]);
+                }
+                hOffset += 4U;
+                const std::uint8_t flag = val[hOffset++];
+                TrackHistoryPoint pt;
+                pt.timestampUs = ts;
+                pt.pixelLocation = PixelCoord::fromPixelNumber(pixNum, frameWidth);
+                if (flag != 0U && hOffset + 20U <= itemLen) {
+                    std::uint64_t latBits = 0U;
+                    std::uint64_t lonBits = 0U;
+                    std::uint32_t haeBits = 0U;
+                    for (std::size_t i = 0U; i < 8U; ++i) {
+                        latBits = (latBits << 8U) | static_cast<std::uint64_t>(val[hOffset + i]);
+                    }
+                    hOffset += 8U;
+                    for (std::size_t i = 0U; i < 8U; ++i) {
+                        lonBits = (lonBits << 8U) | static_cast<std::uint64_t>(val[hOffset + i]);
+                    }
+                    hOffset += 8U;
+                    for (std::size_t i = 0U; i < 4U; ++i) {
+                        haeBits = (haeBits << 8U) | static_cast<std::uint32_t>(val[hOffset + i]);
+                    }
+                    hOffset += 4U;
+                    double lat = 0.0;
+                    double lon = 0.0;
+                    float hae = 0.0F;
+                    std::memcpy(&lat, &latBits, sizeof(double));
+                    std::memcpy(&lon, &lonBits, sizeof(double));
+                    std::memcpy(&hae, &haeBits, sizeof(float));
+                    pt.geodeticLocation = GeoPoint3D { lat, lon, static_cast<double>(hae) };
+                }
+                track.historyTrail.push_back(pt);
+            }
+            break;
+        }
+        case VTrackTag::TrackStartTime:
+            if (itemLen >= 8U) {
+                std::uint64_t ts = 0U;
+                for (std::size_t i = 0U; i < 8U; ++i) {
+                    ts = (ts << 8U) | static_cast<std::uint64_t>(val[i]);
+                }
+                track.trackStartTimeUs = ts;
+            }
+            break;
+        case VTrackTag::TrackDuration:
+            if (itemLen >= 4U) {
+                std::uint32_t dur = 0U;
+                for (std::size_t i = 0U; i < 4U; ++i) {
+                    dur = (dur << 8U) | static_cast<std::uint32_t>(val[i]);
+                }
+                track.trackDurationUs = dur;
+            }
+            break;
+        default:
+            break;
+        }
+
+        offset += itemLen;
+    }
+
+    return true;
+}
+
+bool VmtiParser::parseTrackSeries(const std::uint8_t* data, std::size_t size, std::vector<VTrackPack>& tracks,
+    std::uint32_t frameWidth, std::uint32_t frameHeight)
+{
+    if (data == nullptr || size == 0U) {
+        return false;
+    }
+
+    std::size_t offset = 0U;
+    while (offset < size) {
+        std::size_t packLen = 0U;
+        std::size_t lenConsumed = 0U;
+        if (!KlvBer::decodeLength(data + offset, size - offset, packLen, lenConsumed)) {
+            return false;
+        }
+        offset += lenConsumed;
+
+        if (offset + packLen > size) {
+            return false;
+        }
+
+        VTrackPack track;
+        if (parseTrackPack(data + offset, packLen, track, frameWidth, frameHeight)) {
+            tracks.push_back(track);
+        }
+
+        offset += packLen;
+    }
+
+    return true;
+}
+
+bool VmtiParser::parseOntologySet(const std::uint8_t* data, std::size_t size, OntologyLocalSet& ontology)
+{
+    if (data == nullptr || size == 0U) {
+        return false;
+    }
+
+    std::size_t offset = 0U;
+    while (offset < size) {
+        std::uint32_t tagId { 0U };
+        std::size_t tagConsumed { 0U };
+        if (!KlvBer::decodeTag(data + offset, size - offset, tagId, tagConsumed)) {
+            return false;
+        }
+        offset += tagConsumed;
+
+        std::size_t itemLen { 0U };
+        std::size_t lenConsumed { 0U };
+        if (!KlvBer::decodeLength(data + offset, size - offset, itemLen, lenConsumed)) {
+            return false;
+        }
+        offset += lenConsumed;
+
+        if (offset + itemLen > size) {
+            return false;
+        }
+
+        const std::uint8_t* val = data + offset;
+        switch (static_cast<OntologyTag>(tagId)) {
+        case OntologyTag::OntologyId: {
+            std::uint32_t idVal { 0U };
+            if (readVarUint(val, itemLen, idVal)) {
+                ontology.ontologyId = idVal;
+            }
+            break;
+        }
+        case OntologyTag::OntologyUri:
+            if (itemLen > 0U) {
+                ontology.ontologyUri = std::string(reinterpret_cast<const char*>(val), itemLen);
+            }
+            break;
+        case OntologyTag::ClassCategory:
+            if (itemLen >= 1U) {
+                ontology.category = static_cast<StanagCategory>(val[0]);
+            }
+            break;
+        case OntologyTag::ClassLabel:
+            if (itemLen > 0U) {
+                ontology.classLabel = std::string(reinterpret_cast<const char*>(val), itemLen);
+            }
+            break;
+        case OntologyTag::Confidence:
+            if (itemLen >= 1U) {
+                ontology.confidence = val[0];
+            }
+            break;
+        case OntologyTag::SidcCode:
+            if (itemLen > 0U) {
+                ontology.sidcCode = std::string(reinterpret_cast<const char*>(val), itemLen);
+            }
+            break;
+        case OntologyTag::AlgorithmId: {
+            std::uint32_t algVal { 0U };
+            if (readVarUint(val, itemLen, algVal)) {
+                ontology.algorithmId = algVal;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+
+        offset += itemLen;
+    }
+
+    return true;
+}
+
+bool VmtiParser::parseOntologySeries(
+    const std::uint8_t* data, std::size_t size, std::vector<OntologyLocalSet>& ontologies)
+{
+    if (data == nullptr || size == 0U) {
+        return false;
+    }
+
+    std::size_t offset = 0U;
+    while (offset < size) {
+        std::size_t setLen = 0U;
+        std::size_t lenConsumed = 0U;
+        if (!KlvBer::decodeLength(data + offset, size - offset, setLen, lenConsumed)) {
+            return false;
+        }
+        offset += lenConsumed;
+
+        if (offset + setLen > size) {
+            return false;
+        }
+
+        OntologyLocalSet ontology;
+        if (parseOntologySet(data + offset, setLen, ontology)) {
+            ontologies.push_back(ontology);
+        }
+
+        offset += setLen;
+    }
+
+    return true;
+}
+
 KlvStatus VmtiParser::parse(const std::uint8_t* data, std::size_t size, VmtiLocalSet& vmti, bool verifyChecksum)
 {
     if (data == nullptr || size == 0U) {
@@ -321,6 +655,10 @@ KlvStatus VmtiParser::parse(const std::uint8_t* data, std::size_t size, VmtiLoca
 
     const std::uint8_t* seriesData { nullptr };
     std::size_t seriesLen { 0U };
+    const std::uint8_t* trackSeriesData { nullptr };
+    std::size_t trackSeriesLen { 0U };
+    const std::uint8_t* ontologySeriesData { nullptr };
+    std::size_t ontologySeriesLen { 0U };
 
     std::size_t offset { 0U };
     while (offset < payloadSize) {
@@ -421,6 +759,14 @@ KlvStatus VmtiParser::parse(const std::uint8_t* data, std::size_t size, VmtiLoca
             seriesData = val;
             seriesLen = itemLen;
             break;
+        case VmtiTag::VTrackSeries:
+            trackSeriesData = val;
+            trackSeriesLen = itemLen;
+            break;
+        case VmtiTag::OntologySeries:
+            ontologySeriesData = val;
+            ontologySeriesLen = itemLen;
+            break;
         default:
             break;
         }
@@ -430,6 +776,18 @@ KlvStatus VmtiParser::parse(const std::uint8_t* data, std::size_t size, VmtiLoca
 
     if (seriesData != nullptr && seriesLen > 0U) {
         if (!parseSeries(seriesData, seriesLen, vmti.targets, vmti.frameWidth, vmti.frameHeight)) {
+            return KlvStatus::TagError;
+        }
+    }
+
+    if (trackSeriesData != nullptr && trackSeriesLen > 0U) {
+        if (!parseTrackSeries(trackSeriesData, trackSeriesLen, vmti.tracks, vmti.frameWidth, vmti.frameHeight)) {
+            return KlvStatus::TagError;
+        }
+    }
+
+    if (ontologySeriesData != nullptr && ontologySeriesLen > 0U) {
+        if (!parseOntologySeries(ontologySeriesData, ontologySeriesLen, vmti.ontologies)) {
             return KlvStatus::TagError;
         }
     }

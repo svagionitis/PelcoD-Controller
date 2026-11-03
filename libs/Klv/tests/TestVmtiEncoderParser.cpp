@@ -317,3 +317,197 @@ TEST(VmtiTest, VmtiExtendedTag17AndSensorTags)
     EXPECT_NEAR(*decT2.targetCe90M, 25.0, 0.5);
     EXPECT_FALSE(decT2.targetLe90M.has_value());
 }
+
+TEST(VmtiTest, VTrackTag102KinematicsAndHistoryRoundTrip)
+{
+    VmtiLocalSet original;
+    original.precisionTimeStampUs = 1700000000123456ULL;
+    original.systemName = "TRACK-ORCHESTRATOR";
+    original.version = 6U;
+    original.frameWidth = 1920U;
+    original.frameHeight = 1080U;
+
+    VTrackPack track1;
+    track1.trackId = 101U;
+    track1.status = TrackStatus::Active;
+    track1.confidence = 92U;
+    track1.velocityEastMps = 15.5; // m/s
+    track1.velocityNorthMps = -22.3; // m/s
+    track1.velocityUpMps = 1.2; // m/s
+    track1.groundCourseDeg = 145.2; // deg
+    track1.groundSpeedMps = 27.15; // m/s
+    track1.accelerationEastMps2 = 0.85; // m/s^2
+    track1.accelerationNorthMps2 = -1.15; // m/s^2
+    track1.trackStartTimeUs = 1699999000000000ULL;
+    track1.trackDurationUs = 1000123U;
+
+    TrackHistoryPoint pt1;
+    pt1.timestampUs = 1699999900000000ULL;
+    pt1.pixelLocation = PixelCoord { 500U, 400U };
+    pt1.geodeticLocation = GeoPoint3D { 37.7749, -122.4194, 150.0 };
+    track1.historyTrail.push_back(pt1);
+
+    TrackHistoryPoint pt2;
+    pt2.timestampUs = 1700000000000000ULL;
+    pt2.pixelLocation = PixelCoord { 520U, 410U };
+    pt2.geodeticLocation = GeoPoint3D { 37.7751, -122.4192, 151.0 };
+    track1.historyTrail.push_back(pt2);
+
+    original.tracks.push_back(track1);
+
+    // Round-trip standalone packet
+    const std::vector<std::uint8_t> packet = VmtiEncoder::encode(original, true);
+    ASSERT_FALSE(packet.empty());
+
+    VmtiLocalSet decoded;
+    const KlvStatus status = VmtiParser::parse(packet.data(), packet.size(), decoded, true);
+    EXPECT_EQ(status, KlvStatus::Success);
+
+    ASSERT_EQ(decoded.tracks.size(), 1U);
+    const auto& decTrack = decoded.tracks[0];
+    EXPECT_EQ(decTrack.trackId, 101U);
+    EXPECT_EQ(decTrack.status, TrackStatus::Active);
+    EXPECT_EQ(decTrack.confidence, 92U);
+
+    ASSERT_TRUE(decTrack.velocityEastMps.has_value());
+    EXPECT_NEAR(*decTrack.velocityEastMps, 15.5, 0.05);
+
+    ASSERT_TRUE(decTrack.velocityNorthMps.has_value());
+    EXPECT_NEAR(*decTrack.velocityNorthMps, -22.3, 0.05);
+
+    ASSERT_TRUE(decTrack.velocityUpMps.has_value());
+    EXPECT_NEAR(*decTrack.velocityUpMps, 1.2, 0.05);
+
+    ASSERT_TRUE(decTrack.groundCourseDeg.has_value());
+    EXPECT_NEAR(*decTrack.groundCourseDeg, 145.2, 0.05);
+
+    ASSERT_TRUE(decTrack.groundSpeedMps.has_value());
+    EXPECT_NEAR(*decTrack.groundSpeedMps, 27.15, 0.05);
+
+    ASSERT_TRUE(decTrack.accelerationEastMps2.has_value());
+    EXPECT_NEAR(*decTrack.accelerationEastMps2, 0.85, 0.05);
+
+    ASSERT_TRUE(decTrack.accelerationNorthMps2.has_value());
+    EXPECT_NEAR(*decTrack.accelerationNorthMps2, -1.15, 0.05);
+
+    ASSERT_TRUE(decTrack.trackStartTimeUs.has_value());
+    EXPECT_EQ(*decTrack.trackStartTimeUs, 1699999000000000ULL);
+
+    ASSERT_TRUE(decTrack.trackDurationUs.has_value());
+    EXPECT_EQ(*decTrack.trackDurationUs, 1000123U);
+
+    ASSERT_EQ(decTrack.historyTrail.size(), 2U);
+    EXPECT_EQ(decTrack.historyTrail[0].timestampUs, 1699999900000000ULL);
+    EXPECT_EQ(decTrack.historyTrail[0].pixelLocation.col, 500U);
+    EXPECT_EQ(decTrack.historyTrail[0].pixelLocation.row, 400U);
+    ASSERT_TRUE(decTrack.historyTrail[0].geodeticLocation.has_value());
+    EXPECT_NEAR(decTrack.historyTrail[0].geodeticLocation->latitudeDeg, 37.7749, 1e-4);
+    EXPECT_NEAR(decTrack.historyTrail[0].geodeticLocation->longitudeDeg, -122.4194, 1e-4);
+
+    EXPECT_EQ(decTrack.historyTrail[1].pixelLocation.col, 520U);
+    EXPECT_EQ(decTrack.historyTrail[1].pixelLocation.row, 410U);
+}
+
+TEST(VmtiTest, OntologyTag103TaxonomyRoundTrip)
+{
+    VmtiLocalSet original;
+    original.precisionTimeStampUs = 1700000000999999ULL;
+    original.systemName = "ATR-CLASSIFIER";
+    original.version = 6U;
+
+    OntologyLocalSet ont1;
+    ont1.ontologyId = 1U;
+    ont1.ontologyUri = "urn:nato:stanag:1241";
+    ont1.category = StanagCategory::TrackedArmor;
+    ont1.classLabel = "Main Battle Tank T-72";
+    ont1.confidence = 95U;
+    ont1.sidcCode = "SFGPUCA----";
+    ont1.algorithmId = 42U;
+    original.ontologies.push_back(ont1);
+
+    OntologyLocalSet ont2;
+    ont2.ontologyId = 2U;
+    ont2.ontologyUri = "urn:nato:stanag:4676";
+    ont2.category = StanagCategory::WheeledVehicle;
+    ont2.classLabel = "Military Supply Truck";
+    ont2.confidence = 88U;
+    ont2.sidcCode = "SFGPUCV----";
+    original.ontologies.push_back(ont2);
+
+    const std::vector<std::uint8_t> packet = VmtiEncoder::encode(original, true);
+    ASSERT_FALSE(packet.empty());
+
+    VmtiLocalSet decoded;
+    const KlvStatus status = VmtiParser::parse(packet.data(), packet.size(), decoded, true);
+    EXPECT_EQ(status, KlvStatus::Success);
+
+    ASSERT_EQ(decoded.ontologies.size(), 2U);
+
+    EXPECT_EQ(decoded.ontologies[0].ontologyId, 1U);
+    EXPECT_EQ(decoded.ontologies[0].ontologyUri, "urn:nato:stanag:1241");
+    EXPECT_EQ(decoded.ontologies[0].category, StanagCategory::TrackedArmor);
+    EXPECT_EQ(decoded.ontologies[0].classLabel, "Main Battle Tank T-72");
+    EXPECT_EQ(decoded.ontologies[0].confidence, 95U);
+    EXPECT_EQ(decoded.ontologies[0].sidcCode, "SFGPUCA----");
+    ASSERT_TRUE(decoded.ontologies[0].algorithmId.has_value());
+    EXPECT_EQ(*decoded.ontologies[0].algorithmId, 42U);
+
+    EXPECT_EQ(decoded.ontologies[1].ontologyId, 2U);
+    EXPECT_EQ(decoded.ontologies[1].ontologyUri, "urn:nato:stanag:4676");
+    EXPECT_EQ(decoded.ontologies[1].category, StanagCategory::WheeledVehicle);
+    EXPECT_EQ(decoded.ontologies[1].classLabel, "Military Supply Truck");
+    EXPECT_EQ(decoded.ontologies[1].confidence, 88U);
+    EXPECT_EQ(decoded.ontologies[1].sidcCode, "SFGPUCV----");
+    EXPECT_FALSE(decoded.ontologies[1].algorithmId.has_value());
+}
+
+TEST(VmtiTest, CompositeMultiFrameTags101And102And103)
+{
+    VmtiLocalSet original;
+    original.precisionTimeStampUs = 1700000001000000ULL;
+    original.version = 6U;
+    original.frameWidth = 1920U;
+    original.frameHeight = 1080U;
+
+    // Tag 101: Single-frame detection chip
+    VTargetPack target;
+    target.targetId = 7U;
+    target.centroid = PixelCoord { 960U, 540U };
+    target.priority = 1U;
+    target.confidence = 90U;
+    original.targets.push_back(target);
+
+    // Tag 102: Persistent track with velocity
+    VTrackPack track;
+    track.trackId = 7U;
+    track.status = TrackStatus::Active;
+    track.confidence = 90U;
+    track.velocityEastMps = 10.0;
+    track.velocityNorthMps = 5.0;
+    track.groundSpeedMps = 11.18;
+    track.groundCourseDeg = 63.4;
+    original.tracks.push_back(track);
+
+    // Tag 103: STANAG taxonomy
+    OntologyLocalSet ontology;
+    ontology.ontologyId = 7U;
+    ontology.category = StanagCategory::Dismount;
+    ontology.classLabel = "Infantry Squad";
+    ontology.confidence = 85U;
+    original.ontologies.push_back(ontology);
+
+    // Test both Standalone and Embedded
+    const std::vector<std::uint8_t> standalone = VmtiEncoder::encode(original, true);
+    VmtiLocalSet decodedStandalone;
+    EXPECT_EQ(VmtiParser::parse(standalone.data(), standalone.size(), decodedStandalone, true), KlvStatus::Success);
+    EXPECT_EQ(decodedStandalone.targets.size(), 1U);
+    EXPECT_EQ(decodedStandalone.tracks.size(), 1U);
+    EXPECT_EQ(decodedStandalone.ontologies.size(), 1U);
+
+    const std::vector<std::uint8_t> embedded = VmtiEncoder::encode(original, false);
+    VmtiLocalSet decodedEmbedded;
+    EXPECT_EQ(VmtiParser::parse(embedded.data(), embedded.size(), decodedEmbedded, false), KlvStatus::Success);
+    EXPECT_EQ(decodedEmbedded.targets.size(), 1U);
+    EXPECT_EQ(decodedEmbedded.tracks.size(), 1U);
+    EXPECT_EQ(decodedEmbedded.ontologies.size(), 1U);
+}

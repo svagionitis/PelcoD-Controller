@@ -44,8 +44,61 @@ enum class VmtiTag : std::uint32_t {
     VerticalFov = 12U, ///< Sensor vertical FOV (IMAPB 2 bytes)
     MiisId = 13U, ///< MISB ST 1204 MIIS Core Identifier
     VTargetSeries = 101U, ///< Series of VTarget Packs (variable length Series)
-    AlgorithmSeries = 102U, ///< Series of Algorithm Local Sets (optional)
+    VTrackSeries = 102U, ///< Series of VTrack Packs (MISB ST 0903 Tag 102)
+    AlgorithmSeries = 102U, ///< Series of Algorithm Local Sets (alias for Tag 102)
     OntologySeries = 103U ///< Series of Ontology Local Sets (optional)
+};
+
+/// @enum VTrackTag
+/// @brief MISB ST 0903 Tag 102 VTrack Pack element tags.
+enum class VTrackTag : std::uint32_t {
+    TrackId = 1U, ///< Unique track identifier (BER-OID / uint32)
+    TrackStatus = 2U, ///< Lifecycle status (1=New, 2=Active, 3=Coasting, 4=Dropped, 5=Handoff)
+    TrackConfidence = 3U, ///< Target track confidence [0, 100]% (uint8)
+    VelocityEast = 4U, ///< Target velocity East (IMAPB 3 bytes, m/s)
+    VelocityNorth = 5U, ///< Target velocity North (IMAPB 3 bytes, m/s)
+    VelocityUp = 6U, ///< Target velocity Up (IMAPB 2 bytes, m/s)
+    GroundCourse = 7U, ///< Target ground course heading [0, 360) deg (uint16)
+    GroundSpeed = 8U, ///< Target horizontal ground speed [0, 200] m/s (uint16)
+    AccelerationEast = 9U, ///< Target acceleration East (IMAPB 2 bytes, m/s^2)
+    AccelerationNorth = 10U, ///< Target acceleration North (IMAPB 2 bytes, m/s^2)
+    TrackHistory = 11U, ///< Series of historical trajectory points
+    TrackStartTime = 12U, ///< Track start epoch microseconds (uint64)
+    TrackDuration = 13U ///< Active tracking duration in microseconds (uint32)
+};
+
+/// @enum OntologyTag
+/// @brief MISB ST 0903 Tag 103 Ontology Local Set element tags.
+enum class OntologyTag : std::uint32_t {
+    OntologyId = 1U, ///< Unique ontology / target identifier (BER-OID / uint32)
+    OntologyUri = 2U, ///< Ontology taxonomy URI / URN string
+    ClassCategory = 3U, ///< STANAG 1241 / 4676 classification category enum (uint8)
+    ClassLabel = 4U, ///< Human-readable taxonomy class label string
+    Confidence = 5U, ///< Classification confidence percentage [0, 100]% (uint8)
+    SidcCode = 6U, ///< MIL-STD-2525 / APP-6 symbol identifier string
+    AlgorithmId = 7U ///< Reference ID to algorithm local set (uint32)
+};
+
+/// @enum TrackStatus
+/// @brief Operational lifecycle condition of a persistent target track.
+enum class TrackStatus : std::uint8_t {
+    New = 1U, ///< Track initiated in current frame
+    Active = 2U, ///< Track actively updated with direct visual detection
+    Coasting = 3U, ///< Track predicted on dead reckoning / Kalman coasting
+    Dropped = 4U, ///< Track terminated or lost
+    Handoff = 5U ///< Track handed off to external sensor / cue
+};
+
+/// @enum StanagCategory
+/// @brief Standard NATO STANAG 1241 / 4676 target classification category.
+enum class StanagCategory : std::uint8_t {
+    Unknown = 0U,
+    Dismount = 1U, ///< Personnel, infantry, pedestrian
+    WheeledVehicle = 2U, ///< Light vehicle, car, truck, bus
+    TrackedArmor = 3U, ///< Tank, APC, IFV, artillery
+    Watercraft = 4U, ///< Vessel, boat, submarine, surface combatant
+    FixedWingAircraft = 5U, ///< Airplane, jet, UAV fixed-wing
+    RotaryWingAircraft = 6U ///< Helicopter, quadcopter, multicopter UAS
 };
 
 /// @enum VTargetTag
@@ -117,6 +170,54 @@ struct PixelBoundingBox {
     }
 };
 
+/// @struct TrackHistoryPoint
+/// @brief Historical waypoint record in a persistent target trajectory trail.
+struct TrackHistoryPoint {
+    std::uint64_t timestampUs { 0U };
+    PixelCoord pixelLocation {};
+    std::optional<GeoPoint3D> geodeticLocation {};
+};
+
+/// @struct VTrackPack
+/// @brief Strongly-typed MISB ST 0903 Tag 102 persistent multi-frame target track.
+struct VTrackPack {
+    std::uint32_t trackId { 0U };
+    TrackStatus status { TrackStatus::New };
+    std::uint8_t confidence { 0U };
+
+    // 3D Kinematics in local-tangent frame (m/s)
+    std::optional<double> velocityEastMps {};
+    std::optional<double> velocityNorthMps {};
+    std::optional<double> velocityUpMps {};
+
+    // Horizontal polar kinematics
+    std::optional<double> groundSpeedMps {};
+    std::optional<double> groundCourseDeg {}; // [0, 360)
+
+    // Acceleration (m/s^2)
+    std::optional<double> accelerationEastMps2 {};
+    std::optional<double> accelerationNorthMps2 {};
+
+    // Trajectory history trail
+    std::vector<TrackHistoryPoint> historyTrail {};
+
+    // Temporal metadata
+    std::optional<std::uint64_t> trackStartTimeUs {};
+    std::optional<std::uint32_t> trackDurationUs {};
+};
+
+/// @struct OntologyLocalSet
+/// @brief Strongly-typed MISB ST 0903 Tag 103 semantic classification local set.
+struct OntologyLocalSet {
+    std::uint32_t ontologyId { 0U };
+    std::string ontologyUri { "urn:nato:stanag:1241" };
+    StanagCategory category { StanagCategory::Unknown };
+    std::string classLabel {};
+    std::uint8_t confidence { 0U };
+    std::string sidcCode {}; // MIL-STD-2525 / APP-6
+    std::optional<std::uint32_t> algorithmId {};
+};
+
 /// @struct VTargetPack
 /// @brief Strongly-typed representation of an individual MISB ST 0903 VTarget Pack.
 struct VTargetPack {
@@ -150,6 +251,8 @@ struct VmtiLocalSet {
     std::optional<double> verticalFovDeg {}; ///< Tag 12: Sensor vertical FOV [0, 180] deg
     std::optional<MiisCoreId> miisId {}; ///< Tag 13: MISB ST 1204 MIIS Core Identifier
     std::vector<VTargetPack> targets {}; ///< Tag 101: VTarget Series
+    std::vector<VTrackPack> tracks {}; ///< Tag 102: VTrack Series
+    std::vector<OntologyLocalSet> ontologies {}; ///< Tag 103: Ontology Series
     std::uint32_t frameWidth { 1920U }; ///< Frame width for pixel conversions
     std::uint32_t frameHeight { 1080U }; ///< Frame height for pixel conversions
 };

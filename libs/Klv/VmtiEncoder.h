@@ -49,6 +49,34 @@ public:
     /// @param[out] out Destination vector to append Tag 101 TLV.
     static void encodeSeries(const std::vector<VTargetPack>& targets, std::uint32_t frameWidth,
         std::uint32_t frameHeight, std::vector<std::uint8_t>& out);
+
+    /// @brief Scales velocity in m/s to IMAPB(-327.68, 327.67, 3) 24-bit unsigned integer.
+    [[nodiscard]] static std::uint32_t scaleVelocity(double vMps) noexcept;
+
+    /// @brief Scales vertical velocity in m/s to IMAPB(-100, 100, 2) 16-bit unsigned integer.
+    [[nodiscard]] static std::uint16_t scaleVelocityUp(double vMps) noexcept;
+
+    /// @brief Scales acceleration in m/s^2 to IMAPB(-50, 50, 2) 16-bit unsigned integer.
+    [[nodiscard]] static std::uint16_t scaleAcceleration(double aMps2) noexcept;
+
+    /// @brief Scales ground course heading in degrees to 16-bit unsigned integer [0, 360) deg.
+    [[nodiscard]] static std::uint16_t scaleCourse(double courseDeg) noexcept;
+
+    /// @brief Scales ground speed in m/s to 16-bit unsigned integer [0, 200] m/s.
+    [[nodiscard]] static std::uint16_t scaleSpeed(double speedMps) noexcept;
+
+    /// @brief Encodes an individual VTrackPack into binary bytes.
+    static void encodeTrackPack(const VTrackPack& track, std::uint32_t frameWidth, std::vector<std::uint8_t>& out);
+
+    /// @brief Encodes a series of VTrackPacks into Tag 102 series format.
+    static void encodeTrackSeries(
+        const std::vector<VTrackPack>& tracks, std::uint32_t frameWidth, std::vector<std::uint8_t>& out);
+
+    /// @brief Encodes an individual OntologyLocalSet into binary bytes.
+    static void encodeOntologySet(const OntologyLocalSet& ontology, std::vector<std::uint8_t>& out);
+
+    /// @brief Encodes a series of OntologyLocalSets into Tag 103 series format.
+    static void encodeOntologySeries(const std::vector<OntologyLocalSet>& ontologies, std::vector<std::uint8_t>& out);
 };
 
 } // namespace Klv

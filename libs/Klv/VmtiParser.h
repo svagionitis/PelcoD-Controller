@@ -63,6 +63,36 @@ public:
     /// @return True if parsing succeeded; false otherwise.
     [[nodiscard]] static bool parseSeries(const std::uint8_t* data, std::size_t size, std::vector<VTargetPack>& targets,
         std::uint32_t frameWidth, std::uint32_t frameHeight);
+
+    /// @brief Unscales an IMAPB(-327.68, 327.67, 3) 24-bit unsigned integer to m/s.
+    [[nodiscard]] static double unscaleVelocity(std::uint32_t rawVal) noexcept;
+
+    /// @brief Unscales an IMAPB(-100, 100, 2) 16-bit unsigned integer to m/s.
+    [[nodiscard]] static double unscaleVelocityUp(std::uint16_t rawVal) noexcept;
+
+    /// @brief Unscales an IMAPB(-50, 50, 2) 16-bit unsigned integer to m/s^2.
+    [[nodiscard]] static double unscaleAcceleration(std::uint16_t rawVal) noexcept;
+
+    /// @brief Unscales a 16-bit unsigned integer to degrees [0, 360).
+    [[nodiscard]] static double unscaleCourse(std::uint16_t rawVal) noexcept;
+
+    /// @brief Unscales a 16-bit unsigned integer to m/s [0, 200].
+    [[nodiscard]] static double unscaleSpeed(std::uint16_t rawVal) noexcept;
+
+    /// @brief Parses an individual VTrackPack from a memory buffer.
+    [[nodiscard]] static bool parseTrackPack(const std::uint8_t* data, std::size_t size, VTrackPack& track,
+        std::uint32_t frameWidth, std::uint32_t frameHeight);
+
+    /// @brief Parses a Tag 102 VTrackSeries into track packs.
+    [[nodiscard]] static bool parseTrackSeries(const std::uint8_t* data, std::size_t size,
+        std::vector<VTrackPack>& tracks, std::uint32_t frameWidth, std::uint32_t frameHeight);
+
+    /// @brief Parses an individual OntologyLocalSet from a memory buffer.
+    [[nodiscard]] static bool parseOntologySet(const std::uint8_t* data, std::size_t size, OntologyLocalSet& ontology);
+
+    /// @brief Parses a Tag 103 OntologySeries into ontology sets.
+    [[nodiscard]] static bool parseOntologySeries(
+        const std::uint8_t* data, std::size_t size, std::vector<OntologyLocalSet>& ontologies);
 };
 
 } // namespace Klv

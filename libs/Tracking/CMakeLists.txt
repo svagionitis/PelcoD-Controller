@@ -25,6 +25,8 @@ add_library(Tracking STATIC
     TransientShockDetector.cpp
     TrackingVmtiBridge.h
     TrackingVmtiBridge.cpp
+    TrackingEngine.h
+    TrackingEngine.cpp
     PtzSlewToCueBridge.h
     PtzSlewToCueBridge.cpp
     Tracking.h

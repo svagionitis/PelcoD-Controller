@@ -61,6 +61,59 @@ std::uint16_t VmtiEncoder::scaleHae(double haeM) noexcept
     return static_cast<std::uint16_t>(std::clamp(scaled, 0.0, 65535.0));
 }
 
+std::uint32_t VmtiEncoder::scaleVelocity(double vMps) noexcept
+{
+    if (!std::isfinite(vMps)) {
+        return 0U;
+    }
+    const double clamped = std::clamp(vMps, -327.68, 327.67);
+    const double scaled = std::round((clamped + 327.68) * (16777215.0 / 655.35));
+    return static_cast<std::uint32_t>(std::clamp(scaled, 0.0, 16777215.0));
+}
+
+std::uint16_t VmtiEncoder::scaleVelocityUp(double vMps) noexcept
+{
+    if (!std::isfinite(vMps)) {
+        return 0U;
+    }
+    const double clamped = std::clamp(vMps, -100.0, 100.0);
+    const double scaled = std::round((clamped + 100.0) * (65535.0 / 200.0));
+    return static_cast<std::uint16_t>(std::clamp(scaled, 0.0, 65535.0));
+}
+
+std::uint16_t VmtiEncoder::scaleAcceleration(double aMps2) noexcept
+{
+    if (!std::isfinite(aMps2)) {
+        return 0U;
+    }
+    const double clamped = std::clamp(aMps2, -50.0, 50.0);
+    const double scaled = std::round((clamped + 50.0) * (65535.0 / 100.0));
+    return static_cast<std::uint16_t>(std::clamp(scaled, 0.0, 65535.0));
+}
+
+std::uint16_t VmtiEncoder::scaleCourse(double courseDeg) noexcept
+{
+    if (!std::isfinite(courseDeg)) {
+        return 0U;
+    }
+    double wrapped = std::fmod(courseDeg, 360.0);
+    if (wrapped < 0.0) {
+        wrapped += 360.0;
+    }
+    const double scaled = std::round(wrapped * (65535.0 / 360.0));
+    return static_cast<std::uint16_t>(std::clamp(scaled, 0.0, 65535.0));
+}
+
+std::uint16_t VmtiEncoder::scaleSpeed(double speedMps) noexcept
+{
+    if (!std::isfinite(speedMps)) {
+        return 0U;
+    }
+    const double clamped = std::clamp(speedMps, 0.0, 200.0);
+    const double scaled = std::round(clamped * (65535.0 / 200.0));
+    return static_cast<std::uint16_t>(std::clamp(scaled, 0.0, 65535.0));
+}
+
 void VmtiEncoder::encodeTarget(
     const VTargetPack& target, std::uint32_t frameWidth, std::uint32_t frameHeight, std::vector<std::uint8_t>& out)
 {
@@ -227,6 +280,241 @@ void VmtiEncoder::encodeSeries(const std::vector<VTargetPack>& targets, std::uin
     out.insert(out.end(), seriesPayload.begin(), seriesPayload.end());
 }
 
+void VmtiEncoder::encodeTrackPack(const VTrackPack& track, std::uint32_t frameWidth, std::vector<std::uint8_t>& out)
+{
+    // 1. Mandatory BER-OID trackId
+    KlvBer::encodeTag(track.trackId, out);
+
+    // 2. Tag 2: TrackStatus
+    out.push_back(static_cast<std::uint8_t>(VTrackTag::TrackStatus));
+    out.push_back(1U);
+    out.push_back(static_cast<std::uint8_t>(track.status));
+
+    // 3. Tag 3: TrackConfidence
+    out.push_back(static_cast<std::uint8_t>(VTrackTag::TrackConfidence));
+    out.push_back(1U);
+    out.push_back(track.confidence);
+
+    // 4. Tag 4: VelocityEast (3 bytes)
+    if (track.velocityEastMps.has_value()) {
+        const std::uint32_t raw = scaleVelocity(*track.velocityEastMps);
+        out.push_back(static_cast<std::uint8_t>(VTrackTag::VelocityEast));
+        out.push_back(3U);
+        out.push_back(static_cast<std::uint8_t>((raw >> 16U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>((raw >> 8U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>(raw & 0xFFU));
+    }
+
+    // 5. Tag 5: VelocityNorth (3 bytes)
+    if (track.velocityNorthMps.has_value()) {
+        const std::uint32_t raw = scaleVelocity(*track.velocityNorthMps);
+        out.push_back(static_cast<std::uint8_t>(VTrackTag::VelocityNorth));
+        out.push_back(3U);
+        out.push_back(static_cast<std::uint8_t>((raw >> 16U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>((raw >> 8U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>(raw & 0xFFU));
+    }
+
+    // 6. Tag 6: VelocityUp (2 bytes)
+    if (track.velocityUpMps.has_value()) {
+        const std::uint16_t raw = scaleVelocityUp(*track.velocityUpMps);
+        out.push_back(static_cast<std::uint8_t>(VTrackTag::VelocityUp));
+        out.push_back(2U);
+        out.push_back(static_cast<std::uint8_t>((raw >> 8U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>(raw & 0xFFU));
+    }
+
+    // 7. Tag 7: GroundCourse (2 bytes)
+    if (track.groundCourseDeg.has_value()) {
+        const std::uint16_t raw = scaleCourse(*track.groundCourseDeg);
+        out.push_back(static_cast<std::uint8_t>(VTrackTag::GroundCourse));
+        out.push_back(2U);
+        out.push_back(static_cast<std::uint8_t>((raw >> 8U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>(raw & 0xFFU));
+    }
+
+    // 8. Tag 8: GroundSpeed (2 bytes)
+    if (track.groundSpeedMps.has_value()) {
+        const std::uint16_t raw = scaleSpeed(*track.groundSpeedMps);
+        out.push_back(static_cast<std::uint8_t>(VTrackTag::GroundSpeed));
+        out.push_back(2U);
+        out.push_back(static_cast<std::uint8_t>((raw >> 8U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>(raw & 0xFFU));
+    }
+
+    // 9. Tag 9: AccelerationEast (2 bytes)
+    if (track.accelerationEastMps2.has_value()) {
+        const std::uint16_t raw = scaleAcceleration(*track.accelerationEastMps2);
+        out.push_back(static_cast<std::uint8_t>(VTrackTag::AccelerationEast));
+        out.push_back(2U);
+        out.push_back(static_cast<std::uint8_t>((raw >> 8U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>(raw & 0xFFU));
+    }
+
+    // 10. Tag 10: AccelerationNorth (2 bytes)
+    if (track.accelerationNorthMps2.has_value()) {
+        const std::uint16_t raw = scaleAcceleration(*track.accelerationNorthMps2);
+        out.push_back(static_cast<std::uint8_t>(VTrackTag::AccelerationNorth));
+        out.push_back(2U);
+        out.push_back(static_cast<std::uint8_t>((raw >> 8U) & 0xFFU));
+        out.push_back(static_cast<std::uint8_t>(raw & 0xFFU));
+    }
+
+    // 11. Tag 11: TrackHistory
+    if (!track.historyTrail.empty()) {
+        std::vector<std::uint8_t> histBytes;
+        for (const auto& pt : track.historyTrail) {
+            // timestampUs (8B)
+            for (int i = 7; i >= 0; --i) {
+                histBytes.push_back(static_cast<std::uint8_t>((pt.timestampUs >> (i * 8)) & 0xFFU));
+            }
+            // pixel linear address (4B)
+            const std::uint32_t pixNum = pt.pixelLocation.toPixelNumber(frameWidth);
+            for (int i = 3; i >= 0; --i) {
+                histBytes.push_back(static_cast<std::uint8_t>((pixNum >> (i * 8)) & 0xFFU));
+            }
+            // flag (1B)
+            if (pt.geodeticLocation.has_value()) {
+                histBytes.push_back(1U);
+                const double lat = pt.geodeticLocation->latitudeDeg;
+                const double lon = pt.geodeticLocation->longitudeDeg;
+                const float hae = static_cast<float>(pt.geodeticLocation->altitudeM);
+                std::uint64_t latBits = 0;
+                std::uint64_t lonBits = 0;
+                std::uint32_t haeBits = 0;
+                std::memcpy(&latBits, &lat, sizeof(double));
+                std::memcpy(&lonBits, &lon, sizeof(double));
+                std::memcpy(&haeBits, &hae, sizeof(float));
+                for (int i = 7; i >= 0; --i) {
+                    histBytes.push_back(static_cast<std::uint8_t>((latBits >> (i * 8)) & 0xFFU));
+                }
+                for (int i = 7; i >= 0; --i) {
+                    histBytes.push_back(static_cast<std::uint8_t>((lonBits >> (i * 8)) & 0xFFU));
+                }
+                for (int i = 3; i >= 0; --i) {
+                    histBytes.push_back(static_cast<std::uint8_t>((haeBits >> (i * 8)) & 0xFFU));
+                }
+            } else {
+                histBytes.push_back(0U);
+            }
+        }
+        KlvBer::encodeTag(static_cast<std::uint32_t>(VTrackTag::TrackHistory), out);
+        KlvBer::encodeLength(histBytes.size(), out);
+        out.insert(out.end(), histBytes.begin(), histBytes.end());
+    }
+
+    // 12. Tag 12: TrackStartTime (8 bytes)
+    if (track.trackStartTimeUs.has_value()) {
+        out.push_back(static_cast<std::uint8_t>(VTrackTag::TrackStartTime));
+        out.push_back(8U);
+        const std::uint64_t ts = *track.trackStartTimeUs;
+        for (int i = 7; i >= 0; --i) {
+            out.push_back(static_cast<std::uint8_t>((ts >> (i * 8)) & 0xFFU));
+        }
+    }
+
+    // 13. Tag 13: TrackDuration (4 bytes)
+    if (track.trackDurationUs.has_value()) {
+        out.push_back(static_cast<std::uint8_t>(VTrackTag::TrackDuration));
+        out.push_back(4U);
+        const std::uint32_t dur = *track.trackDurationUs;
+        for (int i = 3; i >= 0; --i) {
+            out.push_back(static_cast<std::uint8_t>((dur >> (i * 8)) & 0xFFU));
+        }
+    }
+}
+
+void VmtiEncoder::encodeTrackSeries(
+    const std::vector<VTrackPack>& tracks, std::uint32_t frameWidth, std::vector<std::uint8_t>& out)
+{
+    if (tracks.empty()) {
+        return;
+    }
+    std::vector<std::uint8_t> seriesPayload;
+    seriesPayload.reserve(tracks.size() * 48U);
+    for (const auto& track : tracks) {
+        std::vector<std::uint8_t> packPayload;
+        packPayload.reserve(48U);
+        encodeTrackPack(track, frameWidth, packPayload);
+
+        KlvBer::encodeLength(packPayload.size(), seriesPayload);
+        seriesPayload.insert(seriesPayload.end(), packPayload.begin(), packPayload.end());
+    }
+
+    KlvBer::encodeTag(static_cast<std::uint32_t>(VmtiTag::VTrackSeries), out);
+    KlvBer::encodeLength(seriesPayload.size(), out);
+    out.insert(out.end(), seriesPayload.begin(), seriesPayload.end());
+}
+
+void VmtiEncoder::encodeOntologySet(const OntologyLocalSet& ontology, std::vector<std::uint8_t>& out)
+{
+    // Tag 1: OntologyId (varuint)
+    appendTagVarUint(static_cast<std::uint32_t>(OntologyTag::OntologyId), ontology.ontologyId, out);
+
+    // Tag 2: OntologyUri
+    if (!ontology.ontologyUri.empty()) {
+        KlvBer::encodeTag(static_cast<std::uint32_t>(OntologyTag::OntologyUri), out);
+        KlvBer::encodeLength(ontology.ontologyUri.size(), out);
+        for (const char ch : ontology.ontologyUri) {
+            out.push_back(static_cast<std::uint8_t>(ch));
+        }
+    }
+
+    // Tag 3: ClassCategory (1 byte)
+    out.push_back(static_cast<std::uint8_t>(OntologyTag::ClassCategory));
+    out.push_back(1U);
+    out.push_back(static_cast<std::uint8_t>(ontology.category));
+
+    // Tag 4: ClassLabel
+    if (!ontology.classLabel.empty()) {
+        KlvBer::encodeTag(static_cast<std::uint32_t>(OntologyTag::ClassLabel), out);
+        KlvBer::encodeLength(ontology.classLabel.size(), out);
+        for (const char ch : ontology.classLabel) {
+            out.push_back(static_cast<std::uint8_t>(ch));
+        }
+    }
+
+    // Tag 5: Confidence (1 byte)
+    out.push_back(static_cast<std::uint8_t>(OntologyTag::Confidence));
+    out.push_back(1U);
+    out.push_back(ontology.confidence);
+
+    // Tag 6: SidcCode
+    if (!ontology.sidcCode.empty()) {
+        KlvBer::encodeTag(static_cast<std::uint32_t>(OntologyTag::SidcCode), out);
+        KlvBer::encodeLength(ontology.sidcCode.size(), out);
+        for (const char ch : ontology.sidcCode) {
+            out.push_back(static_cast<std::uint8_t>(ch));
+        }
+    }
+
+    // Tag 7: AlgorithmId
+    if (ontology.algorithmId.has_value()) {
+        appendTagVarUint(static_cast<std::uint32_t>(OntologyTag::AlgorithmId), *ontology.algorithmId, out);
+    }
+}
+
+void VmtiEncoder::encodeOntologySeries(const std::vector<OntologyLocalSet>& ontologies, std::vector<std::uint8_t>& out)
+{
+    if (ontologies.empty()) {
+        return;
+    }
+    std::vector<std::uint8_t> seriesPayload;
+    seriesPayload.reserve(ontologies.size() * 32U);
+    for (const auto& ontology : ontologies) {
+        std::vector<std::uint8_t> setPayload;
+        setPayload.reserve(32U);
+        encodeOntologySet(ontology, setPayload);
+
+        KlvBer::encodeLength(setPayload.size(), seriesPayload);
+        seriesPayload.insert(seriesPayload.end(), setPayload.begin(), setPayload.end());
+    }
+
+    KlvBer::encodeTag(static_cast<std::uint32_t>(VmtiTag::OntologySeries), out);
+    KlvBer::encodeLength(seriesPayload.size(), out);
+    out.insert(out.end(), seriesPayload.begin(), seriesPayload.end());
+}
+
 std::vector<std::uint8_t> VmtiEncoder::encode(const VmtiLocalSet& vmti, bool standalone)
 {
     std::vector<std::uint8_t> payload;
@@ -310,6 +598,16 @@ std::vector<std::uint8_t> VmtiEncoder::encode(const VmtiLocalSet& vmti, bool sta
     // Tag 101: VTargetSeries
     if (!vmti.targets.empty()) {
         encodeSeries(vmti.targets, vmti.frameWidth, vmti.frameHeight, payload);
+    }
+
+    // Tag 102: VTrackSeries
+    if (!vmti.tracks.empty()) {
+        encodeTrackSeries(vmti.tracks, vmti.frameWidth, payload);
+    }
+
+    // Tag 103: OntologySeries
+    if (!vmti.ontologies.empty()) {
+        encodeOntologySeries(vmti.ontologies, payload);
     }
 
     if (!standalone) {

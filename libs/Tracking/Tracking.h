@@ -17,6 +17,7 @@
 #include "PtzCameraModel.h"
 #include "PtzSlewToCueBridge.h"
 #include "PtzSphericalEstimator.h"
+#include "TrackingEngine.h"
 #include "TrackingVmtiBridge.h"
 #include "TransientShockDetector.h"
 #include "UnscentedKalmanFilter.h"
