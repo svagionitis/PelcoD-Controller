@@ -7,8 +7,16 @@
 
 #include <QObject>
 #include <QString>
+#include <QThread>
+
+#include "AtomicTripleBuffer.h"
+#include "StabilizerFramePacket.h"
+#include "StabilizerTypes.h"
+#include "VideoStabilizerEngine.h"
 
 namespace StabilizerApp {
+
+class StabilizerWorker;
 
 /// @class StabilizerPlayerController
 /// @brief High-level ViewModel managing playback state, stream source, and stabilization telemetry.
@@ -28,12 +36,12 @@ public:
     enum class PlaybackState : std::uint8_t { Idle = 0U, Opening, Playing, Paused, Error };
     Q_ENUM(PlaybackState)
 
-    /// @brief Constructor initializing default controller state.
+    /// @brief Constructor initializing default controller state and launching worker thread.
     /// @param parent Optional parent QObject.
     explicit StabilizerPlayerController(QObject* parent = nullptr);
 
-    /// @brief Destructor.
-    ~StabilizerPlayerController() override = default;
+    /// @brief Destructor safely stopping and joining worker thread.
+    ~StabilizerPlayerController() override;
 
     StabilizerPlayerController(const StabilizerPlayerController&) = delete;
     StabilizerPlayerController& operator=(const StabilizerPlayerController&) = delete;
@@ -68,6 +76,10 @@ public:
     /// @return Current FPS metric.
     [[nodiscard]] double fps() const noexcept;
 
+    /// @brief Accesses underlying lock-free triple buffer primitive.
+    /// @return Mutable reference to triple buffer.
+    [[nodiscard]] Video::AtomicTripleBuffer<StabilizerFramePacket>& tripleBuffer() noexcept;
+
     /// @brief Requests playback start.
     Q_INVOKABLE void play();
 
@@ -76,6 +88,21 @@ public:
 
     /// @brief Requests playback stop and stream teardown.
     Q_INVOKABLE void stop();
+
+    /// @brief Advances playback by exactly one video frame.
+    Q_INVOKABLE void stepFrame();
+
+    /// @brief Seeks to target presentation timestamp in seconds.
+    /// @param timestampSec Target time in seconds.
+    Q_INVOKABLE void seek(double timestampSec);
+
+    /// @brief Sets playback speed scaling multiplier.
+    /// @param rate Multiplier [0.25 .. 4.0].
+    Q_INVOKABLE void setPlaybackRate(double rate);
+
+    /// @brief Dispatches updated video stabilization parameters to worker engine.
+    /// @param config New stabilization configuration.
+    void updateStabilizerConfig(const Stabilizer::VideoStabilizerConfig& config);
 
 signals:
     /// @brief Emitted when playback state transitions.
@@ -93,7 +120,17 @@ signals:
     /// @brief Emitted when telemetry or FPS updates.
     void telemetryUpdated();
 
+    /// @brief Emitted when a new frame is ready in the triple buffer for display.
+    void frameReady();
+
 private:
+    void setPlaybackState(PlaybackState state);
+    void setStatusMessage(const QString& msg);
+
+    Video::AtomicTripleBuffer<StabilizerFramePacket> tripleBuffer_ { };
+    QThread workerThread_ { };
+    StabilizerWorker* worker_ { nullptr };
+
     PlaybackState playbackState_ { PlaybackState::Idle };
     QString sourceUri_ { };
     QString statusMessage_ { QStringLiteral("Ready") };

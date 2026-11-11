@@ -1,9 +1,16 @@
 add_executable(StabilizerAppQt
     main.cpp
+    RgbWarpUtility.h
+    RgbWarpUtility.cpp
+    StabilizerFramePacket.h
     StabilizerPlayerController.h
     StabilizerPlayerController.cpp
     StabilizerQuickItem.h
     StabilizerQuickItem.cpp
+    StabilizerWorker.h
+    StabilizerWorker.cpp
+    SyntheticJitterGenerator.h
+    SyntheticJitterGenerator.cpp
     qml.qrc
 )
 

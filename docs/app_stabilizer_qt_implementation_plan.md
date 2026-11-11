@@ -310,6 +310,7 @@ app-stabilizer-qt/
 - Setup `main.cpp` registering QML types in the `StabilizerApp 1.0` namespace.
 
 ### Phase 2: Frame Ingestion & Threading Subsystem
+*(Detailed implementation plan: [`app_stabilizer_qt_phase2_plan.md`](app_stabilizer_qt_phase2_plan.md))*
 - Implement `StabilizerWorker` on a dedicated `QThread`:
   - Connect to `Video::IVideoDecoder` (`FFmpegDecoder`, `Live555Decoder`, `DeviceEnumerator`, or `MockVideoDecoder`).
   - Convert input frames to grayscale luma view for `VideoStabilizerEngine::processFrame` or planar YUV for `processYuv420p`.

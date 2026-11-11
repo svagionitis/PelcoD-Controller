@@ -5,10 +5,13 @@
 
 #include <cstdint>
 
+#include <QImage>
 #include <QPainter>
 #include <QQuickPaintedItem>
 
 namespace StabilizerApp {
+
+class StabilizerPlayerController;
 
 /// @class StabilizerQuickItem
 /// @brief Renders video presentation viewport with interactive comparison wipe and overlays.
@@ -17,6 +20,8 @@ class StabilizerQuickItem : public QQuickPaintedItem {
 
     Q_PROPERTY(float splitPosition READ splitPosition WRITE setSplitPosition NOTIFY splitPositionChanged)
     Q_PROPERTY(bool showGrid READ showGrid WRITE setShowGrid NOTIFY showGridChanged)
+    Q_PROPERTY(StabilizerApp::StabilizerPlayerController* controller READ controller WRITE setController NOTIFY
+            controllerChanged)
 
 public:
     /// @brief Constructor initializing default presentation parameters.
@@ -47,9 +52,21 @@ public:
     /// @param show Desired visibility state.
     void setShowGrid(bool show) noexcept;
 
+    /// @brief Attached player controller providing lock-free frame data.
+    /// @return Pointer to controller, or nullptr if unbound.
+    [[nodiscard]] StabilizerPlayerController* controller() const noexcept;
+
+    /// @brief Sets attached player controller.
+    /// @param ctrl Pointer to controller instance.
+    void setController(StabilizerPlayerController* ctrl);
+
     /// @brief QPainter presentation callback.
     /// @param painter Active painter provided by Qt Quick scene graph.
     void paint(QPainter* painter) override;
+
+public slots:
+    /// @brief Callback invoked when a fresh frame is published by worker.
+    void onFrameReady();
 
 signals:
     /// @brief Emitted when split divider position changes.
@@ -58,9 +75,19 @@ signals:
     /// @brief Emitted when grid overlay visibility toggles.
     void showGridChanged();
 
+    /// @brief Emitted when attached controller changes.
+    void controllerChanged();
+
 private:
+    void renderStandbyPattern(QPainter* painter);
+
     float splitPosition_ { 0.50F };
     bool showGrid_ { true };
+    StabilizerPlayerController* controller_ { nullptr };
+
+    QImage rawImage_ { };
+    QImage stabilizedImage_ { };
+    bool hasValidFrame_ { false };
 };
 
 } // namespace StabilizerApp

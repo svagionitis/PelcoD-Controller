@@ -77,8 +77,8 @@ ApplicationWindow {
             Item { Layout.fillWidth: true }
 
             Text {
-                text: "PHASE 1 SKELETON BUILD"
-                color: "#ff9100"
+                text: "PHASE 2 INGESTION ACTIVE"
+                color: "#00e676"
                 font.pixelSize: 11
                 font.bold: true
             }
@@ -89,6 +89,7 @@ ApplicationWindow {
     StabilizerQuickItem {
         id: videoView
         anchors.fill: parent
+        controller: controller
         splitPosition: 0.5
         showGrid: true
 

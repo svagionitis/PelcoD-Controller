@@ -133,6 +133,34 @@ if(PELCOD_ENABLE_VIDEO AND TARGET Qt6::Quick AND TARGET Qt6::Qml AND TARGET Qt6:
     pelcod_register_gtest(TestVideoPlayerController)
 endif()
 
+if(PELCOD_ENABLE_VIDEO AND PELCOD_ENABLE_QT AND TARGET Stabilizer)
+    add_executable(TestStabilizerWorker
+        TestStabilizerWorker.cpp
+        TestSyntheticJitterGenerator.cpp
+        TestRgbWarpUtility.cpp
+        ${CMAKE_SOURCE_DIR}/app-stabilizer-qt/SyntheticJitterGenerator.cpp
+        ${CMAKE_SOURCE_DIR}/app-stabilizer-qt/RgbWarpUtility.cpp
+        ${CMAKE_SOURCE_DIR}/app-stabilizer-qt/StabilizerWorker.cpp
+        ${CMAKE_SOURCE_DIR}/app-stabilizer-qt/StabilizerPlayerController.cpp
+    )
+    target_include_directories(TestStabilizerWorker PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/app-stabilizer-qt
+        ${CMAKE_SOURCE_DIR}/libs/Stabilizer
+        ${CMAKE_SOURCE_DIR}/libs/Video
+        ${CMAKE_SOURCE_DIR}/libs/Math
+    )
+    target_link_libraries(TestStabilizerWorker PRIVATE
+        Stabilizer
+        Video
+        Math
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Test
+    )
+    pelcod_register_gtest(TestStabilizerWorker NO_MAIN)
+endif()
+
 # ==============================================================================
 # CLI Argument Validation Tests (PelcoDAppTui)
 # ==============================================================================
