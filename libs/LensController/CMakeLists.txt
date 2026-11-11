@@ -8,6 +8,11 @@ add_library(LensController STATIC
     ZoomTrackTypes.h
     ZoomTrackFocusEngine.h
     ZoomTrackFocusEngine.cpp
+    AutoFocusTypes.h
+    PeakFitter.h
+    PeakFitter.cpp
+    AutoFocusEngine.h
+    AutoFocusEngine.cpp
 )
 
 target_include_directories(LensController PUBLIC

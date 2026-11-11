@@ -14,9 +14,12 @@ namespace LensControl {
 /// @brief Strongly-typed channel/camera identifier [0..3].
 class CameraIndex {
 public:
+    /// @brief Default constructor creating channel 0.
+    constexpr CameraIndex() noexcept = default;
+
     /// @brief Constructs a camera channel index.
     /// @param index Channel index (typically 0..3).
-    explicit constexpr CameraIndex(std::uint8_t index = 0U) noexcept
+    explicit constexpr CameraIndex(std::uint8_t index) noexcept
         : m_index { index }
     {
     }
@@ -49,9 +52,12 @@ private:
 /// @brief Strongly-typed 16-bit motor encoder position [0..65535].
 class MotorPosition {
 public:
+    /// @brief Default constructor initializing position to 0.
+    constexpr MotorPosition() noexcept = default;
+
     /// @brief Constructs a motor encoder position.
     /// @param pos Encoder step coordinate.
-    explicit constexpr MotorPosition(std::uint16_t pos = 0U) noexcept
+    explicit constexpr MotorPosition(std::uint16_t pos) noexcept
         : m_pos { pos }
     {
     }
@@ -100,9 +106,12 @@ public:
     static constexpr std::uint8_t kDefaultSpeed = 127U;
     static constexpr std::uint8_t kMaxSpeed = 255U;
 
+    /// @brief Default constructor setting speed to default (127).
+    constexpr MotorSpeed() noexcept = default;
+
     /// @brief Constructs a motor speed value.
     /// @param speed Speed magnitude count [0..255].
-    explicit constexpr MotorSpeed(std::uint8_t speed = kDefaultSpeed) noexcept
+    explicit constexpr MotorSpeed(std::uint8_t speed) noexcept
         : m_speed { speed }
     {
     }
