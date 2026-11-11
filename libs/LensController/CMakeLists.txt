@@ -1,0 +1,23 @@
+add_library(LensController STATIC
+    LensTypes.h
+    ILensDriver.h
+    MockLensDriver.h
+    MockLensDriver.cpp
+)
+
+target_include_directories(LensController PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
+    $<INSTALL_INTERFACE:include>
+)
+
+target_link_libraries(LensController PUBLIC
+    Threads::Threads
+)
+
+apply_compiler_flags(LensController)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
+

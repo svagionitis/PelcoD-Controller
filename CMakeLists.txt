@@ -415,6 +415,7 @@ set(PELCOD_CANDIDATE_TARGETS
     Nmea
     SightlineCore
     SightlineQt
+    LensController
     Video
     VideoFilters
     DjiTelemetry
