@@ -43,6 +43,20 @@ This document establishes the technical design, module decomposition, mathematic
    - All function names strictly less than 30 characters.
    - Strict IWYU, `<cstdint>`, `<cstddef>`, and `std::` qualification.
    - Cross-platform Windows (Win32) and Linux (POSIX).
+7. **Advanced Dynamics, Feedforward & Actuator Control Loops**:
+   - **Parfocal Zoom-Velocity Feedforward**: Dynamic derivative feedforward $\dot{f} = \frac{df}{dz} \cdot \dot{z} + K_p e_f$ eliminating transient focus lag during fast continuous zoom slews.
+   - **S-Curve (Jerk-Limited) Motion Profiler**: Smooth, 7-phase S-curve trajectory planning preventing mechanical ringing, overshoot, and image vibration.
+   - **Actuator Position PID with Stiction Inversion**: Closed-loop encoder control with anti-windup clamping and static friction threshold compensation.
+8. **Intelligent Heuristics & Sensor Fusion**:
+   - **Gimbal Slew Motion-Gated CAF**: Inhibits Continuous Auto-Focus during high-rate PTZ panning/tilting to eliminate hunting on rotational motion blur.
+   - **Optical Geometry & Hyperfocal Fast-Paths**: Real-time Depth-of-Field (DOF) calculation for instant wide-angle lock and zoom-scaled adaptive AF search steps.
+   - **Multi-Zone Spatial Matrix Arbitration**: $3 \times 3$ grid focus evaluation with foreground-closest priority, motion saliency, and VMTI detection weighting.
+   - **Range-to-Focus Direct Cueing**: Instant, hunt-free focus positioning computed from Laser Rangefinder (LRF), radar, or KLV metadata (STANAG 4609 / MISB ST 0601).
+   - **Infrared Optics Athermalization**: Temperature drift compensation ($\Delta f = K_{\text{temp}}(z) \cdot \Delta T$) for thermal (LWIR/MWIR) Germanium lenses.
+   - **Photometric Auto-Iris & Exposure Co-Optimization**: Dynamic range optimization maintaining consistent luma histograms for peak focus metric contrast.
+9. **Automated Calibration & Actuator Health Monitoring**:
+   - Two-way mechanical gear backlash and travel end-stop auto-calibration routines.
+   - Cumulative cycle counts, encoder slip detection, and actuator wear diagnostics.
 
 ---
 
@@ -74,16 +88,31 @@ This document establishes the technical design, module decomposition, mathematic
 |   |  - Latency & Backlash Corrector   |                                                          |            |
 |   +-----------------+-----------------+                                                          |            |
 |                     |                                                                            |            |
-|                     ▼                                                                            |            |
-|   +-----------------------------------+                                                          |            |
-|   |       FocusEvaluator (0-Heap)     |                                                          |            |
-|   |  - Sobel / Laplacian / Tenengrad  |                                                          |            |
-|   |  - Vollath F4 / F5 Autocorr       |                                                          |            |
-|   |  - 2D 8x8 DCT AC Energy (Math)    |                                                          |            |
-|   +-----------------------------------+                                                          |            |
+|         +-----------+-----------+                                                                |            |
+|         ▼                       ▼                                                                |            |
+|   +-------------------+   +--------------------+                                                 |            |
+|   |   FocusEvaluator  |   | MultiZoneEvaluator |                                                 |            |
+|   |  (0-Heap Spatial  |   | (3x3 Matrix Grid & |                                                 |            |
+|   |   & DCT Metrics)  |   |  Saliency Arbiter) |                                                 |            |
+|   +-------------------+   +--------------------+                                                 |            |
 |                                                                                                  |            |
-|                                       +-----------------------------------+                      |            |
-|                                       |            ILensDriver            |<---------------------+            |
+|   +------------------------------------------------------------------------------------------+   |            |
+|   |                          Intelligent Optics & Fusion Modules                             |   |            |
+|   |  • MotionGatedAfManager   (PTZ Slew Gating)    • OpticalGeometryCalculator (DOF / Hyper) |   |            |
+|   |  • RangeToFocusCueBridge  (LRF/KLV Cueing)     • ThermalDriftCompensator   (LWIR / MWIR) |   |            |
+|   +---------------------------------------------+--------------------------------------------+   |            |
+|                                                 |                                                |            |
+|                                                 ▼                                                |            |
+|                     +-------------------------------------------------------+                    |            |
+|                     |           Closed-Loop Actuator Motion Control         |◄-------------------+            |
+|                     |  • ParfocalFeedforwardController (dz/dt Derivative FF)|                                 |
+|                     |  • MotionProfiler (7-Phase S-Curve Trajectory)        |                                 |
+|                     |  • ActuatorPidController (Anti-Windup & Stiction Inv) |                                 |
+|                     +---------------------------+---------------------------+                                 |
+|                                                 |                                                             |
+|                                                 ▼                                                             |
+|                                       +-----------------------------------+                                   |
+|                                       |            ILensDriver            |                                   |
 |                                       |    (Hardware Actuator Interface)  |                                   |
 |                                       +-----------------+-----------------+                                   |
 |                                                         |                                                     |
@@ -111,6 +140,7 @@ flowchart TD
         App["Gimbal / Camera App"]
         PH["libs/PayloadHal (ICameraPayload)"]
         Track["libs/Tracking (TargetId BoundingBox)"]
+        KlvData["libs/Klv (MISB ST 0601 Slant Range)"]
     end
 
     subgraph Core["libs/LensController (Zero Qt, Pure C++17)"]
@@ -119,13 +149,28 @@ flowchart TD
         subgraph AFSubsystem["Autofocus Subsystem"]
             AF["AutoFocusEngine<br/>(Seek, Scan 3-Phase, GSS, Adaptive Hill-Climb)"]
             FE["FocusEvaluator<br/>(Sobel, Laplacian, Tenengrad, Vollath F4/F5, DCT)"]
+            MZE["MultiZoneEvaluator<br/>(3x3 Grid & Saliency Arbiter)"]
             Fit["PeakFitter<br/>(Parabolic / Gaussian Sub-Step)"]
             Comp["LatencyCompensator<br/>(frameOffsetMult8 & Backlash)"]
+        end
+
+        subgraph HeuristicsSubsystem["Intelligent Optics & Fusion"]
+            MGAF["MotionGatedAfManager<br/>(PTZ Angular Rate Gate)"]
+            OGC["OpticalGeometryCalculator<br/>(DOF & Hyperfocal Distance)"]
+            R2F["RangeToFocusCueBridge<br/>(LRF Thin-Lens Mapping)"]
+            TDC["ThermalDriftCompensator<br/>(LWIR/MWIR Athermalization)"]
+            AIC["AutoIrisCoordinator<br/>(Photometric Optimization)"]
         end
         
         subgraph ZoomSubsystem["Parfocal Zoom-Tracking Subsystem"]
             ZT["ZoomTrackFocusEngine<br/>(Multi-Distance LUT & Spline Interp)"]
             Cal["CurveCalibrator<br/>(Automatic Curve Generation)"]
+        end
+
+        subgraph DynamicsSubsystem["Closed-Loop Actuator Dynamics"]
+            PFF["ParfocalFeedforwardController<br/>(dz/dt Derivative Feedforward)"]
+            MP["MotionProfiler<br/>(7-Phase S-Curve Profile)"]
+            PID["ActuatorPidController<br/>(Anti-Windup & Stiction Inversion)"]
         end
         
         subgraph HAL["Hardware Abstraction Layer"]
@@ -140,15 +185,19 @@ flowchart TD
     App --> LC
     PH --> LC
     Track -.->|Dynamic ROI| AF
+    Track -.->|Gimbal Rates| MGAF
+    KlvData -.->|Slant Range| R2F
     LC --> AF
     LC --> ZT
+    LC --> HeuristicsSubsystem
     AF --> FE
+    AF --> MZE
     AF --> Fit
     AF --> Comp
     ZT --> Cal
-    LC --> ILD
-    AF --> ILD
-    ZT --> ILD
+    ZT --> PFF
+    AF --> DynamicsSubsystem
+    DynamicsSubsystem --> ILD
     LDL -.-> ILD
     ILD <|.. Nop
     ILD <|.. Visca
@@ -541,6 +590,207 @@ public:
 
 ---
 
+### 3.8 Parfocal Zoom-Velocity Feedforward Controller (`ParfocalFeedforwardController.h`, `.cpp`)
+
+During fast manual or automated zoom maneuvers, reactive position-only tracking introduces transient defocus because the focus motor must wait for zoom position error to accumulate before stepping. The **Parfocal Feedforward Controller** calculates real-time derivative feedforward by combining zoom actuator velocity $\dot{z} = \frac{dz}{dt}$ with the precomputed PCHIP spline knot slope $\frac{df}{dz}$:
+
+#### 1. Mathematical Formulation
+$$\dot{f}_{\text{cmd}} = \left(\frac{df}{dz}\right) \cdot \dot{z} + K_p \cdot \big(f_{\text{target}}(z) - f_{\text{actual}}\big)$$
+where:
+- $\frac{df}{dz}$ is the instantaneous rate-of-change of focus with respect to zoom extracted from `ZoomTrackFocusEngine` PCHIP spline evaluation.
+- $\dot{z}$ is estimated via a low-pass filtered numerical differentiator on zoom encoder ticks:
+  $$\dot{z}_k = \alpha \cdot \frac{z_k - z_{k-1}}{\Delta t} + (1 - \alpha) \cdot \dot{z}_{k-1}$$
+- $K_p \cdot (f_{\text{target}} - f_{\text{actual}})$ is the proportional position-error closing term.
+
+#### 2. Control Loop Architecture
+
+```
++-----------------------------------------------------------------------------------------------+
+|                       PARFOCAL FEEDFORWARD DYNAMICS                                           |
+|                                                                                               |
+|   Zoom Position (z) ────┬────► [ Numerical Differentiator ] ──► Zoom Velocity (dz/dt)         |
+|                         │                                             │                       |
+|                         │                                             ▼                       |
+|                         │                             [ Multiplier: (df/dz) * (dz/dt) ]       |
+|                         │                                             │ (Feedforward)         |
+|                         ▼                                             ▼                       |
+|               [ PCHIP Spline LUT ] ──► Target Focus (f*) ──► (+) ──► (+) ──► Focus Motor      |
+|                                                               ▲       ▲      Velocity Command |
+|               Focus Position (f) ────────────────────────────(-)      │                       |
+|                                                               │       │                       |
+|                                                        [ Proportional ]                       |
+|                                                        [ Gain (Kp)    ]                       |
++-----------------------------------------------------------------------------------------------+
+```
+
+```mermaid
+flowchart LR
+    Zoom["Zoom Position z(t)"] --> Diff["Velocity Filter & Differentiator<br/>&alpha; &middot; &Delta;z / &Delta;t"]
+    Zoom --> Pchip["PCHIP Spline Model<br/>f*(z) and Tangent df/dz"]
+    
+    Diff -->|"dz/dt"| Mult["Feedforward Multiplier<br/>(df/dz) &middot; (dz/dt)"]
+    
+    Pchip -->|"f*(z)"| Sum["Summing Junction"]
+    FocusFB["Focus Encoder Feedback f(t)"] -->|"- f(t)"| Sum
+    
+    Sum -->|"e_f(t)"| Kp["Proportional Gain Kp"]
+    
+    Mult --> TotalSum["+"]
+    Kp --> TotalSum
+    TotalSum --> MotorCmd["Focus Velocity Command<br/>v_focus(t)"]
+```
+
+---
+
+### 3.9 S-Curve Motion Profiler & Actuator Position PID (`MotionProfiler.h`, `ActuatorPidController.h`, `.cpp`)
+
+To prevent mechanical gear train shock, resonance ringing, and image blur during rapid stepper/DC motor positioning, optical movements must be governed by a **7-phase S-curve (jerk-limited) trajectory profiler**:
+
+```
+Velocity ^
+         |             Phase IV: Constant Max Velocity
+  V_max  |              .-----------------------------.
+         |             /                               \
+         |  Phase II  /                                 \  Phase VI
+         |  (Const A)/                                   \ (Const D)
+         |          /                                     \
+         |  Phase I/                                       \ Phase VII
+         |  (Jerk)|                                         |(Jerk End)
+         +--------+-----------------------------------------+-----------> Time
+```
+
+```mermaid
+stateDiagram-v2
+    [*] --> Phase1_JerkAcc: Start Move
+    Phase1_JerkAcc --> Phase2_ConstAcc: Jerk = +J_max (Acc reaches A_max)
+    Phase2_ConstAcc --> Phase3_JerkDecAcc: Approaching V_max
+    Phase3_JerkDecAcc --> Phase4_Cruise: Jerk = -J_max (Acc drops to 0)
+    Phase4_Cruise --> Phase5_JerkDec: Approaching Decel Point
+    Phase5_JerkDec --> Phase6_ConstDec: Jerk = -J_max (Dec reaches D_max)
+    Phase6_ConstDec --> Phase7_JerkEnd: Approaching Target
+    Phase7_JerkEnd --> TargetReached: Jerk = +J_max (Velocity reaches 0)
+    TargetReached --> [*]
+```
+
+#### 1. Actuator Closed-Loop PID with Stiction Inversion
+Actuator motor control operates on discrete position errors with:
+- **Conditional Integration Anti-Windup**: Integrator updates are frozen when actuator velocity clamps at saturation limits.
+- **Stiction Deadband Compensation**: When starting from zero velocity or reversing direction, adds an impulse feedforward offset $u_{\text{stiction}} = \text{sgn}(e) \cdot V_{\text{min}}$ to immediately break through static gear friction.
+
+---
+
+### 3.10 Platform Motion-Gated Continuous Autofocus (`MotionGatedAfManager.h`, `.cpp`)
+
+Continuous Auto-Focus (CAF) algorithms fail when a PTZ gimbal rotates because angular scene shearing introduces frame-wide motion blur, which contrast metrics mistake for optical defocus. The **Motion-Gated AF Manager** prevents unnecessary focus hunting during gimbal slews:
+
+#### 1. Gating Logic & Settling Holdoff
+- Receives PTZ angular rates $(\omega_{\text{pan}}, \omega_{\text{tilt}})$ from [`libs/Tracking/PtzAutoTracker.h`](../libs/Tracking/PtzAutoTracker.h) or platform gyroscope telemetry.
+- Evaluates composite angular velocity:
+  $$\Omega = \sqrt{\omega_{\text{pan}}^2 + \omega_{\text{tilt}}^2}$$
+- When $\Omega > \Omega_{\text{thresh}}$ (e.g. $1.5^\circ/\text{s}$), CAF is transitioned to `Suppressed` state: motor positions freeze and metric drops are ignored.
+- When $\Omega \le \Omega_{\text{thresh}}$, an exponential settling holdoff timer (e.g. $150\,\text{ms}$) elapses to allow mechanical settling and sensor rolling shutter stabilization before CAF re-engages.
+
+---
+
+### 3.11 Optical Geometry: Depth-of-Field & Hyperfocal Distance Fast-Path (`OpticalGeometryCalculator.h`, `.cpp`)
+
+Calculates physical optical limits in real-time using calibrated sensor geometry (sensor format width $W_s$, focal length $f(z)$, and circle of confusion $c$):
+
+#### 1. Formulas
+- **Hyperfocal Distance ($H$)**:
+  $$H(z) = \frac{f(z)^2}{N \cdot c}$$
+  where $N$ is lens F-number and $c \approx \frac{\text{diagonal}}{1500}$ or sensor pixel pitch $\times 2$.
+- **Near and Far Depth-of-Field Limits**:
+  $$D_{\text{near}} = \frac{H \cdot d}{H + (d - f)}, \quad D_{\text{far}} = \frac{H \cdot d}{H - (d - f)}$$
+  $$\text{DOF} = D_{\text{far}} - D_{\text{near}}$$
+
+#### 2. Optimization Heuristics
+- **Instant Wide-Angle Lock**: When zoom is near wide limit ($z \le z_{\text{wide}}$), hyperfocal distance $H$ is typically only a few meters away, meaning everything from $H/2$ to infinity is sharply focused. The AF engine can immediately position the focus actuator at $H(z)$ without sweeping.
+- **Adaptive Step Sizing**: Scales coarse, mid, and fine sweep step counts proportionally to the calculated $\text{DOF}(z)$. At maximum telephoto where DOF is narrow, fine steps are small; at wide zoom, steps expand $5\times$, drastically reducing search latency.
+
+---
+
+### 3.12 Multi-Zone Spatial Matrix Focus Arbitration (`MultiZoneFocusEvaluator.h`, `.cpp`)
+
+Extends [`FocusEvaluator`](FocusEvaluator.h) from a single user ROI to a zero-heap $3 \times 3$ (or $5 \times 5$) tile grid spanning the frame:
+
+```
++-----------------------------------+
+|   Z00   |   Z01   |   Z02   |     |  3x3 Spatial Focus Matrix
++---------+---------+---------+     |  - Independent sharpness evaluation per tile
+|   Z10   |   Z11   |   Z12   |     |  - Zero-heap fixed-buffer evaluation
++---------+---------+---------+     |  - Arbitrated candidate score generation
+|   Z20   |   Z21   |   Z22   |     |
++-----------------------------------+
+```
+
+#### 1. Arbitration Heuristics
+- **Closest-Subject Priority**: During a focus sweep from Near to Far, selects the focus peak from whichever zone first achieves a verified summit, prioritizing the foreground subject over background clutter.
+- **Motion Saliency Weighting**: Evaluates inter-frame temporal luma differences across zones. Tiles containing active pixel displacement receive higher metric weighting $w_i$.
+- **VMTI Centering Prior**: Tiles overlapping bounding boxes received from [`TrackingVmtiBridge`](../libs/Tracking/TrackingVmtiBridge.h) receive priority weight $w_{\text{target}} = 1.0$, while peripheral tiles are attenuated.
+
+---
+
+### 3.13 Range-to-Focus Direct Cueing (`RangeToFocusCueBridge.h`, `.cpp`)
+
+In tactical and surveillance environments equipped with Laser Rangefinders (LRF), radar feeds, or KLV metadata (STANAG 4609 / MISB ST 0601 Item 21 Target Slant Range):
+
+#### 1. Optical Thin-Lens Mapping
+Using the classical Gauss lens equation with calibrated optical back-focal length $f_b(z)$ and actuator zero-offset $z_0$:
+$$\frac{1}{f(z)} = \frac{1}{R} + \frac{1}{d_i} \implies d_i = \frac{f(z) \cdot R}{R - f(z)}$$
+$$\text{FocusPos}^*(R, z) = \text{EncoderScale} \cdot \big(d_i - f_b(z)\big) + z_0$$
+
+#### 2. Benefits
+- **Zero Hunting**: Direct, instantaneous single-step movement to optimal focus coordinate without searching or moving through blur.
+- **Degraded Visual Environments**: Achieves crisp optical focus through heavy fog, smoke, total darkness, or uniform sky/sea scenes where image contrast metrics produce zero gradient.
+
+---
+
+### 3.14 Thermal / IR Athermalization Engine (`ThermalDriftCompensator.h`, `.cpp`)
+
+Infrared optical elements (Germanium, Chalcogenide, Silicon) feature high refractive index thermal coefficients ($\frac{dn}{dT} \approx 400 \times 10^{-6}/\text{K}$ for Germanium vs $3 \times 10^{-6}/\text{K}$ for visible crown glass) and high housing expansion coefficients, shifting focal plane position by dozens of encoder steps over ambient temperature swings:
+
+#### 1. Athermalization Compensation Model
+$$\Delta f_{\text{thermal}}(T, z) = K_1(z) \cdot (T - T_{\text{ref}}) + K_2(z) \cdot (T - T_{\text{ref}})^2$$
+where $T$ is read from an onboard housing temperature sensor, $T_{\text{ref}}$ is nominal calibration temperature ($20^\circ\text{C}$), and $K_1(z), K_2(z)$ are calibrated polynomial temperature coefficients across zoom.
+
+#### 2. Autonomous Bias Injection
+The compensator continuously injects $\Delta f_{\text{thermal}}$ into the active parfocal tracking setpoint, maintaining diffraction-limited optical clarity from $-40^\circ\text{C}$ to $+70^\circ\text{C}$ without user intervention.
+
+---
+
+### 3.15 Photometric Control Loop: Auto-Iris & Exposure Co-Optimization (`AutoIrisCoordinator.h`, `.cpp`)
+
+Focus evaluation sharpness metrics (Sobel, Laplacian, Tenengrad) are heavily contrast-dependent:
+- Saturated highlights (pixel clipping at 255) flatten gradients to zero.
+- Underexposed shadows (dark scenes) sink edge gradients into sensor noise.
+
+#### 1. Integrated Photometric Coordinator
+- Computes real-time 64-bin luma histogram over the AF evaluation ROI.
+- Regulates motorized iris actuator and sensor exposure time via a discrete PID controller to lock mean ROI luminance to an 18% gray reference target ($\mu_{\text{target}} \approx 110$ on 8-bit luma).
+- Coordinates with `AutoFocusEngine`: During one-shot AF sweeps, iris adjustments are frozen to ensure sharpness metric changes stem purely from focal plane displacement rather than exposure variations.
+
+---
+
+### 3.16 Automated Mechanical Calibration & Wear Diagnostics (`BacklashCalibrator.h`, `ActuatorDiagnostics.h`, `.cpp`)
+
+To maintain factory performance over thousands of operating hours and eliminate manual field tuning:
+
+#### 1. Dual-Direction Backlash Auto-Calibrator
+- Automatically commands the focus motor towards a high-contrast target from the `Near` direction, executing fine-sweep peak detection to record summit $P_{\text{near}}$.
+- Immediately slews past the target and approaches from the `Far` direction, recording summit $P_{\text{far}}$.
+- Calibrates mechanical gear backlash steps:
+  $$\text{BacklashSteps} = |P_{\text{far}} - P_{\text{near}}|$$
+- Automatically updates `AutoFocusConfig::backlashSteps`.
+
+#### 2. Actuator Health & Wear Telemetry
+Maintains persistent non-volatile diagnostic counters:
+- **Total Step Travel**: Accumulated encoder steps traveled per axis.
+- **Direction Reversals**: Counter monitoring gear tooth wear.
+- **Slip / Stall Detector**: Verifies motor movement against expected encoder ticks; flags warning when commanded steps do not produce proportional encoder advancement.
+
+---
+
 ## 4. Directory & File Structure
 
 ```text
@@ -550,7 +800,7 @@ libs/LensController/
 ├── LensTypes.h                         # Strongly-typed value objects and enums
 ├── LensDriverLoader.h                  # Dynamic DLL / shared object loader
 ├── LensDriverLoader.cpp
-├── MockLensDriver.h                     # In-memory simulated lens driver for testing
+├── MockLensDriver.h                    # In-memory simulated lens driver for testing
 ├── MockLensDriver.cpp
 ├── ViscaLensDriver.h                   # Sony VISCA protocol lens driver adapter
 ├── ViscaLensDriver.cpp
@@ -558,12 +808,34 @@ libs/LensController/
 ├── PelcoDLensDriver.cpp
 ├── FocusEvaluator.h                    # Zero-heap Sobel/Laplacian/Tenengrad/Vollath/DCT evaluator
 ├── FocusEvaluator.cpp
+├── MultiZoneFocusEvaluator.h           # 3x3 Spatial focus matrix & saliency arbitrator
+├── MultiZoneFocusEvaluator.cpp
 ├── PeakFitter.h                        # Sub-step Parabolic and Gaussian peak interpolation
 ├── PeakFitter.cpp
 ├── AutoFocusEngine.h                   # Seek, Scan 3-Phase, GSS, Adaptive Momentum AF engine
 ├── AutoFocusEngine.cpp
 ├── ZoomTrackFocusEngine.h              # Parfocal LUT parser, PCHIP spline interpolation & calibrator
 ├── ZoomTrackFocusEngine.cpp
+├── ParfocalFeedforwardController.h     # Dynamic dz/dt derivative feedforward controller
+├── ParfocalFeedforwardController.cpp
+├── MotionProfiler.h                    # 7-phase S-curve jerk-limited trajectory planner
+├── MotionProfiler.cpp
+├── ActuatorPidController.h             # Actuator position PID with stiction inversion
+├── ActuatorPidController.cpp
+├── MotionGatedAfManager.h              # Platform PTZ slew motion-gating for CAF
+├── MotionGatedAfManager.cpp
+├── OpticalGeometryCalculator.h         # Physical DOF & Hyperfocal distance fast-paths
+├── OpticalGeometryCalculator.cpp
+├── RangeToFocusCueBridge.h             # LRF / KLV slant-range thin lens focus cueing
+├── RangeToFocusCueBridge.cpp
+├── ThermalDriftCompensator.h           # Infrared Germanium athermalization engine
+├── ThermalDriftCompensator.cpp
+├── AutoIrisCoordinator.h               # Photometric auto-iris & exposure co-optimization
+├── AutoIrisCoordinator.cpp
+├── BacklashCalibrator.h                # Autonomous mechanical backlash measurement
+├── BacklashCalibrator.cpp
+├── ActuatorDiagnostics.h               # Actuator wear, cycle life, and stall detection
+├── ActuatorDiagnostics.cpp
 ├── LensController.h                    # Multi-channel orchestrator & API gateway
 ├── LensController.cpp
 ├── LensPayloadAdapter.h                # Bridge to PayloadHal::ICameraPayload
@@ -572,26 +844,38 @@ libs/LensController/
     ├── CMakeLists.txt                  # GoogleTest test runner
     ├── TestLensTypes.cpp               # Value objects and invariant tests
     ├── TestFocusEvaluator.cpp          # Sharpness metric mathematical validation
+    ├── TestMultiZoneFocus.cpp          # 3x3 Grid arbitration and saliency tests
     ├── TestPeakFitter.cpp              # Parabolic sub-step peak fitting tests
     ├── TestZoomTrackCurve.cpp          # LUT parse, serialization & spline interpolation tests
     ├── TestAutoFocusEngine.cpp         # Simulated closed-loop AF convergence tests
     ├── TestLensController.cpp          # Channel orchestration, limit guards & jog tests
-    └── TestLensDriverLoader.cpp        # Dynamic library loading and collision tests
+    ├── TestLensDriverLoader.cpp        # Dynamic library loading and collision tests
+    ├── TestParfocalFeedforward.cpp     # Derivative feedforward response & tracking tests
+    ├── TestMotionProfiler.cpp          # S-curve jerk and acceleration bounds tests
+    ├── TestMotionGatedAf.cpp           # Slew rate suppression and holdoff timer tests
+    ├── TestOpticalGeometry.cpp         # DOF and hyperfocal distance calculation tests
+    ├── TestRangeToFocusCue.cpp         # LRF thin-lens range-to-encoder mapping tests
+    ├── TestThermalCompensator.cpp      # Thermal drift compensation polynomial tests
+    └── TestBacklashCalibrator.cpp      # Dual-sweep mechanical backlash calibration tests
 ```
 
 ---
 
 ## 5. Phased Implementation Roadmap
 
-| Phase | Milestone | Scope / Deliverables | Success Criteria |
-|:---:|:---|:---|:---|
-| [**Phase 1**](lens_controller_phase1_plan.md) | **Core Domain & HAL** | `LensTypes.h`, `ILensDriver.h`, `MockLensDriver.h/.cpp`, tests | Strongly-typed value objects, 100% test pass on mock driver. |
-| [**Phase 2**](lens_controller_phase2_plan.md) | **Zero-Heap Focus Evaluator** | `FocusEvaluator.h/.cpp` (Sobel, Laplacian, Tenengrad, Vollath F4/F5, DCT integration with `libs/Math`) | Zero heap allocations on evaluation path, passes synthetic pattern tests. |
-| [**Phase 3**](lens_controller_phase3_plan.md) | **Zoom-to-Focus (Parfocal LUT & Spline)** | `ZoomTrackFocusEngine.h/.cpp` (Sightline curve file format parser, PCHIP spline interpolation, curve calibrator) | Exact roundtrip of multi-curve files, monotonic spline interpolation without overshoot. |
-| [**Phase 4**](lens_controller_phase4_plan.md) | **Autofocus Algorithms & Peak Fitting** | `PeakFitter.h/.cpp`, `AutoFocusEngine.h/.cpp` (Seek, Scan 3-phase, Golden Section, Adaptive Momentum, Dynamic Tracker ROI) | Closed-loop convergence to global focus peak across simulated focal curves. |
-| [**Phase 5**](lens_controller_phase5_plan.md) | **Dynamic DLL Loader & Protocols** | `LensDriverLoader.h/.cpp`, `ViscaLensDriver.h/.cpp`, `PelcoDLensDriver.h/.cpp` | Cross-platform dynamic loading, port collision rejection, VISCA/Pelco-D frame generation. |
-| [**Phase 6**](lens_controller_phase6_plan.md) | **Master Controller & Payload HAL** | `LensController.h/.cpp`, `LensPayloadAdapter.h/.cpp` bridging to `PayloadHal::ICameraPayload` | Unified multi-channel management, smooth joystick jog, limit clamping. |
-| [**Phase 7**](lens_controller_phase7_plan.md) | **Verification, Documentation & CI** | Integration into root `CMakeLists.txt`, `scripts/verify_iwyu_cstdint.py`, Doxygen validation | Zero compiler warnings, 100% test pass rate on Linux and Windows. |
+| Phase | Milestone | Scope / Deliverables | Status | Success Criteria |
+|:---:|:---|:---|:---:|:---|
+| [**Phase 1**](lens_controller_phase1_plan.md) | **Core Domain & HAL** | `LensTypes.h`, `ILensDriver.h`, `MockLensDriver.h/.cpp`, tests | **Completed** | Strongly-typed value objects, 100% test pass on mock driver. |
+| [**Phase 2**](lens_controller_phase2_plan.md) | **Zero-Heap Focus Evaluator** | `FocusEvaluator.h/.cpp` (Sobel, Laplacian, Tenengrad, Vollath F4/F5, DCT integration with `libs/Math`) | **Completed** | Zero heap allocations on evaluation path, passes synthetic pattern tests. |
+| [**Phase 3**](lens_controller_phase3_plan.md) | **Zoom-to-Focus (Parfocal LUT & Spline)** | `ZoomTrackFocusEngine.h/.cpp` (Sightline curve file format parser, PCHIP spline interpolation, curve calibrator) | **Completed** | Exact roundtrip of multi-curve files, monotonic spline interpolation without overshoot. |
+| [**Phase 4**](lens_controller_phase4_plan.md) | **Autofocus Algorithms & Peak Fitting** | `PeakFitter.h/.cpp`, `AutoFocusEngine.h/.cpp` (Seek, Scan 3-phase, Golden Section, Adaptive Momentum, Dynamic Tracker ROI) | **Completed** | Closed-loop convergence to global focus peak across simulated focal curves. |
+| [**Phase 5**](lens_controller_phase5_plan.md) | **Dynamic DLL Loader & Protocols** | `LensDriverLoader.h/.cpp`, `ViscaLensDriver.h/.cpp`, `PelcoDLensDriver.h/.cpp` | **Completed** | Cross-platform dynamic loading, port collision rejection, VISCA/Pelco-D frame generation. |
+| [**Phase 6**](lens_controller_phase6_plan.md) | **Master Controller & Payload HAL** | `LensController.h/.cpp`, `LensPayloadAdapter.h/.cpp` bridging to `PayloadHal::ICameraPayload` | **Completed** | Unified multi-channel management, smooth joystick jog, limit clamping. |
+| [**Phase 7**](lens_controller_phase7_plan.md) | **Verification, Documentation & CI** | Integration into root `CMakeLists.txt`, `scripts/verify_iwyu_cstdint.py`, Doxygen validation | **Completed** | Zero compiler warnings, 100% test pass rate on Linux and Windows. |
+| **Phase 8** | **Actuator Dynamics & Motion Control** | `ParfocalFeedforwardController`, `MotionProfiler` (7-phase S-curve), `ActuatorPidController` | Planned | Synchronous focus slew during zoom, smooth acceleration without ringing, stiction inversion. |
+| **Phase 9** | **Intelligent AF Heuristics** | `MotionGatedAfManager`, `OpticalGeometryCalculator` (DOF/Hyperfocal), `MultiZoneFocusEvaluator` (3x3 grid) | Planned | Zero AF hunting during PTZ pan/tilt slews, instant wide-angle lock, foreground subject priority. |
+| **Phase 10** | **Sensor Fusion & Optics** | `RangeToFocusCueBridge` (LRF/KLV ST 0601), `ThermalDriftCompensator` (LWIR/MWIR), `AutoIrisCoordinator` | Planned | Hunt-free focus on laser target range, thermal drift stability across -40°C..+70°C, exposure co-tuning. |
+| **Phase 11** | **Calibration & Diagnostics** | `BacklashCalibrator`, `ActuatorDiagnostics` (cycle count, wear telemetry, stall detection) | Planned | Autonomous mechanical gear backlash calibration, non-volatile cycle tracking, slip warning. |
 
 ---
 
@@ -604,7 +888,8 @@ libs/LensController/
 - [x] **MISRA C++:2023 & SEI CERT C++**:
   - Rule 7.0.6 & INT31-C: Explicit, checked `static_cast` for integer conversions.
   - STR37-C: Locale-independent ASCII character comparisons.
-  - ERR55-CPP: Zero dynamic heap allocations in `noexcept` evaluation and dispatch loops.
+  - ERR55-CPP: Zero dynamic heap allocations in `noexcept` evaluation, feedforward, and dispatch loops.
 - [x] **Documentation Diagrams**: Both ASCII and Mermaid diagrams included.
 - [x] **Cross-Platform**: Win32 (`LoadLibraryA`) and POSIX (`dlopen`) driver loading.
+- [x] **Relative Documentation Links**: Portable relative paths across all document references.
 
