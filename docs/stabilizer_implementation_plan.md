@@ -1,8 +1,8 @@
-# Digital Video Stabilizer Library Implementation Plan (`libs/Stabilizer`)
+# Video Stabilizer Library Implementation Plan (`libs/Stabilizer`)
 
 ## 1. Overview & Objectives
 
-This document establishes the technical design, architectural decomposition, mathematical algorithms, and phased implementation schedule for **`libs/Stabilizer`**.
+This document establishes the technical master design, architectural decomposition, mathematical algorithms, and phased implementation schedule for **`libs/Stabilizer`**.
 
 `libs/Stabilizer` is a clean-room, high-performance, zero-heap, strongly-typed C++17 digital video stabilization library designed for defense, aerospace, robotics, and high-speed electro-optical/infrared (EO/IR) gimbal camera systems.
 
@@ -214,25 +214,34 @@ Straightening vertical structures and eliminating the characteristic "jello" wob
 libs/Stabilizer/
 ├── CMakeLists.txt
 ├── StabilizerTypes.h             # Strongly-typed domain value objects
-├── FramePyramid.h                # Zero-heap multi-scale image pyramid
+├── FrameView.h                   # Non-owning 2D span, sub-ROI slicing & pixel access
+├── FrameBuffer.h                 # 64-byte aligned RAII frame memory container
+├── FrameBuffer.cpp
+├── StabilizerArena.h             # High-speed zero-fragmentation monotonic scratchpad
+├── StabilizerArena.cpp
+├── FramePyramid.h                # Zero-heap multi-scale Gaussian image pyramid
 ├── FramePyramid.cpp
-├── FeatureDetector.h             # Shi-Tomasi & FAST with grid bucketing
+├── FeatureDetector.h             # Shi-Tomasi & FAST with grid bucketing (Phase 2)
 ├── FeatureDetector.cpp
-├── OpticalFlowTracker.h          # Pyramidal Lucas-Kanade with forward-backward pruning
+├── OpticalFlowTracker.h          # Pyramidal Lucas-Kanade with forward-backward pruning (Phase 3)
 ├── OpticalFlowTracker.cpp
 ├── PhaseCorrelationEstimator.h   # FFT-based global translation estimator
 ├── PhaseCorrelationEstimator.cpp
-├── MotionModelEstimator.h        # RANSAC/MSAC Affine & Euclidean fitting
+├── MotionModelEstimator.h        # RANSAC/MSAC Affine & Euclidean fitting (Phase 4)
 ├── MotionModelEstimator.cpp
-├── TrajectoryFilter.h            # EKF, Gaussian FIR, and L1 path smoothing
+├── TrajectoryFilter.h            # EKF, Gaussian FIR, and L1 path smoothing (Phase 5)
 ├── TrajectoryFilter.cpp
-├── WarpEngine.h                  # SIMD-accelerated inverse warp & rolling shutter
+├── WarpEngine.h                  # SIMD-accelerated inverse warp & rolling shutter (Phase 6)
 ├── WarpEngine.cpp
-├── VideoStabilizerEngine.h       # Top-level orchestrator & state machine
+├── VideoStabilizerEngine.h       # Top-level orchestrator & state machine (Phase 7)
 ├── VideoStabilizerEngine.cpp
 └── tests/
     ├── CMakeLists.txt
-    ├── TestFeatureDetector.cpp
+    ├── TestStabilizerTypes.cpp   # Phase 1 unit tests
+    ├── TestFrameView.cpp         # Phase 1 unit tests
+    ├── TestStabilizerArena.cpp   # Phase 1 unit tests
+    ├── TestFramePyramid.cpp      # Phase 1 unit tests
+    ├── TestFeatureDetector.cpp   # Phase 2 unit tests
     ├── TestOpticalFlowTracker.cpp
     ├── TestMotionModelEstimator.cpp
     ├── TestTrajectoryFilter.cpp
@@ -320,56 +329,93 @@ struct AffineTransform2D {
 ## 4. Phased Implementation Roadmap
 
 ```
-+-----------------------------------------------------------------------------------------------+
-|                             PHASED IMPLEMENTATION TIMELINE                                    |
-|                                                                                               |
-|  Phase 1: Domain Types, Frame Buffers & Image Pyramids (Zero-Heap Infrastructure)             |
-|  Phase 2: Shi-Tomasi Feature Detector & Grid Bucketing                                        |
-|  Phase 3: Multi-Scale Pyramidal Lucas-Kanade Optical Flow Tracker                             |
-|  Phase 4: RANSAC / MSAC Parametric Motion Model Estimator                                     |
-|  Phase 5: Trajectory Smoothing & PTZ Feedforward Sensor Fusion                                |
-|  Phase 6: SIMD Warp Synthesis, Dynamic Margin Cropping & Rolling Shutter                      |
-|  Phase 7: End-to-End Orchestrator, Conformance Verification & Benchmarking                    |
-+-----------------------------------------------------------------------------------------------+
++---------------------------------------------------------------------------------------------------------------+
+|                                         PHASED IMPLEMENTATION TIMELINE                                        |
+|                                                                                                               |
+|  [COMPLETED] Phase 1: Domain Types, Frame Buffers & Image Pyramids (Zero-Heap Infrastructure)                 |
+|  [COMPLETED] Phase 2: Shi-Tomasi Feature Detector & Grid Bucketing (Uniform Spatial Distribution)             |
+|  [CURRENT]   Phase 3: Multi-Scale Pyramidal Lucas-Kanade Optical Flow Tracker (Bidirectional Pruning)        |
+|  [PLANNED]   Phase 4: RANSAC / MSAC Parametric Motion Model Estimator (Affine & Euclidean Fitting)            |
+|  [PLANNED]   Phase 5: Trajectory Smoothing & PTZ Feedforward Sensor Fusion (EKF / L1 Path Smoother)          |
+|  [PLANNED]   Phase 6: SIMD Warp Synthesis, Dynamic Margin Cropping & Rolling Shutter (Bilinear/Bicubic)       |
+|  [PLANNED]   Phase 7: End-to-End Orchestrator, Conformance Verification & Benchmarking (Zero-Copy Engine)     |
++---------------------------------------------------------------------------------------------------------------+
 ```
 
-### Phase 1: Domain Types, Frame Buffers & Image Pyramids
+```mermaid
+flowchart TD
+    P1["Phase 1: Domain Types & Memory Infrastructure<br/><b>[COMPLETED]</b>"] --> P2["Phase 2: Feature Detection & Grid Bucketing<br/><b>[COMPLETED]</b>"]
+    P2 --> P3["Phase 3: Pyramidal LK Optical Flow<br/><b>[CURRENT]</b>"]
+    P3 --> P4["Phase 4: Robust Motion Model Estimator<br/><b>[PLANNED]</b>"]
+    P4 --> P5["Phase 5: Trajectory Smoothing & PTZ Fusion<br/><b>[PLANNED]</b>"]
+    P5 --> P6["Phase 6: SIMD Warp Engine & Rolling Shutter<br/><b>[PLANNED]</b>"]
+    P6 --> P7["Phase 7: Top-Level Engine & Benchmarking<br/><b>[PLANNED]</b>"]
+```
+
+### 4.1 Phase Execution & Status Matrix
+
+| Phase | Description | Status | Primary Artifacts | Detailed Plan |
+| :--- | :--- | :--- | :--- | :--- |
+| **Phase 1** | Domain Types, Frame Buffers & Image Pyramids | **COMPLETED** | `StabilizerTypes.h`, `FrameView.h`, `FrameBuffer.h/.cpp`, `StabilizerArena.h/.cpp`, `FramePyramid.h/.cpp` | [stabilizer_phase1_plan.md](stabilizer_phase1_plan.md) |
+| **Phase 2** | Feature Detection & Grid Bucketing | **COMPLETED** | `FeatureDetector.h`, `FeatureDetector.cpp`, `TestFeatureDetector.cpp` | [stabilizer_phase2_plan.md](stabilizer_phase2_plan.md) |
+| **Phase 3** | Pyramidal Lucas-Kanade Optical Flow Tracker | **ACTIVE / CURRENT** | `OpticalFlowTracker.h`, `OpticalFlowTracker.cpp`, `TestOpticalFlowTracker.cpp` | Planned |
+| **Phase 4** | Robust Parametric Motion Model Estimator | Planned | `MotionModelEstimator.h`, `MotionModelEstimator.cpp`, `TestMotionModelEstimator.cpp` | Planned |
+| **Phase 5** | Trajectory Smoothing & PTZ Telemetry Fusion | Planned | `TrajectoryFilter.h`, `TrajectoryFilter.cpp`, `TestTrajectoryFilter.cpp` | Planned |
+| **Phase 6** | SIMD Warp Synthesis & Rolling Shutter Compensation | Planned | `WarpEngine.h`, `WarpEngine.cpp`, `TestWarpEngine.cpp` | Planned |
+| **Phase 7** | Top-Level Engine Orchestration & Benchmark Harness | Planned | `VideoStabilizerEngine.h`, `VideoStabilizerEngine.cpp`, `TestVideoStabilizerEngine.cpp` | Planned |
+
+---
+
+### Phase 1: Domain Types, Frame Buffers & Image Pyramids `[COMPLETED]`
 - **Objective**: Establish `StabilizerTypes.h`, zero-allocation memory workspace, and 3-level Gaussian image pyramid downsampler.
-- **Key Classes**: `StabilizerTypes`, `FramePyramid`, `MemoryArena`.
-- **Deliverables**: Pre-allocated scratchpad buffers accommodating up to 4K resolution without dynamic heap allocation during runtime (`CERT ERR55-CPP`).
-- **Tests**: `TestFramePyramid.cpp` verifying downsampling accuracy, SIMD vectorization, and memory bounds.
+- **Delivered Classes**:
+  - `StabilizerTypes.h`: Strongly-typed value objects (`FrameDimensions`, `SubPixelPoint`, `MotionVector`, `CropRatio`, `SmoothingFactor`, `AffineTransform2D`, `StabilizerStatus`, `PixelFormat`, `StabilizationMode`).
+  - `FrameView.h`: Non-owning 2D span, sub-ROI slicing, clamped pixel access, zero heap allocations.
+  - `FrameBuffer.h` / `FrameBuffer.cpp`: 64-byte aligned RAII frame memory container.
+  - `StabilizerArena.h` / `StabilizerArena.cpp`: High-speed zero-fragmentation monotonic scratchpad arena.
+  - `FramePyramid.h` / `FramePyramid.cpp`: 3-level Gaussian image pyramid downsampler ($L_0, L_1, L_2$) using fixed-point SIMD binomial kernel downsampling.
+- **Verification**: Complete GoogleTest suite (`TestStabilizerTypes.cpp`, `TestFrameView.cpp`, `TestStabilizerArena.cpp`, `TestFramePyramid.cpp`).
+- **Detailed Specification**: [stabilizer_phase1_plan.md](stabilizer_phase1_plan.md).
 
-### Phase 2: Feature Detection & Grid Bucketing
-- **Objective**: High-speed corner detection with spatial uniformity.
-- **Key Classes**: `FeatureDetector`.
-- **Algorithms**: Shi-Tomasi minimum eigenvalue score calculation $\lambda_{\min} = \frac{1}{2}((I_{xx} + I_{yy}) - \sqrt{(I_{xx} - I_{yy})^2 + 4 I_{xy}^2})$, $8 \times 6$ cell spatial grid bucketing, non-maximum suppression.
-- **Tests**: `TestFeatureDetector.cpp` verifying feature count bounds and spatial dispersion.
+### Phase 2: Feature Detection & Grid Bucketing `[COMPLETED]`
+- **Objective**: High-speed, deterministic corner and feature detection with uniform spatial dispersion.
+- **Delivered Classes**:
+  - `FeatureDetector.h` / `FeatureDetector.cpp`:
+    - Strongly-typed `FeaturePoint`, `QualityThreshold`, `GridBucketingConfig`, and `FeatureDetectorConfig`.
+    - Sobel spatial gradient convolution with fixed-point integer arithmetic.
+    - Shi-Tomasi minimum eigenvalue corner score calculation:
+      $$\lambda_{\min} = \frac{1}{2} \left( (I_{xx} + I_{yy}) - \sqrt{(I_{xx} - I_{yy})^2 + 4 I_{xy}^2} \right)$$
+    - Configurable $K \times M$ spatial grid bucketing enforcing at most $N_{\text{cell}}$ features per cell with round-robin rank extraction, eliminating foreground clustering.
+    - $3 \times 3$ Non-Maximum Suppression (NMS) with directional tie-breaking and sub-pixel parabolic peak refinement.
+    - Zero dynamic allocation runtime execution powered by `StabilizerArena` (`CERT ERR55-CPP`).
+- **Verification**: Complete GoogleTest suite (`TestFeatureDetector.cpp`: configuration validation, flat image rejection, synthetic corner detection, border margin exclusion, grid bucketing caps, minimum distance enforcement, and arena exhaustion protection).
+- **Detailed Specification**: [stabilizer_phase2_plan.md](stabilizer_phase2_plan.md).
 
-### Phase 3: Pyramidal Lucas-Kanade Optical Flow Tracker
-- **Objective**: Sub-pixel feature tracking with bidirectional error validation.
+### Phase 3: Pyramidal Lucas-Kanade Optical Flow Tracker `[PLANNED]`
+- **Objective**: Sub-pixel feature tracking with bidirectional forward-backward error validation.
 - **Key Classes**: `OpticalFlowTracker`.
 - **Algorithms**: Coarse-to-fine 3-level iterative Newton-Raphson optical flow, forward-backward tracking consistency filter ($\epsilon \le 0.5$ px).
 - **Tests**: `TestOpticalFlowTracker.cpp` verifying synthetic translation/rotation recovery under varying noise levels.
 
-### Phase 4: Robust Parametric Motion Model Estimator
+### Phase 4: Robust Parametric Motion Model Estimator `[PLANNED]`
 - **Objective**: Fit 2-DOF, 3-DOF, and 6-DOF motion models with high outlier rejection.
 - **Key Classes**: `MotionModelEstimator`.
 - **Algorithms**: MSAC outlier scoring, singular value decomposition (SVD) closed-form affine solver, collinearity and degenerate configuration detection.
 - **Tests**: `TestMotionModelEstimator.cpp` verifying model fitting with up to 60% synthetic outlier contamination.
 
-### Phase 5: Trajectory Smoothing & PTZ Telemetry Fusion
+### Phase 5: Trajectory Smoothing & PTZ Telemetry Fusion `[PLANNED]`
 - **Objective**: Separate unwanted jitter from intentional camera sweeps.
 - **Key Classes**: `TrajectoryFilter`, `KalmanPathSmoother`, `L1PathSmoother`.
 - **Algorithms**: Discrete constant-acceleration Extended Kalman Filter with adaptive $\mathbf{Q}$ matrix, PTZ velocity feedforward gate (`PelcoDCore` pan/tilt rate ingestion), $L_1$ linear programming smoothing.
 - **Tests**: `TestTrajectoryFilter.cpp` testing synthetic sinusoidal vibration rejection while tracking constant-velocity steps.
 
-### Phase 6: SIMD Warp Synthesis & Rolling Shutter Compensation
+### Phase 6: SIMD Warp Synthesis & Rolling Shutter Compensation `[PLANNED]`
 - **Objective**: High-throughput image reconstruction and border handling.
 - **Key Classes**: `WarpEngine`, `RollingShutterCorrector`.
 - **Algorithms**: Backward-mapping bilinear interpolation with AVX2/NEON optimizations, dynamic crop scaling, row-dependent transformation interpolation.
 - **Tests**: `TestWarpEngine.cpp` validating geometric fidelity, edge clamping, and zero memory overwrites.
 
-### Phase 7: Top-Level Engine Orchestration & Benchmark Harness
+### Phase 7: Top-Level Engine Orchestration & Benchmark Harness `[PLANNED]`
 - **Objective**: Integrate all subsystems into `VideoStabilizerEngine`, provide zero-copy frame pipeline, and verify real-time performance.
 - **Key Classes**: `VideoStabilizerEngine`.
 - **Deliverables**: End-to-end processing pipeline, integration with `libs/VideoFilters/GeometricFilters.h`, performance benchmarks confirming $\le 4.5$ ms per 1080p frame on x86_64/ARM64.

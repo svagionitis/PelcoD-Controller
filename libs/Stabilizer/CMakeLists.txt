@@ -7,6 +7,8 @@ add_library(Stabilizer STATIC
     StabilizerArena.cpp
     FramePyramid.h
     FramePyramid.cpp
+    FeatureDetector.h
+    FeatureDetector.cpp
 )
 
 target_include_directories(Stabilizer PUBLIC
