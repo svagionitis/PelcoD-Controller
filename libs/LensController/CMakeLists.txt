@@ -3,6 +3,8 @@ add_library(LensController STATIC
     ILensDriver.h
     MockLensDriver.h
     MockLensDriver.cpp
+    FocusEvaluator.h
+    FocusEvaluator.cpp
 )
 
 target_include_directories(LensController PUBLIC
@@ -12,6 +14,7 @@ target_include_directories(LensController PUBLIC
 )
 
 target_link_libraries(LensController PUBLIC
+    Math
     Threads::Threads
 )
 

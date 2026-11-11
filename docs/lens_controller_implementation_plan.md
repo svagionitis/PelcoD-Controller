@@ -8,7 +8,7 @@ This document establishes the technical design, module decomposition, mathematic
 
 ### Key Objectives
 1. **Decompiled Sightline & EAN Parity**:
-   - Replicate and modernize the architecture from `C:\Users\Stavros\workspace\Sightline-Decompiled.git` (`ILensDriver.h`, `SlaLensController`, `SlaFocusEvaluator`) and the Sightline Engineering Application Note **EAN-Lens-DLL-Development.pdf**.
+   - Replicate and modernize the architecture from `Sightline-Decompiled` (`ILensDriver.h`, `SlaLensController`, `SlaFocusEvaluator`) and the Sightline Engineering Application Note **EAN-Lens-DLL-Development.pdf**.
    - Provide a dynamic driver loading mechanism (`LoadLibraryA`/`dlopen`) that loads external `.dll` / `.so` lens plugins exposing `create_lens_object` or `create_object` factory functions.
    - Implement serial port collision prevention across multi-camera channels (up to 4 channels).
 2. **Motor & Optical Actuation**:
@@ -350,7 +350,7 @@ The focus evaluator executes in the frame processing path and must execute with 
   $$M_{\text{Vollath-F5}} = \sum_{y} \sum_{x} I(x, y) \cdot I(x+1, y) - N_{\text{pixels}} \cdot \mu_I^2$$
 
 - **2D 8x8 DCT High-Frequency AC Energy**:
-  - Leverages [`libs/Math/DctSharpnessEvaluator.h`](file:///c:/Users/Stavros/workspace/PelcoD-Controller.git/libs/Math/DctSharpnessEvaluator.h):
+  - Leverages [DctSharpnessEvaluator.h](../libs/Math/DctSharpnessEvaluator.h):
   $$M_{\text{DCT}} = \frac{\sum_{u+v \ge f_{\text{min}}} |C(u,v)|}{\mu_{\text{DC}} + \epsilon}$$
 
 ---
