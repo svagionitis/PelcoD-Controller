@@ -590,7 +590,7 @@ libs/LensController/
 | [**Phase 3**](lens_controller_phase3_plan.md) | **Zoom-to-Focus (Parfocal LUT & Spline)** | `ZoomTrackFocusEngine.h/.cpp` (Sightline curve file format parser, PCHIP spline interpolation, curve calibrator) | Exact roundtrip of multi-curve files, monotonic spline interpolation without overshoot. |
 | [**Phase 4**](lens_controller_phase4_plan.md) | **Autofocus Algorithms & Peak Fitting** | `PeakFitter.h/.cpp`, `AutoFocusEngine.h/.cpp` (Seek, Scan 3-phase, Golden Section, Adaptive Momentum, Dynamic Tracker ROI) | Closed-loop convergence to global focus peak across simulated focal curves. |
 | [**Phase 5**](lens_controller_phase5_plan.md) | **Dynamic DLL Loader & Protocols** | `LensDriverLoader.h/.cpp`, `ViscaLensDriver.h/.cpp`, `PelcoDLensDriver.h/.cpp` | Cross-platform dynamic loading, port collision rejection, VISCA/Pelco-D frame generation. |
-| **Phase 6** | **Master Controller & Payload HAL** | `LensController.h/.cpp`, `LensPayloadAdapter.h/.cpp` bridging to `PayloadHal::ICameraPayload` | Unified multi-channel management, smooth joystick jog, limit clamping. |
+| [**Phase 6**](lens_controller_phase6_plan.md) | **Master Controller & Payload HAL** | `LensController.h/.cpp`, `LensPayloadAdapter.h/.cpp` bridging to `PayloadHal::ICameraPayload` | Unified multi-channel management, smooth joystick jog, limit clamping. |
 | **Phase 7** | **Verification, Documentation & CI** | Integration into root `CMakeLists.txt`, `scripts/verify_iwyu_cstdint.py`, Doxygen validation | Zero compiler warnings, 100% test pass rate on Linux and Windows. |
 
 ---

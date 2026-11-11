@@ -93,6 +93,13 @@ public:
     /// @return PeakFitResult struct.
     [[nodiscard]] PeakFitResult lastPeakFit() const noexcept;
 
+    /// @brief Returns the most recent focus metric score evaluated.
+    /// @return FocusMetricScore record.
+    [[nodiscard]] FocusMetricScore latestScore() const noexcept
+    {
+        return m_latestScore;
+    }
+
     /// @brief Returns the number of recorded sample points in the active/last run.
     /// @return Count of valid samples in internal buffer.
     [[nodiscard]] std::size_t sampleCount() const noexcept;

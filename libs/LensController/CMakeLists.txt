@@ -19,15 +19,21 @@ add_library(LensController STATIC
     ViscaLensDriver.cpp
     PelcoDLensDriver.h
     PelcoDLensDriver.cpp
+    LensController.h
+    LensController.cpp
+    LensPayloadAdapter.h
+    LensPayloadAdapter.cpp
 )
 
 target_include_directories(LensController PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../PayloadHal>
     $<INSTALL_INTERFACE:include>
 )
 
 target_link_libraries(LensController PUBLIC
+    PayloadHal
     Math
     Threads::Threads
     ${CMAKE_DL_LIBS}

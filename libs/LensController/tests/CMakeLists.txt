@@ -26,4 +26,6 @@ add_lens_test(TestAutoFocusEngine  TestAutoFocusEngine.cpp)
 add_lens_test(TestLensDriverLoader TestLensDriverLoader.cpp)
 add_lens_test(TestViscaLensDriver  TestViscaLensDriver.cpp)
 add_lens_test(TestPelcoDLensDriver TestPelcoDLensDriver.cpp)
+add_lens_test(TestLensController   TestLensController.cpp)
+add_lens_test(TestLensPayloadAdapter TestLensPayloadAdapter.cpp)
 
