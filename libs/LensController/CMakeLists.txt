@@ -13,6 +13,12 @@ add_library(LensController STATIC
     PeakFitter.cpp
     AutoFocusEngine.h
     AutoFocusEngine.cpp
+    LensDriverLoader.h
+    LensDriverLoader.cpp
+    ViscaLensDriver.h
+    ViscaLensDriver.cpp
+    PelcoDLensDriver.h
+    PelcoDLensDriver.cpp
 )
 
 target_include_directories(LensController PUBLIC
@@ -24,6 +30,7 @@ target_include_directories(LensController PUBLIC
 target_link_libraries(LensController PUBLIC
     Math
     Threads::Threads
+    ${CMAKE_DL_LIBS}
 )
 
 apply_compiler_flags(LensController)

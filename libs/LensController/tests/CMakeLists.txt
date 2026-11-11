@@ -23,4 +23,7 @@ add_lens_test(TestFocusEvaluator   TestFocusEvaluator.cpp)
 add_lens_test(TestZoomTrackCurve   TestZoomTrackCurve.cpp)
 add_lens_test(TestPeakFitter       TestPeakFitter.cpp)
 add_lens_test(TestAutoFocusEngine  TestAutoFocusEngine.cpp)
+add_lens_test(TestLensDriverLoader TestLensDriverLoader.cpp)
+add_lens_test(TestViscaLensDriver  TestViscaLensDriver.cpp)
+add_lens_test(TestPelcoDLensDriver TestPelcoDLensDriver.cpp)
 
