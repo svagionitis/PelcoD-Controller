@@ -26,4 +26,5 @@ add_stabilizer_test(TestOpticalFlowTracker TestOpticalFlowTracker.cpp)
 add_stabilizer_test(TestMotionModelEstimator TestMotionModelEstimator.cpp)
 add_stabilizer_test(TestTrajectoryFilter     TestTrajectoryFilter.cpp)
 add_stabilizer_test(TestWarpEngine           TestWarpEngine.cpp)
+add_stabilizer_test(TestVideoStabilizerEngine TestVideoStabilizerEngine.cpp)
 

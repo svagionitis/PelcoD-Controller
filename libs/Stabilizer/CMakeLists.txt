@@ -17,6 +17,10 @@ add_library(Stabilizer STATIC
     TrajectoryFilter.cpp
     WarpEngine.h
     WarpEngine.cpp
+    VideoStabilizerEngine.h
+    VideoStabilizerEngine.cpp
+    StabilizerBenchmark.h
+    StabilizerBenchmark.cpp
 )
 
 target_include_directories(Stabilizer PUBLIC
