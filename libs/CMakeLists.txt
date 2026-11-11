@@ -18,6 +18,7 @@ add_subdirectory(PelcoDSim)
 add_subdirectory(PayloadHal)
 add_subdirectory(SightlineCore)
 add_subdirectory(LensController)
+add_subdirectory(Stabilizer)
 
 if(PELCOD_ENABLE_ONVIF)
     add_subdirectory(Onvif)
