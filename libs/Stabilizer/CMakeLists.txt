@@ -11,6 +11,8 @@ add_library(Stabilizer STATIC
     FeatureDetector.cpp
     OpticalFlowTracker.h
     OpticalFlowTracker.cpp
+    MotionModelEstimator.h
+    MotionModelEstimator.cpp
 )
 
 target_include_directories(Stabilizer PUBLIC

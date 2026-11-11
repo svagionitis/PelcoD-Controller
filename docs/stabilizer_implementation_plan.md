@@ -335,8 +335,8 @@ struct AffineTransform2D {
 |  [COMPLETED] Phase 1: Domain Types, Frame Buffers & Image Pyramids (Zero-Heap Infrastructure)                 |
 |  [COMPLETED] Phase 2: Shi-Tomasi Feature Detector & Grid Bucketing (Uniform Spatial Distribution)             |
 |  [COMPLETED] Phase 3: Multi-Scale Pyramidal Lucas-Kanade Optical Flow Tracker (Bidirectional Pruning)         |
-|  [CURRENT]   Phase 4: RANSAC / MSAC Parametric Motion Model Estimator (Affine & Euclidean Fitting)            |
-|  [PLANNED]   Phase 5: Trajectory Smoothing & PTZ Feedforward Sensor Fusion (EKF / L1 Path Smoother)          |
+|  [COMPLETED] Phase 4: RANSAC / MSAC Parametric Motion Model Estimator (Affine & Euclidean Fitting)            |
+|  [CURRENT]   Phase 5: Trajectory Smoothing & PTZ Feedforward Sensor Fusion (EKF / L1 Path Smoother)          |
 |  [PLANNED]   Phase 6: SIMD Warp Synthesis, Dynamic Margin Cropping & Rolling Shutter (Bilinear/Bicubic)       |
 |  [PLANNED]   Phase 7: End-to-End Orchestrator, Conformance Verification & Benchmarking (Zero-Copy Engine)     |
 +---------------------------------------------------------------------------------------------------------------+
@@ -346,8 +346,8 @@ struct AffineTransform2D {
 flowchart TD
     P1["Phase 1: Domain Types & Memory Infrastructure<br/><b>[COMPLETED]</b>"] --> P2["Phase 2: Feature Detection & Grid Bucketing<br/><b>[COMPLETED]</b>"]
     P2 --> P3["Phase 3: Pyramidal LK Optical Flow<br/><b>[COMPLETED]</b>"]
-    P3 --> P4["Phase 4: Robust Motion Model Estimator<br/><b>[CURRENT]</b>"]
-    P4 --> P5["Phase 5: Trajectory Smoothing & PTZ Fusion<br/><b>[PLANNED]</b>"]
+    P3 --> P4["Phase 4: Robust Motion Model Estimator<br/><b>[COMPLETED]</b>"]
+    P4 --> P5["Phase 5: Trajectory Smoothing & PTZ Fusion<br/><b>[CURRENT]</b>"]
     P5 --> P6["Phase 6: SIMD Warp Engine & Rolling Shutter<br/><b>[PLANNED]</b>"]
     P6 --> P7["Phase 7: Top-Level Engine & Benchmarking<br/><b>[PLANNED]</b>"]
 ```
@@ -359,8 +359,8 @@ flowchart TD
 | **Phase 1** | Domain Types, Frame Buffers & Image Pyramids | **COMPLETED** | `StabilizerTypes.h`, `FrameView.h`, `FrameBuffer.h/.cpp`, `StabilizerArena.h/.cpp`, `FramePyramid.h/.cpp` | [stabilizer_phase1_plan.md](stabilizer_phase1_plan.md) |
 | **Phase 2** | Feature Detection & Grid Bucketing | **COMPLETED** | `FeatureDetector.h`, `FeatureDetector.cpp`, `TestFeatureDetector.cpp` | [stabilizer_phase2_plan.md](stabilizer_phase2_plan.md) |
 | **Phase 3** | Pyramidal Lucas-Kanade Optical Flow Tracker | **COMPLETED** | `OpticalFlowTracker.h`, `OpticalFlowTracker.cpp`, `TestOpticalFlowTracker.cpp` | [stabilizer_phase3_plan.md](stabilizer_phase3_plan.md) |
-| **Phase 4** | Robust Parametric Motion Model Estimator | **ACTIVE / CURRENT** | `MotionModelEstimator.h`, `MotionModelEstimator.cpp`, `TestMotionModelEstimator.cpp` | Planned |
-| **Phase 5** | Trajectory Smoothing & PTZ Telemetry Fusion | Planned | `TrajectoryFilter.h`, `TrajectoryFilter.cpp`, `TestTrajectoryFilter.cpp` | Planned |
+| **Phase 4** | Robust Parametric Motion Model Estimator | **COMPLETED** | `MotionModelEstimator.h`, `MotionModelEstimator.cpp`, `TestMotionModelEstimator.cpp` | [stabilizer_phase4_plan.md](stabilizer_phase4_plan.md) |
+| **Phase 5** | Trajectory Smoothing & PTZ Telemetry Fusion | **ACTIVE / CURRENT** | `TrajectoryFilter.h`, `TrajectoryFilter.cpp`, `TestTrajectoryFilter.cpp` | Planned |
 | **Phase 6** | SIMD Warp Synthesis & Rolling Shutter Compensation | Planned | `WarpEngine.h`, `WarpEngine.cpp`, `TestWarpEngine.cpp` | Planned |
 | **Phase 7** | Top-Level Engine Orchestration & Benchmark Harness | Planned | `VideoStabilizerEngine.h`, `VideoStabilizerEngine.cpp`, `TestVideoStabilizerEngine.cpp` | Planned |
 
@@ -405,13 +405,14 @@ flowchart TD
 - **Verification**: Complete GoogleTest suite (`TestOpticalFlowTracker.cpp`: config validation, window bounds, identity zero motion, sub-pixel translation recovery, large displacement pyramid tracking, ill-conditioned patch rejection, boundary exclusion, forward-backward occlusion pruning, and arena exhaustion protection).
 - **Detailed Specification**: [stabilizer_phase3_plan.md](stabilizer_phase3_plan.md).
 
-### Phase 4: Robust Parametric Motion Model Estimator `[ACTIVE / CURRENT]`
+### Phase 4: Robust Parametric Motion Model Estimator `[COMPLETED]`
 - **Objective**: Fit 2-DOF, 3-DOF, and 6-DOF motion models with high outlier rejection.
 - **Key Classes**: `MotionModelEstimator`.
 - **Algorithms**: MSAC outlier scoring, singular value decomposition (SVD) closed-form affine solver, collinearity and degenerate configuration detection.
 - **Tests**: `TestMotionModelEstimator.cpp` verifying model fitting with up to 60% synthetic outlier contamination.
+- **Detailed Specification**: [stabilizer_phase4_plan.md](stabilizer_phase4_plan.md).
 
-### Phase 5: Trajectory Smoothing & PTZ Telemetry Fusion `[PLANNED]`
+### Phase 5: Trajectory Smoothing & PTZ Telemetry Fusion `[ACTIVE / CURRENT]`
 - **Objective**: Separate unwanted jitter from intentional camera sweeps.
 - **Key Classes**: `TrajectoryFilter`, `KalmanPathSmoother`, `L1PathSmoother`.
 - **Algorithms**: Discrete constant-acceleration Extended Kalman Filter with adaptive $\mathbf{Q}$ matrix, PTZ velocity feedforward gate (`PelcoDCore` pan/tilt rate ingestion), $L_1$ linear programming smoothing.
