@@ -15,6 +15,8 @@ add_library(Stabilizer STATIC
     MotionModelEstimator.cpp
     TrajectoryFilter.h
     TrajectoryFilter.cpp
+    WarpEngine.h
+    WarpEngine.cpp
 )
 
 target_include_directories(Stabilizer PUBLIC

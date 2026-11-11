@@ -337,8 +337,8 @@ struct AffineTransform2D {
 |  [COMPLETED] Phase 3: Multi-Scale Pyramidal Lucas-Kanade Optical Flow Tracker (Bidirectional Pruning)         |
 |  [COMPLETED] Phase 4: RANSAC / MSAC Parametric Motion Model Estimator (Affine & Euclidean Fitting)            |
 |  [COMPLETED] Phase 5: Trajectory Smoothing & PTZ Feedforward Sensor Fusion (EKF / L1 Path Smoother)          |
-|  [CURRENT]   Phase 6: SIMD Warp Synthesis, Dynamic Margin Cropping & Rolling Shutter (Bilinear/Bicubic)       |
-|  [PLANNED]   Phase 7: End-to-End Orchestrator, Conformance Verification & Benchmarking (Zero-Copy Engine)     |
+|  [COMPLETED] Phase 6: SIMD Warp Synthesis, Dynamic Margin Cropping & Rolling Shutter (Bilinear/Bicubic)       |
+|  [CURRENT]   Phase 7: End-to-End Orchestrator, Conformance Verification & Benchmarking (Zero-Copy Engine)     |
 +---------------------------------------------------------------------------------------------------------------+
 ```
 
@@ -348,8 +348,8 @@ flowchart TD
     P2 --> P3["Phase 3: Pyramidal LK Optical Flow<br/><b>[COMPLETED]</b>"]
     P3 --> P4["Phase 4: Robust Motion Model Estimator<br/><b>[COMPLETED]</b>"]
     P4 --> P5["Phase 5: Trajectory Smoothing & PTZ Fusion<br/><b>[COMPLETED]</b>"]
-    P5 --> P6["Phase 6: SIMD Warp Engine & Rolling Shutter<br/><b>[CURRENT]</b>"]
-    P6 --> P7["Phase 7: Top-Level Engine & Benchmarking<br/><b>[PLANNED]</b>"]
+    P5 --> P6["Phase 6: SIMD Warp Engine & Rolling Shutter<br/><b>[COMPLETED]</b>"]
+    P6 --> P7["Phase 7: Top-Level Engine & Benchmarking<br/><b>[CURRENT]</b>"]
 ```
 
 ### 4.1 Phase Execution & Status Matrix
@@ -361,8 +361,8 @@ flowchart TD
 | **Phase 3** | Pyramidal Lucas-Kanade Optical Flow Tracker | **COMPLETED** | `OpticalFlowTracker.h`, `OpticalFlowTracker.cpp`, `TestOpticalFlowTracker.cpp` | [stabilizer_phase3_plan.md](stabilizer_phase3_plan.md) |
 | **Phase 4** | Robust Parametric Motion Model Estimator | **COMPLETED** | `MotionModelEstimator.h`, `MotionModelEstimator.cpp`, `TestMotionModelEstimator.cpp` | [stabilizer_phase4_plan.md](stabilizer_phase4_plan.md) |
 | **Phase 5** | Trajectory Smoothing & PTZ Telemetry Fusion | **COMPLETED** | `TrajectoryFilter.h`, `TrajectoryFilter.cpp`, `TestTrajectoryFilter.cpp` | [stabilizer_phase5_plan.md](stabilizer_phase5_plan.md) |
-| **Phase 6** | SIMD Warp Synthesis & Rolling Shutter Compensation | **ACTIVE / CURRENT** | `WarpEngine.h`, `WarpEngine.cpp`, `TestWarpEngine.cpp` | Planned |
-| **Phase 7** | Top-Level Engine Orchestration & Benchmark Harness | Planned | `VideoStabilizerEngine.h`, `VideoStabilizerEngine.cpp`, `TestVideoStabilizerEngine.cpp` | Planned |
+| **Phase 6** | SIMD Warp Synthesis & Rolling Shutter Compensation | **COMPLETED** | `WarpEngine.h`, `WarpEngine.cpp`, `TestWarpEngine.cpp` | [stabilizer_phase6_plan.md](stabilizer_phase6_plan.md) |
+| **Phase 7** | Top-Level Engine Orchestration & Benchmark Harness | **ACTIVE / CURRENT** | `VideoStabilizerEngine.h`, `VideoStabilizerEngine.cpp`, `TestVideoStabilizerEngine.cpp` | Planned |
 
 ---
 
@@ -419,13 +419,14 @@ flowchart TD
 - **Tests**: `TestTrajectoryFilter.cpp` testing synthetic sinusoidal vibration rejection while tracking constant-velocity steps.
 - **Detailed Specification**: [stabilizer_phase5_plan.md](stabilizer_phase5_plan.md).
 
-### Phase 6: SIMD Warp Synthesis & Rolling Shutter Compensation `[ACTIVE / CURRENT]`
+### Phase 6: SIMD Warp Synthesis & Rolling Shutter Compensation `[COMPLETED]`
 - **Objective**: High-throughput image reconstruction and border handling.
-- **Key Classes**: `WarpEngine`, `RollingShutterCorrector`.
-- **Algorithms**: Backward-mapping bilinear interpolation with AVX2/NEON optimizations, dynamic crop scaling, row-dependent transformation interpolation.
-- **Tests**: `TestWarpEngine.cpp` validating geometric fidelity, edge clamping, and zero memory overwrites.
+- **Key Classes**: `WarpEngine`.
+- **Algorithms**: Backward-mapping bilinear and bicubic interpolation with AVX2/NEON optimizations, fixed-point 16.16 DDA scanline stepping, dynamic margin auto-cropping, row-dependent rolling shutter transformation interpolation.
+- **Tests**: `TestWarpEngine.cpp` validating geometric fidelity, SIMD vs. scalar equivalence, edge clamping, rolling shutter rectification, and zero memory overwrites.
+- **Detailed Specification**: [stabilizer_phase6_plan.md](stabilizer_phase6_plan.md).
 
-### Phase 7: Top-Level Engine Orchestration & Benchmark Harness `[PLANNED]`
+### Phase 7: Top-Level Engine Orchestration & Benchmark Harness `[ACTIVE / CURRENT]`
 - **Objective**: Integrate all subsystems into `VideoStabilizerEngine`, provide zero-copy frame pipeline, and verify real-time performance.
 - **Key Classes**: `VideoStabilizerEngine`.
 - **Deliverables**: End-to-end processing pipeline, integration with `libs/VideoFilters/GeometricFilters.h`, performance benchmarks confirming $\le 4.5$ ms per 1080p frame on x86_64/ARM64.
