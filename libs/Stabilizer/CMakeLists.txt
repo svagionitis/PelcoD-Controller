@@ -9,6 +9,8 @@ add_library(Stabilizer STATIC
     FramePyramid.cpp
     FeatureDetector.h
     FeatureDetector.cpp
+    OpticalFlowTracker.h
+    OpticalFlowTracker.cpp
 )
 
 target_include_directories(Stabilizer PUBLIC

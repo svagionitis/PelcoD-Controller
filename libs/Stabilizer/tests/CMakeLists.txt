@@ -22,4 +22,5 @@ add_stabilizer_test(TestFrameView       TestFrameView.cpp)
 add_stabilizer_test(TestStabilizerArena TestStabilizerArena.cpp)
 add_stabilizer_test(TestFramePyramid   TestFramePyramid.cpp)
 add_stabilizer_test(TestFeatureDetector TestFeatureDetector.cpp)
+add_stabilizer_test(TestOpticalFlowTracker TestOpticalFlowTracker.cpp)
 

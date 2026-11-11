@@ -334,8 +334,8 @@ struct AffineTransform2D {
 |                                                                                                               |
 |  [COMPLETED] Phase 1: Domain Types, Frame Buffers & Image Pyramids (Zero-Heap Infrastructure)                 |
 |  [COMPLETED] Phase 2: Shi-Tomasi Feature Detector & Grid Bucketing (Uniform Spatial Distribution)             |
-|  [CURRENT]   Phase 3: Multi-Scale Pyramidal Lucas-Kanade Optical Flow Tracker (Bidirectional Pruning)        |
-|  [PLANNED]   Phase 4: RANSAC / MSAC Parametric Motion Model Estimator (Affine & Euclidean Fitting)            |
+|  [COMPLETED] Phase 3: Multi-Scale Pyramidal Lucas-Kanade Optical Flow Tracker (Bidirectional Pruning)         |
+|  [CURRENT]   Phase 4: RANSAC / MSAC Parametric Motion Model Estimator (Affine & Euclidean Fitting)            |
 |  [PLANNED]   Phase 5: Trajectory Smoothing & PTZ Feedforward Sensor Fusion (EKF / L1 Path Smoother)          |
 |  [PLANNED]   Phase 6: SIMD Warp Synthesis, Dynamic Margin Cropping & Rolling Shutter (Bilinear/Bicubic)       |
 |  [PLANNED]   Phase 7: End-to-End Orchestrator, Conformance Verification & Benchmarking (Zero-Copy Engine)     |
@@ -345,8 +345,8 @@ struct AffineTransform2D {
 ```mermaid
 flowchart TD
     P1["Phase 1: Domain Types & Memory Infrastructure<br/><b>[COMPLETED]</b>"] --> P2["Phase 2: Feature Detection & Grid Bucketing<br/><b>[COMPLETED]</b>"]
-    P2 --> P3["Phase 3: Pyramidal LK Optical Flow<br/><b>[CURRENT]</b>"]
-    P3 --> P4["Phase 4: Robust Motion Model Estimator<br/><b>[PLANNED]</b>"]
+    P2 --> P3["Phase 3: Pyramidal LK Optical Flow<br/><b>[COMPLETED]</b>"]
+    P3 --> P4["Phase 4: Robust Motion Model Estimator<br/><b>[CURRENT]</b>"]
     P4 --> P5["Phase 5: Trajectory Smoothing & PTZ Fusion<br/><b>[PLANNED]</b>"]
     P5 --> P6["Phase 6: SIMD Warp Engine & Rolling Shutter<br/><b>[PLANNED]</b>"]
     P6 --> P7["Phase 7: Top-Level Engine & Benchmarking<br/><b>[PLANNED]</b>"]
@@ -358,8 +358,8 @@ flowchart TD
 | :--- | :--- | :--- | :--- | :--- |
 | **Phase 1** | Domain Types, Frame Buffers & Image Pyramids | **COMPLETED** | `StabilizerTypes.h`, `FrameView.h`, `FrameBuffer.h/.cpp`, `StabilizerArena.h/.cpp`, `FramePyramid.h/.cpp` | [stabilizer_phase1_plan.md](stabilizer_phase1_plan.md) |
 | **Phase 2** | Feature Detection & Grid Bucketing | **COMPLETED** | `FeatureDetector.h`, `FeatureDetector.cpp`, `TestFeatureDetector.cpp` | [stabilizer_phase2_plan.md](stabilizer_phase2_plan.md) |
-| **Phase 3** | Pyramidal Lucas-Kanade Optical Flow Tracker | **ACTIVE / CURRENT** | `OpticalFlowTracker.h`, `OpticalFlowTracker.cpp`, `TestOpticalFlowTracker.cpp` | Planned |
-| **Phase 4** | Robust Parametric Motion Model Estimator | Planned | `MotionModelEstimator.h`, `MotionModelEstimator.cpp`, `TestMotionModelEstimator.cpp` | Planned |
+| **Phase 3** | Pyramidal Lucas-Kanade Optical Flow Tracker | **COMPLETED** | `OpticalFlowTracker.h`, `OpticalFlowTracker.cpp`, `TestOpticalFlowTracker.cpp` | [stabilizer_phase3_plan.md](stabilizer_phase3_plan.md) |
+| **Phase 4** | Robust Parametric Motion Model Estimator | **ACTIVE / CURRENT** | `MotionModelEstimator.h`, `MotionModelEstimator.cpp`, `TestMotionModelEstimator.cpp` | Planned |
 | **Phase 5** | Trajectory Smoothing & PTZ Telemetry Fusion | Planned | `TrajectoryFilter.h`, `TrajectoryFilter.cpp`, `TestTrajectoryFilter.cpp` | Planned |
 | **Phase 6** | SIMD Warp Synthesis & Rolling Shutter Compensation | Planned | `WarpEngine.h`, `WarpEngine.cpp`, `TestWarpEngine.cpp` | Planned |
 | **Phase 7** | Top-Level Engine Orchestration & Benchmark Harness | Planned | `VideoStabilizerEngine.h`, `VideoStabilizerEngine.cpp`, `TestVideoStabilizerEngine.cpp` | Planned |
@@ -391,13 +391,21 @@ flowchart TD
 - **Verification**: Complete GoogleTest suite (`TestFeatureDetector.cpp`: configuration validation, flat image rejection, synthetic corner detection, border margin exclusion, grid bucketing caps, minimum distance enforcement, and arena exhaustion protection).
 - **Detailed Specification**: [stabilizer_phase2_plan.md](stabilizer_phase2_plan.md).
 
-### Phase 3: Pyramidal Lucas-Kanade Optical Flow Tracker `[PLANNED]`
+### Phase 3: Pyramidal Lucas-Kanade Optical Flow Tracker `[COMPLETED]`
 - **Objective**: Sub-pixel feature tracking with bidirectional forward-backward error validation.
-- **Key Classes**: `OpticalFlowTracker`.
-- **Algorithms**: Coarse-to-fine 3-level iterative Newton-Raphson optical flow, forward-backward tracking consistency filter ($\epsilon \le 0.5$ px).
-- **Tests**: `TestOpticalFlowTracker.cpp` verifying synthetic translation/rotation recovery under varying noise levels.
+- **Delivered Classes**:
+  - `OpticalFlowTracker.h` / `OpticalFlowTracker.cpp`:
+    - Strongly-typed `TrackingStatus` (`Tracked`, `LostOutOfBounds`, `LostIllConditioned`, `LostConvergence`, `LostForwardBackward`), `FlowWindowSize`, `TrackedCorrespondence`, and `OpticalFlowConfig`.
+    - Sub-pixel bilinear sampling on 8-bit luma frame views.
+    - Analytical spatial gradient tensor accumulation, conditioning check, and minimum eigenvalue verification ($\lambda_{\min}(G) \ge \tau_{\text{eigen}}$).
+    - Multi-scale coarse-to-fine propagation across `FramePyramid` levels ($L_2 \to L_1 \to L_0$).
+    - Iterative Newton-Raphson optical flow solver with sub-pixel convergence criterion.
+    - Bidirectional forward-backward loop-closure error check ($e_{\text{fb}} = \|p - p''\|_2 \le \tau_{\text{fb}}$) pruning occlusions and aperture errors.
+    - Zero dynamic allocation runtime execution powered by stack workspace and `StabilizerArena` (`CERT ERR55-CPP`).
+- **Verification**: Complete GoogleTest suite (`TestOpticalFlowTracker.cpp`: config validation, window bounds, identity zero motion, sub-pixel translation recovery, large displacement pyramid tracking, ill-conditioned patch rejection, boundary exclusion, forward-backward occlusion pruning, and arena exhaustion protection).
+- **Detailed Specification**: [stabilizer_phase3_plan.md](stabilizer_phase3_plan.md).
 
-### Phase 4: Robust Parametric Motion Model Estimator `[PLANNED]`
+### Phase 4: Robust Parametric Motion Model Estimator `[ACTIVE / CURRENT]`
 - **Objective**: Fit 2-DOF, 3-DOF, and 6-DOF motion models with high outlier rejection.
 - **Key Classes**: `MotionModelEstimator`.
 - **Algorithms**: MSAC outlier scoring, singular value decomposition (SVD) closed-form affine solver, collinearity and degenerate configuration detection.
