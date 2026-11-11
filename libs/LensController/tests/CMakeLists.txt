@@ -20,4 +20,5 @@ endfunction()
 add_lens_test(TestLensTypes      TestLensTypes.cpp)
 add_lens_test(TestMockLensDriver TestMockLensDriver.cpp)
 add_lens_test(TestFocusEvaluator TestFocusEvaluator.cpp)
+add_lens_test(TestZoomTrackCurve TestZoomTrackCurve.cpp)
 

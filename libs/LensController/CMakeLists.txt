@@ -5,6 +5,9 @@ add_library(LensController STATIC
     MockLensDriver.cpp
     FocusEvaluator.h
     FocusEvaluator.cpp
+    ZoomTrackTypes.h
+    ZoomTrackFocusEngine.h
+    ZoomTrackFocusEngine.cpp
 )
 
 target_include_directories(LensController PUBLIC
