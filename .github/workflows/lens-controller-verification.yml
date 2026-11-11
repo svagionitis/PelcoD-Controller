@@ -1,0 +1,185 @@
+name: LensController Multi-Platform Verification & Sanitizers
+
+on:
+  push:
+    branches: [ master, main ]
+    paths:
+      - 'libs/LensController/**'
+      - 'scripts/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/lens-controller-verification.yml'
+  pull_request:
+    branches: [ master, main ]
+    paths:
+      - 'libs/LensController/**'
+      - 'scripts/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/lens-controller-verification.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================================
+  # Tier 1: Static Quality Gates & Rule Enforcement (Fast-Fail < 45s)
+  # ============================================================================
+  static-audit:
+    name: Static Quality Gates (IWYU, <30 Char, MISRA 7.0.6, Doc Paths)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Audit IWYU & Fixed-Width Integers (<cstdint>)
+        run: python3 scripts/verify_iwyu_cstdint.py --strict libs/LensController
+
+      - name: Audit Function & Identifier Lengths (< 30 chars)
+        run: python3 scripts/verify_function_lengths.py libs/LensController
+
+      - name: Audit Signed/Unsigned Conversions (MISRA 7.0.6 & INT31-C)
+        run: python3 scripts/verify_type_conversions.py libs/LensController
+
+      - name: Audit Documentation Relative Paths
+        run: python3 scripts/verify_relative_doc_paths.py --files docs/lens_controller_implementation_plan.md docs/lens_controller_phase7_plan.md
+
+  # ============================================================================
+  # Tier 2A: Linux GCC 13 Strict
+  # ============================================================================
+  linux-gcc-strict:
+    name: Linux GCC 13 Strict (-Werror)
+    needs: static-audit
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-13 g++-13 ninja-build libgflags-dev libgoogle-glog-dev
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_C_COMPILER=gcc-13 \
+            -DCMAKE_CXX_COMPILER=g++-13 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWARNINGS_AS_ERRORS=ON \
+            -DENABLE_HARDENING=ON \
+            -DPELCOD_ENABLE_QT=OFF \
+            -DPELCOD_BUILD_APPS=OFF \
+            -DBUILD_TESTING=ON
+
+      - name: Build LensController Targets
+        run: cmake --build build --target LensController --parallel $(nproc)
+
+      - name: Run LensController Tests
+        run: ctest --test-dir build --output-on-failure -j$(nproc) -R "^Test(Lens|Focus|Peak|Zoom|AutoFocus|Mock|Visca|PelcoD)"
+
+  # ============================================================================
+  # Tier 2B: Linux Clang 17 Strict
+  # ============================================================================
+  linux-clang-strict:
+    name: Linux Clang 17 Strict (-Werror)
+    needs: static-audit
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-17 llvm-17 ninja-build libgflags-dev libgoogle-glog-dev
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_C_COMPILER=clang-17 \
+            -DCMAKE_CXX_COMPILER=clang++-17 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWARNINGS_AS_ERRORS=ON \
+            -DENABLE_HARDENING=ON \
+            -DPELCOD_ENABLE_QT=OFF \
+            -DPELCOD_BUILD_APPS=OFF \
+            -DBUILD_TESTING=ON
+
+      - name: Build LensController Targets
+        run: cmake --build build --target LensController --parallel $(nproc)
+
+      - name: Run LensController Tests
+        run: ctest --test-dir build --output-on-failure -j$(nproc) -R "^Test(Lens|Focus|Peak|Zoom|AutoFocus|Mock|Visca|PelcoD)"
+
+  # ============================================================================
+  # Tier 2C: Windows MSVC 2022 Strict
+  # ============================================================================
+  windows-msvc-strict:
+    name: Windows MSVC 2022 (/WX /W4)
+    needs: static-audit
+    runs-on: windows-2022
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Setup Visual Studio Developer Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 `
+            -DWARNINGS_AS_ERRORS=ON `
+            -DPELCOD_ENABLE_QT=OFF `
+            -DPELCOD_BUILD_APPS=OFF `
+            -DBUILD_TESTING=ON
+
+      - name: Build LensController & Tests
+        run: cmake --build build --config Release --target LensController --parallel
+
+      - name: Run LensController Tests
+        run: ctest --test-dir build -C Release --output-on-failure -R "^Test(Lens|Focus|Peak|Zoom|AutoFocus|Mock|Visca|PelcoD)"
+
+  # ============================================================================
+  # Tier 3: Runtime Sanitizers (ASan + UBSan)
+  # ============================================================================
+  linux-sanitizers:
+    name: Linux Clang 17 (ASan + UBSan)
+    needs: static-audit
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-17 llvm-17 ninja-build libgflags-dev libgoogle-glog-dev
+
+      - name: Configure CMake with Sanitizers
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_C_COMPILER=clang-17 \
+            -DCMAKE_CXX_COMPILER=clang++-17 \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DENABLE_ASAN=ON \
+            -DENABLE_UBSAN=ON \
+            -DPELCOD_ENABLE_QT=OFF \
+            -DPELCOD_BUILD_APPS=OFF \
+            -DBUILD_TESTING=ON
+
+      - name: Build and Test
+        env:
+          ASAN_OPTIONS: "detect_leaks=1:detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1"
+          UBSAN_OPTIONS: "print_stacktrace=1:halt_on_error=1"
+        run: |
+          cmake --build build --parallel $(nproc)
+          ctest --test-dir build --output-on-failure -j$(nproc) -R "^Test(Lens|Focus|Peak|Zoom|AutoFocus|Mock|Visca|PelcoD)"
+

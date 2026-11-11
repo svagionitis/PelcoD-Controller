@@ -1,4 +1,6 @@
 /// @file PeakFitter.cpp
+/// @brief Implementation of sub-step parabolic and Gaussian optical peak fitting algorithms.
+
 #include "PeakFitter.h"
 
 #include <cstddef>

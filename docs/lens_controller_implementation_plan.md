@@ -591,7 +591,7 @@ libs/LensController/
 | [**Phase 4**](lens_controller_phase4_plan.md) | **Autofocus Algorithms & Peak Fitting** | `PeakFitter.h/.cpp`, `AutoFocusEngine.h/.cpp` (Seek, Scan 3-phase, Golden Section, Adaptive Momentum, Dynamic Tracker ROI) | Closed-loop convergence to global focus peak across simulated focal curves. |
 | [**Phase 5**](lens_controller_phase5_plan.md) | **Dynamic DLL Loader & Protocols** | `LensDriverLoader.h/.cpp`, `ViscaLensDriver.h/.cpp`, `PelcoDLensDriver.h/.cpp` | Cross-platform dynamic loading, port collision rejection, VISCA/Pelco-D frame generation. |
 | [**Phase 6**](lens_controller_phase6_plan.md) | **Master Controller & Payload HAL** | `LensController.h/.cpp`, `LensPayloadAdapter.h/.cpp` bridging to `PayloadHal::ICameraPayload` | Unified multi-channel management, smooth joystick jog, limit clamping. |
-| **Phase 7** | **Verification, Documentation & CI** | Integration into root `CMakeLists.txt`, `scripts/verify_iwyu_cstdint.py`, Doxygen validation | Zero compiler warnings, 100% test pass rate on Linux and Windows. |
+| [**Phase 7**](lens_controller_phase7_plan.md) | **Verification, Documentation & CI** | Integration into root `CMakeLists.txt`, `scripts/verify_iwyu_cstdint.py`, Doxygen validation | Zero compiler warnings, 100% test pass rate on Linux and Windows. |
 
 ---
 

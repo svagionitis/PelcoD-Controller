@@ -545,6 +545,24 @@ install(FILES
 )
 
 install(FILES
+    libs/LensController/AutoFocusEngine.h
+    libs/LensController/AutoFocusTypes.h
+    libs/LensController/FocusEvaluator.h
+    libs/LensController/ILensDriver.h
+    libs/LensController/LensController.h
+    libs/LensController/LensDriverLoader.h
+    libs/LensController/LensPayloadAdapter.h
+    libs/LensController/LensTypes.h
+    libs/LensController/MockLensDriver.h
+    libs/LensController/PeakFitter.h
+    libs/LensController/PelcoDLensDriver.h
+    libs/LensController/ViscaLensDriver.h
+    libs/LensController/ZoomTrackFocusEngine.h
+    libs/LensController/ZoomTrackTypes.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/LensController
+)
+
+install(FILES
     libs/PelcoDFujinon/FujinonBuilder.h
     libs/PelcoDFujinon/FujinonParser.h
     libs/PelcoDFujinon/FujinonSX800Device.h

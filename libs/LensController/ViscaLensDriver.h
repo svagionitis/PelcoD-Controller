@@ -36,20 +36,49 @@ public:
 
     // --- ILensDriver Interface Methods ---
 
+    /// @copydoc ILensDriver::initialize
     [[nodiscard]] bool initialize(std::uint8_t port, std::uint32_t baud) noexcept override;
+
+    /// @copydoc ILensDriver::moveFocus
     void moveFocus(std::int16_t steps, MotorSpeed speed) noexcept override;
+
+    /// @copydoc ILensDriver::moveZoom
     void moveZoom(std::int16_t steps, MotorSpeed speed) noexcept override;
+
+    /// @copydoc ILensDriver::setFocusPosition
     void setFocusPosition(MotorPosition pos, MotorSpeed speed) noexcept override;
+
+    /// @copydoc ILensDriver::setZoomPosition
     void setZoomPosition(MotorPosition pos, MotorSpeed speed) noexcept override;
+
+    /// @copydoc ILensDriver::stopMotion
     void stopMotion() noexcept override;
+
+    /// @copydoc ILensDriver::currentFocus
     [[nodiscard]] MotorPosition currentFocus() const noexcept override;
+
+    /// @copydoc ILensDriver::currentZoom
     [[nodiscard]] MotorPosition currentZoom() const noexcept override;
+
+    /// @copydoc ILensDriver::limitFlags
     [[nodiscard]] std::uint8_t limitFlags() const noexcept override;
+
+    /// @copydoc ILensDriver::sendRawCommand
     void sendRawCommand(const std::uint8_t* data, std::size_t len) noexcept override;
+
+    /// @copydoc ILensDriver::hasBuiltinAutofocus
     [[nodiscard]] bool hasBuiltinAutofocus() const noexcept override;
+
+    /// @copydoc ILensDriver::triggerBuiltinAutofocus
     bool triggerBuiltinAutofocus() noexcept override;
+
+    /// @copydoc ILensDriver::hasBuiltinZoomTracking
     [[nodiscard]] bool hasBuiltinZoomTracking() const noexcept override;
+
+    /// @copydoc ILensDriver::setBuiltinZoomTracking
     bool setBuiltinZoomTracking(bool enable) noexcept override;
+
+    /// @copydoc ILensDriver::lensRanges
     [[nodiscard]] LensRanges lensRanges() const noexcept override;
 
     // --- Driver Specific Control & Telemetry ---

@@ -1,4 +1,6 @@
 /// @file AutoFocusEngine.cpp
+/// @brief Implementation of closed-loop autofocus state machines, search algorithms, and ROI tracking.
+
 #include "AutoFocusEngine.h"
 
 #include <cstddef>

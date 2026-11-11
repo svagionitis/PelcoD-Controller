@@ -1,4 +1,6 @@
 /// @file MockLensDriver.cpp
+/// @brief In-memory mock lens driver implementation for deterministic simulation and unit testing.
+
 #include "MockLensDriver.h"
 
 #include <cstddef>
