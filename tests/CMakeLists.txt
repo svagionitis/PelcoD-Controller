@@ -143,6 +143,9 @@ if(PELCOD_ENABLE_VIDEO AND PELCOD_ENABLE_QT AND TARGET Stabilizer)
         TestStabilizerConfigModel.cpp
         TestPresetManager.cpp
         TestTelemetryRingBuffer.cpp
+        TestStabilizerEndToEnd.cpp
+        TestStabilizerZeroHeap.cpp
+        TestStabilizerConcurrency.cpp
         ${CMAKE_SOURCE_DIR}/app-stabilizer-qt/SyntheticJitterGenerator.cpp
         ${CMAKE_SOURCE_DIR}/app-stabilizer-qt/RgbWarpUtility.cpp
         ${CMAKE_SOURCE_DIR}/app-stabilizer-qt/HeatmapColorMap.cpp

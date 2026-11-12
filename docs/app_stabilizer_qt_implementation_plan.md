@@ -334,10 +334,11 @@ app-stabilizer-qt/
 - Implement real-time parameter hot-reloading without stream restart.
 
 ### Phase 5: Verification, Compliance & Quality Assurance
+*(Detailed implementation plan: [`app_stabilizer_qt_phase5_plan.md`](app_stabilizer_qt_phase5_plan.md))*
 - Enforce strict `MISRA C++:2023`, `SEI CERT C++`, zero-heap fast-path execution.
 - Run `verify_iwyu_cstdint.py` across all new headers and translation units.
 - Run `verify_relative_doc_paths.py` across documentation.
-- Test end-to-end with sample video clips (`sample-videos/dji-ir-subtitles.mp4`, `sample-videos/mpegts-klv-day-flight.ts`).
+- Test end-to-end with sample video clips (`sample-videos/dji-ir-subtitles.mp4`, `sample-videos/mpegts-klv-day-flight.ts`, `sample-videos/bike-stabilization.ts`).
 
 ---
 

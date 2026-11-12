@@ -12,6 +12,7 @@ This directory contains reference video assets utilized across **PelcoD-Controll
 | [`mpegts-klv-night-flight-IR.ts`](mpegts-klv-night-flight-IR.ts) | 06:10 (370.82s) | 36.6 MB (38,341,848 B) | H.264 (High @ L6.2), 1280x720, 90k tbn, YUV420p | **Yes** (PID `0x101`, MISB ST 0601, Sensor: `IR`) | [FFmpeg Sample Repository](https://samples.ffmpeg.org/MPEG2/mpegts-klv/) (`Night Flight IR.mpg`) | Transcoded from MPEG-2 to H.264 (CRF 32, slow preset), lossless KLV stream copy |
 | [`rotating-moon-from-LRO.ts`](rotating-moon-from-LRO.ts) | 00:21 (21.67s) | 2.3 MB (2,431,028 B) | H.264 (Main @ L3.0), 432x432 (1:1), 30 fps, YUV420p | **None** (Clean video-only elementary stream) | [NASA LROC / SVS / APOD](https://apod.nasa.gov/apod/ap130916.html) (*"Rotating Moon from LRO"*) | Encoded to H.264 MPEG-TS container for video-only / muxer injection testing |
 | [`dji-ir-subtitles.mp4`](dji-ir-subtitles.mp4) | 18:16 (1096.40s) | 47.1 MB (49,335,365 B) | H.265 (Main @ L4.0), 1280x1024 (5:4), 30 fps, YUV420p | **Yes** (`tx3g` timed-text track, 32,893 samples, mapped to ST 0601) | DJI Matrice 4T airborne IR inspection capture (~1.1 GB raw MP4) | Transcoded video with libx265 (CRF 34), lossless timed-text subtitle stream copy (`-c:s copy`) |
+| [`bike-stabilization.ts`](bike-stabilization.ts) | 00:09 (9.40s) | 12.3 MB (12,870,480 B) | H.264 (High @ L5.0), 1280x720, 30 fps, YUV420p | **None** (Clean video-only stream for stabilization) | Authentic bike handlebar action-cam capture | Direct H.264 elementary stream in MPEG-TS container |
 
 ---
 
@@ -52,15 +53,22 @@ This directory contains reference video assets utilized across **PelcoD-Controll
 |  | dji-ir-subtitles.mp4 (47.1 MB)      |                                                                |
 |  +-------------------------------------+                                                                |
 |                   |                                                                                     |
-|                   +------------------+-----------------------+--------------------------+               |
-|                   |                  |                       |                          |               |
-|                   v                  v                       v                          v               |
-|       +--------------------+ +--------------------+ +--------------------+ +--------------------+       |
-|       | libs/Klv Tests     | | libs/Video Tests   | | libs/DjiTelemetry  | | app-video-qt Player|       |
-|       | - FlightStreamVal. | | - FFmpegDecoder    | | - Mp4TextTrackRead | | - Scrub / Seek Sync|       |
-|       | - KlvExtractor     | | - Frame Step/Color | | - DjiSubtitleParse | | - ST 1909 HUD      |       |
-|       | - MpegTsKlvMuxer   | | - Path Normaliz.   | | - DjiSt0601Mapper  | | - DJI Telemetry    |       |
-|       +--------------------+ +--------------------+ +--------------------+ +--------------------+       |
+|  [Action-Cam: Bike Handlebar Video]    (12.3 MB H.264 MPEG-TS)                                           |
+|                   |                                                                                     |
+|                   v   (Direct Stream Packaging)                                                         |
+|  +-------------------------------------+                                                                |
+|  | bike-stabilization.ts (12.3 MB)     |                                                                |
+|  +-------------------------------------+                                                                |
+|                   |                                                                                     |
+|                   +------------------+-----------------------+--------------------+---------------------+
+|                   |                  |                       |                    |                     |
+|                   v                  v                       v                    v                     v
+|       +--------------------+ +--------------------+ +--------------------+ +-----------------+ +---------------+
+|       | libs/Klv Tests     | | libs/Video Tests   | | libs/DjiTelemetry  | | app-video-qt    | | Stabilizer    |
+|       | - FlightStreamVal. | | - FFmpegDecoder    | | - Mp4TextTrackRead | | - Scrub/Seek    | | - EndToEnd    |
+|       | - KlvExtractor     | | - Frame Step/Color | | - DjiSubtitleParse | | - ST 1909 HUD   | | - FastPath    |
+|       | - MpegTsKlvMuxer   | | - Path Normaliz.   | | - DjiSt0601Mapper  | | - DJI Telemetry | | - AppQt       |
+|       +--------------------+ +--------------------+ +--------------------+ +-----------------+ +---------------+
 +---------------------------------------------------------------------------------------------------------+
 ```
 
@@ -73,6 +81,7 @@ graph TD
         SRC_NIGHT["FFmpeg Samples Repo<br/>Night Flight IR.mpg (162 MB MPEG-2 + KLV)"]
         SRC_MOON["NASA LROC / GSFC / APOD<br/>Rotating Moon from LRO"]
         SRC_DJI["DJI Matrice 4T Flight Capture<br/>1.1 GB MP4 (HEVC + tx3g Timed Text)"]
+        SRC_BIKE["Action-Cam Capture<br/>Bike Road Vibration (12.3 MB H.264)"]
     end
 
     subgraph Transcode["Re-encoding Pipeline (ffmpeg)"]
@@ -80,6 +89,7 @@ graph TD
         ENC_NIGHT["Transcode Video: libx264 CRF 32 (slow)<br/>Lossless Data Copy: -c:d copy<br/>Target: < 50 MB"]
         ENC_MOON["Transcode Video: libx264 Main 432x432<br/>MPEG-TS Container: PID 0x100<br/>Target: Video-only baseline"]
         ENC_DJI["Transcode Video: libx265 CRF 34 (hev1)<br/>Lossless Subtitle Copy: -c:s copy<br/>Target: < 50 MB"]
+        ENC_BIKE["Direct Packaging: H.264 720p30<br/>MPEG-TS PID 0x100 elementary stream<br/>Target: < 50 MB"]
     end
 
     subgraph Assets["Local Sample Assets (sample-videos/)"]
@@ -87,6 +97,7 @@ graph TD
         TS_NIGHT["mpegts-klv-night-flight-IR.ts<br/>36.6 MB | 90k tbn | MISB ST 0601 (IR)"]
         TS_MOON["rotating-moon-from-LRO.ts<br/>2.3 MB | 30 fps | Clean Video Only"]
         MP4_DJI["dji-ir-subtitles.mp4<br/>47.1 MB | 30 fps | DJI tx3g Subtitles (IR)"]
+        TS_BIKE["bike-stabilization.ts<br/>12.3 MB | 30 fps | Action-Cam Stabilization"]
     end
 
     subgraph Consumers["Project Consumers & Test Suites"]
@@ -95,16 +106,19 @@ graph TD
         TEST_VID["libs/Video Tests<br/>(TestVideoDecoder, TestVideoPlayerController)"]
         TEST_DJI["libs/DjiTelemetry Tests<br/>(TestMp4TextTrackReader, TestDjiTelemetrySource)"]
         APP_QT["app-video-qt<br/>(Tactical HUD Overlay, Scrubbing, Playback)"]
+        TEST_STAB["Stabilizer Tests & App<br/>(TestStabilizerEndToEnd, StabilizerAppQt)"]
     end
 
     SRC_DAY --> ENC_DAY --> TS_DAY
     SRC_NIGHT --> ENC_NIGHT --> TS_NIGHT
     SRC_MOON --> ENC_MOON --> TS_MOON
     SRC_DJI --> ENC_DJI --> MP4_DJI
+    SRC_BIKE --> ENC_BIKE --> TS_BIKE
 
     TS_DAY --> TEST_KLV
     TS_DAY --> TEST_VID
     TS_DAY --> APP_QT
+    TS_DAY --> TEST_STAB
 
     TS_NIGHT --> TEST_KLV
     TS_NIGHT --> APP_QT
@@ -116,6 +130,10 @@ graph TD
     MP4_DJI --> TEST_DJI
     MP4_DJI --> TEST_VID
     MP4_DJI --> APP_QT
+    MP4_DJI --> TEST_STAB
+
+    TS_BIKE --> TEST_VID
+    TS_BIKE --> TEST_STAB
 ```
 
 ---
@@ -224,10 +242,36 @@ graph TD
 
 ---
 
+### 3.5 [`bike-stabilization.ts`](bike-stabilization.ts)
+
+* **Origin**: Captured from an authentic action camera rigidly mounted to a bicycle handlebar riding across variable asphalt, sidewalk transitions, and urban obstacles:
+  * Container: MPEG-2 Transport Stream (`.ts`, 188-byte packets).
+  * Video Track: H.264 / AVC (High Profile @ Level 5.0), 1280x720 @ 30 fps progressive, YUV420p.
+  * Metadata Track: **None** (clean video elementary stream on PID `0x100`).
+* **Original Characteristics**:
+  * Duration: 9.40 seconds (282 frames).
+  * Bitrate: ~10.95 Mbps transport stream bitrate.
+  * File Size: 12.3 MB (12,870,480 bytes), natively satisfying Git repository size guidelines (< 50 MB) without requiring lossy re-compression.
+* **Content Details & Operational Challenges**:
+  * Authentic ground-vehicle dynamic camera motion featuring rapid mechanical excitation, road bumps, curb impacts, and multi-axis pitch/roll vibrations ($10\text{--}40\text{ Hz}$).
+  * Severe CMOS rolling shutter wobble (jello / shear distortion) generated by fast sensor row readout across rapid ground-plane motion.
+  * Pronounced motion parallax and dynamic scene depth as foreground pavement and passing roadside trees/poles translate across the camera field of view at varying optical velocities.
+* **Role in the Project**:
+  1. **Video Stabilization Benchmark**: Serves as the primary real-world benchmark asset for [`../libs/Stabilizer`](../libs/Stabilizer) and [`../app-stabilizer-qt`](../app-stabilizer-qt).
+  2. **Feature Tracking & MSAC Resilience**: Validates that Shi-Tomasi feature detection and Pyramidal Lucas-Kanade optical flow maintain $\ge 80$ continuous tracks across bumpy road sections without track divergence.
+  3. **Parallax Rejection**: Tests that MSAC consensus estimation discriminates background scene motion from near-field pavement parallax (retaining inlier ratios $\ge 35\%$).
+  4. **Rolling Shutter Compensation**: Tests that scanline-interpolated affine warping attenuates vertical pole/tree shear distortion without introducing pipeline stalls.
+  5. **Dynamic Crop Margin Damping**: Validates that non-linear elastic damping absorbs sudden road bump shocks within 5 frames without black border canvas clipping.
+
+---
+
 ## 4. Test Suite Integration
 
 The sample videos in this directory are directly referenced by automated CTest test suites:
 
+* **[`../tests/TestStabilizerEndToEnd.cpp`](../tests/TestStabilizerEndToEnd.cpp)**:
+  * Evaluates end-to-end multi-frame video stabilization against `bike-stabilization.ts`, `dji-ir-subtitles.mp4`, and `mpegts-klv-day-flight.ts`.
+  * Verifies feature tracking resilience under severe road vibrations, MSAC consensus inlier counts, stabilized frame generation, and lock-free triple buffer exchange.
 * **[`../libs/Klv/tests/TestFlightStreamValidation.cpp`](../libs/Klv/tests/TestFlightStreamValidation.cpp)**:
   * Demuxes full flight streams (`mpegts-klv-day-flight.ts` and `mpegts-klv-night-flight-IR.ts`).
   * Verifies CRC/BCC checksum validity across thousands of sequential packets.
