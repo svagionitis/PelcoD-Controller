@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <memory>
 #include <string>
@@ -295,6 +296,18 @@ void StabilizerWorker::processTick()
 
     const Stabilizer::StabilizerDiagnostics diag = engine_.diagnostics();
     writeSlot.diagnostics = diag;
+
+    // Populate visual landmark coordinates and motion vectors
+    std::array<Stabilizer::VisualLandmark, StabilizerFramePacket::MaxVisualFeatures> rawLandmarks { };
+    const std::size_t numLandmarks = engine_.copyLandmarks(rawLandmarks.data(), rawLandmarks.size());
+    writeSlot.featureCount = numLandmarks;
+    for (std::size_t i = 0U; i < numLandmarks; ++i) {
+        writeSlot.features[i].x = rawLandmarks[i].currPt.x;
+        writeSlot.features[i].y = rawLandmarks[i].currPt.y;
+        writeSlot.features[i].vx = rawLandmarks[i].motion.dx;
+        writeSlot.features[i].vy = rawLandmarks[i].motion.dy;
+        writeSlot.features[i].isInlier = rawLandmarks[i].isInlier;
+    }
 
     // Apply affine correction warp to full-color RGB24 frame
     static_cast<void>(RgbWarpUtility::warpRgb24(writeSlot.rawRgb.data(), writeSlot.stabilizedRgb.data(), frameWidth_,

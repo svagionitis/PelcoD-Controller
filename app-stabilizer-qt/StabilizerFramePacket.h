@@ -15,11 +15,13 @@
 namespace StabilizerApp {
 
 /// @struct VisualFeaturePoint
-/// @brief Sub-pixel feature point coordinate with classification for UI rendering.
+/// @brief Sub-pixel feature point coordinate with displacement and classification for UI rendering.
 struct VisualFeaturePoint {
-    float x { 0.0F };
-    float y { 0.0F };
-    bool isInlier { false };
+    float x { 0.0F }; ///< Feature X coordinate (current frame)
+    float y { 0.0F }; ///< Feature Y coordinate (current frame)
+    float vx { 0.0F }; ///< Inter-frame motion vector dx
+    float vy { 0.0F }; ///< Inter-frame motion vector dy
+    bool isInlier { false }; ///< Consensus inlier classification
 };
 
 /// @struct StabilizerFramePacket

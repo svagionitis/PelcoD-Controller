@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <memory>
 
-#include <QCoreApplication>
+#include <QGuiApplication>
 #include <QSignalSpy>
 #include <QTest>
 #include <gtest/gtest.h>
@@ -110,5 +110,9 @@ TEST_F(StabilizerWorkerTest, ControllerIntegrationLifecycle)
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
+    int fakeArgc = 1;
+    char fakeName[] = "TestStabilizerWorker";
+    char* fakeArgv[] = { fakeName, nullptr };
+    QGuiApplication app(fakeArgc, fakeArgv);
     return RUN_ALL_TESTS();
 }

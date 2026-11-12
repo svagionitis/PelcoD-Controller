@@ -1,5 +1,10 @@
 add_executable(StabilizerAppQt
     main.cpp
+    HeatmapColorMap.h
+    HeatmapColorMap.cpp
+    OverlayRenderer.h
+    OverlayRenderer.cpp
+    PresentationTypes.h
     RgbWarpUtility.h
     RgbWarpUtility.cpp
     StabilizerFramePacket.h

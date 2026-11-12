@@ -119,6 +119,14 @@ struct MotionVector {
     }
 };
 
+/// @brief Visual landmark pairing reference position, current position, motion vector, and consensus inlier status.
+struct VisualLandmark {
+    SubPixelPoint prevPt { };
+    SubPixelPoint currPt { };
+    MotionVector motion { };
+    bool isInlier { false };
+};
+
 /// @brief Invariant-enforced margin crop ratio [0.0 .. 0.30].
 class CropRatio {
 public:

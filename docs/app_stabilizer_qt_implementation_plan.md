@@ -319,6 +319,7 @@ app-stabilizer-qt/
 - Implement `SyntheticJitterGenerator` for reproducible vibration testing without physical hardware.
 
 ### Phase 3: Presentation Engine & Visual Overlays
+*(Detailed implementation plan: [`app_stabilizer_qt_phase3_plan.md`](app_stabilizer_qt_phase3_plan.md))*
 - Implement `StabilizerQuickItem`:
   - Mouse-drag split-screen wipe divider.
   - Synchronized side-by-side presentation mode.

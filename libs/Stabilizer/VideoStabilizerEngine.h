@@ -145,6 +145,12 @@ public:
     /// @brief Retrieve current active configuration.
     [[nodiscard]] const VideoStabilizerConfig& config() const noexcept;
 
+    /// @brief Retrieve snapshot of tracked visual landmarks and consensus classification.
+    /// @param outLandmarks Destination array for visual landmarks.
+    /// @param maxCount Maximum number of landmarks to write into outLandmarks.
+    /// @return Number of landmarks written.
+    [[nodiscard]] std::size_t copyLandmarks(VisualLandmark* outLandmarks, std::size_t maxCount) const noexcept;
+
 private:
     void swapPyramids() noexcept;
     void executeDegraded(AffineTransform2D& outTransform) noexcept;
@@ -177,6 +183,9 @@ private:
     std::array<FeaturePoint, MaxFeatures> featureStorage_ { };
     std::array<TrackedCorrespondence, MaxFeatures> matchStorage_ { };
     std::size_t activePointCount_ { 0U };
+
+    std::array<VisualLandmark, MaxFeatures> landmarkStorage_ { };
+    std::size_t landmarkCount_ { 0U };
 
     std::atomic<bool> hasPendingTelemetry_ { false };
     PtzTelemetrySample latestTelemetry_ { };

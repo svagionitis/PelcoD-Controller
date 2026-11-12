@@ -81,6 +81,7 @@ void VideoStabilizerEngine::reset() noexcept
 {
     filter_.reset();
     activePointCount_ = 0U;
+    landmarkCount_ = 0U;
     degradedCount_ = 0U;
     framesSinceDetect_ = 0U;
     hasPendingTelemetry_.store(false, std::memory_order_relaxed);
@@ -92,6 +93,18 @@ void VideoStabilizerEngine::reset() noexcept
     } else {
         state_ = EngineState::Uninitialized;
     }
+}
+
+std::size_t VideoStabilizerEngine::copyLandmarks(VisualLandmark* outLandmarks, std::size_t maxCount) const noexcept
+{
+    if ((outLandmarks == nullptr) || (maxCount == 0U) || (landmarkCount_ == 0U)) {
+        return 0U;
+    }
+    const std::size_t count = std::min(maxCount, landmarkCount_);
+    for (std::size_t i = 0U; i < count; ++i) {
+        outLandmarks[i] = landmarkStorage_[i];
+    }
+    return count;
 }
 
 StabilizerDiagnostics VideoStabilizerEngine::diagnostics() const noexcept
@@ -141,21 +154,30 @@ void VideoStabilizerEngine::extractInliers(
 {
     if ((matches == nullptr) || (numMatches == 0U)) {
         activePointCount_ = 0U;
+        landmarkCount_ = 0U;
         return;
     }
 
     const float inlierThreshSq = config_.estimator.inlierThreshold.squared();
     std::size_t inlierIdx = 0U;
+    std::size_t landmarkIdx = 0U;
 
-    for (std::size_t i = 0U; (i < numMatches) && (inlierIdx < MaxFeatures); ++i) {
+    for (std::size_t i = 0U; (i < numMatches) && (landmarkIdx < MaxFeatures); ++i) {
         if (!matches[i].isTracked()) {
             continue;
         }
 
         const SubPixelPoint projected = estResult.transform.transform(matches[i].feature.pt);
         const float distSq = projected.distanceSquared(matches[i].currentPt);
+        const bool isInlier = (distSq <= inlierThreshSq);
 
-        if (distSq <= inlierThreshSq) {
+        landmarkStorage_[landmarkIdx].prevPt = matches[i].feature.pt;
+        landmarkStorage_[landmarkIdx].currPt = matches[i].currentPt;
+        landmarkStorage_[landmarkIdx].motion = matches[i].displacement;
+        landmarkStorage_[landmarkIdx].isInlier = isInlier;
+        ++landmarkIdx;
+
+        if (isInlier && (inlierIdx < MaxFeatures)) {
             featureStorage_[inlierIdx].pt = matches[i].currentPt;
             featureStorage_[inlierIdx].score = matches[i].feature.score;
             featureStorage_[inlierIdx].cellId = matches[i].feature.cellId;
@@ -163,6 +185,7 @@ void VideoStabilizerEngine::extractInliers(
         }
     }
 
+    landmarkCount_ = landmarkIdx;
     activePointCount_ = inlierIdx;
 }
 
@@ -277,6 +300,7 @@ bool VideoStabilizerEngine::processFrame(const FrameView& input, FrameView& outp
         state_ = EngineState::Degraded;
         executeDegraded(rawH);
         activePointCount_ = 0U; // Force replenishment on next frame
+        landmarkCount_ = 0U;
     }
 
     // Stage 7: Telemetry Ingestion & Trajectory Filter Update

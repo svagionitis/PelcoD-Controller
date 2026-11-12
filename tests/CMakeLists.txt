@@ -138,8 +138,12 @@ if(PELCOD_ENABLE_VIDEO AND PELCOD_ENABLE_QT AND TARGET Stabilizer)
         TestStabilizerWorker.cpp
         TestSyntheticJitterGenerator.cpp
         TestRgbWarpUtility.cpp
+        TestHeatmapColorMap.cpp
+        TestPresentationEngine.cpp
         ${CMAKE_SOURCE_DIR}/app-stabilizer-qt/SyntheticJitterGenerator.cpp
         ${CMAKE_SOURCE_DIR}/app-stabilizer-qt/RgbWarpUtility.cpp
+        ${CMAKE_SOURCE_DIR}/app-stabilizer-qt/HeatmapColorMap.cpp
+        ${CMAKE_SOURCE_DIR}/app-stabilizer-qt/OverlayRenderer.cpp
         ${CMAKE_SOURCE_DIR}/app-stabilizer-qt/StabilizerWorker.cpp
         ${CMAKE_SOURCE_DIR}/app-stabilizer-qt/StabilizerPlayerController.cpp
     )
