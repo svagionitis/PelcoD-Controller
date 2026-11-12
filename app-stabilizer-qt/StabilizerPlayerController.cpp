@@ -1,5 +1,6 @@
 /// @file StabilizerPlayerController.cpp
 /// @brief Master QML controller bridging UI events with Video and Stabilizer subsystems.
+
 #include "StabilizerPlayerController.h"
 
 #include <cstdint>
@@ -9,6 +10,7 @@
 #include <QThread>
 
 #include "AtomicTripleBuffer.h"
+#include "DeviceEnumerator.h"
 #include "StabilizerFramePacket.h"
 #include "StabilizerWorker.h"
 #include "VideoStabilizerEngine.h"
@@ -41,8 +43,10 @@ StabilizerPlayerController::StabilizerPlayerController(QObject* parent)
     });
 
     connect(worker_, &StabilizerWorker::telemetryUpdated, this,
-        [this](const Stabilizer::StabilizerDiagnostics& /*diag*/, double measuredFps) {
+        [this](const Stabilizer::StabilizerDiagnostics& diag, double measuredFps) {
             fps_ = measuredFps;
+            lastDiagnostics_ = diag;
+            telemetryRingBuffer_.appendSample(diag);
             emit telemetryUpdated();
         });
 
@@ -50,6 +54,9 @@ StabilizerPlayerController::StabilizerPlayerController(QObject* parent)
         setStatusMessage(QStringLiteral("End of stream reached"));
         setPlaybackState(PlaybackState::Paused);
     });
+
+    connect(&configModel_, &StabilizerConfigModel::configChanged, this,
+        [this]() { updateStabilizerConfig(configModel_.toConfig()); });
 
     workerThread_.start();
     QMetaObject::invokeMethod(worker_, &StabilizerWorker::initWorker);
@@ -126,6 +133,102 @@ double StabilizerPlayerController::fps() const noexcept
     return fps_;
 }
 
+StabilizerConfigModel* StabilizerPlayerController::configModel() noexcept
+{
+    return &configModel_;
+}
+
+TelemetryRingBuffer* StabilizerPlayerController::telemetryRingBuffer() noexcept
+{
+    return &telemetryRingBuffer_;
+}
+
+PresetManager* StabilizerPlayerController::presetManager() noexcept
+{
+    return &presetManager_;
+}
+
+int StabilizerPlayerController::detectedFeatures() const noexcept
+{
+    return static_cast<int>(lastDiagnostics_.detectedFeatures);
+}
+
+int StabilizerPlayerController::trackedFeatures() const noexcept
+{
+    return static_cast<int>(lastDiagnostics_.trackedFeatures);
+}
+
+int StabilizerPlayerController::inlierCount() const noexcept
+{
+    return static_cast<int>(lastDiagnostics_.inlierCount);
+}
+
+double StabilizerPlayerController::inlierRatio() const noexcept
+{
+    return static_cast<double>(lastDiagnostics_.inlierRatio);
+}
+
+double StabilizerPlayerController::totalLatencyMs() const noexcept
+{
+    return static_cast<double>(lastDiagnostics_.latencyUs.totalFrameUs) / 1000.0;
+}
+
+int StabilizerPlayerController::pyramidLatencyUs() const noexcept
+{
+    return static_cast<int>(lastDiagnostics_.latencyUs.pyramidGenUs);
+}
+
+int StabilizerPlayerController::featureDetectLatencyUs() const noexcept
+{
+    return static_cast<int>(lastDiagnostics_.latencyUs.featureDetectUs);
+}
+
+int StabilizerPlayerController::opticalFlowLatencyUs() const noexcept
+{
+    return static_cast<int>(lastDiagnostics_.latencyUs.opticalFlowUs);
+}
+
+int StabilizerPlayerController::motionModelLatencyUs() const noexcept
+{
+    return static_cast<int>(lastDiagnostics_.latencyUs.motionModelUs);
+}
+
+int StabilizerPlayerController::trajectoryFilterLatencyUs() const noexcept
+{
+    return static_cast<int>(lastDiagnostics_.latencyUs.trajectoryFilterUs);
+}
+
+int StabilizerPlayerController::warpLatencyUs() const noexcept
+{
+    return static_cast<int>(lastDiagnostics_.latencyUs.warpSynthesisUs);
+}
+
+QString StabilizerPlayerController::engineStateText() const
+{
+    switch (lastDiagnostics_.state) {
+    case Stabilizer::EngineState::Initializing:
+        return QStringLiteral("INITIALIZING");
+    case Stabilizer::EngineState::Tracking:
+        return QStringLiteral("TRACKING");
+    case Stabilizer::EngineState::Degraded:
+        return QStringLiteral("DEGRADED");
+    case Stabilizer::EngineState::Resetting:
+        return QStringLiteral("RESETTING");
+    case Stabilizer::EngineState::Uninitialized:
+    default:
+        return QStringLiteral("UNINITIALIZED");
+    }
+}
+
+QVariantList StabilizerPlayerController::getMatrixElements(int matrixType) const
+{
+    const auto& mat = (matrixType == 0) ? lastDiagnostics_.rawTransform
+        : (matrixType == 1)             ? lastDiagnostics_.smoothedTransform
+                                        : lastDiagnostics_.correctionTransform;
+    return { static_cast<double>(mat.a11), static_cast<double>(mat.a12), static_cast<double>(mat.tx),
+        static_cast<double>(mat.a21), static_cast<double>(mat.a22), static_cast<double>(mat.ty) };
+}
+
 Video::AtomicTripleBuffer<StabilizerFramePacket>& StabilizerPlayerController::tripleBuffer() noexcept
 {
     return tripleBuffer_;
@@ -172,6 +275,41 @@ void StabilizerPlayerController::seek(double timestampSec)
 void StabilizerPlayerController::setPlaybackRate(double rate)
 {
     QMetaObject::invokeMethod(worker_, "setPlaybackRate", Qt::QueuedConnection, Q_ARG(double, rate));
+}
+
+QStringList StabilizerPlayerController::availableHardwareDevices() const
+{
+    QStringList result;
+    const auto devices = Video::DeviceEnumerator::enumerateDevices();
+    for (const auto& dev : devices) {
+        result.append(QString::fromStdString(dev.name));
+    }
+    return result;
+}
+
+void StabilizerPlayerController::loadPreset(const QString& name)
+{
+    Stabilizer::VideoStabilizerConfig cfg { };
+    if (presetManager_.getPreset(name, cfg)) {
+        configModel_.loadFromConfig(cfg);
+        setStatusMessage(QStringLiteral("Loaded preset: ") + name);
+    }
+}
+
+bool StabilizerPlayerController::exportConfig(const QString& filePath)
+{
+    return PresetManager::exportJson(filePath, configModel_.toConfig());
+}
+
+bool StabilizerPlayerController::importConfig(const QString& filePath)
+{
+    Stabilizer::VideoStabilizerConfig cfg { };
+    if (PresetManager::importJson(filePath, cfg)) {
+        configModel_.loadFromConfig(cfg);
+        setStatusMessage(QStringLiteral("Imported config from: ") + filePath);
+        return true;
+    }
+    return false;
 }
 
 void StabilizerPlayerController::updateStabilizerConfig(const Stabilizer::VideoStabilizerConfig& config)

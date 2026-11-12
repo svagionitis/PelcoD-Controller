@@ -2,5 +2,13 @@
     <qresource prefix="/">
         <file>qml/Main.qml</file>
         <file>qml/ComparisonControls.qml</file>
+        <file>qml/SourcePanel.qml</file>
+        <file>qml/StabilizerControlPanel.qml</file>
+        <file>qml/DiagnosticsPanel.qml</file>
+        <file>qml/TrajectoryChart.qml</file>
+        <file>qml/Components/TacticalSlider.qml</file>
+        <file>qml/Components/TacticalSwitch.qml</file>
+        <file>qml/Components/TacticalComboBox.qml</file>
+        <file>qml/Components/StatusBadge.qml</file>
     </qresource>
 </RCC>

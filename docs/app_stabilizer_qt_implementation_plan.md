@@ -328,6 +328,7 @@ app-stabilizer-qt/
   - Crop boundary visualization and tactical center reticle.
 
 ### Phase 4: QML Tactical UI & Interactive Controls
+*(Detailed implementation plan: [`app_stabilizer_qt_phase4_plan.md`](app_stabilizer_qt_phase4_plan.md))*
 - Create `Main.qml`, `SourcePanel.qml`, `StabilizerControlPanel.qml`, `DiagnosticsPanel.qml`, `TrajectoryChart.qml`.
 - Implement preset configurations ("Drone Gimbal", "Pole Vibration", "Handheld Action Cam", "Rolling Shutter", "Bypass").
 - Implement real-time parameter hot-reloading without stream restart.

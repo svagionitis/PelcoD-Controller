@@ -491,249 +491,237 @@ void StabilizerQuickItem::renderStandbyPattern(QPainter* painter)
     }
 }
 
-            QPainter * painter, const QRectF& targetRect)
-            {
-                const qreal imgW = rawImage_.width();
-                const qreal imgH = rawImage_.height();
-                const auto scaleX = static_cast<float>(targetRect.width() / imgW);
-                const auto scaleY = static_cast<float>(targetRect.height() / imgH);
+void StabilizerQuickItem::renderSplitWipe(QPainter* painter, const QRectF& targetRect)
+{
+    const qreal imgW = rawImage_.width();
+    const qreal imgH = rawImage_.height();
+    const auto scaleX = static_cast<float>(targetRect.width() / imgW);
+    const auto scaleY = static_cast<float>(targetRect.height() / imgH);
 
-                if (orientation_ == SplitOrientation::Vertical) {
-                    const qreal splitX = targetRect.left() + (static_cast<qreal>(splitPosition_) * targetRect.width());
+    if (orientation_ == SplitOrientation::Vertical) {
+        const qreal splitX = targetRect.left() + (static_cast<qreal>(splitPosition_) * targetRect.width());
 
-                    // Left Region: Raw Unstabilized Frame
-                    painter->save();
-                    painter->setClipRect(
-                        QRectF(targetRect.left(), targetRect.top(), splitX - targetRect.left(), targetRect.height()));
-                    painter->drawImage(targetRect, rawImage_);
-                    if (overlays_.showLandmarks) {
-                        OverlayRenderer::renderLandmarks(
-                            painter, targetRect, cachedFeatures_.data(), cachedFeatureCount_, scaleX, scaleY);
-                    }
-                    if (overlays_.showQuiver) {
-                        OverlayRenderer::renderQuiverPlot(painter, targetRect, cachedFeatures_.data(),
-                            cachedFeatureCount_, scaleX, scaleY, overlays_.quiverScale);
-                    }
-                    painter->restore();
+        // Left Region: Raw Unstabilized Frame
+        painter->save();
+        painter->setClipRect(
+            QRectF(targetRect.left(), targetRect.top(), splitX - targetRect.left(), targetRect.height()));
+        painter->drawImage(targetRect, rawImage_);
+        if (overlays_.showLandmarks) {
+            OverlayRenderer::renderLandmarks(
+                painter, targetRect, cachedFeatures_.data(), cachedFeatureCount_, scaleX, scaleY);
+        }
+        if (overlays_.showQuiver) {
+            OverlayRenderer::renderQuiverPlot(painter, targetRect, cachedFeatures_.data(), cachedFeatureCount_, scaleX,
+                scaleY, overlays_.quiverScale);
+        }
+        painter->restore();
 
-                    // Right Region: Stabilized Frame
-                    painter->save();
-                    painter->setClipRect(
-                        QRectF(splitX, targetRect.top(), targetRect.right() - splitX, targetRect.height()));
-                    painter->drawImage(targetRect, stabilizedImage_);
-                    if (overlays_.showCropMargin) {
-                        OverlayRenderer::renderCropBoundary(
-                            painter, targetRect, overlays_.cropRatio, overlays_.softMarginRatio);
-                    }
-                    if (overlays_.showReticle) {
-                        OverlayRenderer::renderReticle(painter, targetRect);
-                    }
-                    painter->restore();
+        // Right Region: Stabilized Frame
+        painter->save();
+        painter->setClipRect(QRectF(splitX, targetRect.top(), targetRect.right() - splitX, targetRect.height()));
+        painter->drawImage(targetRect, stabilizedImage_);
+        if (overlays_.showCropMargin) {
+            OverlayRenderer::renderCropBoundary(painter, targetRect, overlays_.cropRatio, overlays_.softMarginRatio);
+        }
+        if (overlays_.showReticle) {
+            OverlayRenderer::renderReticle(painter, targetRect);
+        }
+        painter->restore();
 
-                    // Split Divider Line
-                    QPen dividerPen(QColor(0x00, 0xe5, 0xff), 2.0);
-                    painter->setPen(dividerPen);
-                    painter->drawLine(QPointF(splitX, targetRect.top()), QPointF(splitX, targetRect.bottom()));
+        // Split Divider Line
+        QPen dividerPen(QColor(0x00, 0xe5, 0xff), 2.0);
+        painter->setPen(dividerPen);
+        painter->drawLine(QPointF(splitX, targetRect.top()), QPointF(splitX, targetRect.bottom()));
 
-                    // Divider Handle Pill
-                    const qreal handleY = targetRect.top() + (targetRect.height() * 0.5);
-                    painter->setBrush(QColor(0x00, 0xe5, 0xff));
-                    painter->setPen(Qt::NoPen);
-                    painter->drawRoundedRect(QRectF(splitX - 3.0, handleY - 16.0, 6.0, 32.0), 3.0, 3.0);
+        // Divider Handle Pill
+        const qreal handleY = targetRect.top() + (targetRect.height() * 0.5);
+        painter->setBrush(QColor(0x00, 0xe5, 0xff));
+        painter->setPen(Qt::NoPen);
+        painter->drawRoundedRect(QRectF(splitX - 3.0, handleY - 16.0, 6.0, 32.0), 3.0, 3.0);
 
-                    // Header Badges
-                    if (splitX > targetRect.left() + 110.0) {
-                        OverlayRenderer::renderBadge(painter,
-                            QRectF(targetRect.left() + 12.0, targetRect.top() + 12.0, 140.0, 24.0),
-                            QStringLiteral("RAW (UNSTABILIZED)"), QColor(0xff, 0x91, 0x00), QColor(0, 0, 0, 160));
-                    }
-                    if (splitX < targetRect.right() - 110.0) {
-                        OverlayRenderer::renderBadge(painter,
-                            QRectF(targetRect.right() - 112.0, targetRect.top() + 12.0, 100.0, 24.0),
-                            QStringLiteral("STABILIZED"), QColor(0x00, 0xe6, 0x76), QColor(0, 0, 0, 160));
-                    }
-                } else {
-                    // Horizontal Wipe
-                    const qreal splitY = targetRect.top() + (static_cast<qreal>(splitPosition_) * targetRect.height());
+        // Header Badges
+        if (splitX > targetRect.left() + 110.0) {
+            OverlayRenderer::renderBadge(painter,
+                QRectF(targetRect.left() + 12.0, targetRect.top() + 12.0, 140.0, 24.0),
+                QStringLiteral("RAW (UNSTABILIZED)"), QColor(0xff, 0x91, 0x00), QColor(0, 0, 0, 160));
+        }
+        if (splitX < targetRect.right() - 110.0) {
+            OverlayRenderer::renderBadge(painter,
+                QRectF(targetRect.right() - 112.0, targetRect.top() + 12.0, 100.0, 24.0), QStringLiteral("STABILIZED"),
+                QColor(0x00, 0xe6, 0x76), QColor(0, 0, 0, 160));
+        }
+    } else {
+        // Horizontal Wipe
+        const qreal splitY = targetRect.top() + (static_cast<qreal>(splitPosition_) * targetRect.height());
 
-                    // Top Region: Raw Unstabilized Frame
-                    painter->save();
-                    painter->setClipRect(
-                        QRectF(targetRect.left(), targetRect.top(), targetRect.width(), splitY - targetRect.top()));
-                    painter->drawImage(targetRect, rawImage_);
-                    if (overlays_.showLandmarks) {
-                        OverlayRenderer::renderLandmarks(
-                            painter, targetRect, cachedFeatures_.data(), cachedFeatureCount_, scaleX, scaleY);
-                    }
-                    painter->restore();
+        // Top Region: Raw Unstabilized Frame
+        painter->save();
+        painter->setClipRect(
+            QRectF(targetRect.left(), targetRect.top(), targetRect.width(), splitY - targetRect.top()));
+        painter->drawImage(targetRect, rawImage_);
+        if (overlays_.showLandmarks) {
+            OverlayRenderer::renderLandmarks(
+                painter, targetRect, cachedFeatures_.data(), cachedFeatureCount_, scaleX, scaleY);
+        }
+        painter->restore();
 
-                    // Bottom Region: Stabilized Frame
-                    painter->save();
-                    painter->setClipRect(
-                        QRectF(targetRect.left(), splitY, targetRect.width(), targetRect.bottom() - splitY));
-                    painter->drawImage(targetRect, stabilizedImage_);
-                    if (overlays_.showCropMargin) {
-                        OverlayRenderer::renderCropBoundary(
-                            painter, targetRect, overlays_.cropRatio, overlays_.softMarginRatio);
-                    }
-                    if (overlays_.showReticle) {
-                        OverlayRenderer::renderReticle(painter, targetRect);
-                    }
-                    painter->restore();
+        // Bottom Region: Stabilized Frame
+        painter->save();
+        painter->setClipRect(QRectF(targetRect.left(), splitY, targetRect.width(), targetRect.bottom() - splitY));
+        painter->drawImage(targetRect, stabilizedImage_);
+        if (overlays_.showCropMargin) {
+            OverlayRenderer::renderCropBoundary(painter, targetRect, overlays_.cropRatio, overlays_.softMarginRatio);
+        }
+        if (overlays_.showReticle) {
+            OverlayRenderer::renderReticle(painter, targetRect);
+        }
+        painter->restore();
 
-                    // Horizontal Divider Line
-                    QPen dividerPen(QColor(0x00, 0xe5, 0xff), 2.0);
-                    painter->setPen(dividerPen);
-                    painter->drawLine(QPointF(targetRect.left(), splitY), QPointF(targetRect.right(), splitY));
+        // Horizontal Divider Line
+        QPen dividerPen(QColor(0x00, 0xe5, 0xff), 2.0);
+        painter->setPen(dividerPen);
+        painter->drawLine(QPointF(targetRect.left(), splitY), QPointF(targetRect.right(), splitY));
 
-                    const qreal handleX = targetRect.left() + (targetRect.width() * 0.5);
-                    painter->setBrush(QColor(0x00, 0xe5, 0xff));
-                    painter->setPen(Qt::NoPen);
-                    painter->drawRoundedRect(QRectF(handleX - 16.0, splitY - 3.0, 32.0, 6.0), 3.0, 3.0);
-                }
-            }
+        const qreal handleX = targetRect.left() + (targetRect.width() * 0.5);
+        painter->setBrush(QColor(0x00, 0xe5, 0xff));
+        painter->setPen(Qt::NoPen);
+        painter->drawRoundedRect(QRectF(handleX - 16.0, splitY - 3.0, 32.0, 6.0), 3.0, 3.0);
+    }
+}
 
-            void StabilizerQuickItem::renderSideBySide(QPainter* painter, const QRectF& itemRect)
-            {
-                const qreal halfW = (itemRect.width() * 0.5) - 2.0;
-                const QRectF leftBounds(itemRect.left(), itemRect.top(), halfW, itemRect.height());
-                const QRectF rightBounds(itemRect.left() + halfW + 4.0, itemRect.top(), halfW, itemRect.height());
+void StabilizerQuickItem::renderSideBySide(QPainter* painter, const QRectF& itemRect)
+{
+    const qreal halfW = (itemRect.width() * 0.5) - 2.0;
+    const QRectF leftBounds(itemRect.left(), itemRect.top(), halfW, itemRect.height());
+    const QRectF rightBounds(itemRect.left() + halfW + 4.0, itemRect.top(), halfW, itemRect.height());
 
-                const QRectF leftRect = calculateAspectRect(leftBounds, rawImage_.width(), rawImage_.height());
-                const QRectF rightRect
-                    = calculateAspectRect(rightBounds, stabilizedImage_.width(), stabilizedImage_.height());
+    const QRectF leftRect = calculateAspectRect(leftBounds, rawImage_.width(), rawImage_.height());
+    const QRectF rightRect = calculateAspectRect(rightBounds, stabilizedImage_.width(), stabilizedImage_.height());
 
-                // Vertical partition separator
-                QPen sepPen(QColor(0x24, 0x29, 0x38), 2.0);
-                painter->setPen(sepPen);
-                painter->drawLine(QPointF(itemRect.left() + halfW + 2.0, itemRect.top()),
-                    QPointF(itemRect.left() + halfW + 2.0, itemRect.bottom()));
+    // Vertical partition separator
+    QPen sepPen(QColor(0x24, 0x29, 0x38), 2.0);
+    painter->setPen(sepPen);
+    painter->drawLine(QPointF(itemRect.left() + halfW + 2.0, itemRect.top()),
+        QPointF(itemRect.left() + halfW + 2.0, itemRect.bottom()));
 
-                const auto scaleX = static_cast<float>(leftRect.width() / rawImage_.width());
-                const auto scaleY = static_cast<float>(leftRect.height() / rawImage_.height());
+    const auto scaleX = static_cast<float>(leftRect.width() / rawImage_.width());
+    const auto scaleY = static_cast<float>(leftRect.height() / rawImage_.height());
 
-                // Left Viewport: Raw
-                painter->drawImage(leftRect, rawImage_);
-                if (overlays_.showLandmarks) {
-                    OverlayRenderer::renderLandmarks(
-                        painter, leftRect, cachedFeatures_.data(), cachedFeatureCount_, scaleX, scaleY);
-                }
-                if (overlays_.showQuiver) {
-                    OverlayRenderer::renderQuiverPlot(painter, leftRect, cachedFeatures_.data(), cachedFeatureCount_,
-                        scaleX, scaleY, overlays_.quiverScale);
-                }
-                OverlayRenderer::renderBadge(painter,
-                    QRectF(leftRect.left() + 12.0, leftRect.top() + 12.0, 140.0, 24.0),
-                    QStringLiteral("RAW (UNSTABILIZED)"), QColor(0xff, 0x91, 0x00), QColor(0, 0, 0, 160));
+    // Left Viewport: Raw
+    painter->drawImage(leftRect, rawImage_);
+    if (overlays_.showLandmarks) {
+        OverlayRenderer::renderLandmarks(
+            painter, leftRect, cachedFeatures_.data(), cachedFeatureCount_, scaleX, scaleY);
+    }
+    if (overlays_.showQuiver) {
+        OverlayRenderer::renderQuiverPlot(
+            painter, leftRect, cachedFeatures_.data(), cachedFeatureCount_, scaleX, scaleY, overlays_.quiverScale);
+    }
+    OverlayRenderer::renderBadge(painter, QRectF(leftRect.left() + 12.0, leftRect.top() + 12.0, 140.0, 24.0),
+        QStringLiteral("RAW (UNSTABILIZED)"), QColor(0xff, 0x91, 0x00), QColor(0, 0, 0, 160));
 
-                // Right Viewport: Stabilized
-                painter->drawImage(rightRect, stabilizedImage_);
-                if (overlays_.showCropMargin) {
-                    OverlayRenderer::renderCropBoundary(
-                        painter, rightRect, overlays_.cropRatio, overlays_.softMarginRatio);
-                }
-                if (overlays_.showReticle) {
-                    OverlayRenderer::renderReticle(painter, rightRect);
-                }
-                OverlayRenderer::renderBadge(painter,
-                    QRectF(rightRect.right() - 112.0, rightRect.top() + 12.0, 100.0, 24.0),
-                    QStringLiteral("STABILIZED"), QColor(0x00, 0xe6, 0x76), QColor(0, 0, 0, 160));
-            }
+    // Right Viewport: Stabilized
+    painter->drawImage(rightRect, stabilizedImage_);
+    if (overlays_.showCropMargin) {
+        OverlayRenderer::renderCropBoundary(painter, rightRect, overlays_.cropRatio, overlays_.softMarginRatio);
+    }
+    if (overlays_.showReticle) {
+        OverlayRenderer::renderReticle(painter, rightRect);
+    }
+    OverlayRenderer::renderBadge(painter, QRectF(rightRect.right() - 112.0, rightRect.top() + 12.0, 100.0, 24.0),
+        QStringLiteral("STABILIZED"), QColor(0x00, 0xe6, 0x76), QColor(0, 0, 0, 160));
+}
 
-            void StabilizerQuickItem::renderSingleToggle(QPainter* painter, const QRectF& targetRect)
-            {
-                const qreal imgW = rawImage_.width();
-                const qreal imgH = rawImage_.height();
-                const auto scaleX = static_cast<float>(targetRect.width() / imgW);
-                const auto scaleY = static_cast<float>(targetRect.height() / imgH);
+void StabilizerQuickItem::renderSingleToggle(QPainter* painter, const QRectF& targetRect)
+{
+    const qreal imgW = rawImage_.width();
+    const qreal imgH = rawImage_.height();
+    const auto scaleX = static_cast<float>(targetRect.width() / imgW);
+    const auto scaleY = static_cast<float>(targetRect.height() / imgH);
 
-                if (showStabilizedInToggle_) {
-                    painter->drawImage(targetRect, stabilizedImage_);
-                    if (overlays_.showCropMargin) {
-                        OverlayRenderer::renderCropBoundary(
-                            painter, targetRect, overlays_.cropRatio, overlays_.softMarginRatio);
-                    }
-                    if (overlays_.showReticle) {
-                        OverlayRenderer::renderReticle(painter, targetRect);
-                    }
-                    OverlayRenderer::renderBadge(painter,
-                        QRectF(targetRect.left() + 12.0, targetRect.top() + 12.0, 100.0, 24.0),
-                        QStringLiteral("STABILIZED"), QColor(0x00, 0xe6, 0x76), QColor(0, 0, 0, 160));
-                } else {
-                    painter->drawImage(targetRect, rawImage_);
-                    if (overlays_.showLandmarks) {
-                        OverlayRenderer::renderLandmarks(
-                            painter, targetRect, cachedFeatures_.data(), cachedFeatureCount_, scaleX, scaleY);
-                    }
-                    if (overlays_.showQuiver) {
-                        OverlayRenderer::renderQuiverPlot(painter, targetRect, cachedFeatures_.data(),
-                            cachedFeatureCount_, scaleX, scaleY, overlays_.quiverScale);
-                    }
-                    OverlayRenderer::renderBadge(painter,
-                        QRectF(targetRect.left() + 12.0, targetRect.top() + 12.0, 140.0, 24.0),
-                        QStringLiteral("RAW (UNSTABILIZED)"), QColor(0xff, 0x91, 0x00), QColor(0, 0, 0, 160));
-                }
-            }
+    if (showStabilizedInToggle_) {
+        painter->drawImage(targetRect, stabilizedImage_);
+        if (overlays_.showCropMargin) {
+            OverlayRenderer::renderCropBoundary(painter, targetRect, overlays_.cropRatio, overlays_.softMarginRatio);
+        }
+        if (overlays_.showReticle) {
+            OverlayRenderer::renderReticle(painter, targetRect);
+        }
+        OverlayRenderer::renderBadge(painter, QRectF(targetRect.left() + 12.0, targetRect.top() + 12.0, 100.0, 24.0),
+            QStringLiteral("STABILIZED"), QColor(0x00, 0xe6, 0x76), QColor(0, 0, 0, 160));
+    } else {
+        painter->drawImage(targetRect, rawImage_);
+        if (overlays_.showLandmarks) {
+            OverlayRenderer::renderLandmarks(
+                painter, targetRect, cachedFeatures_.data(), cachedFeatureCount_, scaleX, scaleY);
+        }
+        if (overlays_.showQuiver) {
+            OverlayRenderer::renderQuiverPlot(painter, targetRect, cachedFeatures_.data(), cachedFeatureCount_, scaleX,
+                scaleY, overlays_.quiverScale);
+        }
+        OverlayRenderer::renderBadge(painter, QRectF(targetRect.left() + 12.0, targetRect.top() + 12.0, 140.0, 24.0),
+            QStringLiteral("RAW (UNSTABILIZED)"), QColor(0xff, 0x91, 0x00), QColor(0, 0, 0, 160));
+    }
+}
 
-            void StabilizerQuickItem::renderDifferenceHeatmap(QPainter* painter, const QRectF& targetRect)
-            {
-                if ((heatmapBuffer_.size() == static_cast<std::size_t>(rawImage_.sizeInBytes()))
-                    && (heatmapBuffer_.size() == static_cast<std::size_t>(stabilizedImage_.sizeInBytes()))) {
+void StabilizerQuickItem::renderDifferenceHeatmap(QPainter* painter, const QRectF& targetRect)
+{
+    if ((heatmapBuffer_.size() == static_cast<std::size_t>(rawImage_.sizeInBytes()))
+        && (heatmapBuffer_.size() == static_cast<std::size_t>(stabilizedImage_.sizeInBytes()))) {
 
-                    const auto pixelCount
-                        = static_cast<std::size_t>(rawImage_.width()) * static_cast<std::size_t>(rawImage_.height());
-                    heatmapEngine_.computeDifference(
-                        rawImage_.bits(), stabilizedImage_.bits(), heatmapBuffer_.data(), pixelCount, heatmapGain_);
+        const auto pixelCount
+            = static_cast<std::size_t>(rawImage_.width()) * static_cast<std::size_t>(rawImage_.height());
+        heatmapEngine_.computeDifference(
+            rawImage_.bits(), stabilizedImage_.bits(), heatmapBuffer_.data(), pixelCount, heatmapGain_);
 
-                    painter->drawImage(targetRect, heatmapImage_);
-                }
+        painter->drawImage(targetRect, heatmapImage_);
+    }
 
-                if (overlays_.showReticle) {
-                    OverlayRenderer::renderReticle(painter, targetRect);
-                }
+    if (overlays_.showReticle) {
+        OverlayRenderer::renderReticle(painter, targetRect);
+    }
 
-                OverlayRenderer::renderBadge(painter,
-                    QRectF(targetRect.left() + 12.0, targetRect.top() + 12.0, 180.0, 24.0),
-                    QStringLiteral("DIFFERENCE HEATMAP (TURBO)"), QColor(0x00, 0xe5, 0xff), QColor(0, 0, 0, 160));
-            }
+    OverlayRenderer::renderBadge(painter, QRectF(targetRect.left() + 12.0, targetRect.top() + 12.0, 180.0, 24.0),
+        QStringLiteral("DIFFERENCE HEATMAP (TURBO)"), QColor(0x00, 0xe5, 0xff), QColor(0, 0, 0, 160));
+}
 
-            void StabilizerQuickItem::paint(QPainter* painter)
-            {
-                const QRectF itemRect = boundingRect();
-                painter->fillRect(itemRect, QColor(0x0e, 0x10, 0x14));
+void StabilizerQuickItem::paint(QPainter* painter)
+{
+    const QRectF itemRect = boundingRect();
+    painter->fillRect(itemRect, QColor(0x0e, 0x10, 0x14));
 
-                if (!hasValidFrame_ || rawImage_.isNull() || stabilizedImage_.isNull()) {
-                    renderStandbyPattern(painter);
-                    return;
-                }
+    if (!hasValidFrame_ || rawImage_.isNull() || stabilizedImage_.isNull()) {
+        renderStandbyPattern(painter);
+        return;
+    }
 
-                if (mode_ == PresentationMode::SideBySide) {
-                    renderSideBySide(painter, itemRect);
-                    return;
-                }
+    if (mode_ == PresentationMode::SideBySide) {
+        renderSideBySide(painter, itemRect);
+        return;
+    }
 
-                const QRectF baseRect = calculateAspectRect(itemRect, rawImage_.width(), rawImage_.height());
+    const QRectF baseRect = calculateAspectRect(itemRect, rawImage_.width(), rawImage_.height());
 
-                // Apply interactive zoom and pan transform
-                const QPointF center = baseRect.center() + panOffset_;
-                const qreal w = baseRect.width() * static_cast<qreal>(zoomFactor_);
-                const qreal h = baseRect.height() * static_cast<qreal>(zoomFactor_);
-                const QRectF targetRect(center.x() - (w * 0.5), center.y() - (h * 0.5), w, h);
+    // Apply interactive zoom and pan transform
+    const QPointF center = baseRect.center() + panOffset_;
+    const qreal w = baseRect.width() * static_cast<qreal>(zoomFactor_);
+    const qreal h = baseRect.height() * static_cast<qreal>(zoomFactor_);
+    const QRectF targetRect(center.x() - (w * 0.5), center.y() - (h * 0.5), w, h);
 
-                switch (mode_) {
-                case PresentationMode::SplitWipe:
-                    renderSplitWipe(painter, targetRect);
-                    break;
-                case PresentationMode::SingleToggle:
-                    renderSingleToggle(painter, targetRect);
-                    break;
-                case PresentationMode::DifferenceHeatmap:
-                    renderDifferenceHeatmap(painter, targetRect);
-                    break;
-                default:
-                    renderSplitWipe(painter, targetRect);
-                    break;
-                }
-            }
+    switch (mode_) {
+    case PresentationMode::SplitWipe:
+        renderSplitWipe(painter, targetRect);
+        break;
+    case PresentationMode::SingleToggle:
+        renderSingleToggle(painter, targetRect);
+        break;
+    case PresentationMode::DifferenceHeatmap:
+        renderDifferenceHeatmap(painter, targetRect);
+        break;
+    default:
+        renderSplitWipe(painter, targetRect);
+        break;
+    }
+}
 
-            } // namespace StabilizerApp
+} // namespace StabilizerApp

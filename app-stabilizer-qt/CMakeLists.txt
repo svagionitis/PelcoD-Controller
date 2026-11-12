@@ -5,8 +5,12 @@ add_executable(StabilizerAppQt
     OverlayRenderer.h
     OverlayRenderer.cpp
     PresentationTypes.h
+    PresetManager.h
+    PresetManager.cpp
     RgbWarpUtility.h
     RgbWarpUtility.cpp
+    StabilizerConfigModel.h
+    StabilizerConfigModel.cpp
     StabilizerFramePacket.h
     StabilizerPlayerController.h
     StabilizerPlayerController.cpp
@@ -16,6 +20,8 @@ add_executable(StabilizerAppQt
     StabilizerWorker.cpp
     SyntheticJitterGenerator.h
     SyntheticJitterGenerator.cpp
+    TelemetryRingBuffer.h
+    TelemetryRingBuffer.cpp
     qml.qrc
 )
 
