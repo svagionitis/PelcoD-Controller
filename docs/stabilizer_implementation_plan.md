@@ -122,6 +122,15 @@ To prevent foreground motion bias:
 1. **Static Masking**: Configurable border bands (Sightline SLA format) and arbitrary static rectangular regions ignore stationary reticles, HUD symbols, timecodes, and chassis edges.
 2. **Dynamic Target Exclusion**: Ingests active target bounding boxes from `libs/Tracking` (`TargetTrack`), masking out maneuvering targets so their motion does not corrupt the camera background motion estimation.
 
+#### 2.1.6 Fast Integer SAD Grid Block-Matching & Least-Squares Rotational Solver
+As a deterministic, ultra-fast integer alternative to corner extraction and iterative Lucas-Kanade optical flow—inspired by embedded Sightline SLA registration pipelines—a uniform $8 \times 8$ spatial grid ($64$ patches, $16\text{ px}$ border margin) evaluates $8 \times 8$ luma blocks across a bounded $\pm 8\text{ px}$ search radius:
+$$\text{SAD}(dx, dy) = \sum_{u=0}^{7} \sum_{v=0}^{7} \left| I_t(x_0 + dx + u, y_0 + dy + v) - I_{t-1}(x_0 + u, y_0 + v) \right|$$
+1. **Texture & Uniqueness Gate**: A candidate block vector $(dx_i, dy_i) = \arg\min_{dx,dy} \text{SAD}(dx, dy)$ is accepted only if $\text{SAD}_{\min} < 8 \times 8 \times 60$ and either $(dx_i, dy_i) = (0, 0)$ or $|\text{SAD}(0, 0) - \text{SAD}_{\min}| \ge 4$, rejecting flat sky, water, or uniform thermal regions without floating-point eigenvalue evaluation.
+2. **Closed-Form Translation & Cross-Product Rotation**: From the $N_{\text{valid}}$ accepted grid blocks, mean translation $(\overline{dx}, \overline{dy})$ is computed first, followed by a single-pass least-squares rotational cross-product around the frame center $(c_x, c_y)$:
+   $$\Delta x_i = dx_i - \overline{dx}, \quad \Delta y_i = dy_i - \overline{dy}, \quad r_{x,i} = x_i - c_x, \quad r_{y,i} = y_i - c_y$$
+   $$\theta = \frac{\sum_{r_i^2 > 100} \left( r_{x,i} \Delta y_i - r_{y,i} \Delta x_i \right)}{\sum_{r_i^2 > 100} \left( r_{x,i}^2 + r_{y,i}^2 \right)}$$
+3. **Residual Inlier Confidence**: Confidence is scored directly as the fraction of grid blocks whose residual after subtracting $(\overline{dx}, \overline{dy})$ is within $2\text{ px}$ ($\Delta x_i^2 + \Delta y_i^2 \le 4.0$).
+
 ---
 
 ### 2.2 Robust Model Fitting & Outlier Rejection
@@ -225,6 +234,15 @@ To counteract high-frequency vehicle engine vibration ($>30\text{ Hz}$) that exc
 #### 2.3.5 Look-Ahead Low-Latency Trajectory Smoothing Buffer
 When streaming or recording with low-latency buffering ($3\text{--}5$ frames, $\approx 100\text{ ms}$ latency), an asymmetric non-causal trajectory filter processes future frame poses $P_{t+1} \dots P_{t+k}$. This completely avoids crop boundary collisions, eliminates abrupt deceleration jerk, and yields broadcast-grade cinematic motion.
 
+#### 2.3.6 Manual & Automatic Kinematic Drift Bias Compensation & Hard Excursion Clamping
+To handle constant-rate platform panning, aerodynamic crosswind drift, or subtle sensor bias in embedded tactical deployments (compatible with Sightline SLA `0x02` `SetStabilizationParameters` and `0x9F` `SetStabilizationBias`):
+1. **First-Order IIR Rate Damping**: Alongside the Dual-State EKF, a lightweight 1st-order IIR trajectory decay filter supports direct `[0..100]` rate parameters mapped to fixed-point decay $\alpha = 1 - \frac{\text{rate}}{256}$:
+   $$\mathbf{u}_k = \alpha_{\text{trans}} \cdot (\mathbf{u}_{k-1} + \Delta \mathbf{p}_k'), \quad \phi_k = \alpha_{\text{rot}} \cdot (\phi_{k-1} + \Delta \theta_k)$$
+2. **Manual & Automatic Drift Bias Subtraction**: Effective inter-frame translation subtracts both user-commanded manual bias $(b_{\text{col}}, b_{\text{row}})$ and an adaptive automatic drift bias $(a_{\text{col}}, a_{\text{row}})$ updated via an IIR accumulator whenever scene registration confidence exceeds $0.30$:
+   $$\Delta \mathbf{p}_k' = \Delta \mathbf{p}_k - \mathbf{b}_{\text{manual}} - \mathbf{a}_{k-1}, \quad \mathbf{a}_k = \mathbf{a}_{k-1} + \frac{\text{updateRate}}{256} \Delta \mathbf{p}_k$$
+3. **Hard Per-Axis & Radial Excursion Clamping**: Before synthesis, cumulative translation and rotation offsets are bounded by configurable per-axis limits (`translationLimit` in pixels, `angleLimit` in $1/128^\circ$ increments, and `scaleLimit` in $1/256$ units) as well as a circular radial excursion clamp (`maxStabOffset`):
+   $$\|\mathbf{u}_k\|_2 > R_{\max} \implies \mathbf{u}_k \leftarrow \mathbf{u}_k \cdot \frac{R_{\max}}{\|\mathbf{u}_k\|_2}$$
+
 ---
 
 ### 2.4 Motion Compensation & Frame Synthesis
@@ -264,6 +282,18 @@ To eliminate FOV loss from auto-crop zooming, out-of-boundary pixels exposed dur
 Expands beyond 8-bit luma to support direct hardware decoder video surfaces:
 1. **NV12 (Hardware Default)**: SIMD AVX2/NEON warping for semi-planar NV12 (full-resolution Y plane + half-resolution interleaved UV plane), eliminating color conversion overhead from GPU/V4L2/MediaFoundation decoders.
 2. **RGB24 / RGBA32**: 3-channel and 4-channel SIMD pixel gathering for RGB pipelines.
+
+#### 2.4.7 Full YUV Border Color Padding (`YuvBorderColor`) & NV12 Interleaved Chroma Warping
+When dynamic auto-cropping is disabled or extreme platform shocks exceed the crop margin, out-of-bounds pixels are filled with a configurable 3-channel `YuvBorderColor{edgeY, edgeU, edgeV}` (matching Sightline SLA `0x02` border fill parameters, defaulting to neutral black `{0, 128, 128}`). For semi-planar NV12 (`Y` plane followed by interleaved `UV` pairs at $W/2 \times H/2$ resolution) and planar YUV420p frames, chroma planes are backward-mapped at half spatial scale ($t_x / 2, t_y / 2$ around $(c_x / 2, c_y / 2)$) and padded with `(edgeU, edgeV)` whenever source coordinates fall outside valid chroma bounds.
+
+#### 2.4.8 Closed-Loop Scene Motion Telemetry Feedforward (`SceneMotionData`)
+The stabilizer exports per-frame scene registration and residual motion telemetry (`SceneMotionData`) in fixed-point Sightline SLA `0x43` (`SLATrackingPosition`) units:
+- Integer and $1/256\text{ px}$ fractional scene displacements (`sceneCol`, `sceneRow`, `sceneColFrac8`, `sceneRowFrac8`),
+- $1/128^\circ$ rotational roll increment (`sceneAngle7`),
+- $1/256$ zoom scale factor (`sceneScale8`, where $256 = 1.0\times$), and
+- `[0..255]` registration confidence (`sceneConfidence`).
+
+Feeding `SceneMotionData` directly into `libs/Tracking` allows the visual object tracker to pre-shift its correlation search gates by the exact background camera displacement prior to template/feature matching, preventing track loss during violent turret slews or airframe turbulence.
 
 ---
 
@@ -310,6 +340,10 @@ libs/Stabilizer/
 ├── SightlineStabilizerBridge.cpp
 ├── StabilizerOverlay.h           # Motion vector quiver & diagnostic HUD generator (Phase 14)
 ├── StabilizerOverlay.cpp
+├── SadGridEstimator.h            # Fast integer 8x8 SAD block-matching grid estimator (Phase 15)
+├── SadGridEstimator.cpp
+├── SceneMotionBridge.h           # Closed-loop 0x43 tracker scene-offset telemetry bridge (Phase 17)
+├── SceneMotionBridge.cpp
 └── tests/
     ├── CMakeLists.txt
     ├── TestStabilizerTypes.cpp   # Phase 1 unit tests
@@ -328,7 +362,9 @@ libs/Stabilizer/
     ├── TestMeshWarpEngine.cpp    # Phase 10 unit tests
     ├── TestImuFusionEngine.cpp   # Phase 11 unit tests
     ├── TestInpaintingEngine.cpp  # Phase 13 unit tests
-    └── TestSightlineStabilizerBridge.cpp # Phase 14 unit tests
+    ├── TestSightlineStabilizerBridge.cpp # Phase 14 unit tests
+    ├── TestSadGridEstimator.cpp  # Phase 15 unit tests
+    └── TestSceneMotionBridge.cpp # Phase 17 unit tests
 ```
 
 ### 3.2 Strongly-Typed Domain Modeling (Prohibition of Primitive Obsession)
@@ -436,7 +472,82 @@ struct ImuTelemetrySample {
     std::uint64_t timestampNs{0U};
 };
 
+/// @brief 3-channel YUV border fill color for out-of-bounds warped pixels (Phase 16/17).
+struct YuvBorderColor {
+    std::uint8_t edgeY{0U};
+    std::uint8_t edgeU{128U};
+    std::uint8_t edgeV{128U};
+};
+
+/// @brief Manual & automatic kinematic drift bias configuration (Sightline SLA 0x9F).
+struct StabilizationBias {
+    std::int8_t biasCol{0};
+    std::int8_t biasRow{0};
+    bool autoBias{false};
+    std::uint8_t updateRate{0U};
+};
+
+/// @brief Closed-loop scene registration telemetry exported to libs/Tracking (SLA 0x43).
+struct SceneMotionData {
+    std::int16_t sceneCol{0};
+    std::int16_t sceneRow{0};
+    std::int8_t sceneColFrac8{0};
+    std::int8_t sceneRowFrac8{0};
+    std::int16_t sceneAngle7{0};
+    std::int16_t sceneScale8{256};
+    std::uint8_t sceneConfidence{0U};
+};
+
 } // namespace Stabilizer
+```
+
+### 3.3 Dual-Path Motion Estimation & Closed-Loop Telemetry Architecture
+
+To support both high-DOF precision feature registration and ultra-low-latency embedded integer registration, `VideoStabilizerEngine` incorporates a dual-path front-end alongside closed-loop tracker scene-offset telemetry:
+
+```
++---------------------------------------------------------------------------------------------------+
+|                   DUAL-PATH MOTION ESTIMATION & TRACKER FEEDFORWARD PIPELINE                      |
+|                                                                                                   |
+|   Incoming Frame I(t)                                                                             |
+|         |                                                                                         |
+|         +---------------------------------------+---------------------------------------+         |
+|         | Path A: Multi-Scale Sub-Pixel         | Path B: Fast Integer Grid-SAD         |         |
+|         v (Default High-Precision Pipeline)     v (Low-Contrast / Embedded Fast Path)   |         |
+|   +-----------------------------------+   +-----------------------------------+         |         |
+|   | 3-Level Pyramid + Shi-Tomasi (8x6)|   | Uniform 8x8 Grid (64 8x8 Patches) |         |         |
+|   | + Pyramidal LK Flow + Fwd-Bwd     |   | + +/-8 px SAD Block Match         |         |         |
+|   | + MSAC (2/3/4/6/8-DOF) + LSQ      |   | + Mean (dx,dy) + Cross-Prod Theta |         |         |
+|   +-----------------+-----------------+   +-----------------+-----------------+         |         |
+|                     |                                       |                           |         |
+|                     +-------------------+-------------------+                           |         |
+|                                         |                                               |         |
+|                                         v                                               |         |
+|                     +---------------------------------------+                           |         |
+|                     | Trajectory Smoother & Drift Bias      |                           |         |
+|                     | - Dual-State EKF / Gaussian / ADMM L1 |                           |         |
+|                     | - 1st-Order IIR Rate Damping          |                           |         |
+|                     | - Manual & Auto Drift Bias (0x9F)     |                           |         |
+|                     | - Per-Axis & Radial Excursion Clamps  |                           |         |
+|                     +---------+-------------------+---------+                           |         |
+|                               |                   |                                     |         |
+|          +--------------------+                   +--------------------+                |         |
+|          v                                                             v                v         |
+|   +---------------------------------------+             +-------------------------------------+   |
+|   | Closed-Loop SceneMotionBridge (0x43)  |             | SIMD WarpEngine (Luma/YUV420p/NV12) |   |
+|   | - Pre-shifts libs/Tracking Search ROI |             | - Custom YuvBorderColor {Y, U, V}   |   |
+|   +---------------------------------------+             +-------------------------------------+   |
++---------------------------------------------------------------------------------------------------+
+```
+
+```mermaid
+flowchart TD
+    Frame["Incoming Frame I(t)"] --> PathA["Path A: 3-Level Pyramid + Shi-Tomasi<br/>+ Pyramidal LK + MSAC (2/3/4/6/8-DOF)"]
+    Frame --> PathB["Path B: Uniform 8x8 Grid SAD Block Match<br/>+ Mean Translation & Cross-Product Roll (Phase 15)"]
+    PathA --> Filter["Trajectory Filter & Drift Bias Compensator<br/>EKF / FIR / L1 + IIR Bias (0x9F) + Excursion Clamps (Phase 16)"]
+    PathB --> Filter
+    Filter --> Telemetry["SceneMotionBridge (SLA 0x43)<br/>Pre-Shifts libs/Tracking Search Gate (Phase 17)"]
+    Filter --> Warp["SIMD WarpEngine (Luma / YUV420p / NV12)<br/>Custom YuvBorderColor Padding (Phase 17)"]
 ```
 
 ---
@@ -461,6 +572,9 @@ struct ImuTelemetrySample {
 |  [PLANNED]   Phase 12: Mission Profiles: Staring Lock (Virtual Tripod), Target-Centric & Look-Ahead Buffer    |
 |  [PLANNED]   Phase 13: Unified Single-Pass Lens Dewarping, Temporal Mosaic Inpainting & Native NV12 SIMD     |
 |  [PLANNED]   Phase 14: Sightline SLA Protocol Bridge & Motion Quiver Vector HUD Overlay                       |
+|  [PLANNED]   Phase 15: Fast Integer SAD Grid Motion Estimator & Cross-Product Rotational Solver               |
+|  [PLANNED]   Phase 16: Manual & Automatic Kinematic Drift Bias Compensation & Hard Excursion Clamping         |
+|  [PLANNED]   Phase 17: Closed-Loop Tracker Scene-Offset Feedforward (0x43) & NV12 YUV Border Warping          |
 +---------------------------------------------------------------------------------------------------------------+
 ```
 
@@ -483,6 +597,9 @@ flowchart TD
         P11 --> P12["Phase 12: Staring Lock & Target-Centric Modes"]
         P10 & P12 --> P13["Phase 13: Lens Dewarping, Mosaic & NV12"]
         P7 --> P14["Phase 14: Sightline SLA Bridge & Vector HUD"]
+        P7 --> P15["Phase 15: Fast Integer SAD Grid Estimator"]
+        P15 & P5 --> P16["Phase 16: Kinematic Drift Bias & Excursion Clamping"]
+        P14 & P16 --> P17["Phase 17: Closed-Loop 0x43 Tracker Feedforward & NV12 Border Color"]
     end
 ```
 
@@ -504,6 +621,9 @@ flowchart TD
 | **Phase 12** | Advanced Mission Profiles (Staring, Target-Centric, Look-Ahead) | **PLANNED** | `TrajectoryFilter.h/.cpp`, `TestTrajectoryFilter.cpp` | Planned Specification |
 | **Phase 13** | Unified Lens Dewarping, Temporal Mosaic & NV12 SIMD | **PLANNED** | `InpaintingEngine.h/.cpp`, `WarpEngine.h/.cpp`, `TestInpaintingEngine.cpp` | Planned Specification |
 | **Phase 14** | Sightline SLA Protocol Bridge & Motion Quiver HUD Overlay | **PLANNED** | `SightlineStabilizerBridge.h/.cpp`, `StabilizerOverlay.h/.cpp`, `TestSightlineStabilizerBridge.cpp` | Planned Specification |
+| **Phase 15** | Fast Integer SAD Grid Motion Estimator (`SadGridEstimator`) | **PLANNED** | `SadGridEstimator.h/.cpp`, `TestSadGridEstimator.cpp` | Planned Specification |
+| **Phase 16** | Manual & Automatic Kinematic Drift Bias & Excursion Clamping | **PLANNED** | `TrajectoryFilter.h/.cpp`, `StabilizerTypes.h`, `TestTrajectoryFilter.cpp` | Planned Specification |
+| **Phase 17** | Closed-Loop Tracker Scene-Offset Bridge (`0x43`) & NV12 Border Color | **PLANNED** | `SceneMotionBridge.h/.cpp`, `WarpEngine.h/.cpp`, `TestSceneMotionBridge.cpp` | Planned Specification |
 
 ---
 
@@ -646,6 +766,38 @@ flowchart TD
   - Bidirectional translation between Sightline SLA messages (`MsgSetStabilizationParameters` [0x02], `MsgSetRegistrationParameters` [0x9E], `MsgSetStabilizationBias` [0x9F], `MsgResetStabilizationParameters` [0x04]) and `VideoStabilizerEngine` configurations.
   - Motion quiver vector field generator rendering inlier vectors (green), outlier vectors (red), crop safety boundaries, and live vibration frequency spectrum on 8-bit or 32-bit overlays.
 - **Verification**: `TestSightlineStabilizerBridge.cpp` verifying SLA message parsing/generation round-trip and overlay coordinate alignment.
+- **Detailed Specification**: Planned Specification (Execution Roadmap).
+
+### Phase 15: Fast Integer SAD Grid Motion Estimator (`SadGridEstimator`) `[PLANNED]`
+- **Objective**: Provide a deterministic, branch-light integer block-matching motion estimator as an ultra-fast alternative/fallback to multi-scale Shi-Tomasi + Pyramidal Lucas-Kanade when operating on low-contrast thermal scenes or resource-constrained embedded targets.
+- **Key Classes**: `SadGridEstimator`, `SadGridConfig`.
+- **Algorithms**:
+  - Fixed $8 \times 8$ uniform spatial grid ($64$ patches, $16\text{ px}$ border margin) with $8 \times 8$ luma patch Sum of Absolute Differences (SAD) search across a bounded $\pm 8\text{ px}$ window (`matchBlock`).
+  - Texture and uniqueness gate rejecting flat patches where $\text{SAD}_{\min} \ge 8 \times 8 \times 60$ or $|\text{SAD}(0,0) - \text{SAD}_{\min}| < 4$ for non-zero displacements.
+  - Closed-form mean translation $(\overline{dx}, \overline{dy})$ and single-pass least-squares rotational cross-product solver $\theta = \frac{\sum (r_{x,i} \Delta y_i - r_{y,i} \Delta x_i)}{\sum r_i^2}$ over off-center grid nodes ($r_i^2 > 100$).
+  - Residual inlier ratio confidence scoring ($\Delta x_i^2 + \Delta y_i^2 \le 4.0$).
+  - Zero dynamic heap allocation (`noexcept`, CERT ERR55-CPP).
+- **Verification**: `TestSadGridEstimator.cpp` validating synthetic integer translations, synthetic roll rotations, flat-field low-texture rejection, outlier immunity, and zero-heap execution.
+- **Detailed Specification**: Planned Specification (Execution Roadmap).
+
+### Phase 16: Manual & Automatic Kinematic Drift Bias Compensation & Hard Excursion Clamping `[PLANNED]`
+- **Objective**: Eliminate steady-state platform panning offset, aerodynamic crosswind drift, and excessive canvas excursion via manual/automatic bias estimation and hard radial/per-axis clamps.
+- **Key Classes**: `StabilizationBias`, `TrajectoryFilter` extensions, `VideoStabilizerEngine`.
+- **Algorithms**:
+  - Manual drift bias subtraction (`biasCol`, `biasRow`) and automatic IIR drift bias adaptation ($\mathbf{a}_k = \mathbf{a}_{k-1} + \frac{\text{updateRate}}{256} \Delta \mathbf{p}_k$, gated by registration confidence $> 0.30$) compatible with Sightline SLA `0x9F` (`SetStabilizationBias`).
+  - First-order IIR rate decay mode ($\alpha = 1 - \frac{\text{rate}}{256}$) selectable alongside the Constant-Acceleration EKF.
+  - Per-axis excursion clamps (`translationLimit` in pixels, `angleLimit` in $1/128^\circ$ units, `scaleLimit` in $1/256$ units) and circular radial clamp (`maxStabOffset` in pixels) enforcing $\|\mathbf{u}_k\|_2 \le R_{\max}$.
+- **Verification**: `TestTrajectoryFilter.cpp` and `TestVideoStabilizerEngine.cpp` testing manual bias subtraction, automatic drift convergence under constant pan slew, per-axis clamping, and radial boundary enforcement.
+- **Detailed Specification**: Planned Specification (Execution Roadmap).
+
+### Phase 17: Closed-Loop Tracker Scene-Offset Feedforward (`0x43`) & NV12 YUV Border Warping `[PLANNED]`
+- **Objective**: Couple video stabilization directly with `libs/Tracking` so background camera motion pre-shifts target tracking gates, and support configurable 3-channel YUV border fill on semi-planar NV12 and planar YUV420p surfaces.
+- **Key Classes**: `SceneMotionBridge`, `SceneMotionData`, `YuvBorderColor`, `WarpEngine` extensions.
+- **Algorithms**:
+  - Export of fixed-point `SceneMotionData` (`sceneCol`, `sceneRow`, $1/256\text{ px}$ `sceneColFrac8`/`sceneRowFrac8`, $1/128^\circ$ `sceneAngle7`, $1/256$ `sceneScale8`, `[0..255]` `sceneConfidence`) matching Sightline SLA `0x43` (`SLATrackingPosition`) wire semantics.
+  - Closed-loop feedforward hook into `libs/Tracking` (`TrackingEngine`) pre-translating active target correlation windows before detector/tracker evaluation.
+  - `WarpEngine::warpNv12` and `WarpEngine::warpYuv420p` enhancements supporting full `YuvBorderColor{edgeY, edgeU, edgeV}` padding on out-of-bounds luma and half-scale interleaved/planar chroma samples.
+- **Verification**: `TestSceneMotionBridge.cpp` and `TestWarpEngine.cpp` validating fixed-point `0x43` telemetry encoding, tracker gate pre-shifting under violent synthetic camera jumps, and custom `{Y, U, V}` border padding on NV12 and YUV420p frames.
 - **Detailed Specification**: Planned Specification (Execution Roadmap).
 
 ---

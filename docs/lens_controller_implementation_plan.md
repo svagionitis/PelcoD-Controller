@@ -791,6 +791,125 @@ Maintains persistent non-volatile diagnostic counters:
 
 ---
 
+### 3.17 Single-Pass Fused ROI Sharpness Evaluation & Configurable Metric Dividers (`FocusEvaluator.h`, `.cpp`)
+
+To maximize cache locality on high-resolution 1080p/4K video streams and align with Sightline Phase C (`0xB3` `SLAFocusParameters`) scaling semantics, `FocusEvaluator` fuses statistical moment computation and spatial gradient convolution into a single memory pass:
+
+#### 1. Single-Pass Cache-Fused Accumulation
+Instead of reading the ROI twice (Pass 1 for luminance mean/variance $\sum I, \sum I^2$ and Pass 2 for Sobel/Laplacian/Tenengrad gradients), a single scanline loop over $y \in [r_{\text{start}}, r_{\text{end}})$ and $x \in [c_{\text{start}}, c_{\text{end}})$ simultaneously accumulates:
+- Luminance sum $\Sigma_I = \sum I(x, y)$ and squared luminance sum $\Sigma_{I^2} = \sum I(x, y)^2$, and
+- Spatial gradient energy $\Sigma_{\nabla}$ ($3 \times 3$ Sobel $|G_x| + |G_y|$, 4-neighbor Laplacian $|4 I_c - I_N - I_S - I_W - I_E|$, or Tenengrad $G_x^2 + G_y^2$) for interior pixels $(x, y) \in [1, W-2] \times [1, H-2]$.
+
+This halves L1/L2 data cache traffic per frame while preserving `noexcept` zero-heap execution (CERT ERR55-CPP).
+
+#### 2. Configurable `focusDivider` and `varianceDivider` Scaling
+To prevent 32-bit unsigned integer saturation on large ROIs or underflow on tiny target ROIs, raw gradient and variance accumulators support configurable integer dividers (`focusDivider` $\ge 1$, `varianceDivider` $\ge 1$, matching FIP `0xB3` `SLAFocusParameters`):
+$$\text{FocusMetric} = \min\left( \text{MAX\_UINT32}, \left\lfloor \frac{\Sigma_{\nabla}}{\max(1, D_{\text{focus}})} \right\rfloor \right), \quad \text{Variance} = \left\lfloor \frac{\sigma_I^2}{\max(1, D_{\text{var}})} \right\rfloor$$
+alongside the pixel-count-normalized `normalizedMetric` ($100\times$ scaled) used by `AutoFocusEngine`.
+
+```
++-----------------------------------------------------------------------------------+
+|            SINGLE-PASS FUSED FOCUS EVALUATOR & DIVIDER SCALING (0xB3)             |
+|                                                                                   |
+|   Luma ROI [colStart..colEnd, rowStart..rowEnd]                                   |
+|         |                                                                         |
+|         v  (Single Scanline Memory Pass - Zero Extra Cache Reads)                 |
+|   +---------------------------------------------------------------------------+   |
+|   | Per-Pixel Fused Kernel:                                                   |   |
+|   |   1. Moment Accumulator:  sumI += p;  sumI2 += p * p;                     |   |
+|   |   2. Interior 3x3 Kernel: gradAccum += Sobel / Laplacian / Tenengrad      |   |
+|   +--------------------+----------------------------------+-------------------+   |
+|                        |                                  |                       |
+|                        v                                  v                       |
+|   +------------------------------------+   +----------------------------------+   |
+|   | Gradient Scaling:                  |   | Statistical Moment Scaling:      |   |
+|   | - focusMetric = grad / focusDiv    |   | - mean = sumI / N                |   |
+|   | - normMetric  = (grad * 100) / N_g |   | - variance = varRaw / varDiv     |   |
+|   +------------------------------------+   +----------------------------------+   |
++-----------------------------------------------------------------------------------+
+```
+
+```mermaid
+flowchart LR
+    ROI["8-Bit Luma ROI<br/>(1/256 Fractional Bounds)"] --> Loop["Single-Pass Fused Scanline Loop<br/>(0-Heap noexcept)"]
+    Loop --> Grad["3x3 Spatial Gradient Accumulator<br/>(Sobel / Laplacian / Tenengrad)"]
+    Loop --> Mom["Statistical Moment Accumulator<br/>(sumI, sumI2)"]
+    Grad --> DivF["Apply focusDivider (0xB3)<br/>& Pixel-Normalized Metric"]
+    Mom --> DivV["Apply varianceDivider (0xB3)<br/>& Mean Luminance"]
+    DivF --> Stats["FocusStats (0x55 SLAFocusStats)"]
+    DivV --> Stats
+```
+
+---
+
+### 3.18 Default `LensType` Plugin Resolution, License Gating & Sightline Phase C FIP Bridge (`LensDriverLoader.h`, `SightlineLensBridge.h`, `.cpp`)
+
+To provide drop-in interoperability with Sightline Phase C embedded lens subsystems (`SlaLensController`, `ILensDriver` ABI, and FIP `0x55`/`0x6C`–`0x6F`/`0xB1`–`0xB5` packets):
+
+#### 1. Automatic `LensType` Shared Library Fallback & Embedded Search Paths
+When `LensDriverLoader::loadLensDll` is invoked with an empty `dllName` (e.g., from legacy `0x6E` `SLASetLensParameters` or `0xB1` `SLALensParameters` packets that specify only a numeric `LensType`), `defaultDllNameForType(LensType)` resolves the canonical shared object name and searches `./`, `./lib/`, and `./sl/bin/`:
+- `LensType::NoLens (0)` $\rightarrow$ `slNopLensCtrl.so` (or built-in `MockLensDriver` fallback)
+- `LensType::Tamron (1)` $\rightarrow$ `slTamronLens.so`
+- `LensType::SonyVisca (2)` $\rightarrow$ `slViscaLens.so`
+- `LensType::Hitachi (3)` $\rightarrow$ `slHitachiLens.so`
+
+Optional AppBit license capability gating (`hasFocusLicense`) returns `LensLoadResult::LicenseDisallowed` when hardware autofocus plugin loading is restricted on unlicensed channels.
+
+#### 2. Sightline Phase C FIP Protocol Bridge (`SightlineLensBridge`)
+Translates Sightline FIP lens and autofocus wire messages directly into `LensController`, `AutoFocusEngine`, and `FocusEvaluator` calls:
+
+| FIP Opcode | Sightline Message Name | Direction | `libs/LensController` Target Action |
+|:---:|:---|:---:|:---|
+| `0x55` | `SLAFocusStats` | Outbound | Serializes `FocusStats` (`focusMetric`, `mean`, `variance`, pixel/fractional ROI, `focusPos`, `zoomPos`, `flags`). |
+| `0x6C` | `SLASetLensMode` | Inbound | Selects active `ChannelIndex` and operational lens mode. |
+| `0x6D` | `SLACurrentLensStatus` | Outbound | Reports driver load state, active `LensType`, and actuator status flags. |
+| `0x6E` | `SLASetLensParameters` | Inbound | Configures legacy lens type, serial port ID, and communication parameters. |
+| `0x6F` | `SLACurrentLensParameters` | Outbound | Echoes active channel lens configuration parameters. |
+| `0xB1` | `SLALensParameters` | Inbound/Out | Extended Phase C lens configuration (`LensType`, `portNum`, `dllName`, `curveFile`, `flags`) triggering `loadLensDll` + `ZoomTrackFocusEngine::parseCurveFile`. |
+| `0xB2` | `SLALensCommand` | Inbound | Dispatches `ZoomJog`, `FocusJog`, `GoToZoom`, `GoToFocus`, `FocusSeek`, `FocusScan`, `SavePosition`, `ResetLens`, and `ReloadCurves`. |
+| `0xB3` | `SLAFocusParameters` | Inbound | Updates `FocusRoiConfig` ($1/256$ fractional bounds), `FocusAlgorithm`, `focusDivider`, and `varianceDivider`. |
+| `0xB4` | `SLALensRanges` | Outbound | Queries `ILensDriver::getRanges` and reports `[minZoom, maxZoom, minFocus, maxFocus]` in `0.1x` FOV and encoder units. |
+| `0xB5` | `SLACustomAutoFocusParameters` | Inbound | Configures 3-Phase Scan (`StepConfig[3]`), `frameOffsetMult8` ring delay, `direction`, `repeat`, and `setZoomTrackOffset`. |
+
+```
++-----------------------------------------------------------------------------------+
+|               SIGHTLINE PHASE C FIP LENS & AUTOFOCUS PROTOCOL BRIDGE              |
+|                                                                                   |
+|   FIP Wire Packets (0x6C, 0x6E, 0xB1, 0xB2, 0xB3, 0xB5)                           |
+|         |                                                                         |
+|         v                                                                         |
+|   +---------------------------------------------------------------------------+   |
+|   | SightlineLensBridge (Zero-Heap Packet Parser & Telemetry Serializer)      |   |
+|   +-----+------------------------+-------------------------+------------------+   |
+|         |                        |                         |                      |
+|         v (0xB1 / 0x6E)          v (0xB2 / 0xB5)           v (0xB3)               |
+|   +-------------------+   +----------------------+   +------------------------+   |
+|   | LensDriverLoader  |   | LensController &     |   | FocusEvaluator         |   |
+|   | - defaultDllName  |   | AutoFocusEngine      |   | - 1/256 Fractional ROI |   |
+|   | - License Gate    |   | - 3-Phase Scan/Seek  |   | - focus/var Dividers   |   |
+|   | - Port Collision  |   | - Parfocal LUT/PCHIP |   | - Single-Pass Kernel   |   |
+|   +---------+---------+   +----------+-----------+   +-----------+------------+   |
+|             |                        |                           |                |
+|             +------------------------+---------------------------+                |
+|                                      |                                            |
+|                                      v                                            |
+|             Outbound FIP Telemetry (0x55 FocusStats, 0x6D, 0x6F, 0xB4)            |
++-----------------------------------------------------------------------------------+
+```
+
+```mermaid
+flowchart TD
+    FIPIn["Inbound FIP Packets<br/>(0x6C, 0x6E, 0xB1, 0xB2, 0xB3, 0xB5)"] --> Bridge["SightlineLensBridge<br/>(0-Heap Command & Telemetry Translator)"]
+    Bridge -->|"0xB1 / 0x6E"| Loader["LensDriverLoader<br/>defaultDllNameForType + License & Port Guard"]
+    Bridge -->|"0xB2 / 0xB5"| Engine["LensController & AutoFocusEngine<br/>Jog / GoTo / 3-Phase Scan / Parfocal Spline"]
+    Bridge -->|"0xB3"| Eval["FocusEvaluator<br/>Single-Pass ROI & Configurable Dividers"]
+    Loader --> Out["Outbound FIP Telemetry<br/>(0x55 SLAFocusStats, 0x6D, 0x6F, 0xB4)"]
+    Engine --> Out
+    Eval --> Out
+```
+
+---
+
 ## 4. Directory & File Structure
 
 ```text
@@ -840,6 +959,8 @@ libs/LensController/
 ├── LensController.cpp
 ├── LensPayloadAdapter.h                # Bridge to PayloadHal::ICameraPayload
 ├── LensPayloadAdapter.cpp
+├── SightlineLensBridge.h               # Sightline Phase C FIP (0x55/0x6C-0x6F/0xB1-0xB5) bridge
+├── SightlineLensBridge.cpp
 └── tests/
     ├── CMakeLists.txt                  # GoogleTest test runner
     ├── TestLensTypes.cpp               # Value objects and invariant tests
@@ -856,7 +977,8 @@ libs/LensController/
     ├── TestOpticalGeometry.cpp         # DOF and hyperfocal distance calculation tests
     ├── TestRangeToFocusCue.cpp         # LRF thin-lens range-to-encoder mapping tests
     ├── TestThermalCompensator.cpp      # Thermal drift compensation polynomial tests
-    └── TestBacklashCalibrator.cpp      # Dual-sweep mechanical backlash calibration tests
+    ├── TestBacklashCalibrator.cpp      # Dual-sweep mechanical backlash calibration tests
+    └── TestSightlineLensBridge.cpp     # FIP 0x55/0x6C-0x6F/0xB1-0xB5 roundtrip & dispatch tests
 ```
 
 ---
@@ -876,6 +998,58 @@ libs/LensController/
 | **Phase 9** | **Intelligent AF Heuristics** | `MotionGatedAfManager`, `OpticalGeometryCalculator` (DOF/Hyperfocal), `MultiZoneFocusEvaluator` (3x3 grid) | Planned | Zero AF hunting during PTZ pan/tilt slews, instant wide-angle lock, foreground subject priority. |
 | **Phase 10** | **Sensor Fusion & Optics** | `RangeToFocusCueBridge` (LRF/KLV ST 0601), `ThermalDriftCompensator` (LWIR/MWIR), `AutoIrisCoordinator` | Planned | Hunt-free focus on laser target range, thermal drift stability across -40°C..+70°C, exposure co-tuning. |
 | **Phase 11** | **Calibration & Diagnostics** | `BacklashCalibrator`, `ActuatorDiagnostics` (cycle count, wear telemetry, stall detection) | Planned | Autonomous mechanical gear backlash calibration, non-volatile cycle tracking, slip warning. |
+| **Phase 12** | **Single-Pass Fused Focus Evaluator & Dividers** | `FocusEvaluator.h/.cpp` single-pass scanline fusion (`sumI`, `sumI2`, $3 \times 3$ gradient) + `focusDivider`/`varianceDivider` (`0xB3`) | Planned | 50% reduction in ROI memory reads, exact divider scaling without 32-bit overflow/underflow. |
+| **Phase 13** | **Default `LensType` Plugin Resolution & License Gate** | `LensDriverLoader.h/.cpp` (`defaultDllNameForType`, `./sl/bin/` search path, `hasFocusLicense` AppBit check) | Planned | Automatic `LensType` (`0..3`) `.so`/`.dll` mapping when `dllName` is empty; license & port collision enforcement. |
+| **Phase 14** | **Sightline Phase C FIP Protocol Bridge** | `SightlineLensBridge.h/.cpp`, `TestSightlineLensBridge.cpp` (`0x55`, `0x6C`–`0x6F`, `0xB1`–`0xB5`) | Planned | Bit-exact roundtrip serialization and command dispatch for all 10 Sightline Phase C lens/AF FIP opcodes. |
+
+### 5.1 Phased Execution Flow & Detailed Phase Specifications (Phases 12–14)
+
+```
++---------------------------------------------------------------------------------------------------+
+|                             LENS CONTROLLER PHASED ROADMAP (PHASES 1-14)                          |
+|                                                                                                   |
+|  [COMPLETED] Phases 1-7 : Core Domain, 6-Metric Evaluator, PCHIP Parfocal LUT, 4-Mode AF Engine,  |
+|                           Dynamic Plugin Loader, VISCA/Pelco-D Drivers & PayloadHal Adapter       |
+|  [PLANNED]   Phases 8-11: Parfocal Feedforward, S-Curve Profiler, Motion-Gated AF, 3x3 Multi-Zone,|
+|                           LRF/KLV Range Cueing, LWIR Athermalization & Backlash Auto-Calibrator   |
+|  [PLANNED]   Phase 12   : Single-Pass Fused Focus Evaluator & Configurable Metric Dividers (0xB3) |
+|  [PLANNED]   Phase 13   : Default LensType Plugin Resolution & License Capability Gating          |
+|  [PLANNED]   Phase 14   : Sightline Phase C FIP Protocol Bridge (0x55, 0x6C-0x6F, 0xB1-0xB5)      |
++---------------------------------------------------------------------------------------------------+
+```
+
+```mermaid
+flowchart TD
+    P1_7["Phases 1-7: Core LensController, 6-Metric FocusEvaluator,<br/>PCHIP ZoomTrack & 4-Mode AutoFocusEngine <b>[COMPLETED]</b>"] --> P8_11["Phases 8-11: Feedforward, S-Curve, Multi-Zone,<br/>LRF Cueing, Athermalization & Backlash Calibration <b>[PLANNED]</b>"]
+    P1_7 --> P12["Phase 12: Single-Pass Fused Focus Evaluator<br/>& Configurable Metric Dividers (0xB3) <b>[PLANNED]</b>"]
+    P1_7 --> P13["Phase 13: Default LensType Plugin Resolution<br/>& License Capability Gating <b>[PLANNED]</b>"]
+    P12 & P13 --> P14["Phase 14: Sightline Phase C FIP Protocol Bridge<br/>(0x55, 0x6C-0x6F, 0xB1-0xB5) <b>[PLANNED]</b>"]
+```
+
+#### Phase 12: Single-Pass Fused Focus Evaluator & Configurable Metric Dividers `[Planned]`
+- **Objective**: Halve memory bandwidth during ROI sharpness evaluation by fusing luminance moment accumulation ($\sum I, \sum I^2$) and $3 \times 3$ spatial gradient evaluation (Sobel, Laplacian, Tenengrad) into a single cache-friendly scanline pass, and add configurable `focusDivider` and `varianceDivider` parameters matching Sightline FIP `0xB3` (`SLAFocusParameters`).
+- **Key Classes**: `FocusEvaluator`, `FocusRoiConfig`, `FocusStats`.
+- **Deliverables**:
+  - Single-pass scanline loop in `FocusEvaluator::evaluate` computing mean, variance, raw gradient sum, divider-scaled `focusMetric`, and pixel-normalized `normalizedMetric` in one traversal of the 8-bit luma ROI.
+  - Configurable `focusDivider` ($\ge 1$) and `varianceDivider` ($\ge 1$) fields in `FocusRoiConfig` preventing `std::uint32_t` saturation on full-frame ROIs.
+- **Verification**: `TestFocusEvaluator.cpp` verifying bit-exact equivalence between single-pass and reference moments/gradients, divider scaling accuracy, and zero heap allocation (`noexcept`).
+
+#### Phase 13: Default `LensType` Plugin Resolution & License Capability Gating `[Planned]`
+- **Objective**: Enable seamless loading of hardware lens plugins when only a numeric `LensType` identifier is provided (without an explicit `dllName` string), and enforce optional hardware license capability checks.
+- **Key Classes**: `LensDriverLoader`, `LensConfig`, `LensLoadResult`.
+- **Deliverables**:
+  - `LensDriverLoader::defaultDllNameForType(LensType)` mapping `NoLens (0)` $\rightarrow$ `slNopLensCtrl.so`, `Tamron (1)` $\rightarrow$ `slTamronLens.so`, `SonyVisca (2)` $\rightarrow$ `slViscaLens.so`, and `Hitachi (3)` $\rightarrow$ `slHitachiLens.so`.
+  - Extended search path resolution (`./`, `./lib/`, `./sl/bin/`) and dual C-ABI factory symbol lookup (`create_lens_object` and `create_object`).
+  - Optional `hasFocusLicense` verification returning `LensLoadResult::LicenseDisallowed` when unlicensed channels request hardware autofocus plugins.
+- **Verification**: `TestLensDriverLoader.cpp` testing empty-`dllName` fallback resolution per `LensType`, license rejection, and UART `SerialPortId` collision prevention across all 4 channels.
+
+#### Phase 14: Sightline Phase C FIP Protocol Bridge (`0x55`, `0x6C`–`0x6F`, `0xB1`–`0xB5`) `[Planned]`
+- **Objective**: Provide a zero-heap bidirectional command and telemetry bridge between Sightline Phase C FIP lens/autofocus wire packets and `LensController`.
+- **Key Classes**: `SightlineLensBridge`.
+- **Deliverables**:
+  - Inbound command decoders and dispatchers for `0x6C` (`SLASetLensMode`), `0x6E` (`SLASetLensParameters`), `0xB1` (`SLALensParameters`), `0xB2` (`SLALensCommand`), `0xB3` (`SLAFocusParameters`), and `0xB5` (`SLACustomAutoFocusParameters`).
+  - Outbound telemetry encoders for `0x55` (`SLAFocusStats`), `0x6D` (`SLACurrentLensStatus`), `0x6F` (`SLACurrentLensParameters`), and `0xB4` (`SLALensRanges`).
+- **Verification**: `TestSightlineLensBridge.cpp` validating packet parsing, boundary/malformed payload rejection, command execution on `MockLensDriver`, and telemetry serialization roundtrips.
 
 ---
 
