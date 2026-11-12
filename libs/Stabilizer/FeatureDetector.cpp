@@ -18,7 +18,7 @@ namespace {
 
     struct CellBucket {
         std::uint16_t count { 0U };
-        FeaturePoint points[64] { };
+        FeaturePoint points[64] {};
     };
 
 } // namespace
@@ -232,7 +232,9 @@ std::size_t FeatureDetector::bucketFeatures(const FrameDimensions& dims, const f
     if (buckets == nullptr) {
         return 0U;
     }
-    std::memset(buckets, 0, totalCells * sizeof(CellBucket));
+    for (std::size_t c = 0U; c < totalCells; ++c) {
+        buckets[c].count = 0U;
+    }
 
     const float cellW = static_cast<float>(dims.width()) / static_cast<float>(cols);
     const float cellH = static_cast<float>(dims.height()) / static_cast<float>(rows);
