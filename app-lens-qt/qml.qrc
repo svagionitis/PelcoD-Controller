@@ -2,6 +2,7 @@
     <qresource prefix="/">
         <file>qml/Main.qml</file>
         <file>qml/LensVideoView.qml</file>
+        <file>qml/SourcePanel.qml</file>
         <file>qml/Components/StatusBadge.qml</file>
     </qresource>
 </RCC>

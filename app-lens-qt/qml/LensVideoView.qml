@@ -14,9 +14,14 @@ Item {
         id: viewportItem
         anchors.fill: parent
         controller: root.controller
-        showGrid: true
-        showReticle: true
-        showRoi: true
+        showGrid: root.controller.showGrid
+        showReticle: root.controller.showReticle
+        showRoi: root.controller.showRoi
+        showPeaking: root.controller.showPeaking
+        roiRect: root.controller.roiRect
+        onRoiMoved: function(x, y, w, h) {
+            root.controller.setRoi(x, y, w, h)
+        }
     }
 
     // Top-Left Optical Telemetry HUD Overlay
@@ -42,7 +47,7 @@ Item {
                     width: 8
                     height: 8
                     radius: 4
-                    color: "#00e676"
+                    color: root.controller.playbackState === 2 ? "#00e676" : "#ff9100"
                 }
                 Text {
                     text: {
@@ -85,6 +90,23 @@ Item {
                 }
             }
 
+            RowLayout {
+                spacing: 16
+                Text {
+                    text: "SHARPNESS: " + root.controller.latestMetricScore.toFixed(1)
+                    color: "#ff9100"
+                    font.family: "Monospace"
+                    font.pixelSize: 10
+                    font.bold: true
+                }
+                Text {
+                    text: "FPS: " + root.controller.currentFps.toFixed(1)
+                    color: "#808a9d"
+                    font.family: "Monospace"
+                    font.pixelSize: 10
+                }
+            }
+
             Text {
                 text: "MODE: " + {
                     switch (root.controller.lensMode) {
@@ -112,10 +134,33 @@ Item {
         spacing: 8
 
         Button {
+            text: "PEAKING"
+            checkable: true
+            checked: root.controller.showPeaking
+            onToggled: root.controller.setShowPeaking(checked)
+            contentItem: Text {
+                text: parent.text
+                color: parent.checked ? "#00e676" : "#808a9d"
+                font.pixelSize: 10
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+            background: Rectangle {
+                implicitWidth: 64
+                implicitHeight: 24
+                color: "#141720"
+                border.color: parent.checked ? "#00e676" : "#242938"
+                border.width: 1
+                radius: 3
+            }
+        }
+
+        Button {
             text: "GRID"
             checkable: true
-            checked: viewportItem.showGrid
-            onToggled: viewportItem.showGrid = checked
+            checked: root.controller.showGrid
+            onToggled: root.controller.setShowGrid(checked)
             contentItem: Text {
                 text: parent.text
                 color: parent.checked ? "#00e5ff" : "#808a9d"
@@ -137,8 +182,8 @@ Item {
         Button {
             text: "RETICLE"
             checkable: true
-            checked: viewportItem.showReticle
-            onToggled: viewportItem.showReticle = checked
+            checked: root.controller.showReticle
+            onToggled: root.controller.setShowReticle(checked)
             contentItem: Text {
                 text: parent.text
                 color: parent.checked ? "#00e5ff" : "#808a9d"
@@ -160,8 +205,8 @@ Item {
         Button {
             text: "ROI"
             checkable: true
-            checked: viewportItem.showRoi
-            onToggled: viewportItem.showRoi = checked
+            checked: root.controller.showRoi
+            onToggled: root.controller.setShowRoi(checked)
             contentItem: Text {
                 text: parent.text
                 color: parent.checked ? "#ff9100" : "#808a9d"
@@ -181,4 +226,3 @@ Item {
         }
     }
 }
-

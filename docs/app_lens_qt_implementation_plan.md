@@ -771,6 +771,7 @@ To ensure rapid, test-driven, and verifiable progress, the implementation is par
 ```
 
 ### Phase 1: CMake Target, Skeleton Application & Mock Driver Binding
+*(Detailed implementation plan: [`app_lens_qt_phase1_plan.md`](app_lens_qt_phase1_plan.md) — Completed)*
 - **Objectives**: Establish project build configuration, executable target `LensAppQt`, tactical dark QML shell, and ViewModel scaffolding.
 - **Tasks**:
   1. Author `app-lens-qt/CMakeLists.txt` linking `LensController`, `Video`, `Math`, `Transport`, and Qt6 components (`Core`, `Gui`, `Qml`, `Quick`, `QuickControls2`).
@@ -781,6 +782,7 @@ To ensure rapid, test-driven, and verifiable progress, the implementation is par
 - **Deliverables**: Compiling executable displaying responsive tactical GUI shell.
 
 ### Phase 2: Video Ingestion, Synthetic Defocus & Viewport QuickItem
+*(Detailed implementation plan: [`app_lens_qt_phase2_plan.md`](app_lens_qt_phase2_plan.md))*
 - **Objectives**: Enable multimedia stream playback, synthetic optical defocus generation, and zero-heap video rendering.
 - **Tasks**:
   1. Implement `SyntheticDefocusGenerator` with separable Gaussian convolution simulating optical defocus proportional to motor distance $|f - f_{\text{plane}}|$.
@@ -842,6 +844,20 @@ To ensure rapid, test-driven, and verifiable progress, the implementation is par
 ---
 
 ## 8. Verification Checklist & Acceptance Criteria
+
+### Milestone Phase Status
+
+| Phase | Description | Plan Document | Status |
+| :--- | :--- | :--- | :--- |
+| **Phase 1** | Project Setup, Skeleton Application & Mock Driver Binding | [`app_lens_qt_phase1_plan.md`](app_lens_qt_phase1_plan.md) | **Completed** |
+| **Phase 2** | Video Ingestion, Synthetic Defocus & Viewport QuickItem | [`app_lens_qt_phase2_plan.md`](app_lens_qt_phase2_plan.md) | **Ready for Execution** |
+| **Phase 3** | Optical Axis Controls, Limits & Hardware Driver Integration | `app_lens_qt_phase3_plan.md` | Pending |
+| **Phase 4** | Autofocus (AF) Testing Laboratory & Interactive ROI | `app_lens_qt_phase4_plan.md` | Pending |
+| **Phase 5** | Parfocal Zoom-to-Focus Calibration & Visualizer | `app_lens_qt_phase5_plan.md` | Pending |
+| **Phase 6** | Telemetry Ring Buffer, Presets & Diagnostics Panel | `app_lens_qt_phase6_plan.md` | Pending |
+| **Phase 7** | Verification, Hardening & Documentation | `app_lens_qt_phase7_plan.md` | Pending |
+
+### Standards & Quality Checklist
 
 Before concluding any phase or releasing the application, the implementation must satisfy this checklist:
 

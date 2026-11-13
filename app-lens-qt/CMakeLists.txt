@@ -2,6 +2,7 @@ add_executable(LensAppQt
     main.cpp
     LensConfigModel.h
     LensConfigModel.cpp
+    LensFramePacket.h
     LensPlayerController.h
     LensPlayerController.cpp
     LensVideoQuickItem.h
@@ -9,6 +10,8 @@ add_executable(LensAppQt
     LensWorker.h
     LensWorker.cpp
     PresentationTypes.h
+    SyntheticDefocusGenerator.h
+    SyntheticDefocusGenerator.cpp
     qml.qrc
 )
 

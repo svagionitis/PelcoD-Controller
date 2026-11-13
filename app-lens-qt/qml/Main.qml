@@ -152,6 +152,14 @@ ApplicationWindow {
         anchors.fill: parent
         spacing: 0
 
+        // Left Source Panel
+        SourcePanel {
+            id: sourcePanel
+            Layout.preferredWidth: 300
+            Layout.fillHeight: true
+            controller: controller
+        }
+
         // Center Viewport
         LensVideoView {
             id: videoView

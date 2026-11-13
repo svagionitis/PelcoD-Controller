@@ -186,6 +186,7 @@ if(PELCOD_ENABLE_QT AND TARGET LensController AND TARGET Qt6::Test)
         ${CMAKE_SOURCE_DIR}/app-lens-qt/LensWorker.cpp
         ${CMAKE_SOURCE_DIR}/app-lens-qt/LensPlayerController.cpp
         ${CMAKE_SOURCE_DIR}/app-lens-qt/LensVideoQuickItem.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/SyntheticDefocusGenerator.cpp
     )
     target_include_directories(TestLensPlayerController PRIVATE
         ${CMAKE_SOURCE_DIR}
@@ -208,6 +209,78 @@ if(PELCOD_ENABLE_QT AND TARGET LensController AND TARGET Qt6::Test)
         Qt6::Test
     )
     pelcod_register_gtest(TestLensPlayerController NO_MAIN)
+
+    add_executable(TestSyntheticDefocusGenerator
+        TestSyntheticDefocusGenerator.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/SyntheticDefocusGenerator.cpp
+    )
+    target_include_directories(TestSyntheticDefocusGenerator PRIVATE
+        ${CMAKE_SOURCE_DIR}/app-lens-qt
+        ${CMAKE_SOURCE_DIR}/libs/LensController
+        ${CMAKE_SOURCE_DIR}/libs/Video
+        ${CMAKE_SOURCE_DIR}/libs/Math
+    )
+    target_link_libraries(TestSyntheticDefocusGenerator PRIVATE
+        LensController
+        Video
+        Math
+        Threads::Threads
+    )
+    pelcod_register_gtest(TestSyntheticDefocusGenerator)
+
+    add_executable(TestLensVideoQuickItem
+        TestLensVideoQuickItem.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/LensVideoQuickItem.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/LensPlayerController.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/LensWorker.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/LensConfigModel.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/SyntheticDefocusGenerator.cpp
+    )
+    target_include_directories(TestLensVideoQuickItem PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/app-lens-qt
+        ${CMAKE_SOURCE_DIR}/libs/LensController
+        ${CMAKE_SOURCE_DIR}/libs/Video
+        ${CMAKE_SOURCE_DIR}/libs/Math
+        ${CMAKE_SOURCE_DIR}/libs/Transport
+    )
+    target_link_libraries(TestLensVideoQuickItem PRIVATE
+        LensController
+        Video
+        Math
+        Transport
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Qml
+        Qt6::Quick
+        Qt6::QuickControls2
+        Qt6::Test
+    )
+    pelcod_register_gtest(TestLensVideoQuickItem)
+
+    add_executable(TestLensWorkerVideo
+        TestLensWorkerVideo.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/LensWorker.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/SyntheticDefocusGenerator.cpp
+    )
+    target_include_directories(TestLensWorkerVideo PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/app-lens-qt
+        ${CMAKE_SOURCE_DIR}/libs/LensController
+        ${CMAKE_SOURCE_DIR}/libs/Video
+        ${CMAKE_SOURCE_DIR}/libs/Math
+        ${CMAKE_SOURCE_DIR}/libs/Transport
+    )
+    target_link_libraries(TestLensWorkerVideo PRIVATE
+        LensController
+        Video
+        Math
+        Transport
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Test
+    )
+    pelcod_register_gtest(TestLensWorkerVideo)
 endif()
 
 # ==============================================================================
