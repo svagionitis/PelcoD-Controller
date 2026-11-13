@@ -367,13 +367,13 @@ ApplicationWindow {
             }
 
             Text {
-                text: "MODE: " + {
+                text: {
                     switch (videoView.presentationMode) {
-                    case StabilizerQuickItem.SplitWipe: return "SPLIT WIPE (" + Math.round(videoView.splitPosition * 100) + "%)";
-                    case StabilizerQuickItem.SideBySide: return "SIDE-BY-SIDE DUAL";
-                    case StabilizerQuickItem.SingleToggle: return videoView.showStabilizedInToggle ? "STABILIZED" : "RAW UNSTABILIZED";
-                    case StabilizerQuickItem.DifferenceHeatmap: return "DIFFERENCE HEATMAP";
-                    default: return "UNKNOWN";
+                    case StabilizerQuickItem.SplitWipe: return "MODE: SPLIT WIPE (" + Math.round(videoView.splitPosition * 100) + "%)";
+                    case StabilizerQuickItem.SideBySide: return "MODE: SIDE-BY-SIDE DUAL";
+                    case StabilizerQuickItem.SingleToggle: return "MODE: " + (videoView.showStabilizedInToggle ? "STABILIZED" : "RAW UNSTABILIZED");
+                    case StabilizerQuickItem.DifferenceHeatmap: return "MODE: DIFFERENCE HEATMAP";
+                    default: return "MODE: UNKNOWN";
                     }
                 }
                 color: "#00e5ff"

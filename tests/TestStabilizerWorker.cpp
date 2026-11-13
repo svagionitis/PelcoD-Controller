@@ -110,6 +110,9 @@ TEST_F(StabilizerWorkerTest, ControllerIntegrationLifecycle)
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
+    if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")) {
+        qputenv("QT_QPA_PLATFORM", "offscreen");
+    }
     int fakeArgc = 1;
     char fakeName[] = "TestStabilizerWorker";
     char* fakeArgv[] = { fakeName, nullptr };

@@ -24,7 +24,11 @@ Rectangle {
             var urlStr = selectedFile.toString();
             // Strip file:// prefix if present
             if (urlStr.indexOf("file:///") === 0) {
-                urlStr = urlStr.substring(8);
+                if (urlStr.length >= 10 && urlStr.charAt(9) === ':') {
+                    urlStr = urlStr.substring(8);
+                } else {
+                    urlStr = urlStr.substring(7);
+                }
             } else if (urlStr.indexOf("file://") === 0) {
                 urlStr = urlStr.substring(7);
             }
@@ -55,7 +59,8 @@ Rectangle {
             Item { Layout.fillWidth: true }
 
             StatusBadge {
-                stateText: controller ? {
+                stateText: {
+                    if (!controller) return "IDLE";
                     switch (controller.playbackState) {
                     case StabilizerPlayerController.Playing: return "PLAYING";
                     case StabilizerPlayerController.Opening: return "OPENING";
@@ -63,7 +68,7 @@ Rectangle {
                     case StabilizerPlayerController.Error:   return "ERROR";
                     default: return "IDLE";
                     }
-                } : "IDLE"
+                }
             }
         }
 

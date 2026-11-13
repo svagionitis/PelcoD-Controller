@@ -12,13 +12,21 @@
 #include <QImage>
 #include <QPainter>
 #include <QPointF>
+#include <QQmlApplicationEngine>
+#include <QQuickStyle>
 #include <QRectF>
+#include <QUrl>
 
 #include <gtest/gtest.h>
 
 #include "OverlayRenderer.h"
 #include "PresentationTypes.h"
+#include "PresetManager.h"
+#include "StabilizerConfigModel.h"
 #include "StabilizerFramePacket.h"
+#include "StabilizerPlayerController.h"
+#include "StabilizerQuickItem.h"
+#include "TelemetryRingBuffer.h"
 #include "VideoStabilizerEngine.h"
 
 namespace StabilizerApp {
@@ -143,7 +151,7 @@ namespace {
     TEST(TestPresentationEngine, VerifyEngineCopyLandmarks)
     {
         Stabilizer::VideoStabilizerEngine engine;
-        std::array<Stabilizer::VisualLandmark, 10U> outLandmarks { };
+        std::array<Stabilizer::VisualLandmark, 10U> outLandmarks {};
 
         // Fresh unconfigured engine has 0 landmarks
         const std::size_t copied = engine.copyLandmarks(outLandmarks.data(), outLandmarks.size());
@@ -152,6 +160,24 @@ namespace {
         // Null safety
         EXPECT_EQ(engine.copyLandmarks(nullptr, 10U), 0U);
         EXPECT_EQ(engine.copyLandmarks(outLandmarks.data(), 0U), 0U);
+    }
+
+    TEST(TestPresentationEngine, VerifyQmlMainComponentLoads)
+    {
+        QQuickStyle::setStyle(QStringLiteral("Basic"));
+
+        qmlRegisterType<StabilizerPlayerController>("StabilizerApp", 1, 0, "StabilizerPlayerController");
+        qmlRegisterType<StabilizerQuickItem>("StabilizerApp", 1, 0, "StabilizerQuickItem");
+        qmlRegisterUncreatableType<StabilizerConfigModel>(
+            "StabilizerApp", 1, 0, "StabilizerConfigModel", QStringLiteral("Access via StabilizerPlayerController"));
+        qmlRegisterUncreatableType<TelemetryRingBuffer>(
+            "StabilizerApp", 1, 0, "TelemetryRingBuffer", QStringLiteral("Access via StabilizerPlayerController"));
+        qmlRegisterUncreatableType<PresetManager>(
+            "StabilizerApp", 1, 0, "PresetManager", QStringLiteral("Access via StabilizerPlayerController"));
+
+        QQmlApplicationEngine engine;
+        engine.load(QUrl(QStringLiteral("qrc:/qml/Main.qml")));
+        ASSERT_FALSE(engine.rootObjects().isEmpty());
     }
 
 } // namespace
