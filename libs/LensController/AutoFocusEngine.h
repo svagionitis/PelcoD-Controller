@@ -113,6 +113,10 @@ public:
     /// @return Reference to AutoFocusConfig.
     [[nodiscard]] const AutoFocusConfig& config() const noexcept;
 
+    /// @brief Updates active configuration parameters.
+    /// @param cfg Calibrated parameter overrides.
+    void setConfig(const AutoFocusConfig& cfg) noexcept;
+
 private:
     void stepScan(MotorPosition pos) noexcept;
     void stepSeek(MotorPosition pos) noexcept;

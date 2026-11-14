@@ -562,4 +562,9 @@ const AutoFocusConfig& AutoFocusEngine::config() const noexcept
     return m_config;
 }
 
+void AutoFocusEngine::setConfig(const AutoFocusConfig& cfg) noexcept
+{
+    m_config = cfg;
+}
+
 } // namespace LensControl

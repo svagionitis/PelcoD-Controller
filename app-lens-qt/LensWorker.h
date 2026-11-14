@@ -1,7 +1,7 @@
 #pragma once
 
 /// @file LensWorker.h
-/// @brief Dedicated background worker managing video ingestion, optical simulation, and LensController.
+/// @brief Dedicated background worker for video decoding and optical engine execution.
 
 #include <cstddef>
 #include <cstdint>
@@ -12,29 +12,27 @@
 #include <string>
 
 #include <QObject>
+#include <QPointF>
 #include <QString>
 #include <QTimer>
+#include <QVariantList>
 
 #include "AtomicTripleBuffer.h"
 #include "IVideoDecoder.h"
 #include "LensController.h"
 #include "LensFramePacket.h"
-#include "LensTypes.h"
-#include "MockLensDriver.h"
-#include "PelcoDLensDriver.h"
 #include "SerialTransport.h"
 #include "SyntheticDefocusGenerator.h"
-#include "ViscaLensDriver.h"
 
 namespace LensApp {
 
 /// @class LensWorker
-/// @brief Worker object executing on dedicated QThread for continuous ingestion and lens actuation.
+/// @brief Background thread worker driving video ingestion, zero-heap focus sharpness, and actuators.
 class LensWorker : public QObject {
     Q_OBJECT
 
 public:
-    explicit LensWorker(Video::AtomicTripleBuffer<LensFramePacket>& tripleBuffer, QObject* parent = nullptr);
+    explicit LensWorker(Video::AtomicTripleBuffer<LensFramePacket>& buffer, QObject* parent = nullptr);
     ~LensWorker() override;
 
     LensWorker(const LensWorker&) = delete;
@@ -43,6 +41,7 @@ public:
     LensWorker& operator=(LensWorker&&) = delete;
 
     [[nodiscard]] bool isRunning() const noexcept;
+    [[nodiscard]] double currentFps() const noexcept;
     [[nodiscard]] int activeChannel() const noexcept;
 
 public slots:
@@ -78,6 +77,13 @@ public slots:
     void onStopMotion(int channel);
     void onEmergencyStop();
 
+    // Autofocus Slots (< 30 chars)
+    void onTriggerAf(int channel, int algorithm, int metric);
+    void onAbortAf(int channel);
+    void onSetCaf(int channel, bool enabled, double threshold);
+    void onSetTrackerRoi(int channel, double nx, double ny, double nw, double nh);
+    void onSetFocusMetric(int channel, int metric);
+
     // Driver Binding Slots (< 30 chars)
     void onBindMock(int channel);
     void onBindPelco(int channel, int port, int baud, int address);
@@ -91,6 +97,9 @@ signals:
     void playbackStateChanged(int state);
     void statusUpdated(int focus, int zoom, int limits, int mode, bool afActive);
     void telemetryReady(double metricScore, int channel);
+    void afStateUpdated(int state, bool isRunning);
+    void peakFitted(double vertex, double score, double curvature, double r2, bool valid);
+    void samplesReady(const QVariantList& samples);
     void errorOccurred(const QString& message);
     void driverBound(int channel, int driverType, const QString& portName, int baud, int address, bool success,
         const QString& error);
@@ -132,6 +141,8 @@ private:
     std::chrono::steady_clock::time_point m_lastTickTime { };
     LensControl::NormalizedRoi m_activeRoi { 64U, 64U, 128U, 128U };
     std::uint64_t m_frameCounter { 0U };
+    LensControl::AutoFocusState m_lastAfState { LensControl::AutoFocusState::Idle };
+    bool m_lastAfRunning { false };
 };
 
 } // namespace LensApp

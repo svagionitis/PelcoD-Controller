@@ -288,14 +288,57 @@ void LensWorker::setRoi(double x, double y, double w, double h)
 {
     const auto col = static_cast<std::uint8_t>(std::clamp(x * 255.0, 0.0, 255.0));
     const auto row = static_cast<std::uint8_t>(std::clamp(y * 255.0, 0.0, 255.0));
-    const auto width = static_cast<std::uint8_t>(std::clamp(w * 255.0, 1.0, 255.0 - col));
-    const auto height = static_cast<std::uint8_t>(std::clamp(h * 255.0, 1.0, 255.0 - row));
+    const auto width = static_cast<std::uint8_t>(std::clamp(w * 255.0, 1.0, 256.0 - col));
+    const auto height = static_cast<std::uint8_t>(std::clamp(h * 255.0, 1.0, 256.0 - row));
 
     m_activeRoi = LensControl::NormalizedRoi { col, row, width, height };
 
     const LensControl::CameraIndex cam(static_cast<std::uint8_t>(m_activeChannel));
-    m_controller.setTrackerRoi(cam, static_cast<float>(x + (w * 0.5)), static_cast<float>(y + (h * 0.5)),
-        static_cast<float>(w), static_cast<float>(h));
+    m_controller.setFocusRoi(cam, m_activeRoi);
+}
+
+void LensWorker::onTriggerAf(int channel, int algorithm, int metric)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+
+    m_controller.setFocusMetric(cam, static_cast<LensControl::FocusMetricType>(metric));
+    m_controller.triggerAutoFocus(cam, static_cast<LensControl::AutoFocusMethod>(algorithm));
+    processLoopTick();
+}
+
+void LensWorker::onAbortAf(int channel)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+
+    m_controller.stopAutoFocus(cam);
+    processLoopTick();
+}
+
+void LensWorker::onSetCaf(int channel, bool enabled, double threshold)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+
+    m_controller.setCafEnabled(cam, enabled, static_cast<float>(threshold));
+}
+
+void LensWorker::onSetTrackerRoi(int channel, double nx, double ny, double nw, double nh)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+
+    m_controller.setTrackerRoi(
+        cam, static_cast<float>(nx), static_cast<float>(ny), static_cast<float>(nw), static_cast<float>(nh));
+}
+
+void LensWorker::onSetFocusMetric(int channel, int metric)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+
+    m_controller.setFocusMetric(cam, static_cast<LensControl::FocusMetricType>(metric));
 }
 
 void LensWorker::onSetActiveChannel(int channel)
@@ -621,6 +664,32 @@ void LensWorker::processLoopTick()
     emit statusUpdated(status.focusPos.value(), status.zoomPos.value(),
         static_cast<int>(status.focusLimits | status.zoomLimits), static_cast<int>(status.mode), status.isAfActive);
     emit telemetryReady(static_cast<double>(writeSlot.metricScore.metric), m_activeChannel);
+
+    const auto afState = m_controller.getAutoFocusState(activeCam);
+    if ((afState != m_lastAfState) || (status.isAfActive != m_lastAfRunning)) {
+        m_lastAfState = afState;
+        m_lastAfRunning = status.isAfActive;
+        emit afStateUpdated(static_cast<int>(afState), status.isAfActive);
+    }
+
+    if (afState == LensControl::AutoFocusState::PeakConfirmed || afState == LensControl::AutoFocusState::SlewToPeak) {
+        const auto peak = m_controller.getPeakFitResult(activeCam);
+        if (peak.isValid) {
+            emit peakFitted(static_cast<double>(peak.vertex.value()), static_cast<double>(peak.peakScore),
+                static_cast<double>(peak.curvature), static_cast<double>(peak.rSquared), peak.isValid);
+        }
+    }
+
+    const std::size_t sampleCount = m_controller.getAfSampleCount(activeCam);
+    if (sampleCount > 0U) {
+        QVariantList sampleList;
+        sampleList.reserve(static_cast<int>(sampleCount));
+        for (std::size_t i = 0U; i < sampleCount; ++i) {
+            const auto pt = m_controller.getAfSample(activeCam, i);
+            sampleList.append(QPointF(static_cast<qreal>(pt.pos.value()), static_cast<qreal>(pt.score.metric)));
+        }
+        emit samplesReady(sampleList);
+    }
 }
 
 } // namespace LensApp

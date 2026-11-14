@@ -23,7 +23,6 @@ namespace LensApp {
 namespace {
 
     constexpr qreal kCornerHandleRadius = 8.0;
-    constexpr int kPeakingThreshold = 80;
 
 } // namespace
 
@@ -39,6 +38,16 @@ LensVideoQuickItem::LensVideoQuickItem(QQuickItem* parent)
 bool LensVideoQuickItem::showPeaking() const noexcept
 {
     return m_showPeaking;
+}
+
+int LensVideoQuickItem::peakingThreshold() const noexcept
+{
+    return m_peakingThreshold;
+}
+
+int LensVideoQuickItem::peakingColorIndex() const noexcept
+{
+    return m_peakingColorIndex;
 }
 
 bool LensVideoQuickItem::showGrid() const noexcept
@@ -61,6 +70,11 @@ QRectF LensVideoQuickItem::roiRect() const noexcept
     return m_roiRect;
 }
 
+bool LensVideoQuickItem::isRoiLockedToTrack() const noexcept
+{
+    return m_isRoiLockedToTrack;
+}
+
 LensPlayerController* LensVideoQuickItem::controller() const noexcept
 {
     return m_controller;
@@ -71,6 +85,26 @@ void LensVideoQuickItem::setShowPeaking(bool show)
     if (m_showPeaking != show) {
         m_showPeaking = show;
         emit showPeakingChanged();
+        update();
+    }
+}
+
+void LensVideoQuickItem::setPeakingThreshold(int thresh)
+{
+    const int clamped = std::clamp(thresh, 10, 300);
+    if (m_peakingThreshold != clamped) {
+        m_peakingThreshold = clamped;
+        emit peakingThresholdChanged();
+        update();
+    }
+}
+
+void LensVideoQuickItem::setPeakingColorIndex(int idx)
+{
+    const int clamped = std::clamp(idx, 0, 2);
+    if (m_peakingColorIndex != clamped) {
+        m_peakingColorIndex = clamped;
+        emit peakingColorChanged();
         update();
     }
 }
@@ -117,6 +151,66 @@ void LensVideoQuickItem::setRoiRect(const QRectF& rect)
     }
 }
 
+void LensVideoQuickItem::setIsRoiLockedToTrack(bool locked)
+{
+    if (m_isRoiLockedToTrack != locked) {
+        m_isRoiLockedToTrack = locked;
+        emit trackerLockChanged();
+        update();
+    }
+}
+
+void LensVideoQuickItem::applyRoiPreset(int presetIdx)
+{
+    QRectF target;
+    switch (presetIdx) {
+    case 0: // Full Frame
+        target = QRectF(0.0, 0.0, 1.0, 1.0);
+        break;
+    case 1: // Center 50%
+        target = QRectF(0.25, 0.25, 0.50, 0.50);
+        break;
+    case 2: // Center Spot 25%
+        target = QRectF(0.375, 0.375, 0.25, 0.25);
+        break;
+    case 3: // Lower Third
+        target = QRectF(0.10, 0.60, 0.80, 0.30);
+        break;
+    case 4: // Upper Third
+        target = QRectF(0.10, 0.10, 0.80, 0.30);
+        break;
+    default:
+        target = QRectF(0.25, 0.25, 0.50, 0.50);
+        break;
+    }
+
+    setRoiRect(target);
+    if (m_controller != nullptr) {
+        m_controller->setRoi(target.x(), target.y(), target.width(), target.height());
+    }
+    emit roiMoved(target.x(), target.y(), target.width(), target.height());
+}
+
+void LensVideoQuickItem::setTrackerTargetBox(double nx, double ny, double nw, double nh)
+{
+    if (!m_isRoiLockedToTrack) {
+        return;
+    }
+
+    constexpr double kMargin = 0.20;
+    const double cx = std::clamp(nx - (kMargin * nw), 0.0, 0.95);
+    const double cy = std::clamp(ny - (kMargin * nh), 0.0, 0.95);
+    const double cw = std::clamp(nw * (1.0 + (2.0 * kMargin)), 0.05, 1.0 - cx);
+    const double ch = std::clamp(nh * (1.0 + (2.0 * kMargin)), 0.05, 1.0 - cy);
+
+    const QRectF target(cx, cy, cw, ch);
+    setRoiRect(target);
+    if (m_controller != nullptr) {
+        m_controller->setRoi(target.x(), target.y(), target.width(), target.height());
+    }
+    emit roiMoved(target.x(), target.y(), target.width(), target.height());
+}
+
 void LensVideoQuickItem::setController(LensPlayerController* ctrl)
 {
     if (m_controller != ctrl) {
@@ -159,7 +253,7 @@ LensVideoQuickItem::DragHandle LensVideoQuickItem::hitTestHandle(
 {
     constexpr qreal r = kCornerHandleRadius + 4.0;
 
-    // Corner handle hit test
+    // Corner handle hit testing
     if (QPointF(pos - screenRoi.topLeft()).manhattanLength() <= r * 2.0) {
         return DragHandle::TopLeft;
     }
@@ -171,6 +265,25 @@ LensVideoQuickItem::DragHandle LensVideoQuickItem::hitTestHandle(
     }
     if (QPointF(pos - screenRoi.bottomRight()).manhattanLength() <= r * 2.0) {
         return DragHandle::BottomRight;
+    }
+
+    // Edge midpoint handle hit testing
+    const QPointF topCenter(screenRoi.center().x(), screenRoi.top());
+    const QPointF bottomCenter(screenRoi.center().x(), screenRoi.bottom());
+    const QPointF middleLeft(screenRoi.left(), screenRoi.center().y());
+    const QPointF middleRight(screenRoi.right(), screenRoi.center().y());
+
+    if (QPointF(pos - topCenter).manhattanLength() <= r * 2.0) {
+        return DragHandle::TopCenter;
+    }
+    if (QPointF(pos - bottomCenter).manhattanLength() <= r * 2.0) {
+        return DragHandle::BottomCenter;
+    }
+    if (QPointF(pos - middleLeft).manhattanLength() <= r * 2.0) {
+        return DragHandle::MiddleLeft;
+    }
+    if (QPointF(pos - middleRight).manhattanLength() <= r * 2.0) {
+        return DragHandle::MiddleRight;
     }
 
     if (screenRoi.contains(pos)) {
@@ -270,6 +383,26 @@ void LensVideoQuickItem::mouseMoveEvent(QMouseEvent* event)
         candidate.setCoords(m_initialRoiRect.left(), m_initialRoiRect.top(), newR, newB);
         break;
     }
+    case DragHandle::TopCenter: {
+        const qreal newY = std::clamp(m_initialRoiRect.y() + dyNorm, 0.0, m_initialRoiRect.bottom() - 0.05);
+        candidate.setCoords(m_initialRoiRect.left(), newY, m_initialRoiRect.right(), m_initialRoiRect.bottom());
+        break;
+    }
+    case DragHandle::BottomCenter: {
+        const qreal newB = std::clamp(m_initialRoiRect.bottom() + dyNorm, m_initialRoiRect.top() + 0.05, 1.0);
+        candidate.setCoords(m_initialRoiRect.left(), m_initialRoiRect.top(), m_initialRoiRect.right(), newB);
+        break;
+    }
+    case DragHandle::MiddleLeft: {
+        const qreal newX = std::clamp(m_initialRoiRect.x() + dxNorm, 0.0, m_initialRoiRect.right() - 0.05);
+        candidate.setCoords(newX, m_initialRoiRect.top(), m_initialRoiRect.right(), m_initialRoiRect.bottom());
+        break;
+    }
+    case DragHandle::MiddleRight: {
+        const qreal newR = std::clamp(m_initialRoiRect.right() + dxNorm, m_initialRoiRect.left() + 0.05, 1.0);
+        candidate.setCoords(m_initialRoiRect.left(), m_initialRoiRect.top(), newR, m_initialRoiRect.bottom());
+        break;
+    }
     default:
         break;
     }
@@ -322,6 +455,14 @@ void LensVideoQuickItem::hoverMoveEvent(QHoverEvent* event)
     case DragHandle::BottomLeft:
         setCursor(Qt::SizeBDiagCursor);
         break;
+    case DragHandle::TopCenter:
+    case DragHandle::BottomCenter:
+        setCursor(Qt::SizeVerCursor);
+        break;
+    case DragHandle::MiddleLeft:
+    case DragHandle::MiddleRight:
+        setCursor(Qt::SizeHorCursor);
+        break;
     case DragHandle::InsideRoi:
         setCursor(Qt::PointingHandCursor);
         break;
@@ -364,7 +505,7 @@ void LensVideoQuickItem::paint(QPainter* painter)
 
     painter->drawImage(videoRect, videoImage);
 
-    // Optional Focus Peaking edge shimmer
+    // Focus Peaking edge shimmer
     if (m_showPeaking && !packet.lumaBuffer.empty()) {
         drawPeaking(painter, videoRect, packet);
     }
@@ -440,14 +581,16 @@ void LensVideoQuickItem::drawRoi(QPainter* painter, const QRectF& screenRoi)
 {
     painter->save();
 
+    const QColor accentColor = m_isRoiLockedToTrack ? QColor(0x00, 0xe5, 0xff) : QColor(0x00, 0xe6, 0x76);
+
     // Semi-transparent fill and dashed boundary
-    QPen pen(QColor(0x00, 0xe6, 0x76, 220), 1.5, Qt::DashLine);
+    QPen pen(QColor(accentColor.red(), accentColor.green(), accentColor.blue(), 220), 1.5, Qt::DashLine);
     painter->setPen(pen);
-    painter->setBrush(QColor(0x00, 0xe6, 0x76, 20));
+    painter->setBrush(QColor(accentColor.red(), accentColor.green(), accentColor.blue(), 25));
     painter->drawRect(screenRoi);
 
     // Corner brackets
-    painter->setPen(QPen(QColor(0x00, 0xe6, 0x76), 2.5));
+    painter->setPen(QPen(accentColor, 2.5));
     constexpr double kC = 12.0;
     const double rx = screenRoi.x();
     const double ry = screenRoi.y();
@@ -468,19 +611,29 @@ void LensVideoQuickItem::drawRoi(QPainter* painter, const QRectF& screenRoi)
     painter->drawLine(QPointF(rx + rw, ry + rh), QPointF(rx + rw, ry + rh - kC));
 
     // Corner handle circles for drag visualization
-    painter->setBrush(QColor(0x00, 0xe6, 0x76));
+    painter->setBrush(accentColor);
     painter->drawEllipse(QPointF(rx, ry), 3.0, 3.0);
     painter->drawEllipse(QPointF(rx + rw, ry), 3.0, 3.0);
     painter->drawEllipse(QPointF(rx, ry + rh), 3.0, 3.0);
     painter->drawEllipse(QPointF(rx + rw, ry + rh), 3.0, 3.0);
 
-    // Label with normalized dimensions
+    // Edge midpoint handle circles
+    const double midX = rx + (rw * 0.5);
+    const double midY = ry + (rh * 0.5);
+    painter->drawEllipse(QPointF(midX, ry), 2.5, 2.5);
+    painter->drawEllipse(QPointF(midX, ry + rh), 2.5, 2.5);
+    painter->drawEllipse(QPointF(rx, midY), 2.5, 2.5);
+    painter->drawEllipse(QPointF(rx + rw, midY), 2.5, 2.5);
+
+    // Label with normalized dimensions and track status
     QFont font = painter->font();
     font.setPixelSize(10);
     font.setBold(true);
     painter->setFont(font);
-    painter->setPen(QColor(0x00, 0xe6, 0x76));
-    const QString label = QStringLiteral("AF ROI [%1% x %2%]")
+    painter->setPen(accentColor);
+    const QString trackTag = m_isRoiLockedToTrack ? QStringLiteral(" (TRACK LOCKED)") : QString();
+    const QString label = QStringLiteral("AF ROI%1 [%2% x %3%]")
+                              .arg(trackTag)
                               .arg(static_cast<int>(m_roiRect.width() * 100.0))
                               .arg(static_cast<int>(m_roiRect.height() * 100.0));
     painter->drawText(QPointF(rx + 4.0, ry - 4.0), label);
@@ -495,13 +648,22 @@ void LensVideoQuickItem::drawPeaking(QPainter* painter, const QRectF& videoRect,
     const std::uint8_t* luma = packet.lumaBuffer.data();
 
     painter->save();
-    QPen peakingPen(QColor(0x00, 0xe6, 0x76, 210), 1.0);
+
+    QColor peakingColor(0x00, 0xe6, 0x76, 210); // Emerald (0)
+    if (m_peakingColorIndex == 1) {
+        peakingColor = QColor(0x00, 0xe5, 0xff, 210); // Cyan
+    } else if (m_peakingColorIndex == 2) {
+        peakingColor = QColor(0xff, 0x17, 0x44, 210); // Coral
+    }
+
+    QPen peakingPen(peakingColor, 1.0);
     painter->setPen(peakingPen);
 
     const qreal scaleX = videoRect.width() / static_cast<qreal>(w);
     const qreal scaleY = videoRect.height() / static_cast<qreal>(h);
 
-    // Fast 3x3 Sobel edge detection on luma subsampled by 2 for real-time presentation
+    // Fast 3x3 Sobel edge detection on luma subsampled by 2 for zero-frame-drop performance
+    const int threshold = m_peakingThreshold;
     for (int y = 2; y < h - 2; y += 2) {
         const int rowPrev = (y - 1) * w;
         const int rowCurr = y * w;
@@ -513,7 +675,7 @@ void LensVideoQuickItem::drawPeaking(QPainter* painter, const QRectF& videoRect,
             const int gy = (luma[rowNext + x - 1] + (2 * luma[rowNext + x]) + luma[rowNext + x + 1])
                 - (luma[rowPrev + x - 1] + (2 * luma[rowPrev + x]) + luma[rowPrev + x + 1]);
 
-            if ((std::abs(gx) + std::abs(gy)) > kPeakingThreshold) {
+            if ((std::abs(gx) + std::abs(gy)) > threshold) {
                 const qreal px = videoRect.x() + (static_cast<qreal>(x) * scaleX);
                 const qreal py = videoRect.y() + (static_cast<qreal>(y) * scaleY);
                 painter->drawPoint(QPointF(px, py));

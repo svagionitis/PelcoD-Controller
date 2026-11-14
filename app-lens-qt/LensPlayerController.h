@@ -1,17 +1,20 @@
 #pragma once
 
 /// @file LensPlayerController.h
-/// @brief Master QML ViewModel bridging UI events with LensWorker and LensController subsystems.
+/// @brief Master ViewModel orchestrating lens operations, video playback, and AF telemetry.
 
+#include <cstddef>
 #include <cstdint>
 
 #include <array>
 
 #include <QObject>
+#include <QPointF>
 #include <QRectF>
 #include <QString>
 #include <QStringList>
 #include <QThread>
+#include <QVariantList>
 
 #include "AtomicTripleBuffer.h"
 #include "LensConfigModel.h"
@@ -22,11 +25,11 @@ namespace LensApp {
 class LensWorker;
 
 /// @class LensPlayerController
-/// @brief Master ViewModel managing multi-channel optical actuation, video playback, and telemetry.
+/// @brief Master ViewModel orchestrating lens operations, video playback, and telemetry.
 class LensPlayerController : public QObject {
     Q_OBJECT
 
-    // Channel & Mode Properties
+    // Channel & Mode
     Q_PROPERTY(int activeChannel READ activeChannel WRITE setActiveChannel NOTIFY activeChannelChanged)
     Q_PROPERTY(int lensMode READ lensMode WRITE setLensMode NOTIFY lensModeChanged)
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
@@ -39,8 +42,27 @@ class LensPlayerController : public QObject {
     Q_PROPERTY(int zoomMin READ zoomMin NOTIFY limitsChanged)
     Q_PROPERTY(int zoomMax READ zoomMax NOTIFY limitsChanged)
     Q_PROPERTY(int limitFlags READ limitFlags NOTIFY telemetryUpdated)
-    Q_PROPERTY(bool isAfRunning READ isAfRunning NOTIFY afStateChanged)
     Q_PROPERTY(double latestMetricScore READ latestMetricScore NOTIFY telemetryUpdated)
+
+    // Autofocus State & Configuration (Phase 4)
+    Q_PROPERTY(bool isAfRunning READ isAfRunning NOTIFY afStateChanged)
+    Q_PROPERTY(int afState READ afState NOTIFY afStateChanged)
+    Q_PROPERTY(QString afStateString READ afStateString NOTIFY afStateChanged)
+    Q_PROPERTY(int afAlgorithm READ afAlgorithm WRITE setAfAlgorithm NOTIFY afConfigChanged)
+    Q_PROPERTY(int focusMetric READ focusMetric WRITE setFocusMetric NOTIFY afConfigChanged)
+    Q_PROPERTY(bool cafEnabled READ cafEnabled WRITE setCafEnabled NOTIFY cafToggled)
+    Q_PROPERTY(double cafThreshold READ cafThreshold WRITE setCafThreshold NOTIFY cafConfigChanged)
+
+    // Mathematical Peak Fit Telemetry (Phase 4)
+    Q_PROPERTY(double peakSummit READ peakSummit NOTIFY peakFitUpdated)
+    Q_PROPERTY(double peakScore READ peakScore NOTIFY peakFitUpdated)
+    Q_PROPERTY(double peakFwhm READ peakFwhm NOTIFY peakFitUpdated)
+    Q_PROPERTY(double peakCurvature READ peakCurvature NOTIFY peakFitUpdated)
+    Q_PROPERTY(double peakR2 READ peakR2 NOTIFY peakFitUpdated)
+    Q_PROPERTY(bool isPeakValid READ isPeakValid NOTIFY peakFitUpdated)
+
+    // Recorded Sweep Samples for QML Charting (Phase 4)
+    Q_PROPERTY(QVariantList samplePoints READ samplePoints NOTIFY samplesUpdated)
 
     // Media Ingestion & Playback State
     Q_PROPERTY(QString sourceUri READ sourceUri WRITE setSourceUri NOTIFY sourceUriChanged)
@@ -56,9 +78,12 @@ class LensPlayerController : public QObject {
     // Viewport & ROI Properties
     Q_PROPERTY(QRectF roiRect READ roiRect WRITE setRoiRect NOTIFY roiRectChanged)
     Q_PROPERTY(bool showPeaking READ showPeaking WRITE setShowPeaking NOTIFY showPeakingChanged)
+    Q_PROPERTY(int peakingThreshold READ peakingThreshold WRITE setPeakingThreshold NOTIFY peakingThresholdChanged)
+    Q_PROPERTY(int peakingColorIndex READ peakingColorIndex WRITE setPeakingColorIndex NOTIFY peakingColorChanged)
     Q_PROPERTY(bool showGrid READ showGrid WRITE setShowGrid NOTIFY showGridChanged)
     Q_PROPERTY(bool showReticle READ showReticle WRITE setShowReticle NOTIFY showReticleChanged)
     Q_PROPERTY(bool showRoi READ showRoi WRITE setShowRoi NOTIFY showRoiChanged)
+    Q_PROPERTY(bool isRoiLockedToTrack READ isRoiLockedToTrack WRITE setIsRoiLockedToTrack NOTIFY trackerLockChanged)
 
     // Hardware Driver & Actuation Speeds (Phase 3)
     Q_PROPERTY(int activeDriverType READ activeDriverType WRITE setActiveDriverType NOTIFY driverTypeChanged)
@@ -96,8 +121,23 @@ public:
     [[nodiscard]] int zoomMin() const noexcept;
     [[nodiscard]] int zoomMax() const noexcept;
     [[nodiscard]] int limitFlags() const noexcept;
-    [[nodiscard]] bool isAfRunning() const noexcept;
     [[nodiscard]] double latestMetricScore() const noexcept;
+
+    // Autofocus Getters
+    [[nodiscard]] bool isAfRunning() const noexcept;
+    [[nodiscard]] int afState() const noexcept;
+    [[nodiscard]] QString afStateString() const;
+    [[nodiscard]] int afAlgorithm() const noexcept;
+    [[nodiscard]] int focusMetric() const noexcept;
+    [[nodiscard]] bool cafEnabled() const noexcept;
+    [[nodiscard]] double cafThreshold() const noexcept;
+    [[nodiscard]] double peakSummit() const noexcept;
+    [[nodiscard]] double peakScore() const noexcept;
+    [[nodiscard]] double peakFwhm() const noexcept;
+    [[nodiscard]] double peakCurvature() const noexcept;
+    [[nodiscard]] double peakR2() const noexcept;
+    [[nodiscard]] bool isPeakValid() const noexcept;
+    [[nodiscard]] QVariantList samplePoints() const;
 
     [[nodiscard]] QString sourceUri() const;
     [[nodiscard]] int playbackState() const noexcept;
@@ -110,9 +150,12 @@ public:
 
     [[nodiscard]] QRectF roiRect() const noexcept;
     [[nodiscard]] bool showPeaking() const noexcept;
+    [[nodiscard]] int peakingThreshold() const noexcept;
+    [[nodiscard]] int peakingColorIndex() const noexcept;
     [[nodiscard]] bool showGrid() const noexcept;
     [[nodiscard]] bool showReticle() const noexcept;
     [[nodiscard]] bool showRoi() const noexcept;
+    [[nodiscard]] bool isRoiLockedToTrack() const noexcept;
 
     [[nodiscard]] int activeDriverType() const noexcept;
     [[nodiscard]] QString driverName() const;
@@ -150,9 +193,14 @@ public slots:
     void setRoiRect(const QRectF& rect);
     void setRoi(double x, double y, double w, double h);
     void setShowPeaking(bool show);
+    void setPeakingThreshold(int thresh);
+    void setPeakingColorIndex(int idx);
     void setShowGrid(bool show);
     void setShowReticle(bool show);
     void setShowRoi(bool show);
+    void setIsRoiLockedToTrack(bool locked);
+    void applyRoiPreset(int presetIdx);
+    void setTrackerTarget(double nx, double ny, double nw, double nh);
 
     // Optical Motion Commands (< 30 chars)
     void moveFocusStep(int steps);
@@ -163,6 +211,14 @@ public slots:
     void setZoomSpeed(int speed);
     void stopMotion();
     void emergencyStop();
+
+    // Autofocus Commands (< 30 chars)
+    void triggerAutoFocus();
+    void abortAutoFocus();
+    void setAfAlgorithm(int algorithm);
+    void setFocusMetric(int metric);
+    void setCafEnabled(bool enabled);
+    void setCafThreshold(double threshold);
 
     // Driver Binding Slots (< 30 chars)
     void setActiveDriverType(int type);
@@ -179,7 +235,13 @@ signals:
     void statusMessageChanged();
     void telemetryUpdated();
     void limitsChanged();
+
     void afStateChanged();
+    void afConfigChanged();
+    void cafToggled();
+    void cafConfigChanged();
+    void peakFitUpdated();
+    void samplesUpdated();
 
     void sourceUriChanged();
     void playbackStateChanged();
@@ -190,9 +252,12 @@ signals:
 
     void roiRectChanged();
     void showPeakingChanged();
+    void peakingThresholdChanged();
+    void peakingColorChanged();
     void showGridChanged();
     void showReticleChanged();
     void showRoiChanged();
+    void trackerLockChanged();
     void frameReady();
 
     void driverTypeChanged();
@@ -226,6 +291,12 @@ signals:
     void requestSetChannel(int channel);
     void requestSetMode(int channel, int mode);
 
+    void requestTriggerAf(int channel, int algorithm, int metric);
+    void requestAbortAf(int channel);
+    void requestCaf(int channel, bool enabled, double threshold);
+    void requestTrackerRoi(int channel, double nx, double ny, double nw, double nh);
+    void requestFocusMetric(int channel, int metric);
+
     void requestBindMock(int channel);
     void requestBindPelco(int channel, int port, int baud, int address);
     void requestBindVisca(int channel, int port, int baud, int address);
@@ -234,6 +305,9 @@ signals:
 private slots:
     void onStatusUpdated(int focus, int zoom, int limits, int mode, bool afActive);
     void onTelemetryReady(double metricScore, int channel);
+    void onAfStateUpdated(int state, bool isRunning);
+    void onPeakFitted(double vertex, double score, double curvature, double r2, bool valid);
+    void onSamplesReady(const QVariantList& samples);
     void onSourceOpened(int width, int height, double fps);
     void onPlaybackStateChanged(int state);
     void onDriverBound(int channel, int driverType, const QString& portName, int baud, int address, bool success,
@@ -267,8 +341,22 @@ private:
     int m_zoomMin { 0 };
     int m_zoomMax { 65535 };
     int m_limitFlags { 0 };
-    bool m_isAfRunning { false };
     double m_latestMetricScore { 0.0 };
+
+    // Autofocus State & Fit Telemetry
+    bool m_isAfRunning { false };
+    int m_afState { 0 };
+    int m_afAlgorithm { 1 }; // ScanThreePhase default
+    int m_focusMetric { 0 }; // SobelGradientSquared default
+    bool m_cafEnabled { false };
+    double m_cafThreshold { 0.25 };
+    double m_peakSummit { 0.0 };
+    double m_peakScore { 0.0 };
+    double m_peakFwhm { 0.0 };
+    double m_peakCurvature { 0.0 };
+    double m_peakR2 { 0.0 };
+    bool m_isPeakValid { false };
+    QVariantList m_samplePoints { };
 
     QString m_sourceUri { QStringLiteral("synthetic://siemens-star") };
     int m_playbackState { 0 };
@@ -281,9 +369,12 @@ private:
 
     QRectF m_roiRect { 0.25, 0.25, 0.50, 0.50 };
     bool m_showPeaking { false };
+    int m_peakingThreshold { 80 };
+    int m_peakingColorIndex { 0 };
     bool m_showGrid { true };
     bool m_showReticle { true };
     bool m_showRoi { true };
+    bool m_isRoiLockedToTrack { false };
 
     std::array<ChannelDriverState, 4> m_driverStates { };
     QStringList m_availablePorts { };

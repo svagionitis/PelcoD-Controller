@@ -119,6 +119,48 @@ public:
     /// @param cam Channel index [0..3].
     void clearTrackerRoi(CameraIndex cam) noexcept;
 
+    /// @brief Sets the focus evaluation sharpness metric for designated channel.
+    /// @param cam Channel index [0..3].
+    /// @param metric Spatial or transform focus metric kernel.
+    void setFocusMetric(CameraIndex cam, FocusMetricType metric) noexcept;
+
+    /// @brief Sets the fractional region of interest for designated channel.
+    /// @param cam Channel index [0..3].
+    /// @param roi Normalized fractional coordinates in [0..255].
+    void setFocusRoi(CameraIndex cam, NormalizedRoi roi) noexcept;
+
+    /// @brief Enables or disables continuous autofocus defocus monitoring.
+    /// @param cam Channel index [0..3].
+    /// @param enable True to monitor scene sharpness continuously.
+    /// @param thresh Fractional metric drop triggering automatic refocus.
+    void setCafEnabled(CameraIndex cam, bool enable, float thresh = 0.25F) noexcept;
+
+    /// @brief Sets the autofocus algorithm configuration for designated channel.
+    /// @param cam Channel index [0..3].
+    /// @param cfg Calibrated autofocus parameters.
+    void setAutoFocusConfig(CameraIndex cam, const AutoFocusConfig& cfg) noexcept;
+
+    /// @brief Retrieves the active autofocus state machine phase for channel.
+    /// @param cam Channel index [0..3].
+    /// @return Current AutoFocusState value.
+    [[nodiscard]] AutoFocusState getAutoFocusState(CameraIndex cam) const noexcept;
+
+    /// @brief Retrieves the latest peak fitting mathematical result for channel.
+    /// @param cam Channel index [0..3].
+    /// @return PeakFitResult structure.
+    [[nodiscard]] PeakFitResult getPeakFitResult(CameraIndex cam) const noexcept;
+
+    /// @brief Returns the count of recorded focus samples from latest run.
+    /// @param cam Channel index [0..3].
+    /// @return Count of valid samples in internal buffer.
+    [[nodiscard]] std::size_t getAfSampleCount(CameraIndex cam) const noexcept;
+
+    /// @brief Retrieves a recorded focus sweep sample point by index.
+    /// @param cam Channel index [0..3].
+    /// @param idx Sample index [0..count-1].
+    /// @return SamplePoint structure.
+    [[nodiscard]] SamplePoint getAfSample(CameraIndex cam, std::size_t idx) const noexcept;
+
     // --- Video Frame Processing (0-Heap) ---
 
     /// @brief Ingests 8-bit luma video frame for autofocus sharpness evaluation.

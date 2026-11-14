@@ -805,14 +805,15 @@ To ensure rapid, test-driven, and verifiable progress, the implementation is par
 - **Deliverables**: Verified bidirectional motor actuation with real-time encoder readouts, limit switch telemetry, and 100% automated test pass rate across `TestLensAxisControls` and `TestLensDrivers`.
 
 ### Phase 4: Autofocus (AF) Testing Laboratory & Interactive ROI
+*(Detailed implementation plan: [`app_lens_qt_phase4_plan.md`](app_lens_qt_phase4_plan.md) — **Completed & Verified**)*
 - **Objectives**: Provide complete UI and telemetry for closed-loop autofocus execution, metric evaluation, and peak fitting.
 - **Tasks**:
-  1. Implement interactive draggable and resizable ROI box in `LensVideoQuickItem`.
-  2. Implement focus peaking edge-highlight overlay in `LensVideoQuickItem`.
-  3. Build `AutoFocusPanel.qml` with algorithm dropdown (6 methods), metric dropdown (6 kernels), one-shot trigger, and CAF controls.
-  4. Build `FocusSharpnessChart.qml` rendering real-time scatter plot of sampled $(f_i, \text{score}_i)$ points and fitted Gaussian curve.
-  5. Expose peak fit telemetry ($R^2$, FWHM, summit) to QML.
-- **Deliverables**: Fully functional AF laboratory demonstrating successful peak convergence on real and synthetic video.
+  1. [x] Implement interactive draggable and resizable ROI box in `LensVideoQuickItem`.
+  2. [x] Implement focus peaking edge-highlight overlay in `LensVideoQuickItem`.
+  3. [x] Build `AutoFocusPanel.qml` with algorithm dropdown (6 methods), metric dropdown (6 kernels), one-shot trigger, and CAF controls.
+  4. [x] Build `FocusSharpnessChart.qml` rendering real-time scatter plot of sampled $(f_i, \text{score}_i)$ points and fitted Gaussian curve.
+  5. [x] Expose peak fit telemetry ($R^2$, FWHM, summit) to QML.
+- **Deliverables**: Fully functional AF laboratory demonstrating successful peak convergence on real and synthetic video, verified by 100% test pass rate across `TestLensAutoFocus` and `TestLensRoiPeaking`.
 
 ### Phase 5: Parfocal Zoom-to-Focus Calibration & Visualizer
 - **Objectives**: Deliver visual parfocal curve calibration, knot editing, and real-time tracking slew.
@@ -852,9 +853,9 @@ To ensure rapid, test-driven, and verifiable progress, the implementation is par
 | Phase | Description | Plan Document | Status |
 | :--- | :--- | :--- | :--- |
 | **Phase 1** | Project Setup, Skeleton Application & Mock Driver Binding | [`app_lens_qt_phase1_plan.md`](app_lens_qt_phase1_plan.md) | **Completed** |
-| **Phase 2** | Video Ingestion, Synthetic Defocus & Viewport QuickItem | [`app_lens_qt_phase2_plan.md`](app_lens_qt_phase2_plan.md) | **Ready for Execution** |
-| **Phase 3** | Optical Axis Controls, Limits & Hardware Driver Integration | [`app_lens_qt_phase3_plan.md`](app_lens_qt_phase3_plan.md) | **Ready for Execution** |
-| **Phase 4** | Autofocus (AF) Testing Laboratory & Interactive ROI | `app_lens_qt_phase4_plan.md` | Pending |
+| **Phase 2** | Video Ingestion, Synthetic Defocus & Viewport QuickItem | [`app_lens_qt_phase2_plan.md`](app_lens_qt_phase2_plan.md) | **Completed** |
+| **Phase 3** | Optical Axis Controls, Limits & Hardware Driver Integration | [`app_lens_qt_phase3_plan.md`](app_lens_qt_phase3_plan.md) | **Completed** |
+| **Phase 4** | Autofocus (AF) Testing Laboratory & Interactive ROI | [`app_lens_qt_phase4_plan.md`](app_lens_qt_phase4_plan.md) | **Completed & Verified** |
 | **Phase 5** | Parfocal Zoom-to-Focus Calibration & Visualizer | `app_lens_qt_phase5_plan.md` | Pending |
 | **Phase 6** | Telemetry Ring Buffer, Presets & Diagnostics Panel | `app_lens_qt_phase6_plan.md` | Pending |
 | **Phase 7** | Verification, Hardening & Documentation | `app_lens_qt_phase7_plan.md` | Pending |

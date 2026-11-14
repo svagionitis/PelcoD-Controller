@@ -323,6 +323,105 @@ void LensController::clearTrackerRoi(CameraIndex cam) noexcept
     }
 }
 
+void LensController::setFocusMetric(CameraIndex cam, FocusMetricType metric) noexcept
+{
+    if (!isValidChannel(cam)) {
+        return;
+    }
+    Channel& ch = m_channels[cam.value()];
+    std::lock_guard<std::mutex> lock { ch.mutex };
+    ch.evaluator.setMetricType(metric);
+}
+
+void LensController::setFocusRoi(CameraIndex cam, NormalizedRoi roi) noexcept
+{
+    if (!isValidChannel(cam) || !roi.isValid()) {
+        return;
+    }
+    Channel& ch = m_channels[cam.value()];
+    std::lock_guard<std::mutex> lock { ch.mutex };
+    ch.evaluator.setRoi(roi);
+}
+
+void LensController::setCafEnabled(CameraIndex cam, bool enable, float thresh) noexcept
+{
+    if (!isValidChannel(cam)) {
+        return;
+    }
+    Channel& ch = m_channels[cam.value()];
+    std::lock_guard<std::mutex> lock { ch.mutex };
+    if (ch.afEngine) {
+        AutoFocusConfig cfg = ch.afEngine->config();
+        cfg.cafDefocusFrac = thresh;
+        ch.afEngine->setConfig(cfg);
+        ch.afEngine->setCafEnabled(enable);
+    }
+}
+
+void LensController::setAutoFocusConfig(CameraIndex cam, const AutoFocusConfig& cfg) noexcept
+{
+    if (!isValidChannel(cam)) {
+        return;
+    }
+    Channel& ch = m_channels[cam.value()];
+    std::lock_guard<std::mutex> lock { ch.mutex };
+    if (ch.afEngine) {
+        ch.afEngine->setConfig(cfg);
+    }
+}
+
+AutoFocusState LensController::getAutoFocusState(CameraIndex cam) const noexcept
+{
+    if (!isValidChannel(cam)) {
+        return AutoFocusState::Idle;
+    }
+    const Channel& ch = m_channels[cam.value()];
+    std::lock_guard<std::mutex> lock { ch.mutex };
+    if (ch.afEngine) {
+        return ch.afEngine->state();
+    }
+    return AutoFocusState::Idle;
+}
+
+PeakFitResult LensController::getPeakFitResult(CameraIndex cam) const noexcept
+{
+    if (!isValidChannel(cam)) {
+        return PeakFitResult { };
+    }
+    const Channel& ch = m_channels[cam.value()];
+    std::lock_guard<std::mutex> lock { ch.mutex };
+    if (ch.afEngine) {
+        return ch.afEngine->lastPeakFit();
+    }
+    return PeakFitResult { };
+}
+
+std::size_t LensController::getAfSampleCount(CameraIndex cam) const noexcept
+{
+    if (!isValidChannel(cam)) {
+        return 0U;
+    }
+    const Channel& ch = m_channels[cam.value()];
+    std::lock_guard<std::mutex> lock { ch.mutex };
+    if (ch.afEngine) {
+        return ch.afEngine->sampleCount();
+    }
+    return 0U;
+}
+
+SamplePoint LensController::getAfSample(CameraIndex cam, std::size_t idx) const noexcept
+{
+    if (!isValidChannel(cam)) {
+        return SamplePoint { };
+    }
+    const Channel& ch = m_channels[cam.value()];
+    std::lock_guard<std::mutex> lock { ch.mutex };
+    if (ch.afEngine) {
+        return ch.afEngine->getSample(idx);
+    }
+    return SamplePoint { };
+}
+
 void LensController::processFrame(CameraIndex cam, const std::uint8_t* luma, std::size_t width, std::size_t height,
     std::uint64_t timestampNs, std::uint32_t frameId) noexcept
 {

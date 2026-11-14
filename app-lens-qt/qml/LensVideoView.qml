@@ -1,12 +1,13 @@
-import QtQuick
-import QtQuick.Controls
-import QtQuick.Layouts
+import QtQuick 2.15
+import QtQuick.Controls 2.15
+import QtQuick.Layouts 1.15
 import LensApp 1.0
 
 Item {
     id: root
 
     property alias quickItem: viewportItem
+    property bool showChart: true
     required property LensPlayerController controller
 
     // Viewport item filling available space
@@ -18,6 +19,9 @@ Item {
         showReticle: root.controller.showReticle
         showRoi: root.controller.showRoi
         showPeaking: root.controller.showPeaking
+        peakingThreshold: root.controller.peakingThreshold
+        peakingColorIndex: root.controller.peakingColorIndex
+        isRoiLockedToTrack: root.controller.isRoiLockedToTrack
         roiRect: root.controller.roiRect
         onRoiMoved: function(x, y, w, h) {
             root.controller.setRoi(x, y, w, h)
@@ -134,6 +138,29 @@ Item {
         spacing: 8
 
         Button {
+            text: "CHART"
+            checkable: true
+            checked: root.showChart
+            onToggled: root.showChart = checked
+            contentItem: Text {
+                text: parent.text
+                color: parent.checked ? "#00e5ff" : "#808a9d"
+                font.pixelSize: 10
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+            background: Rectangle {
+                implicitWidth: 54
+                implicitHeight: 24
+                color: "#141720"
+                border.color: parent.checked ? "#00e5ff" : "#242938"
+                border.width: 1
+                radius: 3
+            }
+        }
+
+        Button {
             text: "PEAKING"
             checkable: true
             checked: root.controller.showPeaking
@@ -224,5 +251,17 @@ Item {
                 radius: 3
             }
         }
+    }
+
+    // Bottom Collapsible Sharpness & Peak Fit Telemetry Drawer
+    FocusSharpnessChart {
+        id: sharpnessChart
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 16
+        height: 200
+        controller: root.controller
+        visible: root.showChart
     }
 }

@@ -168,12 +168,110 @@ ApplicationWindow {
             controller: controller
         }
 
-        // Right Optical Axis Control Panel
-        LensControlPanel {
-            id: controlPanel
+        // Right Panel Deck with Tabbed Navigation
+        Rectangle {
             Layout.preferredWidth: 320
             Layout.fillHeight: true
-            controller: controller
+            color: "#141720"
+            border.color: "#242938"
+            border.width: 1
+
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 0
+
+                // Tab Header Bar
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 36
+                    color: "#0e1014"
+                    border.color: "#242938"
+                    border.width: 1
+
+                    RowLayout {
+                        anchors.fill: parent
+                        spacing: 2
+
+                        Button {
+                            id: tabAxisBtn
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            checkable: true
+                            checked: rightPanelStack.currentIndex === 0
+                            text: "AXIS CONTROL"
+                            onClicked: rightPanelStack.currentIndex = 0
+
+                            contentItem: Text {
+                                text: tabAxisBtn.text
+                                color: tabAxisBtn.checked ? "#00e676" : "#808a9d"
+                                font.pixelSize: 10
+                                font.bold: tabAxisBtn.checked
+                                font.letterSpacing: 0.5
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+
+                            background: Rectangle {
+                                color: tabAxisBtn.checked ? "#141720" : "#0e1014"
+                                Rectangle {
+                                    anchors.bottom: parent.bottom
+                                    width: parent.width
+                                    height: 2
+                                    color: tabAxisBtn.checked ? "#00e676" : "transparent"
+                                }
+                            }
+                        }
+
+                        Button {
+                            id: tabAfBtn
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            checkable: true
+                            checked: rightPanelStack.currentIndex === 1
+                            text: "AUTOFOCUS LAB"
+                            onClicked: rightPanelStack.currentIndex = 1
+
+                            contentItem: Text {
+                                text: tabAfBtn.text
+                                color: tabAfBtn.checked ? "#00e5ff" : "#808a9d"
+                                font.pixelSize: 10
+                                font.bold: tabAfBtn.checked
+                                font.letterSpacing: 0.5
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+
+                            background: Rectangle {
+                                color: tabAfBtn.checked ? "#141720" : "#0e1014"
+                                Rectangle {
+                                    anchors.bottom: parent.bottom
+                                    width: parent.width
+                                    height: 2
+                                    color: tabAfBtn.checked ? "#00e5ff" : "transparent"
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // StackLayout hosting Axis Deck vs AF Deck
+                StackLayout {
+                    id: rightPanelStack
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    currentIndex: 0
+
+                    LensControlPanel {
+                        id: controlPanel
+                        controller: controller
+                    }
+
+                    AutoFocusPanel {
+                        id: autoFocusPanel
+                        controller: controller
+                    }
+                }
+            }
         }
     }
 
