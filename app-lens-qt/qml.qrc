@@ -3,7 +3,12 @@
         <file>qml/Main.qml</file>
         <file>qml/LensVideoView.qml</file>
         <file>qml/SourcePanel.qml</file>
+        <file>qml/LensControlPanel.qml</file>
+        <file>qml/DriverConfigDialog.qml</file>
         <file>qml/Components/StatusBadge.qml</file>
+        <file>qml/Components/JogWheel.qml</file>
+        <file>qml/Components/TacticalSlider.qml</file>
+        <file>qml/Components/TacticalSwitch.qml</file>
+        <file>qml/Components/TacticalComboBox.qml</file>
     </qresource>
 </RCC>
-

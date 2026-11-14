@@ -16,6 +16,7 @@
 #include "LensConfigModel.h"
 #include "LensFramePacket.h"
 #include "LensWorker.h"
+#include "SerialTransport.h"
 
 namespace LensApp {
 
@@ -24,6 +25,7 @@ LensPlayerController::LensPlayerController(QObject* parent)
     , m_configModel(new LensConfigModel(this))
 {
     setupWorkerThread();
+    scanSerialPorts();
 }
 
 LensPlayerController::~LensPlayerController()
@@ -155,6 +157,51 @@ bool LensPlayerController::showRoi() const noexcept
     return m_showRoi;
 }
 
+int LensPlayerController::activeDriverType() const noexcept
+{
+    return m_driverStates[static_cast<std::size_t>(m_activeChannel)].driverType;
+}
+
+QString LensPlayerController::driverName() const
+{
+    return m_driverStates[static_cast<std::size_t>(m_activeChannel)].driverName;
+}
+
+QString LensPlayerController::boundPortName() const
+{
+    return m_driverStates[static_cast<std::size_t>(m_activeChannel)].portName;
+}
+
+int LensPlayerController::boundBaudRate() const noexcept
+{
+    return m_driverStates[static_cast<std::size_t>(m_activeChannel)].baudRate;
+}
+
+int LensPlayerController::cameraAddress() const noexcept
+{
+    return m_driverStates[static_cast<std::size_t>(m_activeChannel)].cameraAddress;
+}
+
+QStringList LensPlayerController::availablePorts() const
+{
+    return m_availablePorts;
+}
+
+bool LensPlayerController::isPortConnected() const noexcept
+{
+    return m_driverStates[static_cast<std::size_t>(m_activeChannel)].isConnected;
+}
+
+int LensPlayerController::focusSpeed() const noexcept
+{
+    return m_driverStates[static_cast<std::size_t>(m_activeChannel)].focusSpeed;
+}
+
+int LensPlayerController::zoomSpeed() const noexcept
+{
+    return m_driverStates[static_cast<std::size_t>(m_activeChannel)].zoomSpeed;
+}
+
 LensConfigModel* LensPlayerController::configModel() const noexcept
 {
     return m_configModel;
@@ -171,6 +218,10 @@ void LensPlayerController::setActiveChannel(int channel)
     if (m_activeChannel != clamped) {
         m_activeChannel = clamped;
         emit activeChannelChanged();
+        emit driverTypeChanged();
+        emit portBindingChanged();
+        emit cameraAddressChanged();
+        emit speedsChanged();
         emit requestSetChannel(clamped);
     }
 }
@@ -343,11 +394,15 @@ void LensPlayerController::setZoomTarget(int position)
 
 void LensPlayerController::setFocusSpeed(int speed)
 {
+    m_driverStates[static_cast<std::size_t>(m_activeChannel)].focusSpeed = speed;
+    emit speedsChanged();
     emit requestSetFocusSpeed(m_activeChannel, speed);
 }
 
 void LensPlayerController::setZoomSpeed(int speed)
 {
+    m_driverStates[static_cast<std::size_t>(m_activeChannel)].zoomSpeed = speed;
+    emit speedsChanged();
     emit requestSetZoomSpeed(m_activeChannel, speed);
 }
 
@@ -360,7 +415,108 @@ void LensPlayerController::emergencyStop()
 {
     m_statusMessage = QStringLiteral("EMERGENCY STOP EXECUTED");
     emit statusMessageChanged();
+    emit emergencyStopOccurred();
     emit requestEmergencyStop();
+}
+
+void LensPlayerController::setActiveDriverType(int type)
+{
+    const auto chIdx = static_cast<std::size_t>(m_activeChannel);
+    if (m_driverStates[chIdx].driverType != type) {
+        m_driverStates[chIdx].driverType = type;
+        emit driverTypeChanged();
+    }
+}
+
+void LensPlayerController::setCameraAddress(int address)
+{
+    const auto chIdx = static_cast<std::size_t>(m_activeChannel);
+    if (m_driverStates[chIdx].cameraAddress != address) {
+        m_driverStates[chIdx].cameraAddress = address;
+        emit cameraAddressChanged();
+    }
+}
+
+void LensPlayerController::scanSerialPorts()
+{
+    const auto ports = Transport::SerialTransport::enumeratePorts();
+    m_availablePorts.clear();
+    for (const auto& p : ports) {
+        m_availablePorts.append(QString::fromStdString(p));
+    }
+    if (m_availablePorts.isEmpty()) {
+#ifdef _WIN32
+        m_availablePorts << QStringLiteral("COM1") << QStringLiteral("COM2") << QStringLiteral("COM3")
+                         << QStringLiteral("COM4");
+#else
+        m_availablePorts << QStringLiteral("/dev/ttyUSB0") << QStringLiteral("/dev/ttyUSB1")
+                         << QStringLiteral("/dev/ttyS0");
+#endif
+    }
+    emit portsScanned();
+}
+
+void LensPlayerController::bindMockDriver()
+{
+    emit requestBindMock(m_activeChannel);
+}
+
+void LensPlayerController::bindPelcoDriver(int portIdx, int baud, int address)
+{
+    emit requestBindPelco(m_activeChannel, portIdx, baud, address);
+}
+
+void LensPlayerController::bindViscaDriver(int portIdx, int baud, int address)
+{
+    emit requestBindVisca(m_activeChannel, portIdx, baud, address);
+}
+
+void LensPlayerController::loadDriverPlugin(const QString& path, int portIdx, int baud)
+{
+    emit requestLoadDll(m_activeChannel, path, portIdx, baud);
+}
+
+void LensPlayerController::onDriverBound(
+    int channel, int driverType, const QString& portName, int baud, int address, bool success, const QString& error)
+{
+    if (channel >= 0 && channel < 4) {
+        auto& state = m_driverStates[static_cast<std::size_t>(channel)];
+        state.driverType = driverType;
+        switch (driverType) {
+        case 0:
+            state.driverName = QStringLiteral("MOCK");
+            break;
+        case 1:
+            state.driverName = QStringLiteral("PELCO-D");
+            break;
+        case 2:
+            state.driverName = QStringLiteral("VISCA");
+            break;
+        case 3:
+            state.driverName = QStringLiteral("DYNAMIC DLL");
+            break;
+        default:
+            state.driverName = QStringLiteral("UNKNOWN");
+            break;
+        }
+        state.portName = portName;
+        state.baudRate = baud;
+        state.cameraAddress = address;
+        state.isConnected = success;
+
+        if (channel == m_activeChannel) {
+            emit driverTypeChanged();
+            emit portBindingChanged();
+            emit cameraAddressChanged();
+            if (!success && !error.isEmpty()) {
+                m_statusMessage = QStringLiteral("Driver error: ") + error;
+                emit statusMessageChanged();
+            } else {
+                m_statusMessage = state.driverName + QStringLiteral(" bound on ") + portName;
+                emit statusMessageChanged();
+            }
+        }
+    }
 }
 
 void LensPlayerController::onStatusUpdated(int focus, int zoom, int limits, int mode, bool afActive)
@@ -451,12 +607,19 @@ void LensPlayerController::setupWorkerThread()
     connect(this, &LensPlayerController::requestStopMotion, m_worker, &LensWorker::onStopMotion);
     connect(this, &LensPlayerController::requestEmergencyStop, m_worker, &LensWorker::onEmergencyStop);
 
+    // Driver Binding wiring
+    connect(this, &LensPlayerController::requestBindMock, m_worker, &LensWorker::onBindMock);
+    connect(this, &LensPlayerController::requestBindPelco, m_worker, &LensWorker::onBindPelco);
+    connect(this, &LensPlayerController::requestBindVisca, m_worker, &LensWorker::onBindVisca);
+    connect(this, &LensPlayerController::requestLoadDll, m_worker, &LensWorker::onLoadDll);
+
     // Feedback signals from worker
     connect(m_worker, &LensWorker::statusUpdated, this, &LensPlayerController::onStatusUpdated);
     connect(m_worker, &LensWorker::telemetryReady, this, &LensPlayerController::onTelemetryReady);
     connect(m_worker, &LensWorker::sourceOpened, this, &LensPlayerController::onSourceOpened);
     connect(m_worker, &LensWorker::playbackStateChanged, this, &LensPlayerController::onPlaybackStateChanged);
     connect(m_worker, &LensWorker::frameReady, this, &LensPlayerController::frameReady);
+    connect(m_worker, &LensWorker::driverBound, this, &LensPlayerController::onDriverBound);
 
     m_workerThread.start();
 }

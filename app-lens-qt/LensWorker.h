@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <array>
 #include <chrono>
 #include <memory>
 #include <string>
@@ -20,7 +21,10 @@
 #include "LensFramePacket.h"
 #include "LensTypes.h"
 #include "MockLensDriver.h"
+#include "PelcoDLensDriver.h"
+#include "SerialTransport.h"
 #include "SyntheticDefocusGenerator.h"
+#include "ViscaLensDriver.h"
 
 namespace LensApp {
 
@@ -74,6 +78,12 @@ public slots:
     void onStopMotion(int channel);
     void onEmergencyStop();
 
+    // Driver Binding Slots (< 30 chars)
+    void onBindMock(int channel);
+    void onBindPelco(int channel, int port, int baud, int address);
+    void onBindVisca(int channel, int port, int baud, int address);
+    void onLoadDll(int channel, const QString& path, int port, int baud);
+
 signals:
     void workerInitialized();
     void frameReady();
@@ -82,6 +92,8 @@ signals:
     void statusUpdated(int focus, int zoom, int limits, int mode, bool afActive);
     void telemetryReady(double metricScore, int channel);
     void errorOccurred(const QString& message);
+    void driverBound(int channel, int driverType, const QString& portName, int baud, int address, bool success,
+        const QString& error);
 
 private slots:
     void processLoopTick();
@@ -91,12 +103,19 @@ private:
     bool initBackend(const std::string& uri);
     void extractLuma(const std::uint8_t* rgb, std::uint8_t* luma, std::size_t pixels) noexcept;
 
+    struct ChannelDriverSlot {
+        int driverType { 0 };
+        std::unique_ptr<Transport::SerialTransport> serialTransport { nullptr };
+        std::string portName { "IN-MEMORY" };
+        std::uint32_t baudRate { 115200U };
+        std::uint8_t address { 1U };
+    };
+
     Video::AtomicTripleBuffer<LensFramePacket>& m_tripleBuffer;
+    std::array<ChannelDriverSlot, 4> m_driverSlots { };
     LensControl::LensController m_controller { };
     std::unique_ptr<Video::IVideoDecoder> m_decoder { nullptr };
     SyntheticDefocusGenerator m_defocusGen { };
-
-    std::unique_ptr<LensControl::MockLensDriver> m_mockDrivers[4] { };
 
     QTimer* m_timer { nullptr };
     int m_activeChannel { 0 };

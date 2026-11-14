@@ -5,9 +5,12 @@
 
 #include <cstdint>
 
+#include <array>
+
 #include <QObject>
 #include <QRectF>
 #include <QString>
+#include <QStringList>
 #include <QThread>
 
 #include "AtomicTripleBuffer.h"
@@ -57,10 +60,23 @@ class LensPlayerController : public QObject {
     Q_PROPERTY(bool showReticle READ showReticle WRITE setShowReticle NOTIFY showReticleChanged)
     Q_PROPERTY(bool showRoi READ showRoi WRITE setShowRoi NOTIFY showRoiChanged)
 
+    // Hardware Driver & Actuation Speeds (Phase 3)
+    Q_PROPERTY(int activeDriverType READ activeDriverType WRITE setActiveDriverType NOTIFY driverTypeChanged)
+    Q_PROPERTY(QString driverName READ driverName NOTIFY driverTypeChanged)
+    Q_PROPERTY(QString boundPortName READ boundPortName NOTIFY portBindingChanged)
+    Q_PROPERTY(int boundBaudRate READ boundBaudRate NOTIFY portBindingChanged)
+    Q_PROPERTY(int cameraAddress READ cameraAddress WRITE setCameraAddress NOTIFY cameraAddressChanged)
+    Q_PROPERTY(QStringList availablePorts READ availablePorts NOTIFY portsScanned)
+    Q_PROPERTY(bool isPortConnected READ isPortConnected NOTIFY portBindingChanged)
+    Q_PROPERTY(int focusSpeed READ focusSpeed WRITE setFocusSpeed NOTIFY speedsChanged)
+    Q_PROPERTY(int zoomSpeed READ zoomSpeed WRITE setZoomSpeed NOTIFY speedsChanged)
+
     // Sub-models
     Q_PROPERTY(LensConfigModel* configModel READ configModel CONSTANT)
 
 public:
+    enum class DriverType : std::uint8_t { Mock = 0U, PelcoD = 1U, Visca = 2U, DynamicDll = 3U };
+    Q_ENUM(DriverType)
     explicit LensPlayerController(QObject* parent = nullptr);
     ~LensPlayerController() override;
 
@@ -97,6 +113,16 @@ public:
     [[nodiscard]] bool showGrid() const noexcept;
     [[nodiscard]] bool showReticle() const noexcept;
     [[nodiscard]] bool showRoi() const noexcept;
+
+    [[nodiscard]] int activeDriverType() const noexcept;
+    [[nodiscard]] QString driverName() const;
+    [[nodiscard]] QString boundPortName() const;
+    [[nodiscard]] int boundBaudRate() const noexcept;
+    [[nodiscard]] int cameraAddress() const noexcept;
+    [[nodiscard]] QStringList availablePorts() const;
+    [[nodiscard]] bool isPortConnected() const noexcept;
+    [[nodiscard]] int focusSpeed() const noexcept;
+    [[nodiscard]] int zoomSpeed() const noexcept;
 
     [[nodiscard]] LensConfigModel* configModel() const noexcept;
     [[nodiscard]] Video::AtomicTripleBuffer<LensFramePacket>& tripleBuffer() noexcept;
@@ -138,6 +164,15 @@ public slots:
     void stopMotion();
     void emergencyStop();
 
+    // Driver Binding Slots (< 30 chars)
+    void setActiveDriverType(int type);
+    void setCameraAddress(int address);
+    void scanSerialPorts();
+    void bindMockDriver();
+    void bindPelcoDriver(int portIdx, int baud, int address);
+    void bindViscaDriver(int portIdx, int baud, int address);
+    void loadDriverPlugin(const QString& path, int portIdx, int baud);
+
 signals:
     void activeChannelChanged();
     void lensModeChanged();
@@ -159,6 +194,13 @@ signals:
     void showReticleChanged();
     void showRoiChanged();
     void frameReady();
+
+    void driverTypeChanged();
+    void portBindingChanged();
+    void cameraAddressChanged();
+    void portsScanned();
+    void speedsChanged();
+    void emergencyStopOccurred();
 
     // Queued worker dispatch signals (< 30 chars)
     void requestOpenSource(const QString& uri);
@@ -184,14 +226,32 @@ signals:
     void requestSetChannel(int channel);
     void requestSetMode(int channel, int mode);
 
+    void requestBindMock(int channel);
+    void requestBindPelco(int channel, int port, int baud, int address);
+    void requestBindVisca(int channel, int port, int baud, int address);
+    void requestLoadDll(int channel, const QString& path, int port, int baud);
+
 private slots:
     void onStatusUpdated(int focus, int zoom, int limits, int mode, bool afActive);
     void onTelemetryReady(double metricScore, int channel);
     void onSourceOpened(int width, int height, double fps);
     void onPlaybackStateChanged(int state);
+    void onDriverBound(int channel, int driverType, const QString& portName, int baud, int address, bool success,
+        const QString& error);
 
 private:
     void setupWorkerThread();
+
+    struct ChannelDriverState {
+        int driverType { 0 };
+        QString driverName { QStringLiteral("MOCK") };
+        QString portName { QStringLiteral("IN-MEMORY") };
+        int baudRate { 115200 };
+        int cameraAddress { 1 };
+        bool isConnected { true };
+        int focusSpeed { 127 };
+        int zoomSpeed { 127 };
+    };
 
     Video::AtomicTripleBuffer<LensFramePacket> m_tripleBuffer { };
     QThread m_workerThread { };
@@ -224,6 +284,9 @@ private:
     bool m_showGrid { true };
     bool m_showReticle { true };
     bool m_showRoi { true };
+
+    std::array<ChannelDriverState, 4> m_driverStates { };
+    QStringList m_availablePorts { };
 
     QString m_statusMessage { QStringLiteral("Ready") };
 };

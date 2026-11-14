@@ -793,14 +793,16 @@ To ensure rapid, test-driven, and verifiable progress, the implementation is par
 - **Deliverables**: Live video playback and synthetic defocus test pattern rendering at solid $60\text{ fps}$.
 
 ### Phase 3: Optical Axis Controls, Limits & Hardware Driver Integration
+*(Detailed implementation plan: [`app_lens_qt_phase3_plan.md`](app_lens_qt_phase3_plan.md) — **Completed & Verified**)*
 - **Objectives**: Provide complete interactive actuation for zoom and focus motors with limit protection.
 - **Tasks**:
-  1. Implement `Components/JogWheel.qml` for rotational optical jogging.
-  2. Implement `LensControlPanel.qml` featuring jog controls, target sliders, velocity dials, and limit switch indicators.
-  3. Wire axis movement slots through `LensPlayerController` to `LensController` (`moveFocusStep`, `moveZoomStep`, `setFocusTarget`, `setZoomTarget`, `stopMotion`).
-  4. Implement driver binding dialogs and slots for `PelcoDLensDriver` and `ViscaLensDriver`.
-  5. Add prominent Emergency Stop mechanism with instant motor halt.
-- **Deliverables**: Verified bidirectional motor actuation with real-time encoder readouts and limit switch telemetry.
+  1. [x] Implement `Components/JogWheel.qml` for rotational optical jogging with continuous drag unwrapping and multipliers.
+  2. [x] Implement `LensControlPanel.qml` featuring dual jog dials, target sliders (`TacticalSlider.qml`), speed presets, and limit switch indicators.
+  3. [x] Wire axis movement slots through `LensPlayerController` to `LensController` (`moveFocusStep`, `moveZoomStep`, `setFocusTarget`, `setZoomTarget`, `stopMotion`, `emergencyStop`).
+  4. [x] Implement driver binding dialog (`DriverConfigDialog.qml`) and slots for `MockLensDriver`, `PelcoDLensDriver`, `ViscaLensDriver`, and dynamic `.dll` plugins.
+  5. [x] Implement hardware serial transport pipeline (`Transport::SerialTransport`) with multi-channel port collision guard.
+  6. [x] Add prominent Emergency Stop mechanism with instant motor halt ($< 5\text{ ms}$ latency).
+- **Deliverables**: Verified bidirectional motor actuation with real-time encoder readouts, limit switch telemetry, and 100% automated test pass rate across `TestLensAxisControls` and `TestLensDrivers`.
 
 ### Phase 4: Autofocus (AF) Testing Laboratory & Interactive ROI
 - **Objectives**: Provide complete UI and telemetry for closed-loop autofocus execution, metric evaluation, and peak fitting.
@@ -851,7 +853,7 @@ To ensure rapid, test-driven, and verifiable progress, the implementation is par
 | :--- | :--- | :--- | :--- |
 | **Phase 1** | Project Setup, Skeleton Application & Mock Driver Binding | [`app_lens_qt_phase1_plan.md`](app_lens_qt_phase1_plan.md) | **Completed** |
 | **Phase 2** | Video Ingestion, Synthetic Defocus & Viewport QuickItem | [`app_lens_qt_phase2_plan.md`](app_lens_qt_phase2_plan.md) | **Ready for Execution** |
-| **Phase 3** | Optical Axis Controls, Limits & Hardware Driver Integration | `app_lens_qt_phase3_plan.md` | Pending |
+| **Phase 3** | Optical Axis Controls, Limits & Hardware Driver Integration | [`app_lens_qt_phase3_plan.md`](app_lens_qt_phase3_plan.md) | **Ready for Execution** |
 | **Phase 4** | Autofocus (AF) Testing Laboratory & Interactive ROI | `app_lens_qt_phase4_plan.md` | Pending |
 | **Phase 5** | Parfocal Zoom-to-Focus Calibration & Visualizer | `app_lens_qt_phase5_plan.md` | Pending |
 | **Phase 6** | Telemetry Ring Buffer, Presets & Diagnostics Panel | `app_lens_qt_phase6_plan.md` | Pending |

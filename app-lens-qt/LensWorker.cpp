@@ -10,6 +10,7 @@
 #include <chrono>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <QMetaObject>
 #include <QTimer>
@@ -22,13 +23,27 @@
 #include "LensFramePacket.h"
 #include "LensTypes.h"
 #include "MockLensDriver.h"
+#include "PelcoDLensDriver.h"
+#include "SerialTransport.h"
 #include "SyntheticDefocusGenerator.h"
+#include "ViscaLensDriver.h"
 
 namespace LensApp {
 
 namespace {
 
     constexpr double kDefaultFps = 30.0;
+
+    void transmitBridge(const std::uint8_t* data, std::size_t len, void* userCtx) noexcept
+    {
+        if (userCtx != nullptr && data != nullptr && len > 0U) {
+            auto* transport = static_cast<Transport::SerialTransport*>(userCtx);
+            if (transport->isOpen()) {
+                std::vector<std::uint8_t> frame(data, data + len);
+                static_cast<void>(transport->sendData(frame));
+            }
+        }
+    }
 
 } // namespace
 
@@ -83,16 +98,18 @@ void LensWorker::stopWorker()
         m_decoder->close();
         m_decoder.reset();
     }
+
+    for (std::uint8_t i = 0U; i < 4U; ++i) {
+        m_controller.setDriver(LensControl::CameraIndex(i), nullptr);
+        m_driverSlots[i].serialTransport.reset();
+    }
 }
 
 void LensWorker::initDrivers()
 {
     for (std::uint8_t i = 0U; i < 4U; ++i) {
-        auto mock = std::make_unique<LensControl::MockLensDriver>();
-        static_cast<void>(mock->initialize(i, 115200U));
-
+        onBindMock(static_cast<int>(i));
         const LensControl::CameraIndex cam(i);
-        m_controller.setDriver(cam, std::move(mock));
         m_controller.setLensRanges(cam, LensControl::LensRanges { 0U, 65535U, 0U, 65535U });
     }
 }
@@ -345,6 +362,182 @@ void LensWorker::onEmergencyStop()
     for (std::uint8_t i = 0U; i < 4U; ++i) {
         m_controller.stopMotion(LensControl::CameraIndex(i));
     }
+    processLoopTick();
+}
+
+void LensWorker::onBindMock(int channel)
+{
+    const auto c = static_cast<std::size_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(static_cast<std::uint8_t>(c));
+
+    m_controller.setDriver(cam, nullptr);
+    m_driverSlots[c].serialTransport.reset();
+    m_driverSlots[c].driverType = 0;
+    m_driverSlots[c].portName = "IN-MEMORY";
+    m_driverSlots[c].baudRate = 115200U;
+    m_driverSlots[c].address = static_cast<std::uint8_t>(c + 1U);
+
+    auto mock = std::make_unique<LensControl::MockLensDriver>();
+    static_cast<void>(mock->initialize(static_cast<std::uint8_t>(c), 115200U));
+    m_controller.setDriver(cam, std::move(mock));
+
+    emit driverBound(
+        static_cast<int>(c), 0, QStringLiteral("IN-MEMORY"), 115200, static_cast<int>(c + 1U), true, QString());
+    processLoopTick();
+}
+
+void LensWorker::onBindPelco(int channel, int port, int baud, int address)
+{
+    const auto c = static_cast<std::size_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(static_cast<std::uint8_t>(c));
+
+#ifdef _WIN32
+    const std::string portName = "COM" + std::to_string(port);
+#else
+    const std::string portName = "/dev/ttyUSB" + std::to_string(port);
+#endif
+
+    // Port collision guard
+    for (std::size_t i = 0U; i < 4U; ++i) {
+        if (i != c && m_driverSlots[i].serialTransport && m_driverSlots[i].serialTransport->isOpen()
+            && m_driverSlots[i].portName == portName) {
+            emit driverBound(static_cast<int>(c), 1, QString::fromStdString(portName), baud, address, false,
+                QStringLiteral("Port collision: %1 already bound to channel %2")
+                    .arg(QString::fromStdString(portName))
+                    .arg(i));
+            return;
+        }
+    }
+
+    m_controller.setDriver(cam, nullptr);
+    m_driverSlots[c].serialTransport.reset();
+
+    auto transport = std::make_unique<Transport::SerialTransport>(portName, static_cast<std::uint32_t>(baud));
+    const bool opened = transport->open();
+
+    auto pelco = std::make_unique<LensControl::PelcoDLensDriver>(static_cast<std::uint8_t>(address));
+    static_cast<void>(pelco->initialize(static_cast<std::uint8_t>(port), static_cast<std::uint32_t>(baud)));
+
+    pelco->setTransmitCallback(&transmitBridge, transport.get());
+    auto* rawPelco = pelco.get();
+    transport->setDataCallback([rawPelco](const std::vector<std::uint8_t>& bytes) {
+        if (rawPelco && !bytes.empty()) {
+            rawPelco->processIncomingBytes(bytes.data(), bytes.size());
+        }
+    });
+
+    m_driverSlots[c].serialTransport = std::move(transport);
+    m_driverSlots[c].driverType = 1;
+    m_driverSlots[c].portName = portName;
+    m_driverSlots[c].baudRate = static_cast<std::uint32_t>(baud);
+    m_driverSlots[c].address = static_cast<std::uint8_t>(address);
+
+    m_controller.setDriver(cam, std::move(pelco));
+
+    emit driverBound(static_cast<int>(c), 1, QString::fromStdString(portName), baud, address, opened,
+        opened ? QString()
+               : QStringLiteral("Serial port %1 failed to open (offline mode)").arg(QString::fromStdString(portName)));
+    processLoopTick();
+}
+
+void LensWorker::onBindVisca(int channel, int port, int baud, int address)
+{
+    const auto c = static_cast<std::size_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(static_cast<std::uint8_t>(c));
+
+#ifdef _WIN32
+    const std::string portName = "COM" + std::to_string(port);
+#else
+    const std::string portName = "/dev/ttyUSB" + std::to_string(port);
+#endif
+
+    // Port collision guard
+    for (std::size_t i = 0U; i < 4U; ++i) {
+        if (i != c && m_driverSlots[i].serialTransport && m_driverSlots[i].serialTransport->isOpen()
+            && m_driverSlots[i].portName == portName) {
+            emit driverBound(static_cast<int>(c), 2, QString::fromStdString(portName), baud, address, false,
+                QStringLiteral("Port collision: %1 already bound to channel %2")
+                    .arg(QString::fromStdString(portName))
+                    .arg(i));
+            return;
+        }
+    }
+
+    m_controller.setDriver(cam, nullptr);
+    m_driverSlots[c].serialTransport.reset();
+
+    auto transport = std::make_unique<Transport::SerialTransport>(portName, static_cast<std::uint32_t>(baud));
+    const bool opened = transport->open();
+
+    auto visca = std::make_unique<LensControl::ViscaLensDriver>(static_cast<std::uint8_t>(address));
+    static_cast<void>(visca->initialize(static_cast<std::uint8_t>(port), static_cast<std::uint32_t>(baud)));
+
+    visca->setTransmitCallback(&transmitBridge, transport.get());
+    auto* rawVisca = visca.get();
+    transport->setDataCallback([rawVisca](const std::vector<std::uint8_t>& bytes) {
+        if (rawVisca && !bytes.empty()) {
+            rawVisca->processIncomingBytes(bytes.data(), bytes.size());
+        }
+    });
+
+    m_driverSlots[c].serialTransport = std::move(transport);
+    m_driverSlots[c].driverType = 2;
+    m_driverSlots[c].portName = portName;
+    m_driverSlots[c].baudRate = static_cast<std::uint32_t>(baud);
+    m_driverSlots[c].address = static_cast<std::uint8_t>(address);
+
+    m_controller.setDriver(cam, std::move(visca));
+
+    emit driverBound(static_cast<int>(c), 2, QString::fromStdString(portName), baud, address, opened,
+        opened ? QString()
+               : QStringLiteral("Serial port %1 failed to open (offline mode)").arg(QString::fromStdString(portName)));
+    processLoopTick();
+}
+
+void LensWorker::onLoadDll(int channel, const QString& path, int port, int baud)
+{
+    const auto c = static_cast<std::size_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(static_cast<std::uint8_t>(c));
+
+    m_controller.setDriver(cam, nullptr);
+    m_driverSlots[c].serialTransport.reset();
+
+    const std::string pathStd = path.toStdString();
+    const auto result
+        = m_controller.loadLensDll(cam, pathStd, static_cast<std::uint8_t>(port), static_cast<std::uint32_t>(baud));
+
+    const bool success = (result == LensControl::LensLoadResult::Success);
+    QString errorMsg;
+    if (!success) {
+        switch (result) {
+        case LensControl::LensLoadResult::FileNotFound:
+            errorMsg = QStringLiteral("DLL library not found at: ") + path;
+            break;
+        case LensControl::LensLoadResult::MissingCreateSymbol:
+            errorMsg = QStringLiteral("Required factory symbol missing in DLL");
+            break;
+        case LensControl::LensLoadResult::PortCollision:
+            errorMsg = QStringLiteral("Port conflict: port %1 already bound").arg(port);
+            break;
+        default:
+            errorMsg = QStringLiteral("Failed to initialize lens driver DLL (code %1)").arg(static_cast<int>(result));
+            break;
+        }
+    }
+
+#ifdef _WIN32
+    const std::string portName = "COM" + std::to_string(port);
+#else
+    const std::string portName = "/dev/ttyUSB" + std::to_string(port);
+#endif
+
+    m_driverSlots[c].driverType = 3;
+    m_driverSlots[c].portName = portName;
+    m_driverSlots[c].baudRate = static_cast<std::uint32_t>(baud);
+    m_driverSlots[c].address = 1U;
+
+    emit driverBound(static_cast<int>(c), 3, QString::fromStdString(portName), baud, 1, success, errorMsg);
+    processLoopTick();
 }
 
 void LensWorker::extractLuma(const std::uint8_t* rgb, std::uint8_t* luma, std::size_t pixels) noexcept
