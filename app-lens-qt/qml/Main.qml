@@ -251,10 +251,40 @@ ApplicationWindow {
                                 }
                             }
                         }
+
+                        Button {
+                            id: tabParfocalBtn
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            checkable: true
+                            checked: rightPanelStack.currentIndex === 2
+                            text: "PARFOCAL CALIB"
+                            onClicked: rightPanelStack.currentIndex = 2
+
+                            contentItem: Text {
+                                text: tabParfocalBtn.text
+                                color: tabParfocalBtn.checked ? "#ff9100" : "#808a9d"
+                                font.pixelSize: 10
+                                font.bold: tabParfocalBtn.checked
+                                font.letterSpacing: 0.5
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+
+                            background: Rectangle {
+                                color: tabParfocalBtn.checked ? "#141720" : "#0e1014"
+                                Rectangle {
+                                    anchors.bottom: parent.bottom
+                                    width: parent.width
+                                    height: 2
+                                    color: tabParfocalBtn.checked ? "#ff9100" : "transparent"
+                                }
+                            }
+                        }
                     }
                 }
 
-                // StackLayout hosting Axis Deck vs AF Deck
+                // StackLayout hosting Axis Deck vs AF Deck vs Parfocal Deck
                 StackLayout {
                     id: rightPanelStack
                     Layout.fillWidth: true
@@ -268,6 +298,11 @@ ApplicationWindow {
 
                     AutoFocusPanel {
                         id: autoFocusPanel
+                        controller: controller
+                    }
+
+                    ParfocalPanel {
+                        id: parfocalPanel
                         controller: controller
                     }
                 }

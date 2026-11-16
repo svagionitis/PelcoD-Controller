@@ -64,6 +64,23 @@ class LensPlayerController : public QObject {
     // Recorded Sweep Samples for QML Charting (Phase 4)
     Q_PROPERTY(QVariantList samplePoints READ samplePoints NOTIFY samplesUpdated)
 
+    // Parfocal & Zoom-Track-Focus Properties (Phase 5)
+    Q_PROPERTY(bool zoomTrackEnabled READ zoomTrackEnabled WRITE setZoomTrackEnabled NOTIFY zoomTrackChanged)
+    Q_PROPERTY(int interpolationMode READ interpolationMode WRITE setInterpolationMode NOTIFY interpolationModeChanged)
+    Q_PROPERTY(int activeCurveIndex READ activeCurveIndex WRITE setActiveCurveIndex NOTIFY activeCurveChanged)
+    Q_PROPERTY(int curveCount READ curveCount NOTIFY curveSetChanged)
+    Q_PROPERTY(
+        double activeCurveDistance READ activeCurveDistance WRITE setActiveCurveDistance NOTIFY activeCurveChanged)
+    Q_PROPERTY(bool isCurveValid READ isCurveValid NOTIFY activeCurveChanged)
+    Q_PROPERTY(QVariantList activeCurveKnots READ activeCurveKnots NOTIFY knotsUpdated)
+
+    // Calibration Wizard Properties (Phase 5)
+    Q_PROPERTY(bool isCalibrating READ isCalibrating NOTIFY calibStateChanged)
+    Q_PROPERTY(int calibStep READ calibStep NOTIFY calibProgressChanged)
+    Q_PROPERTY(int calibTotalSteps READ calibTotalSteps NOTIFY calibProgressChanged)
+    Q_PROPERTY(double calibProgress READ calibProgress NOTIFY calibProgressChanged)
+    Q_PROPERTY(QString calibStatusText READ calibStatusText NOTIFY calibProgressChanged)
+
     // Media Ingestion & Playback State
     Q_PROPERTY(QString sourceUri READ sourceUri WRITE setSourceUri NOTIFY sourceUriChanged)
     Q_PROPERTY(int playbackState READ playbackState NOTIFY playbackStateChanged)
@@ -138,6 +155,22 @@ public:
     [[nodiscard]] double peakR2() const noexcept;
     [[nodiscard]] bool isPeakValid() const noexcept;
     [[nodiscard]] QVariantList samplePoints() const;
+
+    // Parfocal & Zoom-Track Getters (Phase 5)
+    [[nodiscard]] bool zoomTrackEnabled() const noexcept;
+    [[nodiscard]] int interpolationMode() const noexcept;
+    [[nodiscard]] int activeCurveIndex() const noexcept;
+    [[nodiscard]] int curveCount() const noexcept;
+    [[nodiscard]] double activeCurveDistance() const noexcept;
+    [[nodiscard]] bool isCurveValid() const noexcept;
+    [[nodiscard]] QVariantList activeCurveKnots() const;
+
+    // Calibration Wizard Getters (Phase 5)
+    [[nodiscard]] bool isCalibrating() const noexcept;
+    [[nodiscard]] int calibStep() const noexcept;
+    [[nodiscard]] int calibTotalSteps() const noexcept;
+    [[nodiscard]] double calibProgress() const noexcept;
+    [[nodiscard]] QString calibStatusText() const;
 
     [[nodiscard]] QString sourceUri() const;
     [[nodiscard]] int playbackState() const noexcept;
@@ -220,6 +253,29 @@ public slots:
     void setCafEnabled(bool enabled);
     void setCafThreshold(double threshold);
 
+    // Parfocal Configuration Slots (< 30 chars)
+    void setZoomTrackEnabled(bool enabled);
+    void setInterpolationMode(int mode);
+    void setActiveCurveIndex(int index);
+    void setActiveCurveDistance(double meters);
+
+    // Knot Table Manipulation Slots (< 30 chars)
+    void addKnot(int zoom, int focus);
+    void updateKnot(int index, int zoom, int focus);
+    void removeKnot(int index);
+    void clearKnots();
+    void sortKnots();
+
+    // Calibration Wizard Slots (< 30 chars)
+    void startCalibWizard(int knots, int zMin, int zMax, double dist);
+    void cancelCalibWizard();
+
+    // Curve I/O Slots (< 30 chars)
+    void loadTrackCurves(const QString& path);
+    void saveTrackCurves(const QString& path);
+    void exportJsonProfile(const QString& path);
+    void importJsonProfile(const QString& path);
+
     // Driver Binding Slots (< 30 chars)
     void setActiveDriverType(int type);
     void setCameraAddress(int address);
@@ -267,6 +323,16 @@ signals:
     void speedsChanged();
     void emergencyStopOccurred();
 
+    // Parfocal & Calibration Signals (Phase 5)
+    void zoomTrackChanged();
+    void interpolationModeChanged();
+    void activeCurveChanged();
+    void curveSetChanged();
+    void knotsUpdated();
+    void calibStateChanged();
+    void calibProgressChanged();
+    void curveIoResult(bool success, const QString& message);
+
     // Queued worker dispatch signals (< 30 chars)
     void requestOpenSource(const QString& uri);
     void requestPlay();
@@ -302,6 +368,23 @@ signals:
     void requestBindVisca(int channel, int port, int baud, int address);
     void requestLoadDll(int channel, const QString& path, int port, int baud);
 
+    // Parfocal & Calibration Dispatch Signals (< 30 chars)
+    void requestZoomTrack(int channel, bool enabled);
+    void requestInterpMode(int channel, int mode);
+    void requestActiveCurve(int channel, int index);
+    void requestCurveDist(int channel, int index, double dist);
+    void requestAddKnot(int channel, int zoom, int focus);
+    void requestUpdateKnot(int channel, int index, int zoom, int focus);
+    void requestRemoveKnot(int channel, int index);
+    void requestClearKnots(int channel);
+    void requestSortKnots(int channel);
+    void requestStartCalib(int channel, int knots, int zMin, int zMax, double dist);
+    void requestCancelCalib(int channel);
+    void requestLoadTrack(int channel, const QString& path);
+    void requestSaveTrack(int channel, const QString& path);
+    void requestImportJson(int channel, const QString& path);
+    void requestExportJson(int channel, const QString& path);
+
 private slots:
     void onStatusUpdated(int focus, int zoom, int limits, int mode, bool afActive);
     void onTelemetryReady(double metricScore, int channel);
@@ -312,6 +395,14 @@ private slots:
     void onPlaybackStateChanged(int state);
     void onDriverBound(int channel, int driverType, const QString& portName, int baud, int address, bool success,
         const QString& error);
+
+    // Parfocal & Calibration Feedback Slots
+    void onZoomTrackState(int channel, bool enabled);
+    void onCurveSetUpdated(int channel, int curveCount, int activeIndex, double dist, bool valid);
+    void onKnotsReady(int channel, const QVariantList& knots);
+    void onCalibProgress(int channel, int step, int total, double progress, const QString& status);
+    void onCalibFinished(int channel, bool success, const QString& message);
+    void onCurveIoFinished(int channel, bool success, const QString& message);
 
 private:
     void setupWorkerThread();
@@ -378,6 +469,21 @@ private:
 
     std::array<ChannelDriverState, 4> m_driverStates { };
     QStringList m_availablePorts { };
+
+    // Parfocal & Calibration State (Phase 5)
+    bool m_zoomTrackEnabled { false };
+    int m_interpolationMode { 0 };
+    int m_activeCurveIndex { 0 };
+    int m_curveCount { 1 };
+    double m_activeCurveDistance { 0.0 };
+    bool m_isCurveValid { false };
+    QVariantList m_activeCurveKnots { };
+
+    bool m_isCalibrating { false };
+    int m_calibStep { 0 };
+    int m_calibTotalSteps { 0 };
+    double m_calibProgress { 0.0 };
+    QString m_calibStatusText { QStringLiteral("Idle") };
 
     QString m_statusMessage { QStringLiteral("Ready") };
 };

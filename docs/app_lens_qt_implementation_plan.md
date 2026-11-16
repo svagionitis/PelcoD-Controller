@@ -816,14 +816,15 @@ To ensure rapid, test-driven, and verifiable progress, the implementation is par
 - **Deliverables**: Fully functional AF laboratory demonstrating successful peak convergence on real and synthetic video, verified by 100% test pass rate across `TestLensAutoFocus` and `TestLensRoiPeaking`.
 
 ### Phase 5: Parfocal Zoom-to-Focus Calibration & Visualizer
+*(Detailed implementation plan: [`app_lens_qt_phase5_plan.md`](app_lens_qt_phase5_plan.md))*
 - **Objectives**: Deliver visual parfocal curve calibration, knot editing, and real-time tracking slew.
 - **Tasks**:
-  1. Build `ParfocalCurveChart.qml` plotting $Z \text{ vs } F$ calibration curves with active position marker.
-  2. Implement `ParfocalPanel.qml` with knot table editor (add, modify, delete knot points).
-  3. Implement automated step-and-learn calibration wizard in `LensWorker`.
-  4. Wire curve import/export for Sightline text LUT format and JSON curve profiles.
-  5. Validate real-time parfocal focus slew during optical zoom adjustments.
-- **Deliverables**: End-to-end parfocal calibration tool generating valid LUT curves.
+  1. [x] Build `ParfocalCurveChart.qml` plotting $Z \text{ vs } F$ calibration curves with active position marker.
+  2. [x] Implement `ParfocalPanel.qml` with knot table editor (add, modify, delete knot points).
+  3. [x] Implement automated step-and-learn calibration wizard in `LensWorker`.
+  4. [x] Wire curve import/export for Sightline text LUT format and JSON curve profiles.
+  5. [x] Validate real-time parfocal focus slew during optical zoom adjustments.
+- **Deliverables**: End-to-end parfocal calibration tool generating valid LUT curves, verified by 100% test pass rate across `TestLensParfocalTracking`.
 
 ### Phase 6: Telemetry Ring Buffer, Presets & Diagnostics Panel
 - **Objectives**: Provide session logging, preset recall, and comprehensive operational diagnostics.
@@ -856,7 +857,7 @@ To ensure rapid, test-driven, and verifiable progress, the implementation is par
 | **Phase 2** | Video Ingestion, Synthetic Defocus & Viewport QuickItem | [`app_lens_qt_phase2_plan.md`](app_lens_qt_phase2_plan.md) | **Completed** |
 | **Phase 3** | Optical Axis Controls, Limits & Hardware Driver Integration | [`app_lens_qt_phase3_plan.md`](app_lens_qt_phase3_plan.md) | **Completed** |
 | **Phase 4** | Autofocus (AF) Testing Laboratory & Interactive ROI | [`app_lens_qt_phase4_plan.md`](app_lens_qt_phase4_plan.md) | **Completed & Verified** |
-| **Phase 5** | Parfocal Zoom-to-Focus Calibration & Visualizer | `app_lens_qt_phase5_plan.md` | Pending |
+| **Phase 5** | Parfocal Zoom-to-Focus Calibration & Visualizer | [`app_lens_qt_phase5_plan.md`](app_lens_qt_phase5_plan.md) | **Completed & Verified** |
 | **Phase 6** | Telemetry Ring Buffer, Presets & Diagnostics Panel | `app_lens_qt_phase6_plan.md` | Pending |
 | **Phase 7** | Verification, Hardening & Documentation | `app_lens_qt_phase7_plan.md` | Pending |
 

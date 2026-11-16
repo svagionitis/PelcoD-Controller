@@ -23,6 +23,8 @@
 #include "LensFramePacket.h"
 #include "SerialTransport.h"
 #include "SyntheticDefocusGenerator.h"
+#include "ZoomTrackFocusEngine.h"
+#include "ZoomTrackTypes.h"
 
 namespace LensApp {
 
@@ -90,6 +92,28 @@ public slots:
     void onBindVisca(int channel, int port, int baud, int address);
     void onLoadDll(int channel, const QString& path, int port, int baud);
 
+    // Parfocal & Zoom-Track Slots (< 30 chars)
+    void onSetZoomTrack(int channel, bool enabled);
+    void onSetInterpMode(int channel, int mode);
+    void onSetActiveCurve(int channel, int index);
+    void onSetCurveDistance(int channel, int index, double distanceMeters);
+    void onAddKnot(int channel, int zoom, int focus);
+    void onUpdateKnot(int channel, int index, int zoom, int focus);
+    void onRemoveKnot(int channel, int index);
+    void onClearKnots(int channel);
+    void onSortKnots(int channel);
+    void onRequestKnots(int channel);
+
+    // Calibration Wizard Slots (< 30 chars)
+    void onStartCalib(int channel, int knots, int zMin, int zMax, double dist);
+    void onCancelCalib(int channel);
+
+    // Curve File I/O Slots (< 30 chars)
+    void onLoadTrackFile(int channel, const QString& path);
+    void onSaveTrackFile(int channel, const QString& path);
+    void onImportJsonProfile(int channel, const QString& path);
+    void onExportJsonProfile(int channel, const QString& path);
+
 signals:
     void workerInitialized();
     void frameReady();
@@ -103,6 +127,14 @@ signals:
     void errorOccurred(const QString& message);
     void driverBound(int channel, int driverType, const QString& portName, int baud, int address, bool success,
         const QString& error);
+
+    // Parfocal & Calibration Signals (< 30 chars)
+    void zoomTrackState(int channel, bool enabled);
+    void curveSetUpdated(int channel, int curveCount, int activeIndex, double dist, bool valid);
+    void knotsReady(int channel, const QVariantList& knots);
+    void calibProgress(int channel, int step, int total, double progress, const QString& status);
+    void calibFinished(int channel, bool success, const QString& message);
+    void curveIoFinished(int channel, bool success, const QString& message);
 
 private slots:
     void processLoopTick();
@@ -143,6 +175,33 @@ private:
     std::uint64_t m_frameCounter { 0U };
     LensControl::AutoFocusState m_lastAfState { LensControl::AutoFocusState::Idle };
     bool m_lastAfRunning { false };
+
+    enum class CalibWizardState : std::uint8_t {
+        Idle = 0U,
+        SlewingZoom = 1U,
+        SettlingOptics = 2U,
+        WaitingAfSweep = 3U,
+        RecordingKnot = 4U,
+        Completed = 5U,
+        Aborted = 6U
+    };
+
+    struct CalibWizardContext {
+        CalibWizardState state { CalibWizardState::Idle };
+        int channel { 0 };
+        std::size_t totalKnots { 8U };
+        std::size_t currentKnotIdx { 0U };
+        std::uint16_t zoomMin { 1000U };
+        std::uint16_t zoomMax { 60000U };
+        float targetDistanceMeters { 0.0F };
+        std::uint16_t currentTargetZoom { 0U };
+        std::chrono::steady_clock::time_point settleStartTime { };
+        std::chrono::milliseconds settleDelay { 200 };
+    };
+
+    void stepCalibWizard(const LensControl::LensStatus& status);
+
+    CalibWizardContext m_calibContext { };
 };
 
 } // namespace LensApp

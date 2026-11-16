@@ -77,6 +77,12 @@ public:
     /// @return True if curve was valid and added successfully.
     [[nodiscard]] bool addCurve(const TrackCurve& curve) noexcept;
 
+    /// @brief Replaces an existing curve at index idx.
+    /// @param idx Curve index.
+    /// @param curve Curve data.
+    /// @return True if idx was in range and curve was updated.
+    [[nodiscard]] bool setCurve(std::size_t idx, const TrackCurve& curve) noexcept;
+
     /// @brief Retrieves a pointer to a loaded curve.
     /// @param idx Curve index.
     /// @return Pointer to curve or nullptr if out of range.

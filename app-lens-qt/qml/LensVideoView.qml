@@ -7,7 +7,8 @@ Item {
     id: root
 
     property alias quickItem: viewportItem
-    property bool showChart: true
+    property int bottomDrawerMode: 1 // 0: None, 1: Focus Sharpness Chart, 2: Parfocal Curve Chart
+    property bool showChart: bottomDrawerMode === 1
     required property LensPlayerController controller
 
     // Viewport item filling available space
@@ -140,8 +141,31 @@ Item {
         Button {
             text: "CHART"
             checkable: true
-            checked: root.showChart
-            onToggled: root.showChart = checked
+            checked: root.bottomDrawerMode === 1
+            onClicked: root.bottomDrawerMode = (checked ? 1 : 0)
+            contentItem: Text {
+                text: parent.text
+                color: parent.checked ? "#00e5ff" : "#808a9d"
+                font.pixelSize: 10
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+            background: Rectangle {
+                implicitWidth: 54
+                implicitHeight: 24
+                color: "#141720"
+                border.color: parent.checked ? "#00e5ff" : "#242938"
+                border.width: 1
+                radius: 3
+            }
+        }
+
+        Button {
+            text: "CURVE"
+            checkable: true
+            checked: root.bottomDrawerMode === 2
+            onClicked: root.bottomDrawerMode = (checked ? 2 : 0)
             contentItem: Text {
                 text: parent.text
                 color: parent.checked ? "#00e5ff" : "#808a9d"
@@ -262,6 +286,18 @@ Item {
         anchors.margins: 16
         height: 200
         controller: root.controller
-        visible: root.showChart
+        visible: root.bottomDrawerMode === 1
+    }
+
+    // Bottom Collapsible Parfocal Zoom vs Focus Spline Curve Drawer
+    ParfocalCurveChart {
+        id: parfocalChart
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 16
+        height: 220
+        controller: root.controller
+        visible: root.bottomDrawerMode === 2
     }
 }

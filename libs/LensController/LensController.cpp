@@ -298,6 +298,45 @@ bool LensController::loadTrackCurves(CameraIndex cam, std::string_view filename)
     return err == TrackCurveError::None;
 }
 
+bool LensController::saveTrackCurves(CameraIndex cam, std::string_view filename) const noexcept
+{
+    if (!isValidChannel(cam)) {
+        return false;
+    }
+    const Channel& ch = m_channels[cam.value()];
+    std::lock_guard<std::mutex> lock { ch.mutex };
+    if (!ch.zoomTrackEngine) {
+        return false;
+    }
+    return ch.zoomTrackEngine->serializeFile(filename);
+}
+
+bool LensController::isZoomTrackEnabled(CameraIndex cam) const noexcept
+{
+    if (!isValidChannel(cam)) {
+        return false;
+    }
+    const Channel& ch = m_channels[cam.value()];
+    std::lock_guard<std::mutex> lock { ch.mutex };
+    return ch.zoomTrackEnabled;
+}
+
+ZoomTrackFocusEngine* LensController::zoomTrackEngine(CameraIndex cam) noexcept
+{
+    if (!isValidChannel(cam)) {
+        return nullptr;
+    }
+    return m_channels[cam.value()].zoomTrackEngine.get();
+}
+
+const ZoomTrackFocusEngine* LensController::zoomTrackEngine(CameraIndex cam) const noexcept
+{
+    if (!isValidChannel(cam)) {
+        return nullptr;
+    }
+    return m_channels[cam.value()].zoomTrackEngine.get();
+}
+
 void LensController::setTrackerRoi(
     CameraIndex cam, float normX, float normY, float normW, float normH, float margin) noexcept
 {

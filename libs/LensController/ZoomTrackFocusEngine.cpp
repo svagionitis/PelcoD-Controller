@@ -134,6 +134,21 @@ bool ZoomTrackFocusEngine::addCurve(const TrackCurve& curve) noexcept
     return true;
 }
 
+bool ZoomTrackFocusEngine::setCurve(std::size_t idx, const TrackCurve& curve) noexcept
+{
+    if (idx >= m_curveSet.curveCount) {
+        return false;
+    }
+
+    TrackCurve staged = curve;
+    if (staged.isValid()) {
+        computePchip(staged);
+    }
+
+    m_curveSet.curves[idx] = staged;
+    return true;
+}
+
 const TrackCurve* ZoomTrackFocusEngine::getCurve(std::size_t idx) const noexcept
 {
     if (idx >= m_curveSet.curveCount) {

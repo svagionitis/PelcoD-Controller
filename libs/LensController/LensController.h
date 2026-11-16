@@ -105,6 +105,27 @@ public:
     /// @return True on successful parsing and ingestion.
     [[nodiscard]] bool loadTrackCurves(CameraIndex cam, std::string_view filename) noexcept;
 
+    /// @brief Serializes calibration track curves to file for designated channel.
+    /// @param cam Channel index [0..3].
+    /// @param filename File path to save calibration curve table.
+    /// @return True on successful serialization and write.
+    [[nodiscard]] bool saveTrackCurves(CameraIndex cam, std::string_view filename) const noexcept;
+
+    /// @brief Queries whether real-time zoom tracking is currently active.
+    /// @param cam Channel index [0..3].
+    /// @return True if zoom tracking is enabled.
+    [[nodiscard]] bool isZoomTrackEnabled(CameraIndex cam) const noexcept;
+
+    /// @brief Provides access to the parfocal zoom-track engine for designated channel.
+    /// @param cam Channel index [0..3].
+    /// @return Pointer to ZoomTrackFocusEngine, or nullptr if channel invalid.
+    [[nodiscard]] ZoomTrackFocusEngine* zoomTrackEngine(CameraIndex cam) noexcept;
+
+    /// @brief Provides const access to the parfocal zoom-track engine for designated channel.
+    /// @param cam Channel index [0..3].
+    /// @return Const pointer to ZoomTrackFocusEngine, or nullptr if channel invalid.
+    [[nodiscard]] const ZoomTrackFocusEngine* zoomTrackEngine(CameraIndex cam) const noexcept;
+
     /// @brief Ingests active tracking target bounding box for dynamic AF ROI centering.
     /// @param cam Channel index [0..3].
     /// @param normX Target center X [0.0, 1.0].

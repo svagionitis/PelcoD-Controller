@@ -393,6 +393,35 @@ if(PELCOD_ENABLE_QT AND TARGET LensController AND TARGET Qt6::Test)
         Qt6::Test
     )
     pelcod_register_gtest(TestLensRoiPeaking)
+
+    add_executable(TestLensParfocalTracking
+        TestLensParfocalTracking.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/LensPlayerController.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/LensWorker.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/LensConfigModel.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/SyntheticDefocusGenerator.cpp
+    )
+    target_include_directories(TestLensParfocalTracking PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/app-lens-qt
+        ${CMAKE_SOURCE_DIR}/libs/LensController
+        ${CMAKE_SOURCE_DIR}/libs/Video
+        ${CMAKE_SOURCE_DIR}/libs/Math
+        ${CMAKE_SOURCE_DIR}/libs/Transport
+    )
+    target_link_libraries(TestLensParfocalTracking PRIVATE
+        LensController
+        Video
+        Math
+        Transport
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Qml
+        Qt6::Quick
+        Qt6::QuickControls2
+        Qt6::Test
+    )
+    pelcod_register_gtest(TestLensParfocalTracking NO_MAIN)
 endif()
 
 # ==============================================================================

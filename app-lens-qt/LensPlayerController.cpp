@@ -184,6 +184,66 @@ QVariantList LensPlayerController::samplePoints() const
     return m_samplePoints;
 }
 
+bool LensPlayerController::zoomTrackEnabled() const noexcept
+{
+    return m_zoomTrackEnabled;
+}
+
+int LensPlayerController::interpolationMode() const noexcept
+{
+    return m_interpolationMode;
+}
+
+int LensPlayerController::activeCurveIndex() const noexcept
+{
+    return m_activeCurveIndex;
+}
+
+int LensPlayerController::curveCount() const noexcept
+{
+    return m_curveCount;
+}
+
+double LensPlayerController::activeCurveDistance() const noexcept
+{
+    return m_activeCurveDistance;
+}
+
+bool LensPlayerController::isCurveValid() const noexcept
+{
+    return m_isCurveValid;
+}
+
+QVariantList LensPlayerController::activeCurveKnots() const
+{
+    return m_activeCurveKnots;
+}
+
+bool LensPlayerController::isCalibrating() const noexcept
+{
+    return m_isCalibrating;
+}
+
+int LensPlayerController::calibStep() const noexcept
+{
+    return m_calibStep;
+}
+
+int LensPlayerController::calibTotalSteps() const noexcept
+{
+    return m_calibTotalSteps;
+}
+
+double LensPlayerController::calibProgress() const noexcept
+{
+    return m_calibProgress;
+}
+
+QString LensPlayerController::calibStatusText() const
+{
+    return m_calibStatusText;
+}
+
 QString LensPlayerController::sourceUri() const
 {
     return m_sourceUri;
@@ -334,6 +394,7 @@ void LensPlayerController::setActiveChannel(int channel)
         emit portBindingChanged();
         emit cameraAddressChanged();
         emit speedsChanged();
+        emit requestActiveCurve(m_activeChannel, m_activeCurveIndex);
     }
 }
 
@@ -667,6 +728,125 @@ void LensPlayerController::setCafThreshold(double threshold)
     }
 }
 
+void LensPlayerController::setZoomTrackEnabled(bool enabled)
+{
+    if (m_zoomTrackEnabled != enabled) {
+        m_zoomTrackEnabled = enabled;
+        emit requestZoomTrack(m_activeChannel, enabled);
+        emit zoomTrackChanged();
+    }
+}
+
+void LensPlayerController::setInterpolationMode(int mode)
+{
+    if (m_interpolationMode != mode) {
+        m_interpolationMode = mode;
+        emit requestInterpMode(m_activeChannel, mode);
+        emit interpolationModeChanged();
+    }
+}
+
+void LensPlayerController::setActiveCurveIndex(int index)
+{
+    if (m_activeCurveIndex != index) {
+        m_activeCurveIndex = index;
+        emit requestActiveCurve(m_activeChannel, index);
+        emit activeCurveChanged();
+    }
+}
+
+void LensPlayerController::setActiveCurveDistance(double meters)
+{
+    m_activeCurveDistance = meters;
+    emit requestCurveDist(m_activeChannel, m_activeCurveIndex, meters);
+    emit activeCurveChanged();
+}
+
+void LensPlayerController::addKnot(int zoom, int focus)
+{
+    QVariantMap knot;
+    knot[QStringLiteral("zoom")] = zoom;
+    knot[QStringLiteral("focus")] = focus;
+    knot[QStringLiteral("slope")] = 0.0;
+    m_activeCurveKnots.append(knot);
+    emit knotsUpdated();
+    emit requestAddKnot(m_activeChannel, zoom, focus);
+}
+
+void LensPlayerController::updateKnot(int index, int zoom, int focus)
+{
+    if (index >= 0 && index < m_activeCurveKnots.size()) {
+        QVariantMap knot = m_activeCurveKnots[index].toMap();
+        knot[QStringLiteral("zoom")] = zoom;
+        knot[QStringLiteral("focus")] = focus;
+        m_activeCurveKnots[index] = knot;
+        emit knotsUpdated();
+    }
+    emit requestUpdateKnot(m_activeChannel, index, zoom, focus);
+}
+
+void LensPlayerController::removeKnot(int index)
+{
+    if (index >= 0 && index < m_activeCurveKnots.size()) {
+        m_activeCurveKnots.removeAt(index);
+        emit knotsUpdated();
+    }
+    emit requestRemoveKnot(m_activeChannel, index);
+}
+
+void LensPlayerController::clearKnots()
+{
+    m_activeCurveKnots.clear();
+    emit knotsUpdated();
+    emit requestClearKnots(m_activeChannel);
+}
+
+void LensPlayerController::sortKnots()
+{
+    emit requestSortKnots(m_activeChannel);
+}
+
+void LensPlayerController::startCalibWizard(int knots, int zMin, int zMax, double dist)
+{
+    m_isCalibrating = true;
+    m_calibStep = 1;
+    m_calibTotalSteps = knots;
+    m_calibProgress = 0.0;
+    m_calibStatusText = QStringLiteral("Initializing wizard...");
+    emit calibStateChanged();
+    emit calibProgressChanged();
+    emit requestStartCalib(m_activeChannel, knots, zMin, zMax, dist);
+}
+
+void LensPlayerController::cancelCalibWizard()
+{
+    emit requestCancelCalib(m_activeChannel);
+    m_isCalibrating = false;
+    m_calibStatusText = QStringLiteral("Cancelled");
+    emit calibStateChanged();
+    emit calibProgressChanged();
+}
+
+void LensPlayerController::loadTrackCurves(const QString& path)
+{
+    emit requestLoadTrack(m_activeChannel, path);
+}
+
+void LensPlayerController::saveTrackCurves(const QString& path)
+{
+    emit requestSaveTrack(m_activeChannel, path);
+}
+
+void LensPlayerController::exportJsonProfile(const QString& path)
+{
+    emit requestExportJson(m_activeChannel, path);
+}
+
+void LensPlayerController::importJsonProfile(const QString& path)
+{
+    emit requestImportJson(m_activeChannel, path);
+}
+
 void LensPlayerController::setActiveDriverType(int type)
 {
     const auto idx = static_cast<std::size_t>(std::clamp(m_activeChannel, 0, 3));
@@ -887,8 +1067,70 @@ void LensPlayerController::onPlaybackStateChanged(int state)
     }
 }
 
+void LensPlayerController::onZoomTrackState(int channel, bool enabled)
+{
+    if (m_activeChannel == channel && m_zoomTrackEnabled != enabled) {
+        m_zoomTrackEnabled = enabled;
+        emit zoomTrackChanged();
+    }
+}
+
+void LensPlayerController::onCurveSetUpdated(int channel, int curveCount, int activeIndex, double dist, bool valid)
+{
+    if (m_activeChannel == channel) {
+        m_curveCount = curveCount;
+        m_activeCurveIndex = activeIndex;
+        m_activeCurveDistance = dist;
+        m_isCurveValid = valid;
+        emit curveSetChanged();
+        emit activeCurveChanged();
+    }
+}
+
+void LensPlayerController::onKnotsReady(int channel, const QVariantList& knots)
+{
+    if (m_activeChannel == channel) {
+        m_activeCurveKnots = knots;
+        emit knotsUpdated();
+    }
+}
+
+void LensPlayerController::onCalibProgress(int channel, int step, int total, double progress, const QString& status)
+{
+    if (m_activeChannel == channel) {
+        m_isCalibrating = true;
+        m_calibStep = step;
+        m_calibTotalSteps = total;
+        m_calibProgress = progress;
+        m_calibStatusText = status;
+        emit calibProgressChanged();
+        emit calibStateChanged();
+    }
+}
+
+void LensPlayerController::onCalibFinished(int channel, bool success, const QString& message)
+{
+    if (m_activeChannel == channel) {
+        m_isCalibrating = false;
+        m_calibProgress = success ? 1.0 : 0.0;
+        m_calibStatusText = message;
+        emit calibProgressChanged();
+        emit calibStateChanged();
+    }
+}
+
+void LensPlayerController::onCurveIoFinished(int channel, bool success, const QString& message)
+{
+    if (m_activeChannel == channel) {
+        m_statusMessage = message;
+        emit statusMessageChanged();
+        emit curveIoResult(success, message);
+    }
+}
+
 void LensPlayerController::setupWorkerThread()
 {
+    qRegisterMetaType<QVariantList>("QVariantList");
     m_worker = new LensWorker(m_tripleBuffer);
     m_worker->moveToThread(&m_workerThread);
 
@@ -935,6 +1177,23 @@ void LensPlayerController::setupWorkerThread()
     connect(this, &LensPlayerController::requestBindVisca, m_worker, &LensWorker::onBindVisca);
     connect(this, &LensPlayerController::requestLoadDll, m_worker, &LensWorker::onLoadDll);
 
+    // Parfocal & Calibration wiring (Phase 5)
+    connect(this, &LensPlayerController::requestZoomTrack, m_worker, &LensWorker::onSetZoomTrack);
+    connect(this, &LensPlayerController::requestInterpMode, m_worker, &LensWorker::onSetInterpMode);
+    connect(this, &LensPlayerController::requestActiveCurve, m_worker, &LensWorker::onSetActiveCurve);
+    connect(this, &LensPlayerController::requestCurveDist, m_worker, &LensWorker::onSetCurveDistance);
+    connect(this, &LensPlayerController::requestAddKnot, m_worker, &LensWorker::onAddKnot);
+    connect(this, &LensPlayerController::requestUpdateKnot, m_worker, &LensWorker::onUpdateKnot);
+    connect(this, &LensPlayerController::requestRemoveKnot, m_worker, &LensWorker::onRemoveKnot);
+    connect(this, &LensPlayerController::requestClearKnots, m_worker, &LensWorker::onClearKnots);
+    connect(this, &LensPlayerController::requestSortKnots, m_worker, &LensWorker::onSortKnots);
+    connect(this, &LensPlayerController::requestStartCalib, m_worker, &LensWorker::onStartCalib);
+    connect(this, &LensPlayerController::requestCancelCalib, m_worker, &LensWorker::onCancelCalib);
+    connect(this, &LensPlayerController::requestLoadTrack, m_worker, &LensWorker::onLoadTrackFile);
+    connect(this, &LensPlayerController::requestSaveTrack, m_worker, &LensWorker::onSaveTrackFile);
+    connect(this, &LensPlayerController::requestImportJson, m_worker, &LensWorker::onImportJsonProfile);
+    connect(this, &LensPlayerController::requestExportJson, m_worker, &LensWorker::onExportJsonProfile);
+
     // Feedback signals from worker
     connect(m_worker, &LensWorker::statusUpdated, this, &LensPlayerController::onStatusUpdated);
     connect(m_worker, &LensWorker::telemetryReady, this, &LensPlayerController::onTelemetryReady);
@@ -945,6 +1204,13 @@ void LensPlayerController::setupWorkerThread()
     connect(m_worker, &LensWorker::playbackStateChanged, this, &LensPlayerController::onPlaybackStateChanged);
     connect(m_worker, &LensWorker::frameReady, this, &LensPlayerController::frameReady);
     connect(m_worker, &LensWorker::driverBound, this, &LensPlayerController::onDriverBound);
+
+    connect(m_worker, &LensWorker::zoomTrackState, this, &LensPlayerController::onZoomTrackState);
+    connect(m_worker, &LensWorker::curveSetUpdated, this, &LensPlayerController::onCurveSetUpdated);
+    connect(m_worker, &LensWorker::knotsReady, this, &LensPlayerController::onKnotsReady);
+    connect(m_worker, &LensWorker::calibProgress, this, &LensPlayerController::onCalibProgress);
+    connect(m_worker, &LensWorker::calibFinished, this, &LensPlayerController::onCalibFinished);
+    connect(m_worker, &LensWorker::curveIoFinished, this, &LensPlayerController::onCurveIoFinished);
 
     m_workerThread.start();
 }

@@ -12,8 +12,13 @@
 #include <string>
 #include <vector>
 
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMetaObject>
 #include <QTimer>
+#include <QVariantMap>
 
 #include "AtomicTripleBuffer.h"
 #include "DecoderFactory.h"
@@ -111,7 +116,29 @@ void LensWorker::initDrivers()
         onBindMock(static_cast<int>(i));
         const LensControl::CameraIndex cam(i);
         m_controller.setLensRanges(cam, LensControl::LensRanges { 0U, 65535U, 0U, 65535U });
+
+        auto* engine = m_controller.zoomTrackEngine(cam);
+        if (engine && engine->curveCount() == 0U) {
+            LensControl::TrackCurve defaultCurve { };
+            defaultCurve.distanceMeters = 0.0F; // Infinity
+            defaultCurve.knotCount = 6U;
+            defaultCurve.knots[0]
+                = { LensControl::MotorPosition { 1000U }, LensControl::MotorPosition { 3900U }, 0.0F };
+            defaultCurve.knots[1]
+                = { LensControl::MotorPosition { 12000U }, LensControl::MotorPosition { 4480U }, 0.0F };
+            defaultCurve.knots[2]
+                = { LensControl::MotorPosition { 24000U }, LensControl::MotorPosition { 5190U }, 0.0F };
+            defaultCurve.knots[3]
+                = { LensControl::MotorPosition { 36000U }, LensControl::MotorPosition { 5980U }, 0.0F };
+            defaultCurve.knots[4]
+                = { LensControl::MotorPosition { 48000U }, LensControl::MotorPosition { 6840U }, 0.0F };
+            defaultCurve.knots[5]
+                = { LensControl::MotorPosition { 60000U }, LensControl::MotorPosition { 7820U }, 0.0F };
+            LensControl::ZoomTrackFocusEngine::computePchip(defaultCurve);
+            (void)engine->addCurve(defaultCurve);
+        }
     }
+    onRequestKnots(m_activeChannel);
 }
 
 void LensWorker::openSource(const QString& uri)
@@ -690,6 +717,506 @@ void LensWorker::processLoopTick()
         }
         emit samplesReady(sampleList);
     }
+
+    stepCalibWizard(status);
+}
+
+void LensWorker::stepCalibWizard(const LensControl::LensStatus& status)
+{
+    if (m_calibContext.state == CalibWizardState::Idle) {
+        return;
+    }
+
+    const auto camIdx = static_cast<std::uint8_t>(m_calibContext.channel);
+    const LensControl::CameraIndex cam(camIdx);
+    auto* engine = m_controller.zoomTrackEngine(cam);
+    if (!engine) {
+        m_calibContext.state = CalibWizardState::Idle;
+        emit calibFinished(m_calibContext.channel, false, QStringLiteral("Invalid zoom-track engine"));
+        return;
+    }
+
+    switch (m_calibContext.state) {
+    case CalibWizardState::SlewingZoom: {
+        const int curZ = static_cast<int>(status.zoomPos.value());
+        const int targetZ = static_cast<int>(m_calibContext.currentTargetZoom);
+        if (std::abs(curZ - targetZ) <= 30) {
+            m_calibContext.state = CalibWizardState::SettlingOptics;
+            m_calibContext.settleStartTime = std::chrono::steady_clock::now();
+            const double prog
+                = static_cast<double>(m_calibContext.currentKnotIdx) / static_cast<double>(m_calibContext.totalKnots);
+            emit calibProgress(m_calibContext.channel, static_cast<int>(m_calibContext.currentKnotIdx + 1U),
+                static_cast<int>(m_calibContext.totalKnots), prog, QStringLiteral("Settling optics..."));
+        }
+        break;
+    }
+    case CalibWizardState::SettlingOptics: {
+        const auto now = std::chrono::steady_clock::now();
+        if (now - m_calibContext.settleStartTime >= m_calibContext.settleDelay) {
+            m_calibContext.state = CalibWizardState::WaitingAfSweep;
+            m_controller.triggerAutoFocus(cam, LensControl::AutoFocusMethod::ScanThreePhase);
+            const double prog = (static_cast<double>(m_calibContext.currentKnotIdx) + 0.3)
+                / static_cast<double>(m_calibContext.totalKnots);
+            emit calibProgress(m_calibContext.channel, static_cast<int>(m_calibContext.currentKnotIdx + 1U),
+                static_cast<int>(m_calibContext.totalKnots), prog, QStringLiteral("Focus sweep in progress..."));
+        }
+        break;
+    }
+    case CalibWizardState::WaitingAfSweep: {
+        const auto afState = m_controller.getAutoFocusState(cam);
+        if (afState == LensControl::AutoFocusState::PeakConfirmed || !status.isAfActive) {
+            m_calibContext.state = CalibWizardState::RecordingKnot;
+        }
+        break;
+    }
+    case CalibWizardState::RecordingKnot: {
+        const auto peak = m_controller.getPeakFitResult(cam);
+        const LensControl::MotorPosition focusSummit = peak.isValid ? peak.vertex : status.focusPos;
+        engine->recordCalibKnot(focusSummit);
+        m_calibContext.currentKnotIdx++;
+
+        if (m_calibContext.currentKnotIdx < m_calibContext.totalKnots) {
+            m_calibContext.currentTargetZoom = engine->nextCalibZoom().value();
+            m_controller.setZoomTarget(cam, LensControl::MotorPosition(m_calibContext.currentTargetZoom));
+            m_calibContext.state = CalibWizardState::SlewingZoom;
+            const double prog
+                = static_cast<double>(m_calibContext.currentKnotIdx) / static_cast<double>(m_calibContext.totalKnots);
+            emit calibProgress(m_calibContext.channel, static_cast<int>(m_calibContext.currentKnotIdx + 1U),
+                static_cast<int>(m_calibContext.totalKnots), prog, QStringLiteral("Slewing to next zoom knot..."));
+        } else {
+            m_calibContext.state = CalibWizardState::Completed;
+            emit calibProgress(m_calibContext.channel, static_cast<int>(m_calibContext.totalKnots),
+                static_cast<int>(m_calibContext.totalKnots), 1.0, QStringLiteral("Calibration completed"));
+            emit calibFinished(
+                m_calibContext.channel, true, QStringLiteral("Parfocal calibration completed successfully."));
+            m_calibContext.state = CalibWizardState::Idle;
+            onRequestKnots(m_calibContext.channel);
+        }
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+void LensWorker::onSetZoomTrack(int channel, bool enabled)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+    m_controller.setZoomTrackFocus(cam, enabled);
+    emit zoomTrackState(channel, enabled);
+}
+
+void LensWorker::onSetInterpMode(int channel, int mode)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+    auto* engine = m_controller.zoomTrackEngine(cam);
+    if (engine) {
+        engine->setMode((mode == 0) ? LensControl::InterpolationMode::PchipSpline
+                                    : LensControl::InterpolationMode::PiecewiseLinear);
+    }
+    onRequestKnots(channel);
+}
+
+void LensWorker::onSetActiveCurve(int channel, int index)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+    auto* engine = m_controller.zoomTrackEngine(cam);
+    if (engine && index >= 0 && static_cast<std::size_t>(index) < engine->curveCount()) {
+        engine->setActiveCurve(static_cast<std::size_t>(index));
+    }
+    onRequestKnots(channel);
+}
+
+void LensWorker::onSetCurveDistance(int channel, int index, double distanceMeters)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+    auto* engine = m_controller.zoomTrackEngine(cam);
+    if (engine && index >= 0 && static_cast<std::size_t>(index) < engine->curveCount()) {
+        const auto* cur = engine->getCurve(static_cast<std::size_t>(index));
+        if (cur != nullptr) {
+            LensControl::TrackCurve mod = *cur;
+            mod.distanceMeters = static_cast<float>(distanceMeters);
+            (void)engine->addCurve(mod);
+        }
+    }
+    onRequestKnots(channel);
+}
+
+void LensWorker::onAddKnot(int channel, int zoom, int focus)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+    auto* engine = m_controller.zoomTrackEngine(cam);
+    if (!engine) {
+        return;
+    }
+    const std::size_t activeIdx = engine->activeCurve();
+    const auto* curve = engine->getCurve(activeIdx);
+    LensControl::TrackCurve modifiedCurve { };
+    if (curve != nullptr) {
+        modifiedCurve = *curve;
+    }
+    if (modifiedCurve.knotCount < LensControl::TrackCurve::kMaxKnots) {
+        const std::size_t idx = modifiedCurve.knotCount;
+        modifiedCurve.knots[idx].zoom
+            = LensControl::MotorPosition(static_cast<std::uint16_t>(std::clamp(zoom, 0, 65535)));
+        modifiedCurve.knots[idx].focus
+            = LensControl::MotorPosition(static_cast<std::uint16_t>(std::clamp(focus, 0, 65535)));
+        modifiedCurve.knots[idx].slope = 0.0F;
+        modifiedCurve.knotCount++;
+
+        std::sort(modifiedCurve.knots.begin(),
+            modifiedCurve.knots.begin() + static_cast<std::ptrdiff_t>(modifiedCurve.knotCount),
+            [](const LensControl::TrackKnot& a, const LensControl::TrackKnot& b) {
+                return a.zoom.value() < b.zoom.value();
+            });
+
+        LensControl::ZoomTrackFocusEngine::computePchip(modifiedCurve);
+        if (curve != nullptr) {
+            (void)engine->setCurve(activeIdx, modifiedCurve);
+        } else {
+            (void)engine->addCurve(modifiedCurve);
+        }
+    }
+    onRequestKnots(static_cast<int>(c));
+}
+
+void LensWorker::onUpdateKnot(int channel, int index, int zoom, int focus)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+    auto* engine = m_controller.zoomTrackEngine(cam);
+    if (!engine) {
+        return;
+    }
+    const std::size_t activeIdx = engine->activeCurve();
+    const auto* curve = engine->getCurve(activeIdx);
+    if (!curve || index < 0 || static_cast<std::size_t>(index) >= curve->knotCount) {
+        return;
+    }
+    LensControl::TrackCurve modifiedCurve = *curve;
+    const auto kIdx = static_cast<std::size_t>(index);
+    modifiedCurve.knots[kIdx].zoom = LensControl::MotorPosition(static_cast<std::uint16_t>(std::clamp(zoom, 0, 65535)));
+    modifiedCurve.knots[kIdx].focus
+        = LensControl::MotorPosition(static_cast<std::uint16_t>(std::clamp(focus, 0, 65535)));
+
+    std::sort(modifiedCurve.knots.begin(),
+        modifiedCurve.knots.begin() + static_cast<std::ptrdiff_t>(modifiedCurve.knotCount),
+        [](const LensControl::TrackKnot& a, const LensControl::TrackKnot& b) {
+            return a.zoom.value() < b.zoom.value();
+        });
+    LensControl::ZoomTrackFocusEngine::computePchip(modifiedCurve);
+    (void)engine->setCurve(activeIdx, modifiedCurve);
+    onRequestKnots(static_cast<int>(c));
+}
+
+void LensWorker::onRemoveKnot(int channel, int index)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+    auto* engine = m_controller.zoomTrackEngine(cam);
+    if (!engine) {
+        return;
+    }
+    const std::size_t activeIdx = engine->activeCurve();
+    const auto* curve = engine->getCurve(activeIdx);
+    if (!curve || index < 0 || static_cast<std::size_t>(index) >= curve->knotCount) {
+        return;
+    }
+    LensControl::TrackCurve modifiedCurve = *curve;
+    const auto kIdx = static_cast<std::size_t>(index);
+    for (std::size_t i = kIdx; i + 1U < modifiedCurve.knotCount; ++i) {
+        modifiedCurve.knots[i] = modifiedCurve.knots[i + 1U];
+    }
+    modifiedCurve.knotCount--;
+    if (modifiedCurve.knotCount >= 2U) {
+        LensControl::ZoomTrackFocusEngine::computePchip(modifiedCurve);
+    }
+    (void)engine->setCurve(activeIdx, modifiedCurve);
+    onRequestKnots(static_cast<int>(c));
+}
+
+void LensWorker::onClearKnots(int channel)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+    auto* engine = m_controller.zoomTrackEngine(cam);
+    if (!engine) {
+        return;
+    }
+    const std::size_t activeIdx = engine->activeCurve();
+    const auto* curve = engine->getCurve(activeIdx);
+    LensControl::TrackCurve emptyCurve { };
+    if (curve != nullptr) {
+        emptyCurve.distanceMeters = curve->distanceMeters;
+    }
+    emptyCurve.knotCount = 0U;
+    if (curve != nullptr) {
+        (void)engine->setCurve(activeIdx, emptyCurve);
+    } else {
+        (void)engine->addCurve(emptyCurve);
+    }
+    onRequestKnots(static_cast<int>(c));
+}
+
+void LensWorker::onSortKnots(int channel)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+    auto* engine = m_controller.zoomTrackEngine(cam);
+    if (!engine) {
+        return;
+    }
+    const std::size_t activeIdx = engine->activeCurve();
+    const auto* curve = engine->getCurve(activeIdx);
+    if (!curve || curve->knotCount < 2U) {
+        return;
+    }
+    LensControl::TrackCurve sortedCurve = *curve;
+    std::sort(sortedCurve.knots.begin(), sortedCurve.knots.begin() + static_cast<std::ptrdiff_t>(sortedCurve.knotCount),
+        [](const LensControl::TrackKnot& a, const LensControl::TrackKnot& b) {
+            return a.zoom.value() < b.zoom.value();
+        });
+    LensControl::ZoomTrackFocusEngine::computePchip(sortedCurve);
+    (void)engine->setCurve(activeIdx, sortedCurve);
+    onRequestKnots(static_cast<int>(c));
+}
+
+void LensWorker::onRequestKnots(int channel)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+    auto* engine = m_controller.zoomTrackEngine(cam);
+    if (!engine) {
+        return;
+    }
+
+    const std::size_t activeIdx = engine->activeCurve();
+    const std::size_t count = engine->curveCount();
+    const auto* curve = engine->getCurve(activeIdx);
+
+    QVariantList knotList;
+    double dist = 0.0;
+    bool valid = false;
+
+    if (curve != nullptr) {
+        dist = static_cast<double>(curve->distanceMeters);
+        valid = curve->isValid();
+        for (std::size_t k = 0U; k < curve->knotCount; ++k) {
+            QVariantMap kMap;
+            kMap[QStringLiteral("zoom")] = static_cast<int>(curve->knots[k].zoom.value());
+            kMap[QStringLiteral("focus")] = static_cast<int>(curve->knots[k].focus.value());
+            kMap[QStringLiteral("slope")] = static_cast<double>(curve->knots[k].slope);
+            knotList.append(kMap);
+        }
+    }
+
+    emit knotsReady(static_cast<int>(c), knotList);
+    emit curveSetUpdated(static_cast<int>(c), static_cast<int>(count), static_cast<int>(activeIdx), dist, valid);
+}
+
+void LensWorker::onStartCalib(int channel, int knots, int zMin, int zMax, double dist)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+    auto* engine = m_controller.zoomTrackEngine(cam);
+    if (!engine) {
+        emit calibFinished(channel, false, QStringLiteral("No zoom track engine found"));
+        return;
+    }
+
+    const std::size_t clampedKnots = static_cast<std::size_t>(std::clamp(knots, 4, 32));
+    const auto zm = static_cast<std::uint16_t>(std::clamp(zMin, 0, 65535));
+    const auto zx = static_cast<std::uint16_t>(std::clamp(zMax, static_cast<int>(zm) + 100, 65535));
+
+    engine->startCalib(clampedKnots, LensControl::MotorPosition(zm), LensControl::MotorPosition(zx));
+
+    m_calibContext.state = CalibWizardState::SlewingZoom;
+    m_calibContext.channel = static_cast<int>(c);
+    m_calibContext.totalKnots = clampedKnots;
+    m_calibContext.currentKnotIdx = 0U;
+    m_calibContext.zoomMin = zm;
+    m_calibContext.zoomMax = zx;
+    m_calibContext.targetDistanceMeters = static_cast<float>(dist);
+    m_calibContext.currentTargetZoom = engine->nextCalibZoom().value();
+    m_calibContext.settleDelay = std::chrono::milliseconds(200);
+
+    // Disable real-time zoom tracking during calibration
+    m_controller.setZoomTrackFocus(cam, false);
+
+    // Slew zoom to initial knot
+    m_controller.setZoomTarget(cam, LensControl::MotorPosition(m_calibContext.currentTargetZoom));
+
+    emit calibProgress(
+        channel, 1, static_cast<int>(clampedKnots), 0.0, QStringLiteral("Slewing to first zoom knot..."));
+}
+
+void LensWorker::onCancelCalib(int channel)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+    auto* engine = m_controller.zoomTrackEngine(cam);
+    if (engine && engine->isCalibrating()) {
+        engine->cancelCalib();
+    }
+    m_controller.stopAutoFocus(cam);
+    m_calibContext.state = CalibWizardState::Idle;
+    emit calibFinished(channel, false, QStringLiteral("Calibration cancelled by operator."));
+    onRequestKnots(channel);
+}
+
+void LensWorker::onLoadTrackFile(int channel, const QString& path)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+    const bool success = m_controller.loadTrackCurves(cam, path.toStdString());
+    const QString msg = success ? QStringLiteral("Track curves loaded successfully.")
+                                : QStringLiteral("Failed to parse track curve file.");
+    emit curveIoFinished(static_cast<int>(c), success, msg);
+    onRequestKnots(static_cast<int>(c));
+}
+
+void LensWorker::onSaveTrackFile(int channel, const QString& path)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+    const bool success = m_controller.saveTrackCurves(cam, path.toStdString());
+    const QString msg = success ? QStringLiteral("Track curves saved successfully.")
+                                : QStringLiteral("Failed to write track curve file.");
+    emit curveIoFinished(static_cast<int>(c), success, msg);
+}
+
+void LensWorker::onExportJsonProfile(int channel, const QString& path)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+    auto* engine = m_controller.zoomTrackEngine(cam);
+    if (!engine) {
+        emit curveIoFinished(channel, false, QStringLiteral("Engine unavailable"));
+        return;
+    }
+
+    QJsonObject rootObj;
+    rootObj[QStringLiteral("version")] = 1;
+    rootObj[QStringLiteral("channel")] = static_cast<int>(c);
+    rootObj[QStringLiteral("interpolationMode")] = (engine->mode() == LensControl::InterpolationMode::PchipSpline)
+        ? QStringLiteral("PchipSpline")
+        : QStringLiteral("PiecewiseLinear");
+    rootObj[QStringLiteral("activeCurveIndex")] = static_cast<int>(engine->activeCurve());
+
+    QJsonArray curvesArray;
+    for (std::size_t ci = 0U; ci < engine->curveCount(); ++ci) {
+        const auto* curve = engine->getCurve(ci);
+        if (!curve)
+            continue;
+        QJsonObject cObj;
+        cObj[QStringLiteral("index")] = static_cast<int>(ci);
+        cObj[QStringLiteral("distanceMeters")] = static_cast<double>(curve->distanceMeters);
+        cObj[QStringLiteral("label")] = (curve->distanceMeters > 0.0F)
+            ? QString::asprintf("%.1fm", static_cast<double>(curve->distanceMeters))
+            : QStringLiteral("Infinity");
+
+        QJsonArray knotsArray;
+        for (std::size_t ki = 0U; ki < curve->knotCount; ++ki) {
+            QJsonObject kObj;
+            kObj[QStringLiteral("zoom")] = static_cast<int>(curve->knots[ki].zoom.value());
+            kObj[QStringLiteral("focus")] = static_cast<int>(curve->knots[ki].focus.value());
+            kObj[QStringLiteral("slope")] = static_cast<double>(curve->knots[ki].slope);
+            knotsArray.append(kObj);
+        }
+        cObj[QStringLiteral("knots")] = knotsArray;
+        curvesArray.append(cObj);
+    }
+    rootObj[QStringLiteral("curves")] = curvesArray;
+
+    QFile outFile(path);
+    if (!outFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        emit curveIoFinished(channel, false, QStringLiteral("Failed to open file for writing: ") + path);
+        return;
+    }
+    const QJsonDocument doc(rootObj);
+    outFile.write(doc.toJson(QJsonDocument::Indented));
+    outFile.close();
+    emit curveIoFinished(channel, true, QStringLiteral("JSON profile exported successfully."));
+}
+
+void LensWorker::onImportJsonProfile(int channel, const QString& path)
+{
+    const auto c = static_cast<std::uint8_t>(std::clamp(channel, 0, 3));
+    const LensControl::CameraIndex cam(c);
+    auto* engine = m_controller.zoomTrackEngine(cam);
+    if (!engine) {
+        emit curveIoFinished(channel, false, QStringLiteral("Engine unavailable"));
+        return;
+    }
+
+    QFile inFile(path);
+    if (!inFile.open(QIODevice::ReadOnly)) {
+        emit curveIoFinished(channel, false, QStringLiteral("Failed to open file for reading: ") + path);
+        return;
+    }
+    const QByteArray data = inFile.readAll();
+    inFile.close();
+
+    QJsonParseError parseErr;
+    const QJsonDocument doc = QJsonDocument::fromJson(data, &parseErr);
+    if (doc.isNull() || !doc.isObject()) {
+        emit curveIoFinished(channel, false, QStringLiteral("Malformed JSON: ") + parseErr.errorString());
+        return;
+    }
+
+    const QJsonObject rootObj = doc.object();
+    engine->clearCurves();
+
+    if (rootObj.contains(QStringLiteral("interpolationMode"))) {
+        const QString modeStr = rootObj[QStringLiteral("interpolationMode")].toString();
+        engine->setMode((modeStr == QStringLiteral("PiecewiseLinear")) ? LensControl::InterpolationMode::PiecewiseLinear
+                                                                       : LensControl::InterpolationMode::PchipSpline);
+    }
+
+    const QJsonArray curvesArray = rootObj[QStringLiteral("curves")].toArray();
+    for (const auto& cVal : curvesArray) {
+        if (!cVal.isObject())
+            continue;
+        const QJsonObject cObj = cVal.toObject();
+        LensControl::TrackCurve curve { };
+        curve.distanceMeters = static_cast<float>(cObj[QStringLiteral("distanceMeters")].toDouble(0.0));
+
+        const QJsonArray knotsArray = cObj[QStringLiteral("knots")].toArray();
+        for (const auto& kVal : knotsArray) {
+            if (!kVal.isObject() || curve.knotCount >= LensControl::TrackCurve::kMaxKnots)
+                continue;
+            const QJsonObject kObj = kVal.toObject();
+            const auto z = static_cast<std::uint16_t>(kObj[QStringLiteral("zoom")].toInt(0));
+            const auto f = static_cast<std::uint16_t>(kObj[QStringLiteral("focus")].toInt(0));
+            curve.knots[curve.knotCount].zoom = LensControl::MotorPosition(z);
+            curve.knots[curve.knotCount].focus = LensControl::MotorPosition(f);
+            curve.knots[curve.knotCount].slope = static_cast<float>(kObj[QStringLiteral("slope")].toDouble(0.0));
+            curve.knotCount++;
+        }
+        if (curve.knotCount >= 2U) {
+            std::sort(curve.knots.begin(), curve.knots.begin() + static_cast<std::ptrdiff_t>(curve.knotCount),
+                [](const LensControl::TrackKnot& a, const LensControl::TrackKnot& b) {
+                    return a.zoom.value() < b.zoom.value();
+                });
+            LensControl::ZoomTrackFocusEngine::computePchip(curve);
+            (void)engine->addCurve(curve);
+        }
+    }
+
+    if (rootObj.contains(QStringLiteral("activeCurveIndex"))) {
+        const int actIdx = rootObj[QStringLiteral("activeCurveIndex")].toInt(0);
+        if (actIdx >= 0 && static_cast<std::size_t>(actIdx) < engine->curveCount()) {
+            engine->setActiveCurve(static_cast<std::size_t>(actIdx));
+        }
+    }
+
+    emit curveIoFinished(channel, true, QStringLiteral("JSON profile imported successfully."));
+    onRequestKnots(channel);
 }
 
 } // namespace LensApp
