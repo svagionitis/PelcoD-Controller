@@ -422,6 +422,37 @@ if(PELCOD_ENABLE_QT AND TARGET LensController AND TARGET Qt6::Test)
         Qt6::Test
     )
     pelcod_register_gtest(TestLensParfocalTracking NO_MAIN)
+
+    add_executable(TestLensTelemetryAndPresets
+        TestLensTelemetryAndPresets.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/LensPlayerController.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/LensWorker.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/LensConfigModel.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/LensPresetManager.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/LensTelemetryRingBuffer.cpp
+        ${CMAKE_SOURCE_DIR}/app-lens-qt/SyntheticDefocusGenerator.cpp
+    )
+    target_include_directories(TestLensTelemetryAndPresets PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/app-lens-qt
+        ${CMAKE_SOURCE_DIR}/libs/LensController
+        ${CMAKE_SOURCE_DIR}/libs/Video
+        ${CMAKE_SOURCE_DIR}/libs/Math
+        ${CMAKE_SOURCE_DIR}/libs/Transport
+    )
+    target_link_libraries(TestLensTelemetryAndPresets PRIVATE
+        LensController
+        Video
+        Math
+        Transport
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Qml
+        Qt6::Quick
+        Qt6::QuickControls2
+        Qt6::Test
+    )
+    pelcod_register_gtest(TestLensTelemetryAndPresets NO_MAIN)
 endif()
 
 # ==============================================================================

@@ -24,6 +24,8 @@ namespace LensApp {
 LensPlayerController::LensPlayerController(QObject* parent)
     : QObject(parent)
     , m_configModel(new LensConfigModel(this))
+    , m_telemetryBuffer(new LensTelemetryRingBuffer(this))
+    , m_presetManager(new LensPresetManager(this))
 {
     setupWorkerThread();
     scanSerialPorts();
@@ -377,6 +379,16 @@ LensConfigModel* LensPlayerController::configModel() const noexcept
     return m_configModel;
 }
 
+LensTelemetryRingBuffer* LensPlayerController::telemetryBuffer() const noexcept
+{
+    return m_telemetryBuffer;
+}
+
+LensPresetManager* LensPlayerController::presetManager() const noexcept
+{
+    return m_presetManager;
+}
+
 Video::AtomicTripleBuffer<LensFramePacket>& LensPlayerController::tripleBuffer() noexcept
 {
     return m_tripleBuffer;
@@ -387,6 +399,9 @@ void LensPlayerController::setActiveChannel(int channel)
     const int clamped = std::clamp(channel, 0, 3);
     if (m_activeChannel != clamped) {
         m_activeChannel = clamped;
+        if (m_presetManager) {
+            m_presetManager->setActiveChannel(m_activeChannel);
+        }
         emit activeChannelChanged();
         emit requestSetChannel(m_activeChannel);
 
@@ -955,6 +970,108 @@ void LensPlayerController::loadDriverPlugin(const QString& path, int portIdx, in
     emit requestLoadDll(m_activeChannel, path, portIdx, baud);
 }
 
+void LensPlayerController::recallPreset(int id)
+{
+    if (!m_presetManager) {
+        return;
+    }
+    LensPreset preset { };
+    if (!m_presetManager->getPreset(id, preset)) {
+        return;
+    }
+
+    setFocusSpeed(preset.focusSpeed);
+    setZoomSpeed(preset.zoomSpeed);
+    setFocusTarget(preset.focusPosition);
+    setZoomTarget(preset.zoomPosition);
+    setAfAlgorithm(preset.afAlgorithm);
+    setFocusMetric(preset.focusMetric);
+
+    m_statusMessage = QStringLiteral("Recalled Preset %1 ('%2')").arg(id).arg(preset.name);
+    emit statusMessageChanged();
+}
+
+void LensPlayerController::saveCurrentAsPreset(int id, const QString& name)
+{
+    if (!m_presetManager) {
+        return;
+    }
+    const auto chIdx = static_cast<std::size_t>(std::clamp(m_activeChannel, 0, 3));
+    m_presetManager->savePreset(id, name, m_currentFocus, m_currentZoom, m_driverStates[chIdx].focusSpeed,
+        m_driverStates[chIdx].zoomSpeed, m_afAlgorithm, m_focusMetric);
+    m_statusMessage = QStringLiteral("Saved Preset %1 ('%2')").arg(id).arg(name);
+    emit statusMessageChanged();
+}
+
+void LensPlayerController::deletePreset(int id)
+{
+    if (!m_presetManager) {
+        return;
+    }
+    m_presetManager->deletePreset(id);
+    m_statusMessage = QStringLiteral("Cleared Preset %1").arg(id);
+    emit statusMessageChanged();
+}
+
+void LensPlayerController::resetPresetsToDefault()
+{
+    if (!m_presetManager) {
+        return;
+    }
+    m_presetManager->resetFactoryDefaults();
+    m_statusMessage = QStringLiteral("Restored factory default presets");
+    emit statusMessageChanged();
+}
+
+void LensPlayerController::exportPresetsJson(const QString& path)
+{
+    if (!m_presetManager) {
+        return;
+    }
+    const bool ok = m_presetManager->exportJson(path);
+    m_statusMessage = ok ? QStringLiteral("Exported presets to: %1").arg(path)
+                         : QStringLiteral("Failed to export presets to: %1").arg(path);
+    emit statusMessageChanged();
+}
+
+void LensPlayerController::importPresetsJson(const QString& path)
+{
+    if (!m_presetManager) {
+        return;
+    }
+    const bool ok = m_presetManager->importJson(path);
+    m_statusMessage = ok ? QStringLiteral("Imported presets from: %1").arg(path)
+                         : QStringLiteral("Failed to import presets from: %1").arg(path);
+    emit statusMessageChanged();
+}
+
+void LensPlayerController::exportTelemetryCsv(const QString& path)
+{
+    if (!m_telemetryBuffer) {
+        return;
+    }
+    const bool ok = m_telemetryBuffer->exportCsv(path);
+    m_statusMessage = ok ? QStringLiteral("Exported telemetry CSV to: %1").arg(path)
+                         : QStringLiteral("Failed to export telemetry CSV to: %1").arg(path);
+    emit statusMessageChanged();
+}
+
+void LensPlayerController::clearTelemetryBuffer()
+{
+    if (m_telemetryBuffer) {
+        m_telemetryBuffer->clear();
+    }
+    m_statusMessage = QStringLiteral("Telemetry buffer cleared");
+    emit statusMessageChanged();
+}
+
+void LensPlayerController::onTelemetrySnapshotReady(const LensApp::TelemetrySample& sample)
+{
+    if (m_telemetryBuffer) {
+        m_telemetryBuffer->appendSample(sample);
+    }
+}
+
 void LensPlayerController::onDriverBound(
     int channel, int driverType, const QString& portName, int baud, int address, bool success, const QString& error)
 {
@@ -1131,6 +1248,7 @@ void LensPlayerController::onCurveIoFinished(int channel, bool success, const QS
 void LensPlayerController::setupWorkerThread()
 {
     qRegisterMetaType<QVariantList>("QVariantList");
+    qRegisterMetaType<LensApp::TelemetrySample>("LensApp::TelemetrySample");
     m_worker = new LensWorker(m_tripleBuffer);
     m_worker->moveToThread(&m_workerThread);
 
@@ -1197,6 +1315,7 @@ void LensPlayerController::setupWorkerThread()
     // Feedback signals from worker
     connect(m_worker, &LensWorker::statusUpdated, this, &LensPlayerController::onStatusUpdated);
     connect(m_worker, &LensWorker::telemetryReady, this, &LensPlayerController::onTelemetryReady);
+    connect(m_worker, &LensWorker::telemetrySampleReady, this, &LensPlayerController::onTelemetrySnapshotReady);
     connect(m_worker, &LensWorker::afStateUpdated, this, &LensPlayerController::onAfStateUpdated);
     connect(m_worker, &LensWorker::peakFitted, this, &LensPlayerController::onPeakFitted);
     connect(m_worker, &LensWorker::samplesReady, this, &LensPlayerController::onSamplesReady);

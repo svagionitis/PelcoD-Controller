@@ -827,13 +827,14 @@ To ensure rapid, test-driven, and verifiable progress, the implementation is par
 - **Deliverables**: End-to-end parfocal calibration tool generating valid LUT curves, verified by 100% test pass rate across `TestLensParfocalTracking`.
 
 ### Phase 6: Telemetry Ring Buffer, Presets & Diagnostics Panel
+*(Detailed implementation plan: [`app_lens_qt_phase6_plan.md`](app_lens_qt_phase6_plan.md) — **Completed & Verified**)*
 - **Objectives**: Provide session logging, preset recall, and comprehensive operational diagnostics.
 - **Tasks**:
-  1. Implement `LensTelemetryRingBuffer` caching rolling telemetry history.
-  2. Implement `LensPresetManager` saving and restoring optical presets to JSON.
-  3. Build `DiagnosticsPanel.qml` presenting comprehensive actuator status, error counters, and execution latency breakdowns.
-  4. Add CSV telemetry export capability.
-- **Deliverables**: Robust diagnostics and preset management matching `app-stabilizer-qt`.
+  1. [x] Implement `LensTelemetryRingBuffer` caching rolling telemetry history.
+  2. [x] Implement `LensPresetManager` saving and restoring optical presets to JSON.
+  3. [x] Build `DiagnosticsPanel.qml` presenting comprehensive actuator status, error counters, and execution latency breakdowns.
+  4. [x] Add CSV telemetry export capability.
+- **Deliverables**: Robust diagnostics and preset management matching `app-stabilizer-qt`, verified by 100% automated test pass rate across `TestLensTelemetryAndPresets`.
 
 ### Phase 7: Verification, Hardening & Documentation
 - **Objectives**: Comprehensive automated testing, performance verification, sanitizers, and documentation sign-off.
@@ -858,7 +859,7 @@ To ensure rapid, test-driven, and verifiable progress, the implementation is par
 | **Phase 3** | Optical Axis Controls, Limits & Hardware Driver Integration | [`app_lens_qt_phase3_plan.md`](app_lens_qt_phase3_plan.md) | **Completed** |
 | **Phase 4** | Autofocus (AF) Testing Laboratory & Interactive ROI | [`app_lens_qt_phase4_plan.md`](app_lens_qt_phase4_plan.md) | **Completed & Verified** |
 | **Phase 5** | Parfocal Zoom-to-Focus Calibration & Visualizer | [`app_lens_qt_phase5_plan.md`](app_lens_qt_phase5_plan.md) | **Completed & Verified** |
-| **Phase 6** | Telemetry Ring Buffer, Presets & Diagnostics Panel | `app_lens_qt_phase6_plan.md` | Pending |
+| **Phase 6** | Telemetry Ring Buffer, Presets & Diagnostics Panel | [`app_lens_qt_phase6_plan.md`](app_lens_qt_phase6_plan.md) | **Completed & Verified** |
 | **Phase 7** | Verification, Hardening & Documentation | `app_lens_qt_phase7_plan.md` | Pending |
 
 ### Standards & Quality Checklist

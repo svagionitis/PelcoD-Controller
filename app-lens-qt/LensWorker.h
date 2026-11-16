@@ -21,6 +21,7 @@
 #include "IVideoDecoder.h"
 #include "LensController.h"
 #include "LensFramePacket.h"
+#include "LensTelemetryRingBuffer.h"
 #include "SerialTransport.h"
 #include "SyntheticDefocusGenerator.h"
 #include "ZoomTrackFocusEngine.h"
@@ -121,6 +122,7 @@ signals:
     void playbackStateChanged(int state);
     void statusUpdated(int focus, int zoom, int limits, int mode, bool afActive);
     void telemetryReady(double metricScore, int channel);
+    void telemetrySampleReady(const LensApp::TelemetrySample& sample);
     void afStateUpdated(int state, bool isRunning);
     void peakFitted(double vertex, double score, double curvature, double r2, bool valid);
     void samplesReady(const QVariantList& samples);

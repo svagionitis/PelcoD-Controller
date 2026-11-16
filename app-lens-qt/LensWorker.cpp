@@ -623,7 +623,8 @@ void LensWorker::extractLuma(const std::uint8_t* rgb, std::uint8_t* luma, std::s
 
 void LensWorker::processLoopTick()
 {
-    const auto now = std::chrono::steady_clock::now();
+    const auto t0 = std::chrono::steady_clock::now();
+    const auto now = t0;
     double dt = 1.0 / ((m_nominalFps > 0.0) ? m_nominalFps : kDefaultFps);
     if (m_lastTickTime.time_since_epoch().count() > 0) {
         dt = std::chrono::duration<double>(now - m_lastTickTime).count();
@@ -667,9 +668,14 @@ void LensWorker::processLoopTick()
         }
     }
 
+    const auto t1 = std::chrono::steady_clock::now();
+    const auto decodeUs
+        = static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count());
+
     writeSlot.frameId = ++m_frameCounter;
 
     // Fast integer extraction of grayscale luma
+    const auto t2_start = std::chrono::steady_clock::now();
     const std::size_t pixelCount = static_cast<std::size_t>(m_frameWidth) * static_cast<std::size_t>(m_frameHeight);
     extractLuma(writeSlot.rgbBuffer.data(), writeSlot.lumaBuffer.data(), pixelCount);
 
@@ -678,6 +684,9 @@ void LensWorker::processLoopTick()
         std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count());
     m_controller.processFrame(activeCam, writeSlot.lumaBuffer.data(), static_cast<std::size_t>(m_frameWidth),
         static_cast<std::size_t>(m_frameHeight), nowNs, static_cast<std::uint32_t>(writeSlot.frameId));
+    const auto t2_end = std::chrono::steady_clock::now();
+    const auto metricUs
+        = static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::microseconds>(t2_end - t2_start).count());
 
     // Telemetry snapshot
     writeSlot.status = status;
@@ -719,6 +728,27 @@ void LensWorker::processLoopTick()
     }
 
     stepCalibWizard(status);
+
+    const auto t_end = std::chrono::steady_clock::now();
+    const auto loopUs
+        = static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::microseconds>(t_end - t0).count());
+    const float currentFps = (dt > 0.0) ? static_cast<float>(1.0 / dt) : 30.0F;
+
+    TelemetrySample sample { };
+    sample.timestampNs = nowNs;
+    sample.frameIndex = static_cast<std::uint32_t>(writeSlot.frameId);
+    sample.channel = static_cast<std::uint8_t>(m_activeChannel);
+    sample.focusPosition = status.focusPos.value();
+    sample.zoomPosition = status.zoomPos.value();
+    sample.metricScore = static_cast<double>(writeSlot.metricScore.metric);
+    sample.afState = static_cast<std::uint8_t>(afState);
+    sample.limitFlags = static_cast<std::uint8_t>(status.focusLimits | status.zoomLimits);
+    sample.decodeLatencyUs = decodeUs;
+    sample.metricLatencyUs = metricUs;
+    sample.loopLatencyUs = loopUs;
+    sample.currentFps = currentFps;
+
+    emit telemetrySampleReady(sample);
 }
 
 void LensWorker::stepCalibWizard(const LensControl::LensStatus& status)

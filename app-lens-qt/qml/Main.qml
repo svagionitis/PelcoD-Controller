@@ -281,10 +281,40 @@ ApplicationWindow {
                                 }
                             }
                         }
+
+                        Button {
+                            id: tabDiagBtn
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            checkable: true
+                            checked: rightPanelStack.currentIndex === 3
+                            text: "DIAGNOSTICS"
+                            onClicked: rightPanelStack.currentIndex = 3
+
+                            contentItem: Text {
+                                text: tabDiagBtn.text
+                                color: tabDiagBtn.checked ? "#00e5ff" : "#808a9d"
+                                font.pixelSize: 10
+                                font.bold: tabDiagBtn.checked
+                                font.letterSpacing: 0.5
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+
+                            background: Rectangle {
+                                color: tabDiagBtn.checked ? "#141720" : "#0e1014"
+                                Rectangle {
+                                    anchors.bottom: parent.bottom
+                                    width: parent.width
+                                    height: 2
+                                    color: tabDiagBtn.checked ? "#00e5ff" : "transparent"
+                                }
+                            }
+                        }
                     }
                 }
 
-                // StackLayout hosting Axis Deck vs AF Deck vs Parfocal Deck
+                // StackLayout hosting Axis Deck vs AF Deck vs Parfocal Deck vs Diagnostics Deck
                 StackLayout {
                     id: rightPanelStack
                     Layout.fillWidth: true
@@ -303,6 +333,11 @@ ApplicationWindow {
 
                     ParfocalPanel {
                         id: parfocalPanel
+                        controller: controller
+                    }
+
+                    DiagnosticsPanel {
+                        id: diagnosticsPanel
                         controller: controller
                     }
                 }

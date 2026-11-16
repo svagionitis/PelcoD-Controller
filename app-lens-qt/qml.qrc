@@ -8,6 +8,7 @@
         <file>qml/FocusSharpnessChart.qml</file>
         <file>qml/ParfocalCurveChart.qml</file>
         <file>qml/ParfocalPanel.qml</file>
+        <file>qml/DiagnosticsPanel.qml</file>
         <file>qml/DriverConfigDialog.qml</file>
         <file>qml/Components/StatusBadge.qml</file>
         <file>qml/Components/JogWheel.qml</file>

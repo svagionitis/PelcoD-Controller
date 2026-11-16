@@ -10,6 +10,8 @@
 
 #include "LensConfigModel.h"
 #include "LensPlayerController.h"
+#include "LensPresetManager.h"
+#include "LensTelemetryRingBuffer.h"
 #include "LensVideoQuickItem.h"
 #include "PresentationTypes.h"
 
@@ -27,6 +29,10 @@ int main(int argc, char* argv[])
     qmlRegisterType<LensApp::LensVideoQuickItem>("LensApp", 1, 0, "LensVideoQuickItem");
     qmlRegisterUncreatableType<LensApp::LensConfigModel>(
         "LensApp", 1, 0, "LensConfigModel", QStringLiteral("Access via LensPlayerController"));
+    qmlRegisterUncreatableType<LensApp::LensTelemetryRingBuffer>(
+        "LensApp", 1, 0, "LensTelemetryRingBuffer", QStringLiteral("Access via LensPlayerController.telemetryBuffer"));
+    qmlRegisterUncreatableType<LensApp::LensPresetManager>(
+        "LensApp", 1, 0, "LensPresetManager", QStringLiteral("Access via LensPlayerController.presetManager"));
     qmlRegisterUncreatableMetaObject(LensApp::PresentationTypes::staticMetaObject, "LensApp", 1, 0, "PresentationTypes",
         QStringLiteral("PresentationTypes holds scoped enums only"));
 

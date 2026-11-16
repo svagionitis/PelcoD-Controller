@@ -5,6 +5,10 @@ add_executable(LensAppQt
     LensFramePacket.h
     LensPlayerController.h
     LensPlayerController.cpp
+    LensPresetManager.h
+    LensPresetManager.cpp
+    LensTelemetryRingBuffer.h
+    LensTelemetryRingBuffer.cpp
     LensVideoQuickItem.h
     LensVideoQuickItem.cpp
     LensWorker.h

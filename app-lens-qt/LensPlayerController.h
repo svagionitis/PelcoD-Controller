@@ -19,6 +19,8 @@
 #include "AtomicTripleBuffer.h"
 #include "LensConfigModel.h"
 #include "LensFramePacket.h"
+#include "LensPresetManager.h"
+#include "LensTelemetryRingBuffer.h"
 
 namespace LensApp {
 
@@ -115,6 +117,8 @@ class LensPlayerController : public QObject {
 
     // Sub-models
     Q_PROPERTY(LensConfigModel* configModel READ configModel CONSTANT)
+    Q_PROPERTY(LensTelemetryRingBuffer* telemetryBuffer READ telemetryBuffer CONSTANT)
+    Q_PROPERTY(LensPresetManager* presetManager READ presetManager CONSTANT)
 
 public:
     enum class DriverType : std::uint8_t { Mock = 0U, PelcoD = 1U, Visca = 2U, DynamicDll = 3U };
@@ -201,6 +205,8 @@ public:
     [[nodiscard]] int zoomSpeed() const noexcept;
 
     [[nodiscard]] LensConfigModel* configModel() const noexcept;
+    [[nodiscard]] LensTelemetryRingBuffer* telemetryBuffer() const noexcept;
+    [[nodiscard]] LensPresetManager* presetManager() const noexcept;
     [[nodiscard]] Video::AtomicTripleBuffer<LensFramePacket>& tripleBuffer() noexcept;
 
 public slots:
@@ -284,6 +290,16 @@ public slots:
     void bindPelcoDriver(int portIdx, int baud, int address);
     void bindViscaDriver(int portIdx, int baud, int address);
     void loadDriverPlugin(const QString& path, int portIdx, int baud);
+
+    // Preset & Telemetry Slots (< 30 chars)
+    void recallPreset(int id);
+    void saveCurrentAsPreset(int id, const QString& name);
+    void deletePreset(int id);
+    void resetPresetsToDefault();
+    void exportPresetsJson(const QString& path);
+    void importPresetsJson(const QString& path);
+    void exportTelemetryCsv(const QString& path);
+    void clearTelemetryBuffer();
 
 signals:
     void activeChannelChanged();
@@ -403,6 +419,7 @@ private slots:
     void onCalibProgress(int channel, int step, int total, double progress, const QString& status);
     void onCalibFinished(int channel, bool success, const QString& message);
     void onCurveIoFinished(int channel, bool success, const QString& message);
+    void onTelemetrySnapshotReady(const LensApp::TelemetrySample& sample);
 
 private:
     void setupWorkerThread();
@@ -422,6 +439,8 @@ private:
     QThread m_workerThread { };
     LensWorker* m_worker { nullptr };
     LensConfigModel* m_configModel { nullptr };
+    LensTelemetryRingBuffer* m_telemetryBuffer { nullptr };
+    LensPresetManager* m_presetManager { nullptr };
 
     int m_activeChannel { 0 };
     int m_lensMode { 0 };
