@@ -6,7 +6,7 @@ description: >-
 
 # C++17 Verification Checklist & Safety Gate
 
-Before presenting any C++17 code snippet, writing an implementation file, or proposing a refactoring across any library in this repository, internally verify the code against this comprehensive 18-point safety gate.
+Before presenting any C++17 code snippet, writing an implementation file, or proposing a refactoring across any library in this repository, internally verify the code against this comprehensive 19-point safety gate.
 
 ---
 
@@ -22,10 +22,11 @@ Before presenting any C++17 code snippet, writing an implementation file, or pro
 |         ├── [2. Standards]: MISRA C++:2023, SEI CERT INT31-C / ERR55-CPP      |
 |         ├── [3. Architecture]: 0 Qt in Core libraries, Linux & Win32 support  |
 |         ├── [4. IWYU & Tooling]: Direct headers, scripts/verify_iwyu_cstdint.py|
-|         └── [5. Documentation]: Full Doxygen, relative paths, ASCII & Mermaid |
+|         ├── [5. Zen of Simplicity]: Flat control flow, explicit > implicit     |
+|         └── [6. Documentation]: Full Doxygen, relative paths, ASCII & Mermaid |
 |         │                                                                     |
 |         ▼                                                                     |
-|   Pass All 18 Checks -> Approved for Output / Merge                           |
+|   Pass All 19 Checks -> Approved for Output / Merge                           |
 +-------------------------------------------------------------------------------+
 ```
 
@@ -47,7 +48,7 @@ flowchart TD
 
 ---
 
-## 2. The 18-Point Verification Checklist
+## 2. The 19-Point Verification Checklist
 
 1. **RAII / Memory:** Did I use any raw `new` or `delete`? (If yes, rewrite using RAII/smart pointers like `std::unique_ptr`).
 2. **Explicit Initialization:** Are all variables explicitly initialized using `{}` where possible (e.g. `int count{0};`, `std::uint8_t byte{0x00};`)?
@@ -67,6 +68,7 @@ flowchart TD
 16. **IWYU (Include-What-You-Use):** Does every file directly include all headers it depends on without assuming transitive includes, using forward declarations in headers where pointer/reference usage suffices?
 17. **STL Value Types & Conversions:** Do callables passed to STL algorithms take the range's exact `value_type`? Are iterator-range constructors between differing signed/unsigned types avoided in favor of explicit `static_cast` in project code?
 18. **Exception Safety & Fast Paths (CERT ERR55-CPP):** Are all functions declared `noexcept` on network receive, protocol parsing, and tracking frame loops **100% free of dynamic heap allocations** (`std::string`, `std::vector`, `new`, `std::make_unique`) to prevent `std::bad_alloc` triggering `std::terminate`?
+19. **Zen of Systems Engineering (PEP 20):** Does the code follow the Zen of Engineering (per [zen-principles.md](../../rules/zen-principles.md)): explicit over implicit, flat control flow via early returns ($\le 2$ nesting levels), errors checked (`[[nodiscard]]`), and sparse, readable statements without compound side-effect chains?
 
 ---
 

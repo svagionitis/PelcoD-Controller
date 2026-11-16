@@ -24,8 +24,8 @@ It separates evaluation into two independent axes: **Standards & Safety** (MISRA
 |         │       • MISRA C++:2023 & SEI CERT C++                     │         |
 |         │       • IWYU & std:: fixed-width integer compliance       │         |
 |         │       • Core Isolation (Zero Qt in ANY Core library)      ▼         |
-|         │       • Fowler Code Smells (Primitive Obsession, etc.)[Prioritized] |
-|         │                                                       [ Findings  ] |
+|         │       • Zen of Simplicity (PEP 20: Flat, Explicit, 0-Drop)[Prioritized] |
+|         │       • Fowler Code Smells (Primitive Obsession, etc.)    [ Findings  ] |
 |         └───► [Axis 2: Spec & Subsystem Integrity] ────────────►[ Report    ] |
 |                 • Subsystem specification & wire format integrity   ▲         |
 |                 • Mathematical & numerical stability (Vision/Math)  │         |
@@ -45,7 +45,8 @@ flowchart TD
         A2["SEI CERT ERR55-CPP<br/>(Zero heap in noexcept network & real-time paths)"]
         A3["IWYU & &lt;cstdint&gt; Policy<br/>(Direct includes, std:: prefixes)"]
         A4["Core Isolation Rule<br/>(Zero Qt in any non-Qt library)"]
-        A5["Fowler Code Smells<br/>(Primitive Obsession, Feature Envy, Shotgun Surgery)"]
+        A5["Zen of Simplicity (PEP 20)<br/>(Flat over nested, explicit over implicit, no silent errors)"]
+        A6["Fowler Code Smells<br/>(Primitive Obsession, Feature Envy, Shotgun Surgery)"]
     end
 
     subgraph Axis2["Axis 2: Spec & Subsystem Correctness"]
@@ -86,7 +87,7 @@ Any newly added library in `libs/` is immediately governed by these strict archi
 ## 3. Review Axes Details
 
 ### Axis 1: Standards & Safety Compliance
-Review the diff against the safety rules defined in `.agents/rules/compliance.md`, `.agents/rules/iwyu-cstdint.md`, and `.agents/rules/verification-checklist.md`:
+Review the diff against the safety rules defined in [compliance.md](../../rules/compliance.md), [iwyu-cstdint.md](../../rules/iwyu-cstdint.md), [zen-principles.md](../../rules/zen-principles.md), and [verification-checklist.md](../../rules/verification-checklist.md):
 
 1. **MISRA C++:2023 & SEI CERT C++ Rules:**
    - Any implicit signed/unsigned conversions? (Must use explicit `static_cast`).
@@ -99,7 +100,12 @@ Review the diff against the safety rules defined in `.agents/rules/compliance.md
    - Is `std::size_t` preceded by `#include <cstddef>` or `<cstdint>`?
 3. **Core Layer Decoupling (Strict Zero Qt in Core):**
    - Any `#include <Q...>` in a non-Qt library is an immediate blocker.
-4. **Fowler Code Smells Baseline:**
+4. **Zen of Simplicity & Code Ergonomics (PEP 20 Applied):**
+   - *Flat is better than nested:* Check for Arrow Anti-Pattern or deep indentation ($\ge 3$ levels); enforce guard clauses and early returns.
+   - *Explicit is better than implicit:* Reject implicit conversions, hidden defaults, or boolean flag arguments (enforce strong enums and explicit constructors).
+   - *Sparse is better than dense:* Reject compound side-effect expressions (`a[i++] = ++j`). Ensure logical blocks have breathing room.
+   - *Errors never pass silently:* Ensure return statuses and `std::optional` results are checked (`[[nodiscard]]`), not dropped.
+5. **Fowler Code Smells Baseline:**
    - *Primitive Obsession:* Are raw integers or floats passed instead of domain types (`ConfidenceScore`, `NormalizedCoord`, `PanSpeed`)?
    - *Feature Envy / Inappropriate Intimacy:* Does a processing class reach directly into private internals of models?
    - *Resource Management:* Are there raw `new` or `delete` calls instead of RAII containers/smart pointers?

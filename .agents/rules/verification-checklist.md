@@ -23,4 +23,5 @@ Before presenting any C++17 code snippet or committing changes, internally verif
 16. Does the code adhere to **IWYU (Include-What-You-Use)**: directly including every header for symbols, types, or templates used, never relying on transitive/indirect includes, and using forward declarations in headers where pointer/reference usage suffices?
 17. Do callables passed to STL algorithms (and iterator-range constructors) use the range's exact value_type, with any conversion made explicit inside project code?
 18. Are functions marked `noexcept` on fast paths (network receive, protocol parsing, tracking frame loops) completely free of heap allocations (`std::string`, `std::vector`, `new`, `std::make_unique`) to prevent `std::terminate` under memory exhaustion (CERT ERR55-CPP)?
+19. Does the code adhere to the **Zen of Systems Engineering** (PEP 20 applied, see [`zen-principles.md`](zen-principles.md)): explicit over implicit, flat control flow via guard clauses, errors checked (`[[nodiscard]]`), and sparse, readable statements without compound side effects?
 
