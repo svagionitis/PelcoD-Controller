@@ -23,6 +23,13 @@ add_library(LensController STATIC
     LensController.cpp
     LensPayloadAdapter.h
     LensPayloadAdapter.cpp
+    MotionControlTypes.h
+    ParfocalFeedforwardController.h
+    ParfocalFeedforwardController.cpp
+    MotionProfiler.h
+    MotionProfiler.cpp
+    ActuatorPidController.h
+    ActuatorPidController.cpp
 )
 
 target_include_directories(LensController PUBLIC

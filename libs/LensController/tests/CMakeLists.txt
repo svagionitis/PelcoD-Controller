@@ -28,4 +28,8 @@ add_lens_test(TestViscaLensDriver  TestViscaLensDriver.cpp)
 add_lens_test(TestPelcoDLensDriver TestPelcoDLensDriver.cpp)
 add_lens_test(TestLensController   TestLensController.cpp)
 add_lens_test(TestLensPayloadAdapter TestLensPayloadAdapter.cpp)
+add_lens_test(TestMotionControlTypes      TestMotionControlTypes.cpp)
+add_lens_test(TestParfocalFeedforward     TestParfocalFeedforward.cpp)
+add_lens_test(TestMotionProfiler          TestMotionProfiler.cpp)
+add_lens_test(TestActuatorPidController   TestActuatorPidController.cpp)
 

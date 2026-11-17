@@ -11,11 +11,15 @@
 #include <mutex>
 #include <string_view>
 
+#include "ActuatorPidController.h"
 #include "AutoFocusEngine.h"
 #include "FocusEvaluator.h"
 #include "ILensDriver.h"
 #include "LensDriverLoader.h"
 #include "LensTypes.h"
+#include "MotionControlTypes.h"
+#include "MotionProfiler.h"
+#include "ParfocalFeedforwardController.h"
 #include "ZoomTrackFocusEngine.h"
 
 namespace LensControl {
@@ -125,6 +129,48 @@ public:
     /// @param cam Channel index [0..3].
     /// @return Const pointer to ZoomTrackFocusEngine, or nullptr if channel invalid.
     [[nodiscard]] const ZoomTrackFocusEngine* zoomTrackEngine(CameraIndex cam) const noexcept;
+
+    // --- Actuator Dynamics & Motion Control ---
+
+    /// @brief Enables or disables parfocal zoom-velocity derivative feedforward.
+    /// @param cam Channel index [0..3].
+    /// @param enable True to engage dynamic feedforward focus velocity calculation.
+    void setFeedforwardEnabled(CameraIndex cam, bool enable) noexcept;
+
+    /// @brief Queries whether dynamic parfocal feedforward is enabled.
+    /// @param cam Channel index [0..3].
+    /// @return True if feedforward is active.
+    [[nodiscard]] bool isFeedforwardEnabled(CameraIndex cam) const noexcept;
+
+    /// @brief Provides access to the parfocal feedforward controller.
+    /// @param cam Channel index [0..3].
+    /// @return Pointer to ParfocalFeedforwardController, or nullptr if invalid.
+    [[nodiscard]] ParfocalFeedforwardController* feedforwardController(CameraIndex cam) noexcept;
+
+    /// @brief Provides const access to the parfocal feedforward controller.
+    /// @param cam Channel index [0..3].
+    /// @return Const pointer to ParfocalFeedforwardController, or nullptr if invalid.
+    [[nodiscard]] const ParfocalFeedforwardController* feedforwardController(CameraIndex cam) const noexcept;
+
+    /// @brief Provides access to the focus axis 7-phase S-curve motion profiler.
+    /// @param cam Channel index [0..3].
+    /// @return Pointer to MotionProfiler, or nullptr if invalid.
+    [[nodiscard]] MotionProfiler* focusProfiler(CameraIndex cam) noexcept;
+
+    /// @brief Provides const access to the focus axis 7-phase S-curve motion profiler.
+    /// @param cam Channel index [0..3].
+    /// @return Const pointer to MotionProfiler, or nullptr if invalid.
+    [[nodiscard]] const MotionProfiler* focusProfiler(CameraIndex cam) const noexcept;
+
+    /// @brief Provides access to the focus axis closed-loop PID controller.
+    /// @param cam Channel index [0..3].
+    /// @return Pointer to ActuatorPidController, or nullptr if invalid.
+    [[nodiscard]] ActuatorPidController* focusPid(CameraIndex cam) noexcept;
+
+    /// @brief Provides const access to the focus axis closed-loop PID controller.
+    /// @param cam Channel index [0..3].
+    /// @return Const pointer to ActuatorPidController, or nullptr if invalid.
+    [[nodiscard]] const ActuatorPidController* focusPid(CameraIndex cam) const noexcept;
 
     /// @brief Ingests active tracking target bounding box for dynamic AF ROI centering.
     /// @param cam Channel index [0..3].
@@ -247,6 +293,9 @@ private:
         std::unique_ptr<ILensDriver> driver { nullptr };
         std::unique_ptr<AutoFocusEngine> afEngine { nullptr };
         std::unique_ptr<ZoomTrackFocusEngine> zoomTrackEngine { nullptr };
+        std::unique_ptr<ParfocalFeedforwardController> feedforwardCtrl { nullptr };
+        std::unique_ptr<MotionProfiler> focusProfiler { nullptr };
+        std::unique_ptr<ActuatorPidController> focusPid { nullptr };
         FocusEvaluator evaluator { };
         LensMode mode { LensMode::ManualJog };
         LensRanges ranges { 0U, 65535U, 0U, 65535U };
@@ -255,6 +304,7 @@ private:
         LensStatus status { };
         FocusMetricScore lastScore { };
         bool zoomTrackEnabled { false };
+        bool feedforwardEnabled { false };
         MotorPosition lastZoomPos { 0U };
         mutable std::mutex mutex { };
     };

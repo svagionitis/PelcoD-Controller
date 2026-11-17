@@ -100,6 +100,11 @@ public:
     /// @return Interpolated focus motor position.
     [[nodiscard]] MotorPosition evaluateDistance(MotorPosition zoom, float distanceMeters) const noexcept;
 
+    /// @brief Evaluates instantaneous focus derivative (df/dz) for a given zoom position.
+    /// @param zoom Current zoom motor position.
+    /// @return Rate of change df/dz along the active curve.
+    [[nodiscard]] float evaluateDerivative(MotorPosition zoom) const noexcept;
+
     // PCHIP Tangent Computation
     /// @brief Computes shape-preserving PCHIP derivatives for all knots in the curve.
     /// @param curve Curve whose knot slopes will be populated in-place.
@@ -130,6 +135,8 @@ public:
 private:
     [[nodiscard]] MotorPosition evalPchip(const TrackCurve& curve, MotorPosition zoom) const noexcept;
     [[nodiscard]] MotorPosition evalLinear(const TrackCurve& curve, MotorPosition zoom) const noexcept;
+    [[nodiscard]] float evalPchipDerivative(const TrackCurve& curve, MotorPosition zoom) const noexcept;
+    [[nodiscard]] float evalLinearDerivative(const TrackCurve& curve, MotorPosition zoom) const noexcept;
 
     TrackCurveSet m_curveSet { };
     InterpolationMode m_mode { InterpolationMode::PchipSpline };

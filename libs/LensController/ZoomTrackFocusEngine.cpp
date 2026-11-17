@@ -335,6 +335,110 @@ MotorPosition ZoomTrackFocusEngine::evaluateFocus(MotorPosition zoom) const noex
     return (m_mode == InterpolationMode::PchipSpline) ? evalPchip(curve, zoom) : evalLinear(curve, zoom);
 }
 
+float ZoomTrackFocusEngine::evalPchipDerivative(const TrackCurve& curve, MotorPosition zoom) const noexcept
+{
+    const std::size_t n = curve.knotCount;
+    if (n < 2U) {
+        return 0.0F;
+    }
+    if (zoom.value() <= curve.knots[0].zoom.value()) {
+        return curve.knots[0].slope;
+    }
+    if (zoom.value() >= curve.knots[n - 1U].zoom.value()) {
+        return curve.knots[n - 1U].slope;
+    }
+
+    std::size_t low = 0U;
+    std::size_t high = n - 1U;
+    while (low + 1U < high) {
+        const std::size_t mid = low + ((high - low) / 2U);
+        if (curve.knots[mid].zoom.value() <= zoom.value()) {
+            low = mid;
+        } else {
+            high = mid;
+        }
+    }
+
+    const std::size_t k = low;
+    const float zk = static_cast<float>(curve.knots[k].zoom.value());
+    const float zk1 = static_cast<float>(curve.knots[k + 1U].zoom.value());
+    const float hk = zk1 - zk;
+    if (hk <= 0.0F) {
+        return 0.0F;
+    }
+
+    const float z = static_cast<float>(zoom.value());
+    const float t = (z - zk) / hk;
+    const float t2 = t * t;
+
+    const float dh0 = (6.0F * t2) - (6.0F * t);
+    const float dh1 = (3.0F * t2) - (4.0F * t) + 1.0F;
+    const float dh2 = (-6.0F * t2) + (6.0F * t);
+    const float dh3 = (3.0F * t2) - (2.0F * t);
+
+    const float fk = static_cast<float>(curve.knots[k].focus.value());
+    const float fk1 = static_cast<float>(curve.knots[k + 1U].focus.value());
+    const float dk = curve.knots[k].slope;
+    const float dk1 = curve.knots[k + 1U].slope;
+
+    const float df_dt = (dh0 * fk) + (dh1 * hk * dk) + (dh2 * fk1) + (dh3 * hk * dk1);
+    return df_dt / hk;
+}
+
+float ZoomTrackFocusEngine::evalLinearDerivative(const TrackCurve& curve, MotorPosition zoom) const noexcept
+{
+    const std::size_t n = curve.knotCount;
+    if (n < 2U) {
+        return 0.0F;
+    }
+    if (zoom.value() <= curve.knots[0].zoom.value()) {
+        const float h0
+            = static_cast<float>(curve.knots[1].zoom.value()) - static_cast<float>(curve.knots[0].zoom.value());
+        return (h0 > 0.0F)
+            ? ((static_cast<float>(curve.knots[1].focus.value()) - static_cast<float>(curve.knots[0].focus.value()))
+                  / h0)
+            : 0.0F;
+    }
+    if (zoom.value() >= curve.knots[n - 1U].zoom.value()) {
+        const float hn = static_cast<float>(curve.knots[n - 1U].zoom.value())
+            - static_cast<float>(curve.knots[n - 2U].zoom.value());
+        return (hn > 0.0F) ? ((static_cast<float>(curve.knots[n - 1U].focus.value())
+                                  - static_cast<float>(curve.knots[n - 2U].focus.value()))
+                                 / hn)
+                           : 0.0F;
+    }
+
+    std::size_t low = 0U;
+    std::size_t high = n - 1U;
+    while (low + 1U < high) {
+        const std::size_t mid = low + ((high - low) / 2U);
+        if (curve.knots[mid].zoom.value() <= zoom.value()) {
+            low = mid;
+        } else {
+            high = mid;
+        }
+    }
+
+    const std::size_t k = low;
+    const float zk = static_cast<float>(curve.knots[k].zoom.value());
+    const float zk1 = static_cast<float>(curve.knots[k + 1U].zoom.value());
+    const float fk = static_cast<float>(curve.knots[k].focus.value());
+    const float fk1 = static_cast<float>(curve.knots[k + 1U].focus.value());
+    const float hk = zk1 - zk;
+
+    return (hk > 0.0F) ? ((fk1 - fk) / hk) : 0.0F;
+}
+
+float ZoomTrackFocusEngine::evaluateDerivative(MotorPosition zoom) const noexcept
+{
+    if (m_curveSet.curveCount == 0U) {
+        return 0.0F;
+    }
+    const TrackCurve& curve = m_curveSet.curves[m_curveSet.activeIndex];
+    return (m_mode == InterpolationMode::PchipSpline) ? evalPchipDerivative(curve, zoom)
+                                                      : evalLinearDerivative(curve, zoom);
+}
+
 MotorPosition ZoomTrackFocusEngine::evaluateDistance(MotorPosition zoom, float distanceMeters) const noexcept
 {
     if (m_curveSet.curveCount == 0U) {

@@ -314,3 +314,30 @@ TEST(TestZoomTrackCurve, CancelCalibration)
     EXPECT_FALSE(engine.isCalibrating());
     EXPECT_EQ(engine.curveCount(), 0U);
 }
+
+TEST(TestZoomTrackCurve, DerivativeEvaluation)
+{
+    TrackCurve curve { };
+    curve.knotCount = 3U;
+    curve.knots[0].zoom = MotorPosition { 0U };
+    curve.knots[0].focus = MotorPosition { 1000U };
+    curve.knots[1].zoom = MotorPosition { 10000U };
+    curve.knots[1].focus = MotorPosition { 3000U }; // slope = 2000 / 10000 = 0.2
+    curve.knots[2].zoom = MotorPosition { 20000U };
+    curve.knots[2].focus = MotorPosition { 5000U }; // slope = 0.2
+
+    ZoomTrackFocusEngine engine;
+    EXPECT_TRUE(engine.addCurve(curve));
+
+    // PCHIP mode
+    engine.setMode(InterpolationMode::PchipSpline);
+    EXPECT_NEAR(engine.evaluateDerivative(MotorPosition { 0U }), 0.2F, 1e-4F);
+    EXPECT_NEAR(engine.evaluateDerivative(MotorPosition { 5000U }), 0.2F, 1e-4F);
+    EXPECT_NEAR(engine.evaluateDerivative(MotorPosition { 10000U }), 0.2F, 1e-4F);
+    EXPECT_NEAR(engine.evaluateDerivative(MotorPosition { 20000U }), 0.2F, 1e-4F);
+
+    // Linear mode
+    engine.setMode(InterpolationMode::PiecewiseLinear);
+    EXPECT_NEAR(engine.evaluateDerivative(MotorPosition { 5000U }), 0.2F, 1e-4F);
+    EXPECT_NEAR(engine.evaluateDerivative(MotorPosition { 15000U }), 0.2F, 1e-4F);
+}

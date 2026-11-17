@@ -9,15 +9,20 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <memory>
 #include <mutex>
 #include <string_view>
 
+#include "ActuatorPidController.h"
 #include "AutoFocusEngine.h"
 #include "FocusEvaluator.h"
 #include "ILensDriver.h"
 #include "LensDriverLoader.h"
 #include "LensTypes.h"
+#include "MotionControlTypes.h"
+#include "MotionProfiler.h"
+#include "ParfocalFeedforwardController.h"
 #include "ZoomTrackFocusEngine.h"
 
 namespace LensControl {
@@ -64,6 +69,15 @@ void LensController::refreshChannelEnginesLocked(Channel& ch) noexcept
     }
     if (!ch.zoomTrackEngine) {
         ch.zoomTrackEngine = std::make_unique<ZoomTrackFocusEngine>();
+    }
+    if (!ch.feedforwardCtrl) {
+        ch.feedforwardCtrl = std::make_unique<ParfocalFeedforwardController>();
+    }
+    if (!ch.focusProfiler) {
+        ch.focusProfiler = std::make_unique<MotionProfiler>();
+    }
+    if (!ch.focusPid) {
+        ch.focusPid = std::make_unique<ActuatorPidController>();
     }
 }
 
@@ -294,6 +308,15 @@ bool LensController::loadTrackCurves(CameraIndex cam, std::string_view filename)
     if (!ch.zoomTrackEngine) {
         ch.zoomTrackEngine = std::make_unique<ZoomTrackFocusEngine>();
     }
+    if (!ch.feedforwardCtrl) {
+        ch.feedforwardCtrl = std::make_unique<ParfocalFeedforwardController>();
+    }
+    if (!ch.focusProfiler) {
+        ch.focusProfiler = std::make_unique<MotionProfiler>();
+    }
+    if (!ch.focusPid) {
+        ch.focusPid = std::make_unique<ActuatorPidController>();
+    }
     const TrackCurveError err = ch.zoomTrackEngine->parseFile(filename);
     return err == TrackCurveError::None;
 }
@@ -335,6 +358,77 @@ const ZoomTrackFocusEngine* LensController::zoomTrackEngine(CameraIndex cam) con
         return nullptr;
     }
     return m_channels[cam.value()].zoomTrackEngine.get();
+}
+
+void LensController::setFeedforwardEnabled(CameraIndex cam, bool enable) noexcept
+{
+    if (!isValidChannel(cam)) {
+        return;
+    }
+    Channel& ch = m_channels[cam.value()];
+    std::lock_guard<std::mutex> lock { ch.mutex };
+    ch.feedforwardEnabled = enable;
+    if (ch.feedforwardCtrl) {
+        ch.feedforwardCtrl->reset();
+    }
+}
+
+bool LensController::isFeedforwardEnabled(CameraIndex cam) const noexcept
+{
+    if (!isValidChannel(cam)) {
+        return false;
+    }
+    const Channel& ch = m_channels[cam.value()];
+    std::lock_guard<std::mutex> lock { ch.mutex };
+    return ch.feedforwardEnabled;
+}
+
+ParfocalFeedforwardController* LensController::feedforwardController(CameraIndex cam) noexcept
+{
+    if (!isValidChannel(cam)) {
+        return nullptr;
+    }
+    return m_channels[cam.value()].feedforwardCtrl.get();
+}
+
+const ParfocalFeedforwardController* LensController::feedforwardController(CameraIndex cam) const noexcept
+{
+    if (!isValidChannel(cam)) {
+        return nullptr;
+    }
+    return m_channels[cam.value()].feedforwardCtrl.get();
+}
+
+MotionProfiler* LensController::focusProfiler(CameraIndex cam) noexcept
+{
+    if (!isValidChannel(cam)) {
+        return nullptr;
+    }
+    return m_channels[cam.value()].focusProfiler.get();
+}
+
+const MotionProfiler* LensController::focusProfiler(CameraIndex cam) const noexcept
+{
+    if (!isValidChannel(cam)) {
+        return nullptr;
+    }
+    return m_channels[cam.value()].focusProfiler.get();
+}
+
+ActuatorPidController* LensController::focusPid(CameraIndex cam) noexcept
+{
+    if (!isValidChannel(cam)) {
+        return nullptr;
+    }
+    return m_channels[cam.value()].focusPid.get();
+}
+
+const ActuatorPidController* LensController::focusPid(CameraIndex cam) const noexcept
+{
+    if (!isValidChannel(cam)) {
+        return nullptr;
+    }
+    return m_channels[cam.value()].focusPid.get();
 }
 
 void LensController::setTrackerRoi(
@@ -514,7 +608,24 @@ void LensController::update(CameraIndex cam) noexcept
     ch.status.isAfActive = afActive;
 
     if (ch.zoomTrackEnabled && ch.zoomTrackEngine && !afActive) {
-        if (curZoom != ch.lastZoomPos) {
+        if (ch.feedforwardEnabled && ch.feedforwardCtrl) {
+            const DeltaTimeSec dt { 0.02F };
+            const float focusVelCmd = ch.feedforwardCtrl->update(curZoom, curFocus, *ch.zoomTrackEngine, dt);
+            if (std::abs(focusVelCmd) > 0.0F) {
+                const std::uint8_t speedCount
+                    = static_cast<std::uint8_t>(std::clamp(std::abs(focusVelCmd), 1.0F, 255.0F));
+                const float nextFocusPos = static_cast<float>(curFocus.value()) + (focusVelCmd * dt.value());
+                const float clampedPos = std::clamp(nextFocusPos, 0.0F, 65535.0F);
+                const MotorPosition targetFocus { static_cast<std::uint16_t>(std::round(clampedPos)) };
+                const MotorPosition boundedFocus = ch.ranges.clampFocus(targetFocus);
+                ch.driver->setFocusPosition(boundedFocus, MotorSpeed { speedCount });
+            } else if (curZoom != ch.lastZoomPos) {
+                const MotorPosition targetFocus = ch.zoomTrackEngine->evaluateFocus(curZoom);
+                const MotorPosition clampedFocus = ch.ranges.clampFocus(targetFocus);
+                ch.driver->setFocusPosition(clampedFocus, ch.focusSpeed);
+            }
+            ch.lastZoomPos = curZoom;
+        } else if (curZoom != ch.lastZoomPos) {
             const MotorPosition targetFocus = ch.zoomTrackEngine->evaluateFocus(curZoom);
             const MotorPosition clampedFocus = ch.ranges.clampFocus(targetFocus);
             ch.driver->setFocusPosition(clampedFocus, ch.focusSpeed);

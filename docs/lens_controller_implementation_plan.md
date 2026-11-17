@@ -994,7 +994,7 @@ libs/LensController/
 | [**Phase 5**](lens_controller_phase5_plan.md) | **Dynamic DLL Loader & Protocols** | `LensDriverLoader.h/.cpp`, `ViscaLensDriver.h/.cpp`, `PelcoDLensDriver.h/.cpp` | **Completed** | Cross-platform dynamic loading, port collision rejection, VISCA/Pelco-D frame generation. |
 | [**Phase 6**](lens_controller_phase6_plan.md) | **Master Controller & Payload HAL** | `LensController.h/.cpp`, `LensPayloadAdapter.h/.cpp` bridging to `PayloadHal::ICameraPayload` | **Completed** | Unified multi-channel management, smooth joystick jog, limit clamping. |
 | [**Phase 7**](lens_controller_phase7_plan.md) | **Verification, Documentation & CI** | Integration into root `CMakeLists.txt`, `scripts/verify_iwyu_cstdint.py`, Doxygen validation | **Completed** | Zero compiler warnings, 100% test pass rate on Linux and Windows. |
-| **Phase 8** | **Actuator Dynamics & Motion Control** | `ParfocalFeedforwardController`, `MotionProfiler` (7-phase S-curve), `ActuatorPidController` | Planned | Synchronous focus slew during zoom, smooth acceleration without ringing, stiction inversion. |
+| [**Phase 8**](lens_controller_phase8_plan.md) | **Actuator Dynamics & Motion Control** | `ParfocalFeedforwardController`, `MotionProfiler` (7-phase S-curve), `ActuatorPidController` | **Completed** | Synchronous focus slew during zoom, smooth acceleration without ringing, stiction inversion. |
 | **Phase 9** | **Intelligent AF Heuristics** | `MotionGatedAfManager`, `OpticalGeometryCalculator` (DOF/Hyperfocal), `MultiZoneFocusEvaluator` (3x3 grid) | Planned | Zero AF hunting during PTZ pan/tilt slews, instant wide-angle lock, foreground subject priority. |
 | **Phase 10** | **Sensor Fusion & Optics** | `RangeToFocusCueBridge` (LRF/KLV ST 0601), `ThermalDriftCompensator` (LWIR/MWIR), `AutoIrisCoordinator` | Planned | Hunt-free focus on laser target range, thermal drift stability across -40°C..+70°C, exposure co-tuning. |
 | **Phase 11** | **Calibration & Diagnostics** | `BacklashCalibrator`, `ActuatorDiagnostics` (cycle count, wear telemetry, stall detection) | Planned | Autonomous mechanical gear backlash calibration, non-volatile cycle tracking, slip warning. |
@@ -1008,10 +1008,11 @@ libs/LensController/
 +---------------------------------------------------------------------------------------------------+
 |                             LENS CONTROLLER PHASED ROADMAP (PHASES 1-14)                          |
 |                                                                                                   |
-|  [COMPLETED] Phases 1-7 : Core Domain, 6-Metric Evaluator, PCHIP Parfocal LUT, 4-Mode AF Engine,  |
-|                           Dynamic Plugin Loader, VISCA/Pelco-D Drivers & PayloadHal Adapter       |
-|  [PLANNED]   Phases 8-11: Parfocal Feedforward, S-Curve Profiler, Motion-Gated AF, 3x3 Multi-Zone,|
-|                           LRF/KLV Range Cueing, LWIR Athermalization & Backlash Auto-Calibrator   |
+|  [COMPLETED] Phases 1-8 : Core Domain, 6-Metric Evaluator, PCHIP Parfocal LUT, 4-Mode AF Engine,  |
+|                           Dynamic Plugin Loader, VISCA/Pelco-D Drivers, PayloadHal, Feedforward,  |
+|                           7-Phase S-Curve Profiler & Stiction Inversion Actuator PID              |
+|  [PLANNED]   Phases 9-11: Motion-Gated AF, 3x3 Multi-Zone, LRF/KLV Range Cueing,                  |
+|                           LWIR Athermalization & Backlash Auto-Calibrator                         |
 |  [PLANNED]   Phase 12   : Single-Pass Fused Focus Evaluator & Configurable Metric Dividers (0xB3) |
 |  [PLANNED]   Phase 13   : Default LensType Plugin Resolution & License Capability Gating          |
 |  [PLANNED]   Phase 14   : Sightline Phase C FIP Protocol Bridge (0x55, 0x6C-0x6F, 0xB1-0xB5)      |
@@ -1020,9 +1021,9 @@ libs/LensController/
 
 ```mermaid
 flowchart TD
-    P1_7["Phases 1-7: Core LensController, 6-Metric FocusEvaluator,<br/>PCHIP ZoomTrack & 4-Mode AutoFocusEngine <b>[COMPLETED]</b>"] --> P8_11["Phases 8-11: Feedforward, S-Curve, Multi-Zone,<br/>LRF Cueing, Athermalization & Backlash Calibration <b>[PLANNED]</b>"]
-    P1_7 --> P12["Phase 12: Single-Pass Fused Focus Evaluator<br/>& Configurable Metric Dividers (0xB3) <b>[PLANNED]</b>"]
-    P1_7 --> P13["Phase 13: Default LensType Plugin Resolution<br/>& License Capability Gating <b>[PLANNED]</b>"]
+    P1_8["Phases 1-8: Core LensController, FocusEvaluator, PCHIP ZoomTrack,<br/>AutoFocusEngine, Feedforward, S-Curve & Actuator PID <b>[COMPLETED]</b>"] --> P9_11["Phases 9-11: Motion-Gated AF, 3x3 Multi-Zone,<br/>LRF Cueing, Athermalization & Backlash Calibration <b>[PLANNED]</b>"]
+    P1_8 --> P12["Phase 12: Single-Pass Fused Focus Evaluator<br/>& Configurable Metric Dividers (0xB3) <b>[PLANNED]</b>"]
+    P1_8 --> P13["Phase 13: Default LensType Plugin Resolution<br/>& License Capability Gating <b>[PLANNED]</b>"]
     P12 & P13 --> P14["Phase 14: Sightline Phase C FIP Protocol Bridge<br/>(0x55, 0x6C-0x6F, 0xB1-0xB5) <b>[PLANNED]</b>"]
 ```
 
