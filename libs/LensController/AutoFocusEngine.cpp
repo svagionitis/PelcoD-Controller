@@ -98,7 +98,7 @@ void AutoFocusEngine::processFrame(const std::uint8_t* luma, std::size_t width, 
     m_newScoreAvailable = true;
 
     // Continuous Autofocus (CAF) background defocus trigger
-    if (m_cafEnabled && !isRunning() && m_cafPeakScore > 0U) {
+    if (m_cafEnabled && !isRunning() && m_cafPeakScore > 0U && m_gatingState == AfGatingState::Active) {
         const auto threshold
             = static_cast<std::uint32_t>(static_cast<float>(m_cafPeakScore) * (1.0F - m_config.cafDefocusFrac));
         if (m_latestScore.metric < threshold) {
@@ -521,6 +521,23 @@ void AutoFocusEngine::setCafEnabled(bool enable) noexcept
 bool AutoFocusEngine::isCafEnabled() const noexcept
 {
     return m_cafEnabled;
+}
+
+void AutoFocusEngine::setGatingState(AfGatingState state) noexcept
+{
+    m_gatingState = state;
+}
+
+AfGatingState AutoFocusEngine::gatingState() const noexcept
+{
+    return m_gatingState;
+}
+
+void AutoFocusEngine::applyAdaptiveSteps(const AdaptiveStepConfig& steps) noexcept
+{
+    m_config.coarseStep = steps.coarseStep;
+    m_config.midStep = steps.midStep;
+    m_config.fineStep = steps.fineStep;
 }
 
 bool AutoFocusEngine::isRunning() const noexcept

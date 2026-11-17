@@ -30,6 +30,13 @@ add_library(LensController STATIC
     MotionProfiler.cpp
     ActuatorPidController.h
     ActuatorPidController.cpp
+    AfHeuristicsTypes.h
+    MotionGatedAfManager.h
+    MotionGatedAfManager.cpp
+    OpticalGeometryCalculator.h
+    OpticalGeometryCalculator.cpp
+    MultiZoneFocusEvaluator.h
+    MultiZoneFocusEvaluator.cpp
 )
 
 target_include_directories(LensController PUBLIC

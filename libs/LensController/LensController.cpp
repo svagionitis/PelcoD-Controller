@@ -15,13 +15,17 @@
 #include <string_view>
 
 #include "ActuatorPidController.h"
+#include "AfHeuristicsTypes.h"
 #include "AutoFocusEngine.h"
 #include "FocusEvaluator.h"
 #include "ILensDriver.h"
 #include "LensDriverLoader.h"
 #include "LensTypes.h"
 #include "MotionControlTypes.h"
+#include "MotionGatedAfManager.h"
 #include "MotionProfiler.h"
+#include "MultiZoneFocusEvaluator.h"
+#include "OpticalGeometryCalculator.h"
 #include "ParfocalFeedforwardController.h"
 #include "ZoomTrackFocusEngine.h"
 
@@ -32,6 +36,12 @@ LensController::LensController() noexcept
     for (std::size_t i = 0U; i < kMaxChannels; ++i) {
         Channel& ch = m_channels[i];
         ch.zoomTrackEngine = std::make_unique<ZoomTrackFocusEngine>();
+        ch.feedforwardCtrl = std::make_unique<ParfocalFeedforwardController>();
+        ch.focusProfiler = std::make_unique<MotionProfiler>();
+        ch.focusPid = std::make_unique<ActuatorPidController>();
+        ch.motionGatedAf = std::make_unique<MotionGatedAfManager>();
+        ch.opticalCalc = std::make_unique<OpticalGeometryCalculator>();
+        ch.multiZoneEval = std::make_unique<MultiZoneFocusEvaluator>(ch.evaluator);
         ch.status.camIdx = CameraIndex { static_cast<std::uint8_t>(i) };
     }
 }
@@ -78,6 +88,15 @@ void LensController::refreshChannelEnginesLocked(Channel& ch) noexcept
     }
     if (!ch.focusPid) {
         ch.focusPid = std::make_unique<ActuatorPidController>();
+    }
+    if (!ch.motionGatedAf) {
+        ch.motionGatedAf = std::make_unique<MotionGatedAfManager>();
+    }
+    if (!ch.opticalCalc) {
+        ch.opticalCalc = std::make_unique<OpticalGeometryCalculator>();
+    }
+    if (!ch.multiZoneEval) {
+        ch.multiZoneEval = std::make_unique<MultiZoneFocusEvaluator>(ch.evaluator);
     }
 }
 
@@ -317,6 +336,15 @@ bool LensController::loadTrackCurves(CameraIndex cam, std::string_view filename)
     if (!ch.focusPid) {
         ch.focusPid = std::make_unique<ActuatorPidController>();
     }
+    if (!ch.motionGatedAf) {
+        ch.motionGatedAf = std::make_unique<MotionGatedAfManager>();
+    }
+    if (!ch.opticalCalc) {
+        ch.opticalCalc = std::make_unique<OpticalGeometryCalculator>();
+    }
+    if (!ch.multiZoneEval) {
+        ch.multiZoneEval = std::make_unique<MultiZoneFocusEvaluator>(ch.evaluator);
+    }
     const TrackCurveError err = ch.zoomTrackEngine->parseFile(filename);
     return err == TrackCurveError::None;
 }
@@ -429,6 +457,85 @@ const ActuatorPidController* LensController::focusPid(CameraIndex cam) const noe
         return nullptr;
     }
     return m_channels[cam.value()].focusPid.get();
+}
+
+void LensController::setPlatformRates(
+    CameraIndex cam, AngularVelocityDegPerSec panRate, AngularVelocityDegPerSec tiltRate, float dtSec) noexcept
+{
+    if (!isValidChannel(cam)) {
+        return;
+    }
+    Channel& ch = m_channels[cam.value()];
+    std::lock_guard<std::mutex> lock { ch.mutex };
+    if (ch.motionGatedAf) {
+        ch.motionGatedAf->updateRates(panRate, tiltRate, dtSec);
+        if (ch.afEngine) {
+            ch.afEngine->setGatingState(ch.motionGatedAf->gatingState());
+        }
+    }
+}
+
+MotionGatedAfManager* LensController::motionGatedAf(CameraIndex cam) noexcept
+{
+    if (!isValidChannel(cam)) {
+        return nullptr;
+    }
+    return m_channels[cam.value()].motionGatedAf.get();
+}
+
+const MotionGatedAfManager* LensController::motionGatedAf(CameraIndex cam) const noexcept
+{
+    if (!isValidChannel(cam)) {
+        return nullptr;
+    }
+    return m_channels[cam.value()].motionGatedAf.get();
+}
+
+OpticalGeometryCalculator* LensController::opticalCalculator(CameraIndex cam) noexcept
+{
+    if (!isValidChannel(cam)) {
+        return nullptr;
+    }
+    return m_channels[cam.value()].opticalCalc.get();
+}
+
+const OpticalGeometryCalculator* LensController::opticalCalculator(CameraIndex cam) const noexcept
+{
+    if (!isValidChannel(cam)) {
+        return nullptr;
+    }
+    return m_channels[cam.value()].opticalCalc.get();
+}
+
+MultiZoneFocusEvaluator* LensController::multiZoneEvaluator(CameraIndex cam) noexcept
+{
+    if (!isValidChannel(cam)) {
+        return nullptr;
+    }
+    return m_channels[cam.value()].multiZoneEval.get();
+}
+
+const MultiZoneFocusEvaluator* LensController::multiZoneEvaluator(CameraIndex cam) const noexcept
+{
+    if (!isValidChannel(cam)) {
+        return nullptr;
+    }
+    return m_channels[cam.value()].multiZoneEval.get();
+}
+
+MultiZoneResult LensController::evaluateMultiZone(
+    CameraIndex cam, const std::uint8_t* grayPixels, std::size_t width, std::size_t height, std::size_t stride) noexcept
+{
+    if (!isValidChannel(cam)) {
+        return MultiZoneResult { };
+    }
+    Channel& ch = m_channels[cam.value()];
+    std::lock_guard<std::mutex> lock { ch.mutex };
+    if (!ch.multiZoneEval) {
+        return MultiZoneResult { };
+    }
+    const MotorPosition curFocus = ch.driver ? ch.driver->currentFocus() : MotorPosition { 0U };
+    return ch.multiZoneEval->evaluateGrid(grayPixels, width, height, stride, curFocus);
 }
 
 void LensController::setTrackerRoi(

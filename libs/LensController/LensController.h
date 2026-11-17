@@ -12,13 +12,17 @@
 #include <string_view>
 
 #include "ActuatorPidController.h"
+#include "AfHeuristicsTypes.h"
 #include "AutoFocusEngine.h"
 #include "FocusEvaluator.h"
 #include "ILensDriver.h"
 #include "LensDriverLoader.h"
 #include "LensTypes.h"
 #include "MotionControlTypes.h"
+#include "MotionGatedAfManager.h"
 #include "MotionProfiler.h"
+#include "MultiZoneFocusEvaluator.h"
+#include "OpticalGeometryCalculator.h"
 #include "ParfocalFeedforwardController.h"
 #include "ZoomTrackFocusEngine.h"
 
@@ -172,6 +176,56 @@ public:
     /// @return Const pointer to ActuatorPidController, or nullptr if invalid.
     [[nodiscard]] const ActuatorPidController* focusPid(CameraIndex cam) const noexcept;
 
+    // --- Intelligent AF Heuristics & Sensor Integration ---
+
+    /// @brief Ingests platform pan and tilt angular rates for CAF motion gating.
+    /// @param cam Channel index [0..3].
+    /// @param panRate Pan rate in deg/s.
+    /// @param tiltRate Tilt rate in deg/s.
+    /// @param dtSec Elapsed time in seconds.
+    void setPlatformRates(
+        CameraIndex cam, AngularVelocityDegPerSec panRate, AngularVelocityDegPerSec tiltRate, float dtSec) noexcept;
+
+    /// @brief Returns the motion-gated AF manager for channel.
+    /// @param cam Channel index [0..3].
+    /// @return Pointer to MotionGatedAfManager, or nullptr if invalid.
+    [[nodiscard]] MotionGatedAfManager* motionGatedAf(CameraIndex cam) noexcept;
+
+    /// @brief Returns const access to motion-gated AF manager for channel.
+    /// @param cam Channel index [0..3].
+    /// @return Const pointer to MotionGatedAfManager, or nullptr if invalid.
+    [[nodiscard]] const MotionGatedAfManager* motionGatedAf(CameraIndex cam) const noexcept;
+
+    /// @brief Returns optical geometry calculator for channel.
+    /// @param cam Channel index [0..3].
+    /// @return Pointer to OpticalGeometryCalculator, or nullptr if invalid.
+    [[nodiscard]] OpticalGeometryCalculator* opticalCalculator(CameraIndex cam) noexcept;
+
+    /// @brief Returns const access to optical geometry calculator for channel.
+    /// @param cam Channel index [0..3].
+    /// @return Const pointer to OpticalGeometryCalculator, or nullptr if invalid.
+    [[nodiscard]] const OpticalGeometryCalculator* opticalCalculator(CameraIndex cam) const noexcept;
+
+    /// @brief Returns multi-zone focus evaluator for channel.
+    /// @param cam Channel index [0..3].
+    /// @return Pointer to MultiZoneFocusEvaluator, or nullptr if invalid.
+    [[nodiscard]] MultiZoneFocusEvaluator* multiZoneEvaluator(CameraIndex cam) noexcept;
+
+    /// @brief Returns const access to multi-zone focus evaluator for channel.
+    /// @param cam Channel index [0..3].
+    /// @return Const pointer to MultiZoneFocusEvaluator, or nullptr if invalid.
+    [[nodiscard]] const MultiZoneFocusEvaluator* multiZoneEvaluator(CameraIndex cam) const noexcept;
+
+    /// @brief Evaluates 3x3 spatial focus matrix across a video frame for channel.
+    /// @param cam Channel index [0..3].
+    /// @param grayPixels Pointer to 8-bit luma pixels.
+    /// @param width Frame width in pixels.
+    /// @param height Frame height in pixels.
+    /// @param stride Row stride in bytes.
+    /// @return MultiZoneResult containing 9 zone scores and arbitrated winner.
+    [[nodiscard]] MultiZoneResult evaluateMultiZone(CameraIndex cam, const std::uint8_t* grayPixels, std::size_t width,
+        std::size_t height, std::size_t stride = 0U) noexcept;
+
     /// @brief Ingests active tracking target bounding box for dynamic AF ROI centering.
     /// @param cam Channel index [0..3].
     /// @param normX Target center X [0.0, 1.0].
@@ -296,6 +350,9 @@ private:
         std::unique_ptr<ParfocalFeedforwardController> feedforwardCtrl { nullptr };
         std::unique_ptr<MotionProfiler> focusProfiler { nullptr };
         std::unique_ptr<ActuatorPidController> focusPid { nullptr };
+        std::unique_ptr<MotionGatedAfManager> motionGatedAf { nullptr };
+        std::unique_ptr<OpticalGeometryCalculator> opticalCalc { nullptr };
+        std::unique_ptr<MultiZoneFocusEvaluator> multiZoneEval { nullptr };
         FocusEvaluator evaluator { };
         LensMode mode { LensMode::ManualJog };
         LensRanges ranges { 0U, 65535U, 0U, 65535U };

@@ -32,4 +32,8 @@ add_lens_test(TestMotionControlTypes      TestMotionControlTypes.cpp)
 add_lens_test(TestParfocalFeedforward     TestParfocalFeedforward.cpp)
 add_lens_test(TestMotionProfiler          TestMotionProfiler.cpp)
 add_lens_test(TestActuatorPidController   TestActuatorPidController.cpp)
+add_lens_test(TestAfHeuristicsTypes        TestAfHeuristicsTypes.cpp)
+add_lens_test(TestMotionGatedAf            TestMotionGatedAf.cpp)
+add_lens_test(TestOpticalGeometry          TestOpticalGeometry.cpp)
+add_lens_test(TestMultiZoneFocus           TestMultiZoneFocus.cpp)
 

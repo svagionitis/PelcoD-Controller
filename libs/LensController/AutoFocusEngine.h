@@ -8,6 +8,7 @@
 
 #include <array>
 
+#include "AfHeuristicsTypes.h"
 #include "AutoFocusTypes.h"
 #include "FocusEvaluator.h"
 #include "ILensDriver.h"
@@ -76,6 +77,18 @@ public:
     /// @brief Queries whether continuous autofocus (CAF) monitoring is active.
     /// @return True if CAF is enabled.
     [[nodiscard]] bool isCafEnabled() const noexcept;
+
+    /// @brief Sets the motion gating state (e.g. from platform PTZ telemetry).
+    /// @param state Operational gating state (Active, Suppressed, SettlingHoldoff).
+    void setGatingState(AfGatingState state) noexcept;
+
+    /// @brief Queries current motion gating state.
+    /// @return Active AfGatingState.
+    [[nodiscard]] AfGatingState gatingState() const noexcept;
+
+    /// @brief Applies dynamically calculated adaptive step sizes based on optical DOF.
+    /// @param steps AdaptiveStepConfig containing scaled coarse, mid, and fine steps.
+    void applyAdaptiveSteps(const AdaptiveStepConfig& steps) noexcept;
 
     /// @brief Checks whether autofocus operation is currently in progress.
     /// @return True if search state machine is active.
@@ -167,9 +180,10 @@ private:
     float m_momentumVelocity { 0.0F };
     std::int32_t m_momentumLastPos { 0 };
 
-    // Continuous Autofocus (CAF)
+    // Continuous Autofocus (CAF) & Gating
     std::uint32_t m_cafPeakScore { 0U };
     bool m_cafEnabled { false };
+    AfGatingState m_gatingState { AfGatingState::Active };
 
     // Timing & Timeout
     std::uint64_t m_startTimeNs { 0U };
